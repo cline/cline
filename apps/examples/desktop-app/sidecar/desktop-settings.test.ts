@@ -7,15 +7,28 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { factoryPresetSchema } from "../webview/lib/factory-presets";
+import { createFactoryWorkflowRecipe } from "@cline/core";
+import { factoryWorkflowRecipeSchema } from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	type FactoryPresetSettings,
+	factoryPresetSchema,
+} from "../webview/lib/factory-presets";
+import {
+	applyFactoryHandsOffUpgrade,
+	type DesktopSettings,
+	missingDefaultFactoryWorkflow,
 	readDesktopSettings,
+	resolveDefaultFactoryWorkflow,
 	resolveDesktopSettingsPath,
 	setCloudSessionsEnabled,
+	withBuiltInFactoryPresets,
 	writeDesktopSettings,
 } from "./desktop-settings";
-import { handleFactoryCommand } from "./factory-commands";
+import {
+	handleFactoryCommand,
+	pushFactoryDefaultWorkflow,
+} from "./factory-commands";
 
 let dataDir: string;
 
@@ -77,7 +90,9 @@ describe("desktop settings", () => {
 							planReviewers: [{}],
 							implementers: [
 								{ instructions: "Small changes" },
-								{ modelSelection: { providerId: "example", modelId: "second" } },
+								{
+									modelSelection: { providerId: "example", modelId: "second" },
+								},
 							],
 							reviewers: [{}],
 						},
@@ -135,7 +150,9 @@ describe("desktop settings", () => {
 			readTask,
 		);
 		expect(readDesktopSettings().factoryDefaultPreset).toBe("Second");
-		expect(saved).toEqual(readDesktopSettings().factoryPresets);
+		expect(saved).toEqual(
+			withBuiltInFactoryPresets(readDesktopSettings()).factoryPresets,
+		);
 		await handleFactoryCommand(
 			ctx,
 			"factory_save_preset",
@@ -143,10 +160,9 @@ describe("desktop settings", () => {
 			readTask,
 		);
 		expect(readDesktopSettings().factoryDefaultPreset).toBeUndefined();
-		expect(readDesktopSettings().factoryPresets?.map(({ name }) => name)).toEqual([
-			"First",
-			"Second",
-		]);
+		expect(
+			readDesktopSettings().factoryPresets?.map(({ name }) => name),
+		).toEqual(["First", "Second"]);
 		expect(readFileSync(resolveDesktopSettingsPath(), "utf8")).not.toContain(
 			"useByDefault",
 		);
@@ -176,6 +192,13 @@ describe("desktop settings", () => {
 		const preset = readDesktopSettings().factoryPresets?.[0];
 		expect(preset?.config.agents?.implementers).toEqual([implementer]);
 		expect(preset?.config.agents).not.toHaveProperty("implementer");
+		// Legacy entries gain the same revision a fresh save of that config gets.
+		expect(preset?.revision).toBe(
+			createFactoryWorkflowRecipe({
+				name: "Legacy",
+				config: { agents: { implementers: [implementer] } },
+			}).revision,
+		);
 		await handleFactoryCommand(
 			{ pendingQuestions: new Map() },
 			"factory_save_preset",
@@ -188,6 +211,8 @@ describe("desktop settings", () => {
 			cloudSessionsEnabled: true,
 			factoryDefaultPreset: "Legacy",
 			factoryPresets: [preset],
+			// Saving is an explicit choice the one-time upgrade must not undo.
+			factoryHandsOffUpgradeApplied: true,
 		});
 	});
 
@@ -254,5 +279,361 @@ describe("desktop settings", () => {
 			"utf8",
 		);
 		expect(readDesktopSettings()).toEqual({ cloudSessionsEnabled: false });
+	});
+});
+
+describe("Hands-off workflow and the Hub default", () => {
+	const ctx = { pendingQuestions: new Map() };
+	const readTask = async () => {
+		throw new Error("Preset save must not access tasks");
+	};
+
+	it("makes the built-in Hands-off workflow the default only for a profile with no workflows or default", () => {
+		const fresh = withBuiltInFactoryPresets(readDesktopSettings());
+		expect(fresh.factoryDefaultPreset).toBe("Hands-off");
+		expect(fresh.factoryPresets).toEqual([
+			createFactoryWorkflowRecipe({
+				name: "Hands-off",
+				config: {
+					autonomy: "hands_off",
+					approval: "automatic",
+					reviewMode: "adaptive",
+					agents: fresh.factoryPresets?.[0]?.config.agents,
+					maxCostUsd: 10,
+					maxRepairRounds: 2,
+				},
+			}),
+		]);
+		expect(fresh.factoryPresets?.[0]?.config).toMatchObject({
+			autonomy: "hands_off",
+			approval: "automatic",
+			// Adaptive review records each change's impact for the by-risk
+			// review policy, and each card stops after $10.
+			reviewMode: "adaptive",
+			maxCostUsd: 10,
+			agents: {
+				designer: expect.anything(),
+				implementers: [expect.anything()],
+			},
+		});
+		expect(resolveDefaultFactoryWorkflow({})?.name).toBe("Hands-off");
+		// Reading never writes the built-in.
+		expect(readDesktopSettings()).toEqual({ cloudSessionsEnabled: false });
+
+		const existing = createFactoryWorkflowRecipe({
+			name: "Mine",
+			config: { maxRepairRounds: 1 },
+		});
+		const other = createFactoryWorkflowRecipe({
+			name: "Other",
+			config: {},
+		});
+		const user = withBuiltInFactoryPresets({
+			factoryPresets: [existing, other],
+			factoryDefaultPreset: "Other",
+		});
+		expect(user.factoryDefaultPreset).toBe("Other");
+		expect(user.factoryPresets?.map(({ name }) => name)).toEqual([
+			"Mine",
+			"Other",
+			"Hands-off",
+		]);
+		// A cleared default stays cleared once the user has workflows.
+		expect(
+			withBuiltInFactoryPresets<FactoryPresetSettings>({
+				factoryPresets: [existing],
+			}).factoryDefaultPreset,
+		).toBeUndefined();
+		expect(resolveDefaultFactoryWorkflow({ factoryPresets: [existing] })).toBe(
+			undefined,
+		);
+		// A user workflow named Hands-off replaces the built-in.
+		const renamed = createFactoryWorkflowRecipe({
+			name: "Hands-off",
+			config: { maxRepairRounds: 4 },
+		});
+		expect(
+			withBuiltInFactoryPresets({ factoryPresets: [renamed] }).factoryPresets,
+		).toEqual([renamed]);
+	});
+
+	it("never adds the built-in spending limit to a saved workflow", () => {
+		const legacy = createFactoryWorkflowRecipe({
+			name: "Mine",
+			config: { approval: "required", maxRepairRounds: 2 },
+		});
+		const written: DesktopSettings[] = [];
+		const upgraded = applyFactoryHandsOffUpgrade(
+			() => ({
+				cloudSessionsEnabled: false,
+				factoryPresets: [legacy],
+				factoryDefaultPreset: "Mine",
+			}),
+			(settings) => written.push(settings),
+		);
+		const mine = upgraded.factoryPresets?.find(({ name }) => name === "Mine");
+		expect(mine?.config.maxCostUsd).toBeUndefined();
+		expect(written[0]?.factoryPresets?.[0]?.config.maxCostUsd).toBeUndefined();
+		expect(
+			resolveDefaultFactoryWorkflow({
+				factoryPresets: [legacy],
+				factoryDefaultPreset: "Mine",
+			})?.config.maxCostUsd,
+		).toBeUndefined();
+	});
+
+	it("keeps Hands-off as the default when a fresh profile saves its first other workflow", async () => {
+		const saved = await handleFactoryCommand(
+			ctx,
+			"factory_save_preset",
+			{ name: "Careful", config: {} },
+			readTask,
+		);
+		expect(readDesktopSettings().factoryDefaultPreset).toBe("Hands-off");
+		expect(
+			readDesktopSettings().factoryPresets?.map(({ name }) => name),
+		).toEqual(["Careful"]);
+		expect((saved as { name: string }[]).map(({ name }) => name)).toEqual([
+			"Careful",
+			"Hands-off",
+		]);
+		expect(resolveDefaultFactoryWorkflow(readDesktopSettings())?.name).toBe(
+			"Hands-off",
+		);
+	});
+
+	it("round trips autonomy through save, reload, and recipe export and import", async () => {
+		const setDefaults = vi.fn(async () => ({}));
+		await handleFactoryCommand(
+			ctx,
+			"factory_save_preset",
+			{
+				name: "Autopilot",
+				config: { autonomy: "hands_off", approval: "required" },
+				useByDefault: true,
+			},
+			readTask,
+			setDefaults,
+		);
+		const [preset] = readDesktopSettings().factoryPresets ?? [];
+		expect(preset?.config).toMatchObject({
+			autonomy: "hands_off",
+			approval: "required",
+		});
+		expect(preset?.revision).not.toBe(
+			createFactoryWorkflowRecipe({
+				name: "Autopilot",
+				config: { approval: "required" },
+			}).revision,
+		);
+		const exported = factoryWorkflowRecipeSchema.parse(
+			JSON.parse(
+				JSON.stringify({ schemaVersion: 1, ...preset, name: "Imported" }),
+			),
+		);
+		expect(exported.config.autonomy).toBe("hands_off");
+		await handleFactoryCommand(
+			ctx,
+			"factory_save_preset",
+			{
+				name: exported.name,
+				revision: exported.revision,
+				config: exported.config,
+			},
+			readTask,
+			setDefaults,
+		);
+		expect(readDesktopSettings().factoryPresets?.[1]).toEqual({
+			...preset,
+			name: "Imported",
+		});
+		// Dropping autonomy changes the revision, so it cannot be smuggled out.
+		await expect(
+			handleFactoryCommand(
+				ctx,
+				"factory_save_preset",
+				{
+					name: "Tampered",
+					revision: exported.revision,
+					config: { ...exported.config, autonomy: undefined },
+				},
+				readTask,
+				setDefaults,
+			),
+		).rejects.toThrow("revision does not match");
+	});
+
+	it("pushes the default to the Hub on every preset save and surfaces a failed push", async () => {
+		const setDefaults = vi.fn(async (_workflow: unknown) => ({}));
+		await handleFactoryCommand(
+			ctx,
+			"factory_save_preset",
+			{ name: "Focused", config: { maxRepairRounds: 1 }, useByDefault: true },
+			readTask,
+			setDefaults,
+		);
+		const focused = readDesktopSettings().factoryPresets?.[0];
+		expect(setDefaults).toHaveBeenLastCalledWith({
+			schemaVersion: 1,
+			name: "Focused",
+			revision: focused?.revision,
+			config: focused?.config,
+		});
+		await handleFactoryCommand(
+			ctx,
+			"factory_save_preset",
+			{ name: "Focused", config: {}, useByDefault: false },
+			readTask,
+			setDefaults,
+		);
+		expect(setDefaults).toHaveBeenLastCalledWith(null);
+		expect(setDefaults).toHaveBeenCalledTimes(2);
+
+		setDefaults.mockRejectedValueOnce(new Error("Hub unavailable"));
+		await expect(
+			handleFactoryCommand(
+				ctx,
+				"factory_save_preset",
+				{ name: "Second", config: {}, useByDefault: true },
+				readTask,
+				setDefaults,
+			),
+		).rejects.toThrow(
+			"Saved “Second”, but Factory could not update the default workflow for new work: Hub unavailable",
+		);
+		// The workflow itself is saved; saving again retries the push.
+		expect(readDesktopSettings().factoryDefaultPreset).toBe("Second");
+	});
+
+	it("sends the built-in Hands-off workflow instead of failing when the chosen default is missing", async () => {
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Unavailable",
+		});
+		const setDefaults = vi.fn(async (_workflow: unknown) => ({}));
+		const onInvalidDefault = vi.fn();
+		// The Hub and Desktop intake resolve the same workflow.
+		const intake = resolveDefaultFactoryWorkflow(readDesktopSettings());
+		expect(intake).toMatchObject({
+			name: "Hands-off",
+			config: { autonomy: "hands_off", approval: "automatic" },
+		});
+		await expect(
+			pushFactoryDefaultWorkflow(setDefaults, undefined, onInvalidDefault),
+		).resolves.toEqual(intake);
+		expect(setDefaults).toHaveBeenCalledWith(intake);
+		expect(missingDefaultFactoryWorkflow(readDesktopSettings())).toContain(
+			"uses the built-in Hands-off workflow",
+		);
+		expect(onInvalidDefault).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: expect.stringContaining("“Unavailable” is missing"),
+			}),
+		);
+		writeDesktopSettings({ cloudSessionsEnabled: false });
+		await expect(
+			pushFactoryDefaultWorkflow(setDefaults),
+		).resolves.toMatchObject({ name: "Hands-off" });
+	});
+});
+
+describe("one-time hands-off upgrade", () => {
+	const legacy = () =>
+		writeDesktopSettings({
+			cloudSessionsEnabled: true,
+			factoryDefaultPreset: "Reviewed delivery",
+			factoryPresets: [
+				createFactoryWorkflowRecipe({
+					name: "Reviewed delivery",
+					config: { approval: "required", maxRepairRounds: 1 },
+				}),
+				createFactoryWorkflowRecipe({ name: "Other", config: {} }),
+			],
+		});
+
+	it("upgrades a legacy default to hands-off with automatic approval once", () => {
+		legacy();
+		const upgraded = applyFactoryHandsOffUpgrade();
+		const saved = readDesktopSettings();
+		expect(saved).toEqual(upgraded);
+		expect(saved.factoryHandsOffUpgradeApplied).toBe(true);
+		expect(saved.cloudSessionsEnabled).toBe(true);
+		const [reviewed, other] = saved.factoryPresets ?? [];
+		expect(reviewed?.config).toMatchObject({
+			autonomy: "hands_off",
+			approval: "automatic",
+			maxRepairRounds: 1,
+		});
+		// The revision follows the upgraded config, so the Hub sees a new recipe.
+		expect(reviewed?.revision).toBe(
+			createFactoryWorkflowRecipe({
+				name: "Reviewed delivery",
+				config: reviewed?.config ?? {},
+			}).revision,
+		);
+		// Only the default is upgraded.
+		expect(other?.config).not.toHaveProperty("autonomy");
+		expect(resolveDefaultFactoryWorkflow(saved)?.config).toMatchObject({
+			autonomy: "hands_off",
+			approval: "automatic",
+		});
+	});
+
+	it("respects a default turned back to manual after the upgrade", () => {
+		legacy();
+		applyFactoryHandsOffUpgrade();
+		const settings = readDesktopSettings();
+		writeDesktopSettings({
+			...settings,
+			factoryPresets: [
+				createFactoryWorkflowRecipe({
+					name: "Reviewed delivery",
+					config: { approval: "required" },
+				}),
+			],
+		});
+		const write = vi.fn();
+		const kept = applyFactoryHandsOffUpgrade(readDesktopSettings, write);
+		expect(write).not.toHaveBeenCalled();
+		expect(kept.factoryPresets?.[0]?.config).not.toHaveProperty("autonomy");
+		expect(kept.factoryPresets?.[0]?.config.approval).toBe("required");
+	});
+
+	it("marks a profile whose default is already hands-off without changing it", () => {
+		const preset = createFactoryWorkflowRecipe({
+			name: "Mine",
+			config: { autonomy: "hands_off", approval: "required" },
+		});
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Mine",
+			factoryPresets: [preset],
+		});
+		const result = applyFactoryHandsOffUpgrade();
+		expect(result.factoryPresets).toEqual([preset]);
+		expect(readDesktopSettings().factoryHandsOffUpgradeApplied).toBe(true);
+	});
+
+	it("leaves a fresh profile unwritten; it already uses the built-in Hands-off default", () => {
+		const write = vi.fn();
+		expect(applyFactoryHandsOffUpgrade(readDesktopSettings, write)).toEqual({
+			cloudSessionsEnabled: false,
+		});
+		expect(write).not.toHaveBeenCalled();
+	});
+
+	it("marks the upgrade applied when the user saves a workflow", async () => {
+		await handleFactoryCommand(
+			{ pendingQuestions: new Map() },
+			"factory_save_preset",
+			{ name: "Manual", config: {}, useByDefault: true },
+			async () => {
+				throw new Error("Preset save must not access tasks");
+			},
+		);
+		const write = vi.fn();
+		const kept = applyFactoryHandsOffUpgrade(readDesktopSettings, write);
+		expect(write).not.toHaveBeenCalled();
+		expect(kept.factoryPresets?.[0]?.config).not.toHaveProperty("autonomy");
 	});
 });

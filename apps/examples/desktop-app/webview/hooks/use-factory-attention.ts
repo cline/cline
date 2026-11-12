@@ -6,18 +6,47 @@ import type { AskQuestionRequestItem } from "@/hooks/chat-session/types";
 import { desktopClient } from "@/lib/desktop-client";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
+export type FactoryActiveSession = {
+	sessionId: string;
+	role: "builder" | "reviewer" | "verifier";
+	/** ISO time the attempt started. */
+	startedAt: string;
+	/** A repository stage's name, when the session runs one. */
+	stage?: string;
+};
+
 export type FactoryAttention = {
 	taskId: string;
 	revision: number;
 	runId?: string;
 	questions: AskQuestionRequestItem[];
 	needsAttention: boolean;
+	/** Factory filed this card for a pattern reviewers found in several cards. */
+	ruleCard?: boolean;
 	outcome?: Pick<
 		FactoryRunState,
-		"phase" | "humanApproval" | "audit" | "usage" | "repairRound"
+		| "phase"
+		| "humanApproval"
+		| "audit"
+		| "usage"
+		| "repairRound"
+		| "humanReview"
+		| "pullRequestUrl"
+		| "unresolvedFindings"
+		| "pullRequestOutcome"
+		| "error"
 	> & {
+		/** The verification setup's dry run, without its log. */
+		verificationProfile?: Omit<
+			NonNullable<FactoryRunState["verificationProfile"]>,
+			"detail"
+		>;
 		activeRoles: Array<"builder" | "reviewer" | "verifier">;
+		/** Role sessions with a running attempt, oldest first. */
+		activeSessions: FactoryActiveSession[];
 		followupPaused: boolean;
+		/** Factory marked the draft PR ready for review. */
+		pullRequestReady?: boolean;
 	};
 };
 

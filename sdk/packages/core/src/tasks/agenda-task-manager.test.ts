@@ -306,6 +306,38 @@ describe("AgendaTaskManager", () => {
 		expect(await second).toBe("Feature cancelled");
 	});
 
+	it("lets a replacement session wait on a question its abandoned session asked", async () => {
+		const { manager, root } = createHarness();
+		const task = await manager.createTask({
+			type: "todo",
+			title: "Choose feature behavior",
+			instructions: "Clarify behavior",
+			scope: "workspace",
+			workspaceRoot: root,
+			expiresAt: future(),
+			createdBy: { kind: "user" },
+			factory: factoryTaskConfigSchema.parse({}),
+		});
+		const input = {
+			taskId: task.taskId,
+			sessionId: "timed-out-designer",
+			question: "Which empty state?",
+		};
+		// A run deadline aborts the session but leaves its question wait pending.
+		const abandoned = manager.requestFactoryQuestion(input);
+		const replacement = manager.requestFactoryQuestion({
+			...input,
+			sessionId: "resumed-designer",
+		});
+		const questions = (await manager.getTask(task.taskId))?.factoryQuestions;
+		expect(questions).toHaveLength(1);
+		const questionId = questions?.[0]?.questionId;
+		if (!questionId) throw new Error("Question was not persisted");
+		await manager.answerFactoryQuestion(task.taskId, questionId, "Explain");
+		await expect(replacement).resolves.toBe("Explain");
+		await expect(abandoned).resolves.toBe("Explain");
+	});
+
 	it("requires approval, links a session, and completes the task", async () => {
 		const { manager, runtime, events } = createHarness();
 		await manager.start();

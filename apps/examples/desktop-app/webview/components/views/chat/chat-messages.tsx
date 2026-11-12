@@ -10,7 +10,14 @@ import {
 	MessageScrollerViewport,
 } from "@cline/ui/components/message-scroller";
 import { Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -42,6 +49,7 @@ import {
 	isSystemSteeringMessage,
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
+import { InitialPromptDisclosure } from "./messages/initial-prompt-disclosure";
 import { MessageBubble } from "./messages/message-bubble";
 import {
 	ToolApprovalPanel,
@@ -68,11 +76,13 @@ type ChatMessagesProps = {
 	/** Replaces "Thinking..." while the runtime reports a named pre-output step. */
 	activityLabel?: string | null;
 	streamingMessageId?: string | null;
-	pendingToolApprovals: ToolApprovalRequestItem[];
-	pendingAskQuestions: AskQuestionRequestItem[];
-	onApproveToolApproval: (requestId: string) => void | Promise<void>;
-	onRejectToolApproval: (requestId: string) => void | Promise<void>;
-	onAnswerAskQuestion: (
+	pendingToolApprovals?: ToolApprovalRequestItem[];
+	pendingAskQuestions?: AskQuestionRequestItem[];
+	/** The approval card renders only when both decision callbacks are set. */
+	onApproveToolApproval?: (requestId: string) => void | Promise<void>;
+	onRejectToolApproval?: (requestId: string) => void | Promise<void>;
+	/** The question panel renders only when this is set. */
+	onAnswerAskQuestion?: (
 		requestId: string,
 		answer: string,
 	) => void | Promise<void>;
@@ -91,7 +101,31 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	/** Opens the settings page that fixes a credential failure. */
 	onFixCredentials?: (target: "account" | "models") => void;
+	/**
+	 * Watch-only transcript (e.g. a Factory role session shown in its card):
+	 * no approve/reject, answer, edit, fork, checkpoint restore, proceed,
+	 * credential or error-recovery controls render anywhere in the tree, and
+	 * the mutating callbacks above are ignored. Copy stays available.
+	 */
+	readOnly?: boolean;
+	/**
+	 * Narrow-panel rendering (e.g. a Factory card's Live tab): no message
+	 * minimap, tight padding, user messages use the full width, and Markdown
+	 * headings shrink to body sizes so long words don't break mid-word.
+	 */
+	compact?: boolean;
+	/**
+	 * Folds the transcript's opening prompt (when it is the first row) behind
+	 * a disclosure, for transcripts whose first message is machine-written
+	 * instructions rather than something a person said.
+	 */
+	collapseInitialPrompt?: { showLabel: string; hideLabel: string };
 };
+
+// Stable defaults so omitted pending lists keep the memoised rows and the
+// prune effects below from re-running on every render.
+const NO_TOOL_APPROVALS: ToolApprovalRequestItem[] = [];
+const NO_ASK_QUESTIONS: AskQuestionRequestItem[] = [];
 
 type AskQuestionRequestItem = {
 	requestId: string;
@@ -116,19 +150,43 @@ function ChatMessagesImpl({
 	importedFromTool,
 	activityLabel = null,
 	streamingMessageId = null,
-	pendingToolApprovals,
-	pendingAskQuestions,
-	onApproveToolApproval,
-	onRejectToolApproval,
-	onAnswerAskQuestion,
-	onRestoreCheckpoint,
-	onEditMessage,
-	onForkSession,
+	pendingToolApprovals: pendingToolApprovalsProp = NO_TOOL_APPROVALS,
+	pendingAskQuestions: pendingAskQuestionsProp = NO_ASK_QUESTIONS,
+	onApproveToolApproval: onApproveToolApprovalProp,
+	onRejectToolApproval: onRejectToolApprovalProp,
+	onAnswerAskQuestion: onAnswerAskQuestionProp,
+	onRestoreCheckpoint: onRestoreCheckpointProp,
+	onEditMessage: onEditMessageProp,
+	onForkSession: onForkSessionProp,
 	startingLabel,
-	errorAction,
-	onProceedWhileRunning,
-	onFixCredentials,
+	errorAction: errorActionProp,
+	onProceedWhileRunning: onProceedWhileRunningProp,
+	onFixCredentials: onFixCredentialsProp,
+	readOnly = false,
+	compact = false,
+	collapseInitialPrompt,
 }: ChatMessagesProps) {
+	// Read-only drops every mutating entry point once, here, so no row below
+	// can offer one; the props themselves keep their identity otherwise.
+	const pendingToolApprovals = readOnly
+		? NO_TOOL_APPROVALS
+		: pendingToolApprovalsProp;
+	const pendingAskQuestions = readOnly
+		? NO_ASK_QUESTIONS
+		: pendingAskQuestionsProp;
+	const onApproveToolApproval = readOnly
+		? undefined
+		: onApproveToolApprovalProp;
+	const onRejectToolApproval = readOnly ? undefined : onRejectToolApprovalProp;
+	const onAnswerAskQuestion = readOnly ? undefined : onAnswerAskQuestionProp;
+	const onRestoreCheckpoint = readOnly ? undefined : onRestoreCheckpointProp;
+	const onEditMessage = readOnly ? undefined : onEditMessageProp;
+	const onForkSession = readOnly ? undefined : onForkSessionProp;
+	const errorAction = readOnly ? undefined : errorActionProp;
+	const onProceedWhileRunning = readOnly
+		? undefined
+		: onProceedWhileRunningProp;
+	const onFixCredentials = readOnly ? undefined : onFixCredentialsProp;
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
 	// every stream flush, so a reversed array clone per render would churn
@@ -238,6 +296,15 @@ function ChatMessagesImpl({
 	);
 	const isRunActive =
 		status === "starting" || status === "running" || status === "stopping";
+	const firstRenderItem = renderItems[0];
+	const collapsedPromptId =
+		collapseInitialPrompt &&
+		firstRenderItem?.type === "message" &&
+		(firstRenderItem.message.role === "user" ||
+			firstRenderItem.message.role === "system") &&
+		!isSystemSteeringMessage(firstRenderItem.message)
+			? firstRenderItem.message.id
+			: undefined;
 	const lastUserItemIndex = renderItems.findLastIndex(
 		(item) =>
 			item.type === "message" &&
@@ -368,7 +435,7 @@ function ChatMessagesImpl({
 				return next;
 			});
 			try {
-				await Promise.resolve(onAnswerAskQuestion(requestId, answer));
+				await Promise.resolve(onAnswerAskQuestion?.(requestId, answer));
 			} catch (err) {
 				const message =
 					err instanceof Error ? err.message : "Could not submit answer.";
@@ -545,6 +612,18 @@ function ChatMessagesImpl({
 		[onForkSession],
 	);
 
+	const wrapInitialPrompt = (messageId: string, bubble: ReactNode) =>
+		collapseInitialPrompt && messageId === collapsedPromptId ? (
+			<InitialPromptDisclosure
+				hideLabel={collapseInitialPrompt.hideLabel}
+				showLabel={collapseInitialPrompt.showLabel}
+			>
+				{bubble}
+			</InitialPromptDisclosure>
+		) : (
+			bubble
+		);
+
 	return (
 		<MessageScrollerProvider
 			key={sessionId ?? "new-chat"}
@@ -560,7 +639,11 @@ function ChatMessagesImpl({
 					<MessageScrollerContent
 						className={cn(
 							"mx-auto w-full min-w-0 max-w-[calc(var(--breakpoint-lg)+3rem)] gap-4",
-							showIdleDetails ? "p-0" : "pt-6 pb-16 pl-12 pr-6",
+							showIdleDetails
+								? "p-0"
+								: compact
+									? "px-3 pt-3 pb-8"
+									: "pt-6 pb-16 pl-12 pr-6",
 						)}
 					>
 						{showIdleDetails ? null : (
@@ -597,6 +680,7 @@ function ChatMessagesImpl({
 										return (
 											<MessageBubble
 												agentRole={child.agentRole}
+												compact={compact}
 												isLastAssistantMessage={
 													child.message.role === "assistant" &&
 													lastConversationMessage === child.message
@@ -665,65 +749,70 @@ function ChatMessagesImpl({
 												!isSystemSteeringMessage(message)
 											}
 										>
-											<MessageBubble
-												agentRole={agentRole}
-												followsWorkingRows={followsWorkingRows}
-												isLastAssistantMessage={
-													message.role === "assistant" &&
-													lastConversationMessage === message
-												}
-												isStreaming={streamingMessageId === message.id}
-												key={message.id}
-												message={message}
-												runCount={userRunCountByMessage.get(message)}
-												onExpandImage={handleExpandImage}
-												onCopyMessage={handleCopyMessage}
-												onEditMessage={
-													onEditMessage ? requestEditMessage : undefined
-												}
-												editDisabled={
-													!onEditMessage ||
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												editError={editErrors[message.id]}
-												editPending={editingMessageId === message.id}
-												onRestoreCheckpoint={
-													onRestoreCheckpoint
-														? requestRestoreCheckpoint
-														: undefined
-												}
-												restoreDisabled={
-													!onRestoreCheckpoint ||
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												restoreError={checkpointErrors[message.id]}
-												restorePending={
-													checkpointActions[message.id] === "undoing"
-												}
-												wasCopied={copiedMessageId === message.id}
-												onForkSession={
-													onForkSession ? handleForkSession : undefined
-												}
-												forkDisabled={
-													status === "starting" ||
-													status === "running" ||
-													status === "stopping" ||
-													isSessionSwitching ||
-													sessionVersioningPending
-												}
-												forkPending={forkingMessageId === message.id}
-												forkError={forkErrors[message.id]}
-												onFixCredentials={onFixCredentials}
-												{...getReasoningProps(reasoningMessages)}
-											/>
+											{wrapInitialPrompt(
+												message.id,
+												<MessageBubble
+													agentRole={agentRole}
+													compact={compact}
+													followsWorkingRows={followsWorkingRows}
+													isLastAssistantMessage={
+														message.role === "assistant" &&
+														lastConversationMessage === message
+													}
+													isStreaming={streamingMessageId === message.id}
+													key={message.id}
+													message={message}
+													runCount={userRunCountByMessage.get(message)}
+													onExpandImage={handleExpandImage}
+													onCopyMessage={handleCopyMessage}
+													readOnly={readOnly}
+													onEditMessage={
+														onEditMessage ? requestEditMessage : undefined
+													}
+													editDisabled={
+														!onEditMessage ||
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													editError={editErrors[message.id]}
+													editPending={editingMessageId === message.id}
+													onRestoreCheckpoint={
+														onRestoreCheckpoint
+															? requestRestoreCheckpoint
+															: undefined
+													}
+													restoreDisabled={
+														!onRestoreCheckpoint ||
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													restoreError={checkpointErrors[message.id]}
+													restorePending={
+														checkpointActions[message.id] === "undoing"
+													}
+													wasCopied={copiedMessageId === message.id}
+													onForkSession={
+														onForkSession ? handleForkSession : undefined
+													}
+													forkDisabled={
+														status === "starting" ||
+														status === "running" ||
+														status === "stopping" ||
+														isSessionSwitching ||
+														sessionVersioningPending
+													}
+													forkPending={forkingMessageId === message.id}
+													forkError={forkErrors[message.id]}
+													onFixCredentials={onFixCredentials}
+													{...getReasoningProps(reasoningMessages)}
+												/>,
+											)}
 										</MessageScrollerItem>
 									);
 								})}
@@ -746,7 +835,9 @@ function ChatMessagesImpl({
 										</span>
 									</MessageScrollerItem>
 								) : null}
-								{pendingToolApprovals.length > 0 ? (
+								{pendingToolApprovals.length > 0 &&
+								onApproveToolApproval &&
+								onRejectToolApproval ? (
 									<MessageScrollerItem messageId="tool-approvals">
 										<ToolApprovalPanel
 											items={pendingToolApprovals}
@@ -769,7 +860,7 @@ function ChatMessagesImpl({
 										/>
 									</MessageScrollerItem>
 								) : null}
-								{askQuestionItems.length > 0 ? (
+								{askQuestionItems.length > 0 && onAnswerAskQuestion ? (
 									<MessageScrollerItem messageId="ask-questions">
 										<AgentAskQuestion
 											errors={askQuestionErrors}
@@ -840,7 +931,7 @@ function ChatMessagesImpl({
 					</MessageScrollerContent>
 				</MessageScrollerViewport>
 				<MessageScrollerButton />
-				<TranscriptOutline messages={messages} />
+				{compact ? null : <TranscriptOutline messages={messages} />}
 				{visibleExpandedImage ? (
 					<ChatImageLightbox
 						image={visibleExpandedImage}

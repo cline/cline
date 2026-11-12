@@ -92,6 +92,10 @@ function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
 // Memoized with id-parameterized callbacks: during streaming only the message
 // object that received a delta changes identity, so all other bubbles skip
 // re-rendering (and re-running their Markdown pipeline) per flush.
+/** Markdown headings at body sizes for a narrow, read-only transcript. */
+const COMPACT_MARKDOWN_CLASS =
+	"[&_:is(h1,h2,h3,h4,h5,h6)]:mt-3 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-1 [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold [&_:is(h1,h2,h3,h4,h5,h6)]:leading-snug [&_h1]:text-base [&_:is(h2,h3,h4,h5,h6)]:text-sm";
+
 export const MessageBubble = memo(function MessageBubble({
 	agentRole,
 	message,
@@ -115,6 +119,8 @@ export const MessageBubble = memo(function MessageBubble({
 	isLastAssistantMessage = false,
 	followsWorkingRows = false,
 	onFixCredentials,
+	readOnly = false,
+	compact = false,
 	reasoningContent,
 	reasoningRedacted,
 	thoughtDurationMilliseconds,
@@ -152,13 +158,19 @@ export const MessageBubble = memo(function MessageBubble({
 	/** Opens the page where the credentials of a failed turn's provider can
 	 * be fixed (Settings → Account for Cline, Settings → Providers otherwise). */
 	onFixCredentials?: (target: "account" | "models") => void;
+	/** Watch-only transcript: hides the checkpoint restore action, which
+	 * otherwise renders (disabled) even without a restore callback. */
+	readOnly?: boolean;
+	/** Narrow panel: the user bubble takes the full width and Markdown
+	 * headings use body sizes. */
+	compact?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
 	thoughtDurationMilliseconds?: number;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
-	const checkpoint = message.meta?.checkpoint;
+	const checkpoint = readOnly ? undefined : message.meta?.checkpoint;
 	// Runtime steering notes (completion nudges in scheduled/automation runs,
 	// team-obligation reminders) are user-role messages the machinery sends to
 	// the model, not something the person said or needs to read — hide them
@@ -236,7 +248,14 @@ export const MessageBubble = memo(function MessageBubble({
 			)}
 			from={agentRole}
 		>
-			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
+			<MessageContent
+				className={cn(
+					"flex min-w-0 flex-col gap-2 wrap-break-word",
+					// Utilities outrank agent-chat.css's components-layer 50%/85%
+					// user-bubble width, which leaves ~200px in a narrow panel.
+					compact && "max-w-full",
+				)}
+			>
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
@@ -257,7 +276,12 @@ export const MessageBubble = memo(function MessageBubble({
 				{message.media?.length ? <MessageMedia media={message.media} /> : null}
 
 				{displayContent ? (
-					<div className="min-w-0 max-w-full wrap-break-word">
+					<div
+						className={cn(
+							"min-w-0 max-w-full wrap-break-word",
+							compact && COMPACT_MARKDOWN_CLASS,
+						)}
+					>
 						<MemoizedMarkdown
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}

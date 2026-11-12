@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyFactoryManagerRequest,
 	readHubClientContext,
 	readHubUserContext,
 	readSessionConnectionUpdate,
 	resolveSessionAutoApproveTools,
 	selectSessionTools,
+	stripServerOwnedSessionMetadata,
 } from "./session-handlers";
 
 const tool = (name: string) => ({ name });
@@ -138,5 +140,65 @@ describe("resolveSessionAutoApproveTools", () => {
 		expect(
 			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
 		).toBe(true);
+	});
+});
+
+describe("Factory manager session metadata", () => {
+	it("never takes the manager marker from a client and stamps it only for a trusted client's request", () => {
+		// A forged marker is dropped, trusted or not.
+		for (const trusted of [false, true]) {
+			const forged: Record<string, unknown> = {
+				factoryManager: { schemaVersion: 1 },
+				title: "Chat",
+			};
+			expect(applyFactoryManagerRequest(forged, trusted)).toBeUndefined();
+			expect(forged).toEqual({ title: "Chat" });
+		}
+		// An untrusted request is refused.
+		const untrusted: Record<string, unknown> = {
+			factoryManagerRequested: true,
+		};
+		expect(applyFactoryManagerRequest(untrusted, false)).toMatch(
+			/Only the desktop app/,
+		);
+		expect(untrusted).toEqual({});
+		// A trusted request gets the marker the Hub sets.
+		const trusted: Record<string, unknown> = {
+			factoryManagerRequested: true,
+			title: "Factory manager",
+		};
+		expect(applyFactoryManagerRequest(trusted, true)).toBeUndefined();
+		expect(trusted).toEqual({
+			title: "Factory manager",
+			factoryManager: { schemaVersion: 1 },
+		});
+		// Never together with a Factory task, intake or remote session.
+		for (const key of [
+			"factoryTaskId",
+			"factoryRole",
+			"agendaTaskId",
+			"factoryIntake",
+			"remoteEnvironmentId",
+		])
+			expect(
+				applyFactoryManagerRequest(
+					{ factoryManagerRequested: true, [key]: "x" },
+					true,
+				),
+				key,
+			).toMatch(/cannot also be/);
+		expect(
+			applyFactoryManagerRequest({ factoryManagerRequested: "yes" }, true),
+		).toMatch(/must be true/);
+	});
+
+	it("strips the manager marker and request from session updates", () => {
+		expect(
+			stripServerOwnedSessionMetadata({
+				factoryManager: { schemaVersion: 1 },
+				factoryManagerRequested: true,
+				title: "Chat",
+			}),
+		).toEqual({ title: "Chat" });
 	});
 });

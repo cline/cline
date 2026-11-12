@@ -48,11 +48,13 @@ export type FileReadResultContent = string | Array<TextContent | ImageContent>;
  *
  * @param request - File path and optional inclusive line range to read
  * @param context - Tool execution context
+ * @param cwd - Session directory honored by the default reader; custom readers may own path resolution
  * @returns The file content as a string
  */
 export type FileReadExecutor = (
 	request: ReadFileRequest,
 	context: AgentToolContext,
+	cwd?: string,
 ) => Promise<FileReadResultContent>;
 
 /**

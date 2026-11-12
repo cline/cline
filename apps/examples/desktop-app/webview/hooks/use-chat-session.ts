@@ -60,7 +60,9 @@ import {
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
+import type { FactoryIntakeStart } from "@/lib/factory-intake";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import type { ExecutionTarget } from "@/lib/model-selection";
 import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
@@ -556,7 +558,10 @@ function dispatchCoreLog(chunk: string): void {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useChatSession(environmentId: string) {
+export function useChatSession(
+	environmentId: string,
+	options?: { executionTarget?: ExecutionTarget },
+) {
 	const subscribeToEnvironment = useCallback(
 		(name: string, listener: (payload: unknown) => void) =>
 			desktopClient.subscribe(name, (payload) => {
@@ -569,7 +574,7 @@ export function useChatSession(environmentId: string) {
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
-		getInitialChatConfig(environmentId),
+		getInitialChatConfig(environmentId, options),
 	);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -2603,14 +2608,25 @@ export function useChatSession(environmentId: string) {
 	const startSession = useCallback(
 		async (
 			validatedConfig: ChatSessionConfig,
-			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
+			options: {
+				preserveStatus?: boolean;
+				initialPrompt?: string;
+				factoryIntake?: FactoryIntakeStart;
+				factoryManager?: true;
+			} = {},
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
 			setIsHydratingSession(false);
 			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
 				action: "start",
-				config: boundConfig,
+				config: {
+					...boundConfig,
+					...(options.factoryIntake
+						? { factoryIntake: options.factoryIntake }
+						: {}),
+					...(options.factoryManager ? { factoryManager: true } : {}),
+				},
 				...(options.initialPrompt?.trim()
 					? { prompt: options.initialPrompt.trim() }
 					: {}),
@@ -2723,6 +2739,10 @@ export function useChatSession(environmentId: string) {
 			options?: {
 				/** Start the session in a fresh git worktree of the current workspace. */
 				inNewWorktree?: boolean;
+				/** Start a new session as a Factory intake; ignored once it exists. */
+				factoryIntake?: FactoryIntakeStart;
+				/** Start a new session as the Factory manager; ignored once it exists. */
+				factoryManager?: true;
 			},
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
@@ -2977,6 +2997,8 @@ export function useChatSession(environmentId: string) {
 											parsed.executionTarget === "cloud"
 												? userLabel
 												: undefined,
+										factoryIntake: options?.factoryIntake,
+										factoryManager: options?.factoryManager,
 									},
 								);
 					sessionStartPromiseRef.current = startPromise;
@@ -3875,6 +3897,7 @@ export function useChatSession(environmentId: string) {
 			}
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
+			const statusRevision = authoritativeStatusRevisionRef.current;
 			hydrationRequestIdRef.current = requestId;
 			setIsCloudSessionExpired(
 				session.origin === "cloud" && session.status === "expired",
@@ -3948,12 +3971,14 @@ export function useChatSession(environmentId: string) {
 				}
 				setRawTranscript("");
 				resetCounters();
-				setStatus(
-					session.origin === "cloud"
-						? (mapCloudRuntimeStatus(sessionStatus) ??
-								inferHydratedChatStatus(sessionStatus, msgs))
-						: inferHydratedChatStatus(sessionStatus, msgs),
-				);
+				if (authoritativeStatusRevisionRef.current === statusRevision) {
+					setStatus(
+						session.origin === "cloud"
+							? (mapCloudRuntimeStatus(sessionStatus) ??
+									inferHydratedChatStatus(sessionStatus, msgs))
+							: inferHydratedChatStatus(sessionStatus, msgs),
+					);
+				}
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
@@ -4054,20 +4079,25 @@ export function useChatSession(environmentId: string) {
 					);
 				}
 
+				// Attached records describe a live host; assistant narration in history cannot prove completion.
 				if (historyMessages.length > 0) {
-					setStatus(
-						session.origin === "cloud"
-							? (mapCloudRuntimeStatus(attached?.status || session.status) ??
-									inferHydratedChatStatus(
-										(attached?.status ||
-											session.status) as SessionHistoryStatus,
-										historyMessages,
-									))
-							: inferHydratedChatStatus(
-									(attached?.status || session.status) as SessionHistoryStatus,
-									historyMessages,
-								),
-					);
+					if (authoritativeStatusRevisionRef.current === statusRevision) {
+						setStatus(
+							session.origin === "cloud"
+								? (mapCloudRuntimeStatus(attached?.status || session.status) ??
+										inferHydratedChatStatus(
+											(attached?.status ||
+												session.status) as SessionHistoryStatus,
+											historyMessages,
+										))
+								: attached?.status
+									? mapSessionRecordStatus(
+											attached.status as SessionHistoryStatus,
+										)
+									: inferHydratedChatStatus(session.status, historyMessages),
+						);
+						if (attached?.status) authoritativeStatusRevisionRef.current += 1;
+					}
 					return;
 				}
 

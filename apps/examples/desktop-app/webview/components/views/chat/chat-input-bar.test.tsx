@@ -7,6 +7,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -199,6 +200,8 @@ async function renderVoiceComposer({
 	readOnly = false,
 	executionTarget,
 	onAttachFiles = vi.fn(),
+	factory,
+	variant,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -212,11 +215,15 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
+	factory?: "intake" | "manager";
+	variant?: "conversation" | "welcome";
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					factory={factory}
+					variant={variant}
 					readOnly={readOnly}
 					executionTarget={executionTarget}
 					attachments={attachments}
@@ -3304,5 +3311,78 @@ describe("ChatInputBar token ring", () => {
 		);
 		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar in Factory modes", () => {
+	const composer = () => container.querySelector("[data-factory-composer]");
+	const textarea = () => container.querySelector("textarea");
+
+	it("Add work: its own placeholder, no chat model or thinking picker, and a focus style", async () => {
+		await renderVoiceComposer({ factory: "intake", variant: "welcome" });
+		expect(textarea()?.placeholder).toBe(
+			"Describe what you want built, or paste an issue link",
+		);
+		expect(container.querySelector('[aria-label="Thinking level"]')).toBeNull();
+		// The model picker stays mounted for model checks but is not shown.
+		const picker = container.querySelector("[data-composer-model-picker]");
+		expect(picker?.classList.contains("hidden")).toBe(true);
+		expect(composer()?.getAttribute("data-factory-composer")).toBe("intake");
+		expect(composer()?.className).toContain(
+			"focus-within:border-cline-ui-primary/50",
+		);
+	});
+
+	it("Ask Factory: its own placeholder and the picker labelled as the manager's model", async () => {
+		await renderVoiceComposer({ factory: "manager", variant: "welcome" });
+		expect(textarea()?.placeholder).toBe(
+			"Describe work to add, ask how it is going, or tell Factory how to work",
+		);
+		expect(
+			container.querySelector('[data-testid="factory-manager-model-label"]')
+				?.textContent,
+		).toBe("Manager's model");
+		expect(
+			container.querySelector('fieldset[aria-label="Manager\'s model"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Thinking level"]'),
+		).not.toBeNull();
+		expect(composer()?.className).toContain("focus-within:ring-1");
+		expect(
+			container
+				.querySelector("[data-composer-model-picker]")
+				?.classList.contains("hidden"),
+		).toBe(false);
+	});
+
+	it("Ask Factory: no pull request bar, workspace or branch in the full page or the docked panel", async () => {
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockResolvedValue(null as never);
+		const pullRequestReads = () =>
+			invoke.mock.calls.filter(
+				([command]) => command === "get_pull_request_status",
+			).length;
+		for (const variant of ["welcome", "conversation"] as const) {
+			await renderVoiceComposer({ factory: "manager", variant });
+			expect(container.querySelector("#git-branch-btn")).toBeNull();
+			expect(pullRequestReads()).toBe(0);
+		}
+		// An ordinary conversation still shows both.
+		await renderVoiceComposer({ variant: "conversation" });
+		expect(container.querySelector("#git-branch-btn")).not.toBeNull();
+		expect(pullRequestReads()).toBeGreaterThan(0);
+	});
+
+	it("leaves the ordinary welcome composer unchanged", async () => {
+		await renderVoiceComposer({ variant: "welcome" });
+		expect(textarea()?.placeholder).toBe(
+			"Ask to make changes, @mention files, reference #PRs, or run /commands.",
+		);
+		expect(composer()).toBeNull();
+		expect(
+			container.querySelector('[data-testid="factory-manager-model-label"]'),
+		).toBeNull();
 	});
 });

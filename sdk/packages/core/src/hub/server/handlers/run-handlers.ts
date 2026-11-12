@@ -19,9 +19,12 @@ import {
 	type HubTransportContext,
 	okReply,
 	readCoreSessionSnapshot,
+	type SessionRunDeadlines,
 } from "./context";
 
 const HUB_RUN_HEARTBEAT_MS = 30_000;
+/** How long a timed-out turn may keep unwinding before it stops counting as active. */
+const HUB_RUN_UNWIND_GRACE_MS = 5 * 60_000;
 
 function terminalRunEventForReason(
 	reason: string,
@@ -50,6 +53,29 @@ function trackActiveRpcTurn(
 	sessionId: string,
 ): () => void {
 	const counts = ctx.activeRpcTurnCountBySession;
+	counts.set(sessionId, (counts.get(sessionId) ?? 0) + 1);
+	let released = false;
+	return () => {
+		if (released) return;
+		released = true;
+		const remaining = (counts.get(sessionId) ?? 1) - 1;
+		if (remaining <= 0) {
+			counts.delete(sessionId);
+		} else {
+			counts.set(sessionId, remaining);
+		}
+	};
+}
+
+/**
+ * Marks an RPC turn whose unwind outlived the grace period. Returns a release
+ * to call once its run promise finally settles.
+ */
+function markAbandonedRpcTurn(
+	ctx: HubTransportContext,
+	sessionId: string,
+): () => void {
+	const counts = ctx.abandonedRpcTurnCountBySession;
 	counts.set(sessionId, (counts.get(sessionId) ?? 0) + 1);
 	let released = false;
 	return () => {
@@ -105,11 +131,120 @@ function parseRunTimeoutMs(
 	return undefined;
 }
 
+function sessionRunDeadlines(
+	ctx: HubTransportContext,
+	sessionId: string,
+): SessionRunDeadlines {
+	let state = ctx.runDeadlinesBySession.get(sessionId);
+	if (!state) {
+		state = { deadlines: new Set(), humanWaits: new Set() };
+		ctx.runDeadlinesBySession.set(sessionId, state);
+	}
+	return state;
+}
+
+function releaseSessionRunDeadlines(
+	ctx: HubTransportContext,
+	sessionId: string,
+	state: SessionRunDeadlines,
+): void {
+	if (state.deadlines.size === 0 && state.humanWaits.size === 0) {
+		ctx.runDeadlinesBySession.delete(sessionId);
+	}
+}
+
+/**
+ * Arms a run deadline that counts only active execution: it stays paused
+ * while the session has a human-input wait and resumes with the remaining
+ * budget. Returns an idempotent stop function.
+ */
+function startRunDeadline(
+	ctx: HubTransportContext,
+	sessionId: string,
+	timeoutMs: number,
+	onTimeout: () => void,
+): () => void {
+	const state = sessionRunDeadlines(ctx, sessionId);
+	let remainingMs = timeoutMs;
+	let resumedAt = 0;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let stopped = false;
+	const stop = () => {
+		if (stopped) return;
+		stopped = true;
+		clearTimeout(timer);
+		state.deadlines.delete(deadline);
+		releaseSessionRunDeadlines(ctx, sessionId, state);
+	};
+	const deadline = {
+		pause() {
+			if (!timer) return;
+			clearTimeout(timer);
+			timer = undefined;
+			remainingMs -= performance.now() - resumedAt;
+		},
+		resume() {
+			if (timer) return;
+			resumedAt = performance.now();
+			timer = setTimeout(
+				() => {
+					stop();
+					onTimeout();
+				},
+				Math.max(0, remainingMs),
+			);
+		},
+	};
+	state.deadlines.add(deadline);
+	if (state.humanWaits.size === 0) deadline.resume();
+	return stop;
+}
+
+/**
+ * Waits on a person without spending the session's run budget. Run deadlines
+ * for the session stay paused until every such wait settles, and aborting
+ * the session ends the wait, because tool execution does not observe aborts.
+ */
+export async function awaitHumanInput<T>(
+	ctx: HubTransportContext,
+	sessionId: string,
+	waiting: Promise<T>,
+): Promise<T> {
+	const state = sessionRunDeadlines(ctx, sessionId);
+	let cancel: (reason: string) => void = () => {};
+	const cancelled = new Promise<never>((_, reject) => {
+		cancel = (reason) => reject(new Error(reason));
+	});
+	if (state.humanWaits.size === 0) {
+		for (const deadline of state.deadlines) deadline.pause();
+	}
+	state.humanWaits.add(cancel);
+	try {
+		return await Promise.race([waiting, cancelled]);
+	} finally {
+		state.humanWaits.delete(cancel);
+		if (state.humanWaits.size === 0) {
+			for (const deadline of state.deadlines) deadline.resume();
+		}
+		releaseSessionRunDeadlines(ctx, sessionId, state);
+	}
+}
+
+export function cancelHumanInputWaits(
+	ctx: HubTransportContext,
+	sessionId: string,
+	reason: string,
+): void {
+	const waits = ctx.runDeadlinesBySession.get(sessionId)?.humanWaits ?? [];
+	for (const cancel of waits) cancel(reason);
+}
+
 async function runTurnWithRuntimeHealth(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 	input: SendSessionInput,
 	timeoutMs: number | undefined,
+	onRunStarted?: (run: Promise<unknown>) => void,
 ): Promise<AgentResult | undefined> {
 	const startedAt = performance.now();
 	let settled = false;
@@ -140,6 +275,7 @@ async function runTurnWithRuntimeHealth(
 		);
 	}, HUB_RUN_HEARTBEAT_MS);
 	const runPromise = ctx.sessionHost.runTurn(input);
+	onRunStarted?.(runPromise);
 	runPromise.then(
 		(result) => {
 			if (!settled) return;
@@ -158,7 +294,7 @@ async function runTurnWithRuntimeHealth(
 			});
 		},
 	);
-	let timeout: ReturnType<typeof setTimeout> | undefined;
+	let stopDeadline: (() => void) | undefined;
 	try {
 		if (!timeoutMs) {
 			return await runPromise;
@@ -166,7 +302,7 @@ async function runTurnWithRuntimeHealth(
 		return await Promise.race([
 			runPromise,
 			new Promise<never>((_, reject) => {
-				timeout = setTimeout(() => {
+				stopDeadline = startRunDeadline(ctx, input.sessionId, timeoutMs, () => {
 					const reason = `Hub run ${envelope.command} timed out after ${timeoutMs}ms.`;
 					settled = true;
 					clearInterval(heartbeat);
@@ -191,13 +327,13 @@ async function runTurnWithRuntimeHealth(
 							error,
 						});
 					});
-				}, timeoutMs);
+				});
 			}),
 		]);
 	} finally {
 		settled = true;
 		clearInterval(heartbeat);
-		if (timeout) clearTimeout(timeout);
+		stopDeadline?.();
 	}
 }
 
@@ -258,6 +394,13 @@ export async function handleSessionInput(
 	const timeoutMs = parseRunTimeoutMs(payload);
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	const releaseActiveRpcTurn = trackActiveRpcTurn(ctx, sessionId);
+	// A timed-out turn keeps executing until the runtime unwinds it, so the
+	// turn stays counted as active until its run settles (and this handler has
+	// published its terminal event) rather than when this reply is sent.
+	// Factory reconciliation relies on this to never start a second writer
+	// beside it; a run that never settles is released after a grace period.
+	let run: Promise<unknown> | undefined;
+	let runSettled = false;
 	let result: AgentResult | undefined;
 	try {
 		try {
@@ -277,6 +420,13 @@ export async function handleSessionInput(
 					timeoutMs,
 				},
 				timeoutMs,
+				(started) => {
+					run = started;
+					const markSettled = () => {
+						runSettled = true;
+					};
+					void started.then(markSettled, markSettled);
+				},
 			);
 		} catch (error) {
 			if (
@@ -325,7 +475,34 @@ export async function handleSessionInput(
 			ctx.suppressNextTerminalEventBySession.delete(sessionId);
 		}
 	} finally {
-		releaseActiveRpcTurn();
+		if (!run) {
+			releaseActiveRpcTurn();
+		} else {
+			void run.then(releaseActiveRpcTurn, releaseActiveRpcTurn);
+			if (!runSettled) {
+				const unwinding = run;
+				let releaseAbandoned: (() => void) | undefined;
+				const grace = setTimeout(() => {
+					if (runSettled) return;
+					logHubMessage("error", "run.unwind_abandoned", {
+						command: envelope.command,
+						requestId: envelope.requestId,
+						sessionId,
+						graceMs: HUB_RUN_UNWIND_GRACE_MS,
+					});
+					// Only idle/status accounting is released: the run may still be
+					// writing, so it stays marked abandoned until it settles.
+					releaseAbandoned = markAbandonedRpcTurn(ctx, sessionId);
+					releaseActiveRpcTurn();
+				}, HUB_RUN_UNWIND_GRACE_MS);
+				grace.unref?.();
+				const stopGrace = () => {
+					clearTimeout(grace);
+					releaseAbandoned?.();
+				};
+				void unwinding.then(stopGrace, stopGrace);
+			}
+		}
 	}
 	const snapshot = await readCoreSessionSnapshot(ctx, sessionId);
 	return okReply(
@@ -366,6 +543,7 @@ export async function handleRunAbort(
 			(request) => request.sessionId === sessionId,
 			reason,
 		);
+		cancelHumanInputWaits(ctx, sessionId, reason);
 	}
 	return okReply(envelope, { applied: true });
 }

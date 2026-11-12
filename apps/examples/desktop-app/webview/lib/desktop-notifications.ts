@@ -1,10 +1,22 @@
 "use client";
 
 import {
+	factoryDesignProgressSchema,
+	factoryDesignReviewSchema,
+	factoryTaskConfigSchema,
+} from "@cline/shared/browser";
+import {
 	isPermissionGranted,
 	requestPermission,
 } from "@tauri-apps/plugin-notification";
+import { z } from "zod";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import {
+	currentFactoryConclusion,
+	currentFactoryRunState,
+	factoryAttentionReasons,
+} from "./factory-attention";
+import { FACTORY_OPEN_FINDINGS, factoryReviewRequest } from "./factory-copy";
 import { eventEnvironmentId, sessionKey } from "./session-identity";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
@@ -61,6 +73,258 @@ type AskQuestionItem = {
 };
 
 type TerminalKind = "completed" | "error" | "cancelled";
+
+type NotificationTarget = { sessionId: string } | { factoryTaskId: string };
+
+// Shared schemas use a different Zod major; a mismatch must reject the event,
+// not throw out of the event handler.
+function sharedSchema<T>(schema: {
+	safeParse: (
+		value: unknown,
+	) => { success: true; data: T } | { success: false };
+}) {
+	return z.unknown().transform((value, context): T => {
+		const result = schema.safeParse(value);
+		if (result.success) return result.data;
+		context.addIssue({ code: "custom", message: "Invalid Factory task" });
+		return z.NEVER;
+	});
+}
+
+// Hub task events carry the full task and, for execution updates, its run.
+// Only the fields that decide task-level attention are read here; the plan
+// gate reuses the shared schemas so it sees what core approval checks.
+const factoryTaskEventSchema = z.object({
+	task: z.object({
+		taskId: z.string(),
+		title: z.string(),
+		status: z.string(),
+		revision: z.number(),
+		instructions: z.string(),
+		archivedAt: z.string().optional(),
+		error: z.string().optional(),
+		updatedAt: z.string().optional(),
+		originSessionId: z.string().optional(),
+		factoryDesignSessionIds: z.array(z.string()).optional(),
+		currentRunId: z.string().optional(),
+		lastRunId: z.string().optional(),
+		factory: sharedSchema(factoryTaskConfigSchema),
+		factoryQuestions: z
+			.array(
+				z.object({
+					questionId: z.string(),
+					revision: z.number(),
+					status: z.string(),
+					question: z.string(),
+				}),
+			)
+			.optional(),
+		factoryDesignProgress: sharedSchema(factoryDesignProgressSchema).optional(),
+		factoryDesignReview: sharedSchema(factoryDesignReviewSchema).optional(),
+	}),
+	run: z
+		.object({
+			runId: z.string(),
+			taskRevision: z.number(),
+			createdAt: z.string().optional(),
+			status: z.string().optional(),
+			sessionId: z.string().optional(),
+			factory: z
+				.object({
+					phase: z.string(),
+					humanApproval: z.unknown().optional(),
+					// What factoryCardState reads: a proposed rule, a merged or
+					// closed PR, and an older Hub's feedback stop.
+					audit: z
+						.object({
+							finding: z.string().optional(),
+							analysis: z.object({ status: z.string() }).optional(),
+						})
+						.optional(),
+					pullRequestOutcome: z.object({ state: z.string() }).optional(),
+					error: z.string().optional(),
+					candidate: z.object({ commit: z.string() }).optional(),
+					sessions: z.array(z.object({ sessionId: z.string() })).optional(),
+					pullRequestWatch: z
+						.object({
+							pending: z.unknown().optional(),
+							paused: z.boolean().optional(),
+						})
+						.optional(),
+					pullRequestChecks: z
+						.object({ status: z.string(), headCommit: z.string() })
+						.optional(),
+					pullRequestUrl: z.string().optional(),
+					autoRecovery: z
+						.object({
+							attempts: z.number(),
+							reason: z.string(),
+							at: z.string(),
+						})
+						.optional(),
+					humanReview: z
+						.object({ required: z.boolean(), reason: z.string() })
+						.optional(),
+					unresolvedFindings: z
+						.object({
+							commit: z.string(),
+							findings: z.array(z.string()),
+							pullRequestOpen: z.boolean().optional(),
+						})
+						.optional(),
+				})
+				.optional(),
+		})
+		.optional(),
+});
+type FactoryTaskEvent = z.infer<typeof factoryTaskEventSchema>;
+
+type FactoryAttentionEpisode = {
+	key: string;
+	eventType: DesktopNotificationEventType;
+	title: string;
+	body: string;
+};
+
+/**
+ * The task's current attention episodes, most urgent first. Keys are stable
+ * across repeated snapshots of the same question, plan revision, stop or
+ * result. `unknown` marks keys this event can't rule out: an update without
+ * the current run (spec edits, answers) says nothing about that run's outcome.
+ */
+function factoryAttention({ task, run }: FactoryTaskEvent): {
+	episodes: FactoryAttentionEpisode[];
+	unknown: (key: string) => boolean;
+} {
+	const name = concise(task.title, 80);
+	const runId = task.currentRunId ?? task.lastRunId;
+	const state = currentFactoryRunState(task, run);
+	// One run's stop, finding, pause and result share this scope, so an update
+	// without that run can keep them active.
+	const outcome = `outcome:${task.taskId}:${task.revision}:${runId ?? task.originSessionId ?? ""}`;
+	// The event carries one run. Passed as the card's only known run, a later
+	// run on the same revision (a manual Try again) that already finished is
+	// not taken for the automatic retry; the board and card read every run.
+	const retryRuns =
+		state && run?.createdAt
+			? [{ ...run, createdAt: run.createdAt }]
+			: undefined;
+	const episodes = factoryAttentionReasons(task, state, retryRuns).map(
+		(reason): FactoryAttentionEpisode => {
+			switch (reason.kind) {
+				case "question":
+					return {
+						key: `question:${task.taskId}:${reason.question.questionId}`,
+						eventType: "questionAsked",
+						title: "Factory needs your answer",
+						body: `${name}: ${reason.question.question}`,
+					};
+				case "rule":
+					return {
+						key: `${outcome}:rule`,
+						eventType: "sessionError",
+						title: "Factory proposed a guidance rule",
+						body: `${name}: save or discard the rule Factory proposed from your note.`,
+					};
+				case "stopped":
+					return {
+						key: `${outcome}:stopped`,
+						eventType: "sessionError",
+						title: "Factory work stopped",
+						body: `${name} needs your decision before it can continue.`,
+					};
+				case "paused":
+					return {
+						key: `${outcome}:paused`,
+						eventType: "taskCompletion",
+						title: "Factory PR follow-up paused",
+						body: `${name} is waiting for you to resume PR follow-up.`,
+					};
+				case "ready":
+					return {
+						key: `${outcome}:ready:${reason.commit ?? ""}`,
+						eventType: "taskCompletion",
+						...(reason.unresolvedFindings !== undefined
+							? {
+									title: FACTORY_OPEN_FINDINGS.notificationTitle,
+									body: `${name}: ${FACTORY_OPEN_FINDINGS.headline(reason.unresolvedFindings)}.`,
+								}
+							: reason.humanReview?.required
+								? {
+										title: "Factory needs your review",
+										body: `${name}: ${factoryReviewRequest(reason.humanReview.reason)}`,
+									}
+								: reason.pullRequestUrl
+									? {
+											title: "Draft PR ready for your review",
+											body: `${name} passed its checks and reviews. Factory opened a draft PR.`,
+										}
+									: {
+											title: "Factory result ready",
+											body: `${name} passed its checks and reviews and is ready for you.`,
+										}),
+					};
+				case "triage": {
+					const duplicateOf = currentFactoryConclusion(task)?.duplicateOf;
+					const finding =
+						reason.outcome === "already_fixed"
+							? "already fixed"
+							: reason.outcome === "duplicate"
+								? `duplicate of ${concise(duplicateOf ?? "another card", 80)}`
+								: "no change needed";
+					return {
+						key: `triage:${task.taskId}:${task.revision}`,
+						eventType: "approvalNeeded",
+						title: "No build needed — confirm",
+						body: `${name}: designer concluded ${finding}.`,
+					};
+				}
+				case "plan":
+					return {
+						key: `plan:${task.taskId}:${task.revision}`,
+						eventType: "approvalNeeded",
+						...(reason.blocker
+							? {
+									title: "Plan waiting for your approval",
+									body: `${name}: automatic approval is waiting. ${concise(reason.blocker, 160)}`,
+								}
+							: {
+									title: "Plan ready for your approval",
+									body: `${name}: approve the plan and Factory builds it.`,
+								}),
+					};
+				default: {
+					const _exhaustive: never = reason;
+					return _exhaustive;
+				}
+			}
+		},
+	);
+	// A completed task's PR-follow-up stop or ready result lives only on its run.
+	const runUnknown = !state && task.status === "completed" && Boolean(runId);
+	return {
+		episodes,
+		unknown: (key) => runUnknown && key.startsWith(`${outcome}:`),
+	};
+}
+
+/**
+ * Sessions Factory started for its roles. Not `originSessionId`: before
+ * design starts it names the chat or scheduled session that created the card,
+ * whose own completion, errors and questions stay with that session.
+ */
+function factorySessionIds({ task, run }: FactoryTaskEvent): string[] {
+	const progress = task.factoryDesignProgress;
+	return [
+		...(task.factoryDesignSessionIds ?? []),
+		...(progress && progress.phase !== "designing"
+			? progress.reviewerSessions
+			: []
+		).map((session) => session.sessionId),
+		run?.sessionId,
+		...(run?.factory?.sessions ?? []).map((session) => session.sessionId),
+	].filter((sessionId): sessionId is string => Boolean(sessionId));
+}
 
 function cloneDefaultSettings(): DesktopNotificationSettings {
 	return {
@@ -265,6 +529,15 @@ function addSeenRequest(seen: Set<string>, requestId: string): boolean {
 	return true;
 }
 
+function keepRecent<V>(map: Map<string, V>, key: string, value: V): void {
+	map.delete(key);
+	map.set(key, value);
+	for (const oldest of map.keys()) {
+		if (map.size <= MAX_SEEN_REQUESTS) break;
+		map.delete(oldest);
+	}
+}
+
 export function watchDesktopNotifications(): () => void {
 	if (!isTauriAvailable()) {
 		return () => {};
@@ -274,8 +547,13 @@ export function watchDesktopNotifications(): () => void {
 	let permissionRequest: Promise<DesktopNotificationPermission> | null = null;
 	const seenApprovalRequests = new Set<string>();
 	const seenQuestionRequests = new Set<string>();
+	const activeFactoryEpisodes = new Map<string, Set<string>>();
+	// Factory role sessions are local; their attention is owned by the task.
+	const factoryTaskBySession = new Map<string, string>();
 	const terminalBySession = new Map<string, TerminalKind>();
 	const queuedPromptsBySession = new Map<string, number>();
+	const factoryTaskForSession = (environmentId: string, sessionId: string) =>
+		environmentId === "local" ? factoryTaskBySession.get(sessionId) : undefined;
 
 	const ensurePermission = () => {
 		permissionRequest ??= requestDesktopNotificationPermission().finally(() => {
@@ -286,7 +564,7 @@ export function watchDesktopNotifications(): () => void {
 
 	const notify = async (input: {
 		eventType: DesktopNotificationEventType;
-		sessionId: string;
+		target: NotificationTarget;
 		title: string;
 		body: string;
 	}) => {
@@ -301,7 +579,7 @@ export function watchDesktopNotifications(): () => void {
 			await desktopClient.invoke("show_session_notification", {
 				title: input.title,
 				body: concise(input.body),
-				sessionId: input.sessionId,
+				...input.target,
 				sound: preference.sound ? notificationSound() : undefined,
 			});
 		} catch {
@@ -316,7 +594,11 @@ export function watchDesktopNotifications(): () => void {
 		detail = "",
 	) => {
 		const key = sessionKey({ sessionId, environmentId });
-		if (!sessionId || terminalBySession.get(key) === kind) {
+		if (
+			!sessionId ||
+			terminalBySession.get(key) === kind ||
+			factoryTaskForSession(environmentId, sessionId)
+		) {
 			return;
 		}
 		terminalBySession.set(key, kind);
@@ -329,7 +611,7 @@ export function watchDesktopNotifications(): () => void {
 			}
 			void notify({
 				eventType: "taskCompletion",
-				sessionId,
+				target: { sessionId },
 				title: "Task completed",
 				body: "Cline finished working and the result is ready.",
 			});
@@ -337,10 +619,43 @@ export function watchDesktopNotifications(): () => void {
 		}
 		void notify({
 			eventType: "sessionError",
-			sessionId,
+			target: { sessionId },
 			title: "Task failed",
 			body: detail || "Cline encountered an error while running this task.",
 		});
+	};
+
+	// Task events already carry the task and run, so Factory attention needs no
+	// extra fetch. An episode notifies once while it stays active, including
+	// across redelivered snapshots after a reconnect; it notifies again only
+	// after an event shows it ended. State is in memory, so an app restart
+	// can notify an already-active episode on that task's next event.
+	const handleFactoryTaskEvent = (payload: unknown) => {
+		const parsed = factoryTaskEventSchema.safeParse(payload);
+		if (!parsed.success) return;
+		const { taskId } = parsed.data.task;
+		for (const sessionId of factorySessionIds(parsed.data))
+			keepRecent(factoryTaskBySession, sessionId, taskId);
+		const { episodes, unknown } = factoryAttention(parsed.data);
+		const previous = activeFactoryEpisodes.get(taskId) ?? new Set<string>();
+		// Only the most urgent new episode notifies; others stay new for later.
+		const fresh = episodes.find((episode) => !previous.has(episode.key));
+		const active = new Set([
+			...episodes
+				.map((episode) => episode.key)
+				.filter((key) => previous.has(key)),
+			...[...previous].filter(unknown),
+			...(fresh ? [fresh.key] : []),
+		]);
+		if (active.size) keepRecent(activeFactoryEpisodes, taskId, active);
+		else activeFactoryEpisodes.delete(taskId);
+		if (fresh)
+			void notify({
+				eventType: fresh.eventType,
+				target: { factoryTaskId: taskId },
+				title: fresh.title,
+				body: fresh.body,
+			});
 	};
 
 	const subscriptions = [
@@ -423,7 +738,7 @@ export function watchDesktopNotifications(): () => void {
 				const toolName = asNonEmptyString(item.toolName) || "A tool";
 				void notify({
 					eventType: "approvalNeeded",
-					sessionId,
+					target: { sessionId },
 					title: "Approval needed",
 					body: `${toolName} is waiting for your approval.`,
 				});
@@ -447,15 +762,26 @@ export function watchDesktopNotifications(): () => void {
 			) {
 				return;
 			}
+			const factoryTaskId = factoryTaskForSession(
+				eventEnvironmentId(payload),
+				sessionId,
+			);
 			void notify({
 				eventType: "questionAsked",
-				sessionId,
+				target: factoryTaskId ? { factoryTaskId } : { sessionId },
 				title: "Cline has a question",
 				body:
 					asNonEmptyString(item.question) ||
 					"Open this task to answer Cline's question.",
 			});
 		}),
+		...[
+			"task.created",
+			"task.updated",
+			"task.run.started",
+			"task.run.completed",
+			"task.run.failed",
+		].map((event) => desktopClient.subscribe(event, handleFactoryTaskEvent)),
 	];
 
 	// Ask while the app is active instead of waiting until the first background

@@ -14,7 +14,7 @@ import {
 	CircleUserRound,
 	Clock3,
 	Cloud,
-	Columns3,
+	Factory as FactoryIcon,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -82,6 +82,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
 import {
+	FACTORY_ACTIVITY_REQUEST,
+	type FactoryBoardData,
+	factoryActivity,
+	factoryCurrentAttention,
+	factoryNeedsYou,
+	toneText,
+} from "@/components/views/factory/factory-ui";
+import {
 	CUSTOMIZATION_SECTION_LABELS,
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
@@ -101,6 +109,7 @@ import {
 } from "@/lib/app-channel";
 import type { DesktopAppView } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { FACTORY_MASTER_DETAIL } from "@/lib/factory-copy";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -277,6 +286,8 @@ export function AgentSidebar({
 	view,
 	activeSessionId,
 	sessionHistory,
+	factoryBoard,
+	onOpenFactoryTask,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -293,6 +304,10 @@ export function AgentSidebar({
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
+	/** Factory cards and attention the app loads once; the entry counts them. */
+	factoryBoard?: FactoryBoardData;
+	/** Opens a card in Factory, or Activity for `FACTORY_ACTIVITY_REQUEST`. */
+	onOpenFactoryTask?: (taskId: string) => void;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -304,6 +319,9 @@ export function AgentSidebar({
 		? (activeOrganization?.name ?? "Personal")
 		: undefined;
 	const accountInitial = accountName.charAt(0).toUpperCase();
+	const factoryStatus = factoryBoard
+		? factorySidebarStatus(factoryBoard)
+		: undefined;
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
@@ -940,18 +958,26 @@ export function AgentSidebar({
 						</Button>
 						<Button
 							aria-current={view === "factory" ? "page" : undefined}
-							aria-label="Factory"
+							aria-label={FACTORY_MASTER_DETAIL.sidebarEntry(factoryStatus)}
 							className={cn(
 								view === "factory" &&
 									"bg-surface-hover text-sidebar-foreground",
 							)}
-							onClick={() => setView("factory")}
+							onClick={() => {
+								// Factory always opens its home, which lists the cards.
+								if (onOpenFactoryTask)
+									onOpenFactoryTask(FACTORY_ACTIVITY_REQUEST);
+								else setView("factory");
+							}}
 							title="Feature factory"
 							type="button"
 							variant="sidebarItem"
 						>
-							<Columns3 className="size-4 shrink-0" />
+							<FactoryIcon className="size-4 shrink-0" />
 							<span className="truncate">Factory</span>
+							{factoryStatus ? (
+								<FactorySidebarStatus {...factoryStatus} />
+							) : null}
 						</Button>
 						<Button
 							aria-label="Schedule"
@@ -1350,6 +1376,63 @@ export function AgentSidebar({
 		</>
 	);
 }
+
+/**
+ * What the Factory entry says about the cards: how many need the person
+ * (the home's Needs you group), and whether any is running. The Factory page
+ * lists the cards themselves; the sidebar does not repeat them.
+ */
+export function factorySidebarStatus(board: FactoryBoardData): {
+	needsYou: number;
+	working: boolean;
+} {
+	const tasks = board.agenda.tasks.filter(
+		(task) =>
+			task.factory &&
+			!task.archivedAt &&
+			task.status !== "cancelled" &&
+			task.status !== "expired",
+	);
+	const attention = factoryCurrentAttention(tasks, board);
+	const activities = tasks.map((task) =>
+		factoryActivity(task, attention.get(task.taskId)),
+	);
+	return {
+		needsYou: activities.filter(factoryNeedsYou).length,
+		working: activities.some((activity) => activity.column === "Working"),
+	};
+}
+
+/**
+ * The Factory entry's one quiet mark: how many cards need the person, or,
+ * when none do, a small spinner while work runs.
+ */
+function FactorySidebarStatus({ needsYou, working }: FactorySidebarState) {
+	if (needsYou > 0)
+		return (
+			<span
+				aria-hidden
+				data-testid="factory-sidebar-count"
+				className="ml-auto rounded-full bg-amber-500/15 px-1.5 text-[11px] font-medium leading-4 tabular-nums text-warning-text"
+			>
+				{needsYou}
+			</span>
+		);
+	if (working)
+		return (
+			<Loader2
+				aria-hidden
+				data-testid="factory-sidebar-working"
+				className={cn(
+					"ml-auto size-3 shrink-0 animate-spin motion-reduce:animate-none",
+					toneText("working"),
+				)}
+			/>
+		);
+	return null;
+}
+
+type FactorySidebarState = ReturnType<typeof factorySidebarStatus>;
 
 function CategorySection({
 	label,

@@ -213,7 +213,11 @@ export function createFileReadExecutor(
 		...options,
 	};
 
-	return async (request: ReadFileRequest, context: AgentToolContext) => {
+	return async (
+		request: ReadFileRequest,
+		context: AgentToolContext,
+		cwd?: string,
+	) => {
 		const { path: filePath, start_line, end_line } = request;
 		if (filePath.startsWith("cline://")) {
 			context.signal?.throwIfAborted();
@@ -230,7 +234,7 @@ export function createFileReadExecutor(
 		}
 		const initialPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
-			: path.resolve(process.cwd(), filePath);
+			: path.resolve(cwd ?? process.cwd(), filePath);
 		// Tolerate Unicode-whitespace mismatches (e.g. macOS Sonoma+
 		// screenshot paths where the on-disk filename contains U+202F but
 		// the caller's string has a regular space).

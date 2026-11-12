@@ -6,7 +6,14 @@ import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	AgendaTaskUpdateInput,
+	FactoryFeedbackAnalysis,
 } from "@cline/shared";
+import type { FactoryReplayInput } from "./factory-replay";
+import type {
+	FactoryStageDecision,
+	FactoryStagesListing,
+	FactoryStageTrustRecord,
+} from "./factory-stages";
 
 /**
  * The single mutation boundary for agenda tasks. File reconciliation, Hub
@@ -15,9 +22,15 @@ import type {
  */
 export interface AgendaTaskManagerApi {
 	createTask(input: AgendaTaskCreateInput): Promise<AgendaTaskRecord>;
+	replayFactoryTask?(input: FactoryReplayInput): Promise<AgendaTaskRecord[]>;
 	listTasks(input?: AgendaTaskListInput): Promise<AgendaTaskRecord[]>;
 	getTask(
 		taskId: string,
+		options?: { reconcile?: boolean },
+	): Promise<AgendaTaskRecord | undefined>;
+	/** A card by full task id or Factory short id (`F42`, `f42`, `#42`). */
+	getTaskByFactoryId?(
+		idOrShortId: string,
 		options?: { reconcile?: boolean },
 	): Promise<AgendaTaskRecord | undefined>;
 	updateTask(input: AgendaTaskUpdateInput): Promise<AgendaTaskRecord>;
@@ -78,11 +91,61 @@ export interface AgendaTaskManagerApi {
 		taskId: string,
 		expectedHead: string,
 	): Promise<AgendaTaskRecord>;
+	/** Queues never-scoped, unheld Factory backlog for scoping. */
+	adoptFactoryBacklog?(): Promise<AgendaTaskRecord[]>;
+	/** How many Factory cards may be worked at once. */
+	getFactoryConcurrency?(): number;
+	/** Changes the limit; raising it starts queued work, lowering stops nothing. */
+	setFactoryConcurrency?(concurrency: number): number;
+	/** Whether new Factory work is paused. */
+	getFactoryPaused?(): boolean;
+	/** Pauses or resumes new Factory work; running work continues. */
+	setFactoryPaused?(paused: boolean): boolean;
+	/** The Hub-wide daily spending limit in USD the queue enforces. */
+	getFactoryDailyCostUsd?(): number;
+	/** Changes the daily limit; raising it above today's spend starts queued work. */
+	setFactoryDailyCostUsd?(dailyCostUsd: number): number;
+	/** Factory session cost recorded since local midnight across all cards, in USD. */
+	getFactorySpentTodayUsd?(): Promise<number>;
+	/** Queue order and the cards being worked, for status reports. */
+	getFactoryQueueState?(): {
+		paused: boolean;
+		concurrency: number;
+		working: string[];
+		queued: Array<{ taskId: string; stage: "design" | "run" }>;
+	};
+	/** Holds a card that is not being worked; never stops running work. */
+	holdFactoryTask?(taskId: string): Promise<AgendaTaskRecord>;
+	/** Clears an explicit hold and queues scoping. */
+	queueFactoryScoping?(
+		taskId: string,
+		actor?: AgendaTaskActor,
+	): Promise<AgendaTaskRecord>;
 	recordFactoryAudit?(
 		taskId: string,
 		finding?: string,
 		selectionReason?: "manual" | "random",
 	): Promise<AgendaTaskRecord>;
+	/** The checkout's repository stages with each one's trust status. */
+	getFactoryStages?(workspaceRoot: string): Promise<FactoryStagesListing>;
+	/**
+	 * Records a person's decision on one repository stage, exactly the
+	 * definition whose hash is `expectedHash`; `undecided` forgets it.
+	 */
+	decideFactoryStage?(
+		workspaceRoot: string,
+		stageId: string,
+		expectedHash: string,
+		decision: FactoryStageDecision | "undecided",
+	): Promise<{
+		listing: FactoryStagesListing;
+		record?: FactoryStageTrustRecord;
+	}>;
+	resolveFactoryFeedback?(
+		taskId: string,
+		decision: "save" | "discard" | "retry",
+		expectedHash?: string,
+	): Promise<{ task: AgendaTaskRecord; analysis: FactoryFeedbackAnalysis }>;
 
 	getAutomationPolicy(scopeKey?: string): Promise<AgendaAutomationPolicy>;
 	setAutomationPolicy(

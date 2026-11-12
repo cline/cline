@@ -1,5 +1,6 @@
 import type { FactoryTaskConfig } from "@cline/shared";
 import { z } from "zod";
+import { parseFactoryIssueUrl } from "../webview/lib/factory-issue-url";
 import { runCommand } from "./pull-request";
 
 const issueText = z.string().trim().min(1);
@@ -31,45 +32,6 @@ export type FactoryImportedIssue = {
 	source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
 };
 
-function parseIssueUrl(input: string) {
-	const invalid = () => new Error("Enter a GitHub or Linear issue URL.");
-	let url: URL;
-	try {
-		url = new URL(input.trim());
-	} catch {
-		throw invalid();
-	}
-	if (url.protocol !== "https:" || url.username || url.password || url.port) {
-		throw invalid();
-	}
-	if (url.hostname === "github.com") {
-		const match = /^\/([\w.-]+)\/([\w.-]+)\/issues\/([1-9]\d*)\/?$/.exec(
-			url.pathname,
-		);
-		if (match) {
-			return {
-				provider: "github" as const,
-				url: `https://github.com/${match[1]}/${match[2]}/issues/${match[3]}`,
-			};
-		}
-	}
-	if (url.hostname === "linear.app") {
-		const match =
-			/^\/([\w-]+)\/issue\/([a-z\d]+-[1-9]\d*)(?:\/[^/]+)?\/?$/i.exec(
-				url.pathname,
-			);
-		if (match) {
-			return {
-				provider: "linear" as const,
-				workspace: match[1].toLowerCase(),
-				identifier: match[2].toUpperCase(),
-				url: `https://linear.app/${match[1].toLowerCase()}/issue/${match[2].toUpperCase()}`,
-			};
-		}
-	}
-	throw invalid();
-}
-
 export async function readFactoryIssue(
 	{ url, cwd }: { url: string; cwd: string },
 	{
@@ -82,7 +44,7 @@ export async function readFactoryIssue(
 		env?: NodeJS.ProcessEnv;
 	} = {},
 ): Promise<FactoryImportedIssue> {
-	const source = parseIssueUrl(url);
+	const source = parseFactoryIssueUrl(url);
 	if (source.provider === "github") {
 		let output: string;
 		try {
@@ -97,7 +59,7 @@ export async function readFactoryIssue(
 			);
 		}
 		const issue = githubIssueSchema.parse(JSON.parse(output));
-		const canonical = parseIssueUrl(issue.url);
+		const canonical = parseFactoryIssueUrl(issue.url);
 		if (canonical.provider !== "github")
 			throw new Error("GitHub returned an invalid issue URL.");
 		return {
@@ -147,7 +109,7 @@ export async function readFactoryIssue(
 		);
 	}
 	const issue = result.data.issue;
-	const canonical = parseIssueUrl(issue.url);
+	const canonical = parseFactoryIssueUrl(issue.url);
 	if (
 		canonical.provider !== "linear" ||
 		canonical.workspace !== source.workspace ||

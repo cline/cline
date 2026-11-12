@@ -1,232 +1,545 @@
 "use client";
 
 import type { AgendaTaskRecord } from "@cline/shared";
-import { createSessionId } from "@cline/shared/browser";
+import { isFactoryHandsOff } from "@cline/shared/browser";
 import {
+	AlertTriangle,
+	ArrowLeft,
+	ArrowRight,
 	CheckCircle2,
+	ChevronLeft,
+	ChevronRight,
+	CircleDashed,
+	Clock,
 	Columns3,
+	ExternalLink,
+	Factory as FactoryIcon,
+	Flag,
+	GitBranch,
+	GitPullRequest,
+	HelpCircle,
 	Loader2,
+	MessageSquare,
 	Pause,
 	Play,
-	Plus,
+	RefreshCw,
+	RotateCcw,
+	Settings2,
+	XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import {
 	type FactoryAttention,
 	useFactoryAttention,
 } from "@/hooks/use-factory-attention";
-import { toast } from "@/hooks/use-toast";
-import { desktopClient } from "@/lib/desktop-client";
-import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
-import { PageFrame, PageHeader } from "../page-layout";
-import { AddWork } from "./factory-add-work";
+import { useFactoryLimits } from "@/hooks/use-factory-limits";
 import {
-	DEFAULT_FACTORY,
-	FeatureDetail,
-	type FactoryDraft,
-} from "./factory-detail";
-import { FactoryWorkflowEditor } from "./factory-workflow-editor";
+	useFactoryLiveActivity,
+	useFactoryNow,
+} from "@/hooks/use-factory-live-activity";
+import { basenamePath, formatRelativeTime } from "@/hooks/use-session-history";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	currentFactoryConclusion,
+	FACTORY_STATIONS,
+	factoryAutoApprovalBlocker,
+	factoryOpenFindings,
+	factoryOutcomeDetails,
+	factoryPlanFault,
+	factoryPlanFaultStopped,
+	factoryPublishFailureReason,
+	factoryRetryPath,
+	isFactoryRuleCard,
+} from "@/lib/factory-attention";
+import {
+	FACTORY_ACTIVITY,
+	FACTORY_BOARD,
+	FACTORY_CARD_ACTION,
+	FACTORY_COMPACT,
+	FACTORY_DECISION,
+	FACTORY_LINE,
+	FACTORY_MANAGER,
+	FACTORY_MASTER_DETAIL,
+	FACTORY_MESSAGES,
+	FACTORY_OPEN_FINDINGS,
+	FACTORY_READY,
+	FACTORY_RECOVERY,
+	FACTORY_STAGES,
+	FACTORY_TERMS,
+	FACTORY_UNREADABLE,
+	factoryFeedbackLabel,
+	factoryHistoryStatus,
+	factoryPullRequestActionLabel,
+	factoryReviewReason,
+} from "@/lib/factory-copy";
+import { factoryProposedRule } from "@/lib/factory-feedback";
+import { formatFactoryUsd } from "@/lib/factory-limits";
+import { cn } from "@/lib/utils";
+import {
+	PAGE_FRAME_FIT_VIEWPORT,
+	PageEmptyState,
+	PageFrame,
+} from "../page-layout";
+import {
+	collapseFactoryBoardColumn,
+	DEFAULT_FACTORY_BOARD_VIEW,
+	FACTORY_BOARD_GROUPINGS,
+	FACTORY_BOARD_OTHER_ID,
+	type FactoryBoardGrouping,
+	type FactoryBoardResolvedColumn,
+	type FactoryBoardRow,
+	type FactoryBoardStatus,
+	type FactoryBoardView,
+	factoryBoardAutoCollapsed,
+	factoryBoardCollapsed,
+	factoryBoardPinned,
+	factoryBoardTier,
+	groupFactoryBoard,
+	moveFactoryBoardColumn,
+	readFactoryBoardView,
+	resolveFactoryBoard,
+	saveFactoryBoardView,
+	toggleFactoryBoardColumn,
+} from "./factory-board-view";
+import {
+	FactoryWorkingLimit,
+	factorySlotsFull,
+	factoryWaitingForSlot,
+} from "./factory-concurrency";
+import { type FactoryDraft, FeatureDetail } from "./factory-detail";
+import { FactoryHandsOffNotice } from "./factory-hands-off-notice";
+import { FactoryRowStages } from "./factory-line";
+import {
+	FactoryLiveLine,
+	type FactoryLiveSession,
+	FactoryWatchButton,
+	factoryLiveSessions,
+	formatFactoryDuration,
+} from "./factory-live";
+import { FactorySettingsPage } from "./factory-settings";
+import {
+	factoryScopingStopped,
+	factoryScopingStopReason,
+} from "./factory-task-header";
+import {
+	FACTORY_ACTIVITY_REQUEST,
+	FACTORY_AGENDA_FILTERS,
+	type FactoryActivity,
+	type FactoryBoardData,
+	FactoryIdChip,
+	FactoryRuleBadge,
+	type FactoryTone,
+	factoryActivity,
+	factoryCurrentAttention,
+	factoryDecisionStyle,
+	factoryNeedsYou,
+	factoryShortId,
+	factoryUrgency,
+	StatusPill,
+	toneDot,
+	toneText,
+} from "./factory-ui";
+import { useElementWidth } from "./use-element-width";
 
-const COLUMNS = ["Queued", "Working", "Needs you", "Done"] as const;
-type FactoryDestination =
-	| "attention"
-	| "board"
-	| "workflows"
-	| "outcomes"
-	| "samples"
-	| "history"
-	| "archived";
+/*
+ * Master-detail breakpoints, in Factory's own width (the window less the
+ * 260px app sidebar; 1340/1180/1020/764px at 1600/1440/1280/1024px windows):
+ * - from 960px (windows of 1220px+) a 72px id rail shows, leaving the card
+ *   at least 824px inside its 32px padding;
+ * - from 1120px (windows of 1380px+) the 16rem rail shows titles, leaving the
+ *   card at least 800px.
+ * Both stay above the ~720px the card needs for two columns. Tailwind reads
+ * class names literally, so the classes below spell these out.
+ *
+ * The home is a board (see factory-board-view.ts): one header row, a slim
+ * banner only for exceptions, and columns that scroll on their own. The
+ * board's own width sets its tier: four columns from 920px, Waiting a strip
+ * from 736px, Waiting and Delivered strips from 552px, and below that the
+ * board scrolls sideways. The page itself never scrolls.
+ */
+
+const QUEUE_STOPPED_KEY = "factory.queueStopped";
+const DESTINATION_KEY = "factory.destination";
+/** Delivered shows the most recent; All history has the rest. */
+const DELIVERED_RECENTLY_LIMIT = 20;
+/** Waiting shows this many, then says how many more wait. */
+const WAITING_LIMIT = 50;
+/** Reduced motion keeps the icon but stops it turning. */
+const SPIN = "animate-spin motion-reduce:animate-none";
+/** A row that just arrived may transition in, once. */
+const ARRIVE =
+	"motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300";
+/** How long a new delivery keeps its transition. */
+const ARRIVE_MS = 600;
+/** Labels that mean a card stopped. */
+const STOPPED_LABELS = new Set<string>([
+	FACTORY_DECISION.failure,
+	FACTORY_DECISION.blocker,
+]);
+/** Stops a retry cannot fix: only editing the plan moves the card on. */
+const PLAN_REPAIR_LIMIT = /Plan repair limit \(\d+\) reached/i;
+
+/** The home's status groups; the rail lists them in the board's order. */
+type FactoryHomeGroup = FactoryBoardStatus;
+
+/**
+ * The home is the one landing page; History and Factory settings open from
+ * it. Destinations saved by earlier versions (the Board among them) map onto
+ * these.
+ */
+type FactoryDestination = "activity" | "settings" | "history" | "archived";
 
 function savedDestination(): FactoryDestination {
-	if (typeof window === "undefined") return "attention";
-	const value = sessionStorage.getItem("factory.destination");
-	switch (value) {
-		case "board":
+	if (typeof window === "undefined") return "activity";
+	switch (sessionStorage.getItem(DESTINATION_KEY)) {
+		case "settings":
 		case "workflows":
+			return "settings";
+		// The feedback queue is gone: feedback is optional, so nothing waits
+		// for it. History keeps each delivery's feedback column.
 		case "history":
 		case "outcomes":
+		case "feedback":
 		case "samples":
+			return "history";
 		case "archived":
-			return value;
+			return "archived";
 		default:
-			return "attention";
+			return "activity";
 	}
-}
-function factoryActivity(
-	task: AgendaTaskRecord,
-	attention: FactoryAttention | undefined,
-): { column: (typeof COLUMNS)[number] | "Status unavailable"; label: string } {
-	const state = attention?.outcome;
-	const pendingQuestion =
-		attention?.questions.length ||
-		task.factoryQuestions?.some(
-			(question) =>
-				question.status === "pending" && question.revision === task.revision,
-		);
-	if (pendingQuestion)
-		return { column: "Needs you", label: "Answer a question" };
-	if (task.status === "failed" || task.error)
-		return { column: "Needs you", label: "Resolve failure" };
-	if (state?.audit?.finding)
-		return { column: "Needs you", label: "Review sampled finding" };
-	const design =
-		task.factoryDesignProgress?.revision === task.revision
-			? task.factoryDesignProgress
-			: undefined;
-	if (
-		(task.status === "pending_approval" || task.status === "approved") &&
-		design &&
-		design.phase !== "complete"
-	)
-		return {
-			column: "Working",
-			label: design.phase === "designing" ? "Scoping" : "Reviewing plan",
-		};
-	if (attention?.needsAttention)
-		return {
-			column: "Needs you",
-			label:
-				state?.phase === "blocked"
-					? "Resolve blocker"
-					: state?.followupPaused
-						? "Resume PR follow-up"
-						: task.status === "pending_approval"
-							? "Approve plan"
-							: "Review result",
-		};
-	if (state?.humanApproval) return { column: "Done", label: "Checked off" };
-	if (
-		task.status === "in_progress" ||
-		(state &&
-			[
-				"implementing",
-				"verifying",
-				"reviewing",
-				"repairing",
-				"publishing",
-				"watching",
-			].includes(state.phase))
-	) {
-		const roles = state?.activeRoles ?? [];
-		const counts = [
-			["builder", "implementer"],
-			["verifier", "verifier"],
-			["reviewer", "reviewer"],
-		]
-			.map(([role, label]) => {
-				const count = roles.filter((active) => active === role).length;
-				return count ? `${count} ${label}${count === 1 ? "" : "s"}` : "";
-			})
-			.filter(Boolean)
-			.join(" · ");
-		const label = state
-			? {
-					implementing: "Implementing",
-					verifying: "Running checks",
-					reviewing: "Agent code review",
-					repairing: "Fixing findings",
-					publishing: "Publishing draft PR",
-					watching: "Waiting for CI / PR follow-up",
-					ready: "Finishing execution",
-					blocked: "Blocked",
-				}[state.phase]
-			: "Starting execution";
-		return {
-			column: "Working",
-			label: counts ? `${label} · ${counts}` : label,
-		};
-	}
-	if (!attention || task.status === "completed")
-		return {
-			column: "Status unavailable",
-			label: "Current activity unavailable",
-		};
-	return {
-		column: "Queued",
-		label:
-			task.status === "approved" ||
-			(design?.phase === "complete" && task.factory?.approval === "automatic")
-				? "Queued for implementation"
-				: "Queued for scoping",
-	};
 }
 
-export function FactoryView({
-	drafts,
-	onOpenSession,
-	workspacePaths,
+/** A column's dot, by its tone; Needs you is grey while it is empty. */
+const COLUMN_DOT: Record<FactoryTone, string> = {
+	neutral: "bg-muted-foreground/60",
+	attention: "bg-amber-500",
+	working: "bg-sky-500",
+	success: "bg-emerald-500",
+	danger: "bg-destructive",
+	accent: "bg-primary",
+};
+
+/**
+ * One column of the board: a 36px header (dot, name, count, an aside such as
+ * the working limit or All history, and a collapse chevron when the column
+ * can collapse) over its own scrolling list. Collapsed, it is a 36px strip
+ * that expands on click.
+ */
+function BoardColumn({
+	id,
+	label,
+	tone,
+	count,
+	pill = false,
+	countTitle,
+	aside,
+	collapsed,
+	collapsible,
+	alwaysShowCollapse = false,
+	onToggle,
+	empty,
+	footer,
+	hold,
+	children,
 }: {
+	id: string;
+	label: string;
+	tone: FactoryTone;
+	count: number;
+	/** The amber count pill of a column that waits on the person. */
+	pill?: boolean;
+	countTitle?: string;
+	aside?: ReactNode;
+	collapsed: boolean;
+	collapsible: boolean;
+	/** The width would collapse it: its chevron always shows. */
+	alwaysShowCollapse?: boolean;
+	onToggle: () => void;
+	empty: string;
+	footer?: ReactNode;
+	hold: ReturnType<ReturnType<typeof useSteadyOrder>["hold"]>;
+	children: ReactNode[];
+}) {
+	const headingId = useId();
+	if (collapsed)
+		return (
+			<button
+				type="button"
+				data-factory-group={id}
+				data-factory-strip=""
+				aria-expanded={false}
+				aria-label={FACTORY_BOARD.showColumn(label, count)}
+				title={FACTORY_BOARD.showColumn(label, count)}
+				onClick={onToggle}
+				className="flex w-9 shrink-0 snap-start flex-col items-center gap-2 rounded-lg border bg-muted/50 py-2.5 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-card dark:hover:bg-muted"
+			>
+				<ChevronRight aria-hidden className="size-3.5 shrink-0" />
+				<span className="text-[12.5px] font-semibold [writing-mode:vertical-rl]">
+					{label}
+				</span>
+				<span className="text-[11.5px] tabular-nums">{count}</span>
+			</button>
+		);
+	return (
+		<section
+			aria-labelledby={headingId}
+			data-factory-group={id}
+			className="group/column flex min-h-0 min-w-[220px] max-w-[420px] flex-[1_1_0] snap-start flex-col overflow-hidden rounded-lg border bg-muted/50 dark:bg-card"
+			{...hold}
+		>
+			<div className="flex h-9 shrink-0 items-center gap-[7px] px-2.5">
+				<h2
+					id={headingId}
+					className="flex min-w-0 items-center gap-[7px] text-[13px] font-semibold"
+				>
+					<span
+						aria-hidden
+						className={cn("size-2 shrink-0 rounded-full", COLUMN_DOT[tone])}
+					/>
+					<span data-factory-column-title className="truncate">
+						{label}
+					</span>
+					<span
+						data-factory-count
+						title={countTitle}
+						className={cn(
+							"shrink-0 tabular-nums",
+							pill
+								? "rounded-full bg-amber-500/15 px-1.5 text-[11px] leading-[17px] font-semibold text-warning-text"
+								: "text-xs font-normal text-muted-foreground",
+						)}
+					>
+						{count}
+					</span>
+				</h2>
+				{aside}
+				{collapsible ? (
+					<button
+						type="button"
+						aria-expanded
+						aria-label={FACTORY_BOARD.collapseColumn(label)}
+						title={FACTORY_BOARD.collapseColumn(label)}
+						onClick={onToggle}
+						className={cn(
+							"flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+							aside ? "ml-1" : "ml-auto",
+							// Shown on hover or focus, taking no room otherwise, so the
+							// header's aside stays at its end.
+							!alwaysShowCollapse &&
+								"hidden group-focus-within/column:flex group-hover/column:flex [@media(hover:none)]:flex",
+						)}
+					>
+						<ChevronLeft aria-hidden className="size-3.5" />
+					</button>
+				) : null}
+			</div>
+			<ul
+				data-factory-list={id}
+				className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-1.5 pb-1.5 [scrollbar-width:thin]"
+			>
+				{children.length ? (
+					children
+				) : (
+					<li
+						data-factory-empty
+						className="px-2 pt-3.5 text-center text-xs leading-normal text-muted-foreground"
+					>
+						{empty}
+					</li>
+				)}
+			</ul>
+			{footer ? (
+				<p className="shrink-0 px-1.5 pt-1 pb-1.5 text-center text-[11.5px] text-muted-foreground">
+					{footer}
+				</p>
+			) : null}
+		</section>
+	);
+}
+
+/** Whether an error message is raw structured output, such as a ZodError's. */
+function factoryRawData(message: string): boolean {
+	const text = message.trim();
+	if (!/^[[{]/.test(text)) return false;
+	try {
+		JSON.parse(text);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** The first sentence of a stored error, for a one-line reason. */
+function firstSentence(text: string): string {
+	const line = text.trim().split("\n")[0]?.trim() ?? "";
+	return /^(.+?[.!?])(?:\s|$)/.exec(line)?.[1] ?? line;
+}
+
+/**
+ * Keeps a column's order while the pointer or focus is in it, so nothing
+ * moves under the user; new items join at the end until they leave.
+ */
+function useSteadyOrder() {
+	const orders = useRef(new Map<string, string[]>());
+	const [held, setHeld] = useState<string | null>(null);
+	const order = <T,>(key: string, items: T[], id: (item: T) => string): T[] => {
+		const ids = items.map(id);
+		const previous = orders.current.get(key);
+		if (held !== key || !previous) {
+			orders.current.set(key, ids);
+			return items;
+		}
+		const byId = new Map(items.map((item) => [id(item), item]));
+		const kept = previous.filter((value) => byId.has(value));
+		const next = [...kept, ...ids.filter((value) => !kept.includes(value))];
+		orders.current.set(key, next);
+		return next.flatMap((value) => {
+			const item = byId.get(value);
+			return item === undefined ? [] : [item];
+		});
+	};
+	const hold = (key: string) => ({
+		onPointerEnter: () => setHeld(key),
+		onPointerLeave: (event: { currentTarget: HTMLElement }) => {
+			if (!event.currentTarget.contains(document.activeElement))
+				setHeld((current) => (current === key ? null : current));
+		},
+		onFocus: () => setHeld(key),
+		onBlur: (event: {
+			currentTarget: HTMLElement;
+			relatedTarget: EventTarget | null;
+		}) => {
+			if (
+				!(event.relatedTarget instanceof Node) ||
+				!event.currentTarget.contains(event.relatedTarget)
+			)
+				setHeld((current) => (current === key ? null : current));
+		},
+	});
+	return { order, hold };
+}
+
+type FactoryViewProps = {
 	drafts: Map<string, FactoryDraft>;
 	onOpenSession: (
 		sessionId: string,
 		initialPromptDraft?: string,
 	) => Promise<void>;
-	workspacePaths: string[];
-}) {
-	const agenda = useAgendaTasks({
-		allWorkspaces: true,
-		includeArchived: true,
-		limit: 200,
-	});
-	const tasks = agenda.tasks.filter((task) => task.factory);
-	const attention = useFactoryAttention();
-	const [needsYouOnly, setNeedsYouOnly] = useState(
-		() =>
-			typeof window !== "undefined" &&
-			sessionStorage.getItem("factory.needsYouOnly") === "true",
+	/**
+	 * A task chosen outside the Factory, such as from a notification or the
+	 * sidebar; `FACTORY_ACTIVITY_REQUEST` asks for the home instead.
+	 */
+	requestedTaskId?: string;
+	onRequestedTaskOpened?: () => void;
+	/** Shows or hides Ask Factory, the one way to add work. */
+	onAskFactory?: () => void;
+	/** Whether the docked Ask Factory panel is showing (its buttons are toggles). */
+	askFactoryOpen?: boolean;
+	/** The card on screen, so Ask Factory can offer it as context. */
+	onSelectedTaskChange?: (
+		card: { taskId: string; shortId?: string } | null,
+	) => void;
+	/**
+	 * Cards and attention the app already loads for the sidebar. Without it
+	 * the view loads its own.
+	 */
+	board?: FactoryBoardData;
+};
+
+export function FactoryView({ board, ...props }: FactoryViewProps) {
+	return board ? (
+		<FactoryPage {...props} board={board} />
+	) : (
+		<SelfLoadingFactoryView {...props} />
 	);
+}
+
+function SelfLoadingFactoryView(props: Omit<FactoryViewProps, "board">) {
+	const agenda = useAgendaTasks(FACTORY_AGENDA_FILTERS);
+	const attention = useFactoryAttention();
+	return <FactoryPage {...props} board={{ agenda, attention }} />;
+}
+
+/**
+ * What one delivery proves, in one line, from the data the board already
+ * has: checks passed, the code review's result, and the user's own review or
+ * feedback when they gave one. No rating is never mentioned: feedback is
+ * optional.
+ */
+function deliveryProof(
+	task: AgendaTaskRecord,
+	outcome: FactoryAttention["outcome"] | undefined,
+): string {
+	if (!outcome) return "";
+	const openFindings = factoryOpenFindings(task, outcome);
+	const checks = task.factory?.checks?.length ?? 0;
+	return [
+		checks > 0 ? FACTORY_LINE.proof.checksPassed(checks) : undefined,
+		openFindings
+			? FACTORY_LINE.proof.findings(openFindings.findings.length)
+			: outcome.phase === "ready" || outcome.phase === "watching"
+				? FACTORY_LINE.proof.reviewPassed
+				: undefined,
+		outcome.humanApproval ? FACTORY_LINE.proof.reviewedByYou : undefined,
+		outcome.audit?.reviewedAt
+			? outcome.audit.finding
+				? FACTORY_LINE.proof.flagged
+				: FACTORY_LINE.proof.looksGood
+			: undefined,
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
+
+function FactoryPage({
+	drafts,
+	onOpenSession,
+	requestedTaskId,
+	onRequestedTaskOpened,
+	onAskFactory,
+	askFactoryOpen,
+	onSelectedTaskChange,
+	board,
+}: Omit<FactoryViewProps, "board"> & { board: FactoryBoardData }) {
+	const { agenda, attention } = board;
+	const tasks = agenda.tasks.filter((task) => task.factory);
+	const limits = useFactoryLimits();
 	const [view, setView] = useState<FactoryDestination>(savedDestination);
 	useEffect(() => {
-		sessionStorage.setItem("factory.destination", view);
-		sessionStorage.setItem("factory.needsYouOnly", String(needsYouOnly));
-	}, [view, needsYouOnly]);
-	const showArchived = view === "archived";
-	const showOutcomes =
-		view === "outcomes" || view === "samples" || view === "history";
-	const samplesOnly = view === "samples";
-	const activeDestination =
-		view === "history" || view === "archived"
-			? "board"
-			: view === "outcomes"
-				? "samples"
-				: view;
-	const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
-	const currentAttention = new Map(
-		attention.items
-			.filter((item) => {
-				const task = tasksById.get(item.taskId);
-				return (
-					attention.transportReady &&
-					attention.hasLoaded &&
-					!attention.error &&
-					!agenda.error &&
-					task?.revision === item.revision &&
-					(!item.outcome ||
-						item.runId === (task.currentRunId ?? task.lastRunId))
-				);
-			})
-			.map((item) => [item.taskId, item]),
-	);
+		sessionStorage.setItem(DESTINATION_KEY, view);
+	}, [view]);
+	const showHistory = view === "history" || view === "archived";
+	const currentAttention = factoryCurrentAttention(tasks, board);
 	const boardTasks = tasks.filter(
 		(task) =>
 			!task.archivedAt &&
 			task.status !== "cancelled" &&
 			task.status !== "expired",
 	);
+	const now = new Date();
 	const activities = new Map(
 		boardTasks.map((task) => [
 			task.taskId,
-			factoryActivity(task, currentAttention.get(task.taskId)),
+			factoryActivity(task, currentAttention.get(task.taskId), { now }),
 		]),
 	);
 	const outcomes = new Map(
@@ -238,63 +551,269 @@ export function FactoryView({
 			["completed", "failed", "cancelled", "expired"].includes(task.status),
 	);
 	const archived = tasks.filter((task) => task.archivedAt);
-	const sampleQueue = finished.filter((task) => {
-		const audit = outcomes.get(task.taskId)?.audit;
-		return audit && !audit.reviewedAt;
-	});
-	const needsYou = (task: AgendaTaskRecord) =>
-		activities.get(task.taskId)?.column === "Needs you";
-	const attentionCount = boardTasks.filter(needsYou).length;
-	const visibleOutcomes = showArchived
-		? archived
-		: samplesOnly
-			? sampleQueue
-			: finished;
+	const visibleOutcomes = view === "archived" ? archived : finished;
 	const [selectedId, setSelectedId] = useState<string | null>(() =>
 		typeof window === "undefined"
 			? null
 			: sessionStorage.getItem("factory.selectedTask"),
 	);
-	const [creating, setCreating] = useState(false);
-	const [workflowConfig, setWorkflowConfig] = useState(() =>
-		structuredClone(DEFAULT_FACTORY),
+	const [settingsFocus, setSettingsFocus] = useState<"dailyCostUsd">();
+	// Back from settings returns focus to the header's Settings button.
+	const returnToSettingsButton = useRef(false);
+	useEffect(() => {
+		if (view !== "activity" || !returnToSettingsButton.current) return;
+		returnToSettingsButton.current = false;
+		document.querySelector<HTMLElement>("[data-factory-settings]")?.focus();
+	}, [view]);
+	// A current Hub persists the pause beside the working limit and holds both
+	// scoping and runs; an older Hub returns no `paused`, so the app stops the
+	// queue and remembers the pause for this app session only.
+	const hubPaused =
+		limits.limits?.supported === true ? limits.limits.paused : undefined;
+	const enginePause =
+		limits.limits?.supported === true && typeof hubPaused === "boolean";
+	// The value this view last set, until the Hub reports a newer one.
+	const [pausedSet, setPausedSet] = useState<{
+		over: unknown;
+		paused: boolean;
+	}>();
+	const [sessionStopped, setSessionStopped] = useState(
+		() =>
+			typeof window !== "undefined" &&
+			sessionStorage.getItem(QUEUE_STOPPED_KEY) === "true",
 	);
+	const queueStopped = enginePause
+		? pausedSet && pausedSet.over === hubPaused
+			? pausedSet.paused
+			: hubPaused === true
+		: sessionStopped;
+	const markQueueStopped = (stopped: boolean) => {
+		setSessionStopped(stopped);
+		if (stopped) sessionStorage.setItem(QUEUE_STOPPED_KEY, "true");
+		else sessionStorage.removeItem(QUEUE_STOPPED_KEY);
+	};
+	const setHubPaused = async (paused: boolean) => {
+		const saved = await desktopClient.invoke<{ paused?: unknown }>(
+			"factory_set_limits",
+			{ paused },
+		);
+		setPausedSet({
+			over: hubPaused,
+			paused: typeof saved?.paused === "boolean" ? saved.paused : paused,
+		});
+	};
 	const [busy, setBusy] = useState(false);
 	const [message, setMessage] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const selected = tasks.find((task) => task.taskId === selectedId);
-	const ready = tasks
-		.filter((task) => !task.archivedAt)
-		.filter(
-			(task) =>
-				(task.status === "approved" &&
-					activities.get(task.taskId)?.column === "Queued") ||
-				(task.status === "pending_approval" &&
-					task.factory?.approval === "automatic" &&
-					task.factory.checks.length > 0 &&
-					activities.get(task.taskId)?.column === "Queued" &&
-					(!task.factoryDesignProgress ||
-						task.factoryDesignProgress.phase === "complete")),
+	const selectedTaskId = selected?.taskId;
+	const selectedShortId = selected ? factoryShortId(selected) : undefined;
+	useEffect(() => {
+		onSelectedTaskChange?.(
+			selectedTaskId
+				? { taskId: selectedTaskId, shortId: selectedShortId }
+				: null,
 		);
-	const attentionGroups = new Map<string, AgendaTaskRecord[]>();
-	for (const task of boardTasks.filter(needsYou)) {
-		const label = activities.get(task.taskId)?.label;
-		if (!label) continue;
-		const group = attentionGroups.get(label) ?? [];
-		group.push(task);
-		attentionGroups.set(label, group);
-	}
-	const unknownTasks = boardTasks.filter(
-		(task) => activities.get(task.taskId)?.column === "Status unavailable",
+	}, [onSelectedTaskChange, selectedTaskId, selectedShortId]);
+	/** The card last opened, and which surface opened it, for focus return. */
+	const lastOpened = useRef<{ id: string; source?: string } | null>(null);
+	const { order, hold } = useSteadyOrder();
+	// The board's width sets its tier; its grouping, columns and a person's
+	// collapses are a saved view (factory-board-view.ts).
+	const [boardRef, boardWidth] = useElementWidth();
+	const tier = factoryBoardTier(boardWidth);
+	const [boardView, setBoardViewState] = useState(readFactoryBoardView);
+	const setBoardView = (next: FactoryBoardView) => {
+		setBoardViewState(next);
+		saveFactoryBoardView(next);
+	};
+	const autoRetrying = (task: AgendaTaskRecord) =>
+		Boolean(
+			factoryOutcomeDetails(currentAttention.get(task.taskId)?.outcome)
+				.autoRetrying,
+		);
+	// Every surface (the line, these columns, the rail and the app sidebar)
+	// takes a card's station, column, label, colour and verb from
+	// `factoryActivity`.
+	const activityOf = (task: AgendaTaskRecord) =>
+		activities.get(task.taskId) ?? factoryActivity(task, undefined, { now });
+	const inColumn = (column: FactoryActivity["column"]) =>
+		boardTasks.filter((task) => activityOf(task).column === column);
+	// Approved work that is not running waits for the queue: held by Pause new
+	// work, or manual work the Hub has not queued.
+	const held = boardTasks.filter(
+		(task) =>
+			task.status === "approved" &&
+			!currentFactoryConclusion(task) &&
+			!autoRetrying(task) &&
+			activityOf(task).column === "Queued",
 	);
-	const running = boardTasks.filter(
-		(task) => activities.get(task.taskId)?.column === "Working",
+	const startable = (task: AgendaTaskRecord) =>
+		!queueStopped &&
+		task.factoryQueued !== "run" &&
+		!isFactoryHandsOff(task.factory) &&
+		held.includes(task);
+	// Failed work whose plan is still approved runs again from its row; a
+	// plan whose checks are at fault goes back to scoping. A plan Factory
+	// already re-scoped without fixing needs Edit plan on the card.
+	const retryable = (task: AgendaTaskRecord) =>
+		task.status === "failed" &&
+		(task.approvedRevision === task.revision || factoryPlanFault(task)) &&
+		!factoryPlanFaultStopped(task) &&
+		!currentFactoryConclusion(task) &&
+		!autoRetrying(task);
+	// Each card is listed once, in the first group that claims it: Needs you
+	// (most urgent first), Working (furthest along first), Waiting, then
+	// Delivered. A delivery that waits on the user is in Needs you only.
+	const needsYou = boardTasks
+		.filter((task) => factoryNeedsYou(activityOf(task)))
+		.sort(
+			(a, b) =>
+				factoryUrgency(activityOf(a).label) -
+				factoryUrgency(activityOf(b).label),
+		);
+	const unavailable = inColumn("Status unavailable");
+	const unreadableTasks = unavailable.filter(
+		(task) => activityOf(task).unreadable !== undefined,
+	);
+	const workingNow = inColumn("Working").sort(
+		(a, b) =>
+			FACTORY_STATIONS.indexOf(activityOf(b).station.station) -
+			FACTORY_STATIONS.indexOf(activityOf(a).station.station),
+	);
+	// A card whose status is not loaded yet waits with the queue, unless it
+	// was already delivered.
+	const waitingTasks = [
+		...inColumn("Queued"),
+		...unavailable.filter((task) => {
+			const { unreadable, station } = activityOf(task);
+			return unreadable === undefined && station.station !== "delivered";
+		}),
+	];
+	const running = workingNow.length;
+	const slotsFull = factorySlotsFull(running, limits.limits);
+	// Who is working on each card right now: scoping and plan checks from the
+	// card, build, test and review from the board's active sessions. One
+	// live-activity subscription serves the home and the rail.
+	const liveSessions = new Map<string, FactoryLiveSession[]>(
+		workingNow.map((task) => [
+			task.taskId,
+			factoryLiveSessions(
+				task,
+				currentAttention.get(task.taskId)?.outcome?.activeSessions ?? [],
+			),
+		]),
+	);
+	const liveActivity = useFactoryLiveActivity(
+		[...liveSessions.values()].flat().map((session) => session.sessionId),
+	);
+	/** Board rows leave out elapsed time (`compact`); home rows show it. */
+	const liveLine = (
+		task: AgendaTaskRecord,
+		{ compact = false, className }: { compact?: boolean; className?: string },
+	) => {
+		const sessions = liveSessions.get(task.taskId) ?? [];
+		return sessions.length ? (
+			<FactoryLiveLine
+				sessions={sessions}
+				activity={liveActivity}
+				compact={compact}
+				className={className}
+			/>
+		) : null;
+	};
+	const watchButton = (task: AgendaTaskRecord) => {
+		const sessions = liveSessions.get(task.taskId) ?? [];
+		return sessions.length ? (
+			<FactoryWatchButton
+				taskId={task.taskId}
+				title={task.title}
+				sessions={sessions}
+				activity={liveActivity}
+				onOpenSession={(sessionId) => onOpenSession(sessionId)}
+				label={FACTORY_CARD_ACTION.watch}
+			/>
+		) : null;
+	};
+	/** The row label, saying when queued work waits only for a slot. */
+	const rowLabel = (task: AgendaTaskRecord) => {
+		const activity = activityOf(task);
+		if (
+			activity.column === "Queued" &&
+			slotsFull &&
+			factoryWaitingForSlot([task]) > 0
+		)
+			return FACTORY_ACTIVITY.waitingForSlot;
+		return activity.label;
+	};
+	const listed = new Set([
+		...needsYou,
+		...unreadableTasks,
+		...workingNow,
+		...waitingTasks,
+	]);
+	/** Every delivery not listed above, newest first. */
+	const delivered = boardTasks
+		.filter((task) => {
+			const { station } = activityOf(task);
+			return (
+				!listed.has(task) && station.station === "delivered" && !station.stopped
+			);
+		})
+		.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+	const deliveredRecently = delivered.slice(0, DELIVERED_RECENTLY_LIMIT);
+	const deliveredToday = delivered.filter(
+		(task) => activityOf(task).station.deliveredToday,
 	).length;
-	const selectTask = (id: string | null) => {
+	// A delivery that arrives after the first render fades in, once; 0 marks
+	// the ones already there.
+	const deliveriesSeen = useRef<Map<string, number> | null>(null);
+	const arrived = (task: AgendaTaskRecord) => {
+		if (!deliveriesSeen.current) return false;
+		const at = deliveriesSeen.current.get(task.taskId);
+		return at === undefined || (at > 0 && Date.now() - at < ARRIVE_MS);
+	};
+	useEffect(() => {
+		const known = deliveriesSeen.current;
+		deliveriesSeen.current = new Map(
+			delivered.map((task) => [
+				task.taskId,
+				known ? (known.get(task.taskId) ?? Date.now()) : 0,
+			]),
+		);
+	});
+	const selectTask = (id: string | null, source?: string) => {
+		if (id) lastOpened.current = { id, source };
 		setSelectedId(id);
 		if (id) sessionStorage.setItem("factory.selectedTask", id);
 		else sessionStorage.removeItem("factory.selectedTask");
 	};
+	useEffect(() => {
+		if (!requestedTaskId) return;
+		if (requestedTaskId === FACTORY_ACTIVITY_REQUEST) {
+			setView("activity");
+			setSelectedId(null);
+			sessionStorage.removeItem("factory.selectedTask");
+		} else {
+			lastOpened.current = { id: requestedTaskId };
+			setSelectedId(requestedTaskId);
+			sessionStorage.setItem("factory.selectedTask", requestedTaskId);
+		}
+		onRequestedTaskOpened?.();
+	}, [requestedTaskId, onRequestedTaskOpened]);
+	// Coming back from a card returns focus to what opened it: the same chip
+	// or row when it is still there, else any control for that card.
+	useEffect(() => {
+		if (selectedId || !lastOpened.current) return;
+		const { id, source } = lastOpened.current;
+		const targets = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-factory-task]"),
+		).filter((item) => item.dataset.factoryTask === id);
+		(
+			targets.find((item) => item.dataset.factorySource === source) ??
+			targets[0]
+		)?.focus();
+	}, [selectedId]);
 	async function perform(action: () => Promise<void>) {
 		setBusy(true);
 		setError(null);
@@ -304,637 +823,1453 @@ export function FactoryView({
 			await agenda.refresh();
 		} catch (cause) {
 			setError(
-				cause instanceof Error ? cause.message : "Unable to update factory.",
+				cause instanceof Error
+					? cause.message
+					: "Couldn't update Factory. Try again.",
 			);
 		} finally {
 			setBusy(false);
 		}
 	}
-	const feedback = (
+	const startTasks = (items: AgendaTaskRecord[], done: string) =>
+		perform(async () => {
+			await desktopClient.startFactoryQueue(items);
+			setMessage(done);
+		});
+	const retryTask = (task: AgendaTaskRecord) =>
+		factoryRetryPath(task) === "scope"
+			? perform(async () => {
+					await desktopClient.designFactoryTask(task.taskId);
+					setMessage(
+						`Sending “${task.title}” back to scoping: its checks need fixing.`,
+					);
+				})
+			: startTasks([task], `Trying “${task.title}” again.`);
+	const rescope = (task: AgendaTaskRecord) =>
+		perform(async () => {
+			await desktopClient.designFactoryTask(task.taskId);
+			setMessage(`Scoping “${task.title}” again.`);
+		});
+	const loadingActivity =
+		(agenda.isLoading && tasks.length === 0) ||
+		(!attention.hasLoaded && attention.isLoading);
+	const activityConfirmed =
+		attention.hasLoaded &&
+		attention.transportReady &&
+		!attention.isLoading &&
+		!agenda.isLoading &&
+		!agenda.error &&
+		!attention.error;
+	const connectionProblem =
+		agenda.error || attention.error || !attention.transportReady;
+	const loadError = agenda.error || attention.error;
+	// Validation output is logged, never shown: the page says what happened.
+	const connectionMessage =
+		loadError && attention.transportReady && factoryRawData(loadError)
+			? FACTORY_UNREADABLE.page
+			: FACTORY_MESSAGES.cantReach;
+	useEffect(() => {
+		if (loadError && factoryRawData(loadError))
+			console.warn("Factory status could not be read", loadError);
+	}, [loadError]);
+	const notices = (
 		<>
-			{error || agenda.error || attention.error || !attention.transportReady ? (
-				<p
+			{error || connectionProblem ? (
+				<div
 					role="alert"
-					className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+					className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
 				>
-					{error ||
-						agenda.error ||
-						attention.error ||
-						"Factory connection is not ready."}
-					{attention.error || !attention.transportReady
-						? " Questions and current activity could not be confirmed."
-						: ""}
+					<AlertTriangle className="size-4 shrink-0" />
+					<span className="min-w-0 flex-1">
+						{error ?? connectionMessage}
+						{error && connectionProblem ? ` ${connectionMessage}` : ""}
+						{loadError && !factoryRawData(loadError) ? (
+							<span className="block text-xs text-destructive/80">
+								{loadError}
+							</span>
+						) : null}
+					</span>
 					<Button
 						variant="outline"
 						size="sm"
-						className="ml-3"
 						disabled={busy}
 						onClick={() => {
+							setError(null);
 							void agenda.refresh();
 							void attention.refresh();
 						}}
 					>
-						Retry current activity
+						<RefreshCw className="mr-1.5 size-3.5" />
+						Retry
 					</Button>
-				</p>
+				</div>
 			) : null}
 			{message ? (
-				<output className="mb-3 rounded-md border p-3 text-sm">
+				<output className="mb-4 flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+					<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
 					{message}
 				</output>
 			) : null}
 		</>
 	);
+	const resumeDisabled =
+		busy ||
+		agenda.isLoading ||
+		attention.isLoading ||
+		!attention.transportReady;
+	const resumeWork = () =>
+		void perform(async () => {
+			// The Hub kept its queue while paused and starts it on resume.
+			if (enginePause) {
+				await setHubPaused(false);
+				return;
+			}
+			if (held.length > 0) await desktopClient.startFactoryQueue(held);
+			markQueueStopped(false);
+		});
+	const pauseWork = () =>
+		void perform(async () => {
+			if (enginePause) {
+				await setHubPaused(true);
+				return;
+			}
+			await desktopClient.stopFactoryQueue();
+			markQueueStopped(true);
+		});
+	const pausedMessage = FACTORY_MESSAGES.paused(running);
+	/**
+	 * The paused line beside an open card. `compact` fits the rail with
+	 * titles: a short visible label, the full message for readers, and Resume.
+	 */
+	const pauseBanner = (compact = false) => (
+		<output
+			data-factory-paused={compact ? "rail" : "banner"}
+			className={cn(
+				"flex flex-wrap items-center gap-x-3 gap-y-2 text-sm",
+				compact
+					? "border-b px-3 py-2 text-xs"
+					: "rounded-lg border bg-muted/30 px-4 py-3",
+			)}
+		>
+			<Pause className="size-4 shrink-0 text-muted-foreground" />
+			{compact ? (
+				<span className="min-w-0 flex-1 truncate">
+					<span aria-hidden>{FACTORY_COMPACT.paused}</span>
+					<span className="sr-only">{pausedMessage}</span>
+				</span>
+			) : (
+				<span className="min-w-0 flex-1">{pausedMessage}</span>
+			)}
+			<Button
+				size={compact ? "xs" : "sm"}
+				variant="outline"
+				className="shrink-0"
+				disabled={resumeDisabled}
+				onClick={resumeWork}
+			>
+				{FACTORY_MESSAGES.resume}
+			</Button>
+		</output>
+	);
+	// Cards Factory filed for a recurring review pattern carry a badge.
+	const ruleBadge = (task: AgendaTaskRecord) =>
+		isFactoryRuleCard(task) || currentAttention.get(task.taskId)?.ruleCard ? (
+			<FactoryRuleBadge />
+		) : null;
+	/** Where a card stopped, in its station's name. */
+	const stoppedAt = (task: AgendaTaskRecord) =>
+		FACTORY_LINE.stoppedAt(
+			FACTORY_LINE.stations[activityOf(task).station.station],
+		);
+	const byId = (task: AgendaTaskRecord) => task.taskId;
+	/**
+	 * The home's status groups, in the board's order: each card once, in the
+	 * first group that claims it. The rail beside a card lists the same.
+	 */
+	const homeGroups: [FactoryHomeGroup, string, AgendaTaskRecord[]][] = [
+		["waiting", FACTORY_LINE.groups.waiting, waitingTasks],
+		["working", FACTORY_LINE.groups.working, workingNow],
+		[
+			"needsYou",
+			FACTORY_LINE.groups.needsYou,
+			[...unreadableTasks, ...needsYou],
+		],
+		["delivered", FACTORY_LINE.groups.delivered, deliveredRecently],
+	];
 	if (selectedId) {
+		// The same groups, in the same order, as the home.
+		const railSections = homeGroups
+			.filter(([, , items]) => items.length > 0)
+			.map(([, label, items]) => [label, items] as const);
+		/** A rail row's state, as every other surface shows the card. */
+		const railState = (task: AgendaTaskRecord) => {
+			const activity = activityOf(task);
+			const label = rowLabel(task);
+			return {
+				label,
+				detail: activity.station.stopped
+					? stoppedAt(task)
+					: activity.column === "Working"
+						? `${FACTORY_LINE.stations[activity.station.station]} · ${label}`
+						: label,
+				tone: activity.tone,
+				working: activity.column === "Working",
+			};
+		};
+		const railRow = (task: AgendaTaskRecord) => {
+			const state = railState(task);
+			const current = task.taskId === selectedId;
+			const name = [factoryShortId(task), task.title].filter(Boolean).join(" ");
+			return (
+				<li key={task.taskId}>
+					<button
+						type="button"
+						data-factory-task={task.taskId}
+						data-factory-source="rail"
+						aria-label={`${name}, ${state.label}`}
+						aria-current={current ? "true" : undefined}
+						title={task.title}
+						onClick={() => selectTask(task.taskId, "rail")}
+						className={cn(
+							"flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring @max-[1119px]/factory:justify-center",
+							current && "bg-muted",
+						)}
+					>
+						{state.working ? (
+							<Loader2
+								aria-hidden
+								className={cn("size-3 shrink-0", toneText(state.tone), SPIN)}
+							/>
+						) : (
+							<span
+								aria-hidden
+								className={cn(
+									"size-2 shrink-0 rounded-full",
+									toneDot(state.tone),
+								)}
+							/>
+						)}
+						<FactoryIdChip task={task} />
+						<span className="hidden min-w-0 flex-1 @min-[1120px]/factory:block">
+							<span className="block truncate text-sm">{task.title}</span>
+							<span
+								className={cn("block truncate text-xs", toneText(state.tone))}
+							>
+								{state.detail}
+							</span>
+						</span>
+					</button>
+					{state.working
+						? liveLine(task, {
+								compact: true,
+								className: "hidden px-3 pb-2 pl-8 @min-[1120px]/factory:flex",
+							})
+						: null}
+				</li>
+			);
+		};
+		const railIcon =
+			"size-8 @min-[1120px]/factory:size-auto @min-[1120px]/factory:px-2";
 		return (
-			<div className="min-h-0 flex-1" data-testid="factory-view">
-				<PageFrame key={selectedId}>
-					{feedback}
-					{selected ? (
-						<FeatureDetail
-							drafts={drafts}
-							key={selected.taskId}
-							task={selected}
-							onRefresh={agenda.refresh}
-							onOpenSession={onOpenSession}
-							onClose={() => selectTask(null)}
-							questions={currentAttention.get(selected.taskId)?.questions ?? []}
-							onAnswer={attention.answer}
-						/>
-					) : (
-						<>
-							<Button variant="ghost" onClick={() => selectTask(null)}>
-								Back to Factory
+			<div
+				className="@container/factory flex min-h-0 flex-1 flex-col"
+				data-testid="factory-view"
+			>
+				<div
+					data-factory-layout="master-detail"
+					className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] @min-[960px]/factory:grid-cols-[4.5rem_minmax(0,1fr)] @min-[1120px]/factory:grid-cols-[16rem_minmax(0,1fr)]"
+				>
+					{/* Below 960px the card takes the page and Back returns to the list. */}
+					<nav
+						aria-label={FACTORY_MASTER_DETAIL.rail}
+						data-factory-rail
+						className="hidden min-h-0 flex-col border-r @min-[960px]/factory:flex"
+					>
+						<div className="flex flex-col items-center gap-1 border-b px-2 py-2 @min-[1120px]/factory:flex-row">
+							<Button
+								variant="ghost"
+								size="sm"
+								className={railIcon}
+								aria-label={FACTORY_MASTER_DETAIL.allActivity}
+								title={FACTORY_MASTER_DETAIL.allActivity}
+								onClick={() => selectTask(null)}
+							>
+								<FactoryIcon className="size-4" />
+								<span className="hidden @min-[1120px]/factory:inline">
+									Factory
+								</span>
 							</Button>
-							<output className="mt-4 text-sm text-muted-foreground">
-								{agenda.isLoading
-									? "Loading work…"
-									: "This work is not in the loaded history. Return to Factory to choose another item."}
-							</output>
-						</>
-					)}
-				</PageFrame>
+							<span className="hidden flex-1 @min-[1120px]/factory:block" />
+							{onAskFactory ? (
+								<Button
+									variant="ghost"
+									size="icon"
+									className="size-8"
+									aria-label={FACTORY_MANAGER.ask}
+									aria-expanded={askFactoryOpen}
+									data-ask-factory=""
+									title={FACTORY_MANAGER.ask}
+									onClick={onAskFactory}
+								>
+									<MessageSquare className="size-4" />
+								</Button>
+							) : null}
+						</div>
+						{queueStopped ? (
+							<>
+								<div className="hidden @min-[1120px]/factory:block">
+									{pauseBanner(true)}
+								</div>
+								{/* The id rail is too narrow for Resume: an indicator here,
+								    and the full banner beside the card. */}
+								<span
+									role="img"
+									data-factory-paused="indicator"
+									aria-label={FACTORY_COMPACT.pausedIndicator}
+									title={FACTORY_COMPACT.pausedIndicator}
+									className="flex justify-center border-b py-2 text-muted-foreground @min-[1120px]/factory:hidden"
+								>
+									<Pause aria-hidden className="size-4" />
+								</span>
+							</>
+						) : null}
+						{/* A block viewport lets rail titles truncate instead of
+						    widening the rail past its column. */}
+						<ScrollArea
+							className="min-h-0 flex-1"
+							viewportClassName={PAGE_FRAME_FIT_VIEWPORT}
+						>
+							<div className="pb-4">
+								{railSections.map(([label, items]) => (
+									<section key={label} aria-label={label} className="pt-2">
+										<h2 className="hidden items-center gap-2 px-3 pb-1 text-xs font-medium text-muted-foreground @min-[1120px]/factory:flex">
+											{label}
+											<span className="tabular-nums">{items.length}</span>
+										</h2>
+										<div
+											aria-hidden
+											className="mx-3 mb-1 border-t @min-[1120px]/factory:hidden"
+										/>
+										<ul>{items.map(railRow)}</ul>
+									</section>
+								))}
+							</div>
+						</ScrollArea>
+					</nav>
+					<div className="min-h-0 min-w-0">
+						<PageFrame key={selectedId} fit contentClassName="max-w-none">
+							{queueStopped ? (
+								<div className="mb-4 @min-[1120px]/factory:hidden">
+									{pauseBanner()}
+								</div>
+							) : null}
+							{notices}
+							{selected ? (
+								<FeatureDetail
+									drafts={drafts}
+									key={selected.taskId}
+									task={selected}
+									onRefresh={agenda.refresh}
+									onOpenSession={onOpenSession}
+									onOpenTask={selectTask}
+									onClose={() => selectTask(null)}
+									questions={
+										currentAttention.get(selected.taskId)?.questions ?? []
+									}
+									onAnswer={attention.answer}
+								/>
+							) : agenda.isLoading ? (
+								<output className="block text-sm text-muted-foreground">
+									{FACTORY_MESSAGES.loading}
+								</output>
+							) : (
+								<PageEmptyState className="flex flex-col items-center gap-3 py-8 text-center">
+									<p>{FACTORY_MESSAGES.notFound}</p>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => selectTask(null)}
+									>
+										<ArrowLeft className="mr-1.5 size-3.5" />
+										Back to Factory
+									</Button>
+								</PageEmptyState>
+							)}
+						</PageFrame>
+					</div>
+				</div>
 			</div>
 		);
 	}
-	return (
-		<div className="min-h-0 flex-1" data-testid="factory-view">
-			<PageFrame key={view}>
-				<PageHeader
-					title="Factory"
-					icon={Columns3}
-					description="Local agents scope, implement, verify, and repair your requests. Review the decisions that need you."
-					meta={
-						<span className="rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-							Preview
+	const backToActivity = (
+		<Button
+			variant="ghost"
+			size="sm"
+			className="-ml-2 mb-3"
+			onClick={() => setView("activity")}
+		>
+			<ArrowLeft className="mr-1.5 size-3.5" />
+			Back to Factory
+		</Button>
+	);
+	const nothingAtAll =
+		activityConfirmed && tasks.filter((task) => !task.archivedAt).length === 0;
+	// A figure the Hub does not report is left out rather than guessed.
+	const supportedLimits = limits.limits?.supported ? limits.limits : undefined;
+	const spent = supportedLimits?.spentTodayUsd;
+	const dailyLimit = supportedLimits?.dailyCostUsd;
+	const limitReached =
+		typeof dailyLimit === "number" &&
+		spent !== undefined &&
+		spent >= dailyLimit;
+	const spendText =
+		spent === undefined
+			? undefined
+			: FACTORY_LINE.spend(
+					formatFactoryUsd(spent),
+					typeof dailyLimit === "number"
+						? formatFactoryUsd(dailyLimit)
+						: undefined,
+				);
+	// Only an exception gets a banner: one slim line under the header, one
+	// sentence and at most one link. Resume is the header's toggle.
+	const bannerRow =
+		"flex min-h-8 shrink-0 items-center gap-2 border-b px-4 py-1.5 text-[12.5px]";
+	const banners = (
+		<>
+			{error || connectionProblem ? (
+				<div
+					role="alert"
+					className={cn(bannerRow, "bg-destructive/5 text-error-text")}
+				>
+					<AlertTriangle aria-hidden className="size-3.5 shrink-0" />
+					<span className="min-w-0 flex-1 truncate">
+						{error ?? connectionMessage}
+						{error && connectionProblem ? ` ${connectionMessage}` : ""}
+						{loadError && !factoryRawData(loadError) ? ` ${loadError}` : ""}
+					</span>
+					<Button
+						variant="link"
+						size="sm"
+						className="h-auto shrink-0 p-0 text-xs text-accent-foreground"
+						disabled={busy}
+						onClick={() => {
+							setError(null);
+							void agenda.refresh();
+							void attention.refresh();
+						}}
+					>
+						<RefreshCw aria-hidden className="size-3" />
+						Retry
+					</Button>
+				</div>
+			) : null}
+			{message ? (
+				<output className={cn(bannerRow, "bg-muted/30")}>
+					<CheckCircle2
+						aria-hidden
+						className={cn("size-3.5 shrink-0", toneText("success"))}
+					/>
+					<span className="min-w-0 flex-1 truncate">{message}</span>
+				</output>
+			) : null}
+			{view !== "activity" ? null : limitReached ? (
+				<output
+					data-factory-banner="limit"
+					className={cn(bannerRow, "bg-amber-500/10")}
+				>
+					<AlertTriangle
+						aria-hidden
+						className={cn("size-3.5 shrink-0", toneText("attention"))}
+					/>
+					<span className="min-w-0 truncate">
+						{FACTORY_LINE.limitReached(
+							formatFactoryUsd(spent ?? 0),
+							formatFactoryUsd(dailyLimit ?? 0),
+						)}
+					</span>
+					<Button
+						variant="link"
+						size="sm"
+						className="h-auto shrink-0 p-0 text-[12.5px] text-accent-foreground"
+						onClick={() => {
+							setSettingsFocus("dailyCostUsd");
+							setView("settings");
+						}}
+					>
+						{FACTORY_LINE.changeLimit}
+					</Button>
+				</output>
+			) : queueStopped ? (
+				<output
+					data-factory-banner="paused"
+					className={cn(bannerRow, "bg-amber-500/10")}
+				>
+					<Pause
+						aria-hidden
+						className={cn("size-3.5 shrink-0", toneText("attention"))}
+					/>
+					<span className="min-w-0 flex-1 truncate">
+						{FACTORY_BOARD.paused}
+					</span>
+				</output>
+			) : null}
+			{view === "activity" ? (
+				<FactoryHandsOffNotice className="min-h-8 shrink-0 rounded-none border-0 border-b px-4 py-1 text-[12.5px] [&_p]:truncate [&_svg]:size-3.5 [&_button]:h-6" />
+			) : null}
+		</>
+	);
+
+	/** Why a card stopped, in one line of plain words. */
+	const stopReason = (task: AgendaTaskRecord) => {
+		if (factoryPlanFaultStopped(task)) return FACTORY_RECOVERY.planFaultStopped;
+		if (factoryPlanFault(task)) return FACTORY_RECOVERY.planFault;
+		if (factoryScopingStopped(task))
+			return factoryScopingStopReason(task.error);
+		const publish = factoryPublishFailureReason(task.error);
+		if (publish !== undefined)
+			return [FACTORY_RECOVERY.publishFailed, publish]
+				.filter(Boolean)
+				.join(": ");
+		const text = firstSentence(
+			task.error && !factoryRawData(task.error) ? task.error : "",
+		);
+		// Failed checks stop the card at Build: say so, unless the error does.
+		if (
+			activityOf(task).station.checks &&
+			!text.startsWith(FACTORY_LINE.checksFailed)
+		)
+			return [FACTORY_LINE.checksFailed, text].filter(Boolean).join(": ");
+		return text || stoppedAt(task);
+	};
+	/** What a decision asks, in one line. */
+	const decisionDetail = (task: AgendaTaskRecord) => {
+		const activity = activityOf(task);
+		const outcome = outcomes.get(task.taskId);
+		const openFindings = factoryOpenFindings(task, outcome);
+		const review = factoryOutcomeDetails(outcome).humanReview;
+		if (activity.label === FACTORY_DECISION.question) {
+			const question =
+				currentAttention.get(task.taskId)?.questions[0]?.question ??
+				task.factoryQuestions?.find(
+					(item) =>
+						item.status === "pending" && item.revision === task.revision,
+				)?.question;
+			if (question) return FACTORY_LINE.question(question);
+		}
+		if (activity.label === FACTORY_DECISION.rule)
+			return (
+				factoryProposedRule({ taskId: task.taskId, outcome })?.summary ??
+				activity.label
+			);
+		if (openFindings)
+			return FACTORY_OPEN_FINDINGS.headline(openFindings.findings.length);
+		if (activity.label === FACTORY_READY.needsReview && review)
+			return factoryReviewReason(review.reason);
+		return (
+			(task.factory &&
+				factoryAutoApprovalBlocker({ ...task, factory: task.factory })) ||
+			// The card's first row names the repository.
+			activity.label
+		);
+	};
+	/**
+	 * A card's one quick action: shown on hover or keyboard focus, in the DOM
+	 * always so Tab and assistive technology reach it.
+	 */
+	const quickAction = (
+		task: AgendaTaskRecord,
+		label: string,
+		Icon: typeof RotateCcw,
+		run: () => void,
+		disabled = false,
+	) => (
+		<Button
+			size="xs"
+			variant="outline"
+			aria-label={`${label}: ${task.title}`}
+			disabled={disabled}
+			onClick={run}
+			className="h-6 gap-1 bg-background px-2 text-[11.5px]"
+		>
+			<Icon aria-hidden className="size-3" />
+			<span aria-hidden>{label}</span>
+		</Button>
+	);
+	/**
+	 * A stop's quick action, only when the engine will run again: Try again
+	 * (a repair limit gets one more round from a person's retry) or Try
+	 * scoping again. A plan repair limit needs Edit plan, on the card.
+	 */
+	const stopAction = (task: AgendaTaskRecord): ReactNode => {
+		if (PLAN_REPAIR_LIMIT.test(task.error ?? "")) return null;
+		if (factoryScopingStopped(task))
+			return quickAction(
+				task,
+				FACTORY_CARD_ACTION.tryScopingAgain,
+				RotateCcw,
+				() => void rescope(task),
+				busy || !activityConfirmed,
+			);
+		if (retryable(task))
+			return quickAction(
+				task,
+				FACTORY_CARD_ACTION.tryAgain,
+				RotateCcw,
+				() => void retryTask(task),
+				busy || !activityConfirmed,
+			);
+		return null;
+	};
+	// The repository shows on cards only when they span more than one, and
+	// never in the Project grouping, whose columns name it.
+	const projectOf = (task: AgendaTaskRecord) =>
+		basenamePath(task.workspaceRoot);
+	const showProject =
+		boardView.grouping !== "project" &&
+		new Set(boardTasks.map(projectOf)).size > 1;
+
+	/**
+	 * One card of the board, three rows: id · repository and the stage (or
+	 * age); the title, two lines at most; an icon, one line (or two) and a
+	 * time. The whole card is one button that opens it; the one quick action
+	 * appears on hover or focus.
+	 */
+	const boardCard = (
+		task: AgendaTaskRecord,
+		group: FactoryHomeGroup,
+		{
+			icon,
+			detail,
+			twoLines = false,
+			time,
+			stages = false,
+			end,
+			edge,
+		}: {
+			icon?: ReactNode;
+			detail?: ReactNode;
+			twoLines?: boolean;
+			time?: ReactNode;
+			stages?: boolean;
+			/** Row 1's right end when there is no stage: the age. */
+			end?: ReactNode;
+			edge?: "danger" | "attention";
+		},
+		action?: ReactNode,
+	) => {
+		const activity = activityOf(task);
+		const id = factoryShortId(task);
+		const name = [id, task.title].filter(Boolean).join(" ");
+		const state = activity.station.stopped ? stoppedAt(task) : rowLabel(task);
+		return (
+			<li
+				key={task.taskId}
+				data-factory-row={group}
+				data-factory-card={task.taskId}
+				className={cn(
+					"group/card @container/card relative flex flex-none flex-col gap-[3px] rounded-md border bg-background px-[9px] pt-[7px] pb-2 transition-colors hover:border-foreground/20 hover:bg-[var(--neutral-2)] dark:bg-[var(--neutral-3)] dark:hover:bg-[var(--neutral-4)]",
+					edge === "danger" &&
+						"shadow-[inset_2px_0_0_var(--color-destructive)]",
+					edge === "attention" &&
+						"shadow-[inset_2px_0_0_var(--color-amber-500)]",
+					group === "delivered" && arrived(task) && ARRIVE,
+				)}
+			>
+				<button
+					type="button"
+					data-factory-task={task.taskId}
+					data-factory-source={group}
+					aria-label={`${name}, ${state}`}
+					title={task.title}
+					onClick={() => selectTask(task.taskId, group)}
+					className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				/>
+				<div className="flex h-[15px] min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+					{id ? (
+						<span
+							data-factory-id
+							className="shrink-0 font-mono text-[10.5px] tracking-[0.02em]"
+						>
+							{id}
 						</span>
-					}
-					actions={
-						<>
-							<Button
-								variant="outline"
-								disabled={busy}
-								onClick={() =>
-									void perform(async () => {
-										await desktopClient.stopFactoryQueue();
-										setMessage(
-											"Queue stopped. A running feature continues; cancel it from its details to stop execution.",
-										);
-									})
+					) : null}
+					{showProject && activity.unreadable === undefined ? (
+						<span
+							data-factory-project
+							// Hidden on a card under 200px (its content under 182px).
+							className="min-w-0 truncate @max-[181px]/card:hidden"
+						>
+							{id ? "· " : ""}
+							{projectOf(task)}
+						</span>
+					) : null}
+					<span className="ml-auto flex shrink-0 items-center tabular-nums">
+						{stages ? (
+							<FactoryRowStages
+								state={activity.station}
+								// A decision is amber at its stage; a stop is red.
+								tone={
+									edge === "danger"
+										? "danger"
+										: edge === "attention"
+											? "attention"
+											: activity.tone
 								}
-							>
-								<Pause className="mr-2 size-3.5" />
-								Stop queue
-							</Button>
-							<Button
-								variant="outline"
-								disabled={
-									busy ||
-									ready.length === 0 ||
-									agenda.isLoading ||
-									attention.isLoading ||
-									!attention.transportReady
-								}
-								onClick={() =>
-									void perform(async () => {
-										const result = await desktopClient.startFactoryQueue(ready);
-										setMessage(
-											`${result.queued} feature${result.queued === 1 ? "" : "s"} queued. Independent jobs can run concurrently.`,
-										);
-									})
-								}
-							>
-								<Play className="mr-2 size-3.5" />
-								Start queue{ready.length ? ` (${ready.length})` : ""}
-							</Button>
-							<Button onClick={() => setCreating(true)}>
-								<Plus className="mr-2 size-4" />
-								Add work
-							</Button>
-						</>
+								className="gap-[5px] text-[11px]"
+							/>
+						) : (
+							end
+						)}
+					</span>
+				</div>
+				<p className="line-clamp-2 text-[13px] leading-[17px] font-medium">
+					{task.title}
+					{ruleBadge(task) ? (
+						<span className="ml-1.5 inline-flex align-middle">
+							{ruleBadge(task)}
+						</span>
+					) : null}
+				</p>
+				{detail ? (
+					<div
+						data-factory-detail
+						className="flex min-w-0 items-start gap-1.5 text-xs leading-4 text-muted-foreground"
+					>
+						{icon ? (
+							<span aria-hidden className="mt-0.5 flex shrink-0">
+								{icon}
+							</span>
+						) : null}
+						<span
+							className={cn(
+								"min-w-0 flex-1",
+								twoLines ? "line-clamp-2" : "truncate",
+							)}
+						>
+							{detail}
+						</span>
+						{time ? (
+							<span className="ml-auto shrink-0 text-[11px] tabular-nums">
+								{time}
+							</span>
+						) : null}
+					</div>
+				) : null}
+				{action ? (
+					<div
+						data-factory-quick-action
+						className="absolute right-1.5 bottom-1.5 flex opacity-0 shadow-[-10px_0_8px_2px_var(--neutral-2)] transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100 [@media(hover:none)]:opacity-100 dark:shadow-[-10px_0_8px_2px_var(--neutral-4)]"
+					>
+						{action}
+					</div>
+				) : null}
+			</li>
+		);
+	};
+
+	const needsYouRow = (task: AgendaTaskRecord) => {
+		const activity = activityOf(task);
+		// A card whose stored data failed validation: its id and the reason,
+		// so every other card still shows.
+		if (activity.unreadable !== undefined)
+			return boardCard(task, "needsYou", {
+				icon: <AlertTriangle className={cn("size-3", toneText("attention"))} />,
+				detail: [FACTORY_UNREADABLE.title, activity.unreadable]
+					.filter(Boolean)
+					.join(" · "),
+				twoLines: true,
+				edge: "attention",
+			});
+		const stopped = STOPPED_LABELS.has(activity.label);
+		const Icon = stopped
+			? XCircle
+			: activity.label === FACTORY_DECISION.question
+				? HelpCircle
+				: factoryDecisionStyle(activity.label).icon;
+		return boardCard(
+			task,
+			"needsYou",
+			{
+				icon: (
+					<Icon
+						className={cn("size-3", toneText(stopped ? "danger" : "attention"))}
+					/>
+				),
+				detail: stopped ? (
+					<span data-factory-stop-reason>{stopReason(task)}</span>
+				) : (
+					decisionDetail(task)
+				),
+				twoLines: true,
+				time: formatRelativeTime(task.updatedAt),
+				stages: true,
+				edge: stopped ? "danger" : "attention",
+			},
+			stopped ? stopAction(task) : null,
+		);
+	};
+
+	const workingRow = (task: AgendaTaskRecord) => {
+		const activity = activityOf(task);
+		const watch = watchButton(task);
+		const startedAt = (liveSessions.get(task.taskId) ?? [])
+			.map((session) => Date.parse(session.startedAt ?? ""))
+			.filter(Number.isFinite)
+			.sort((a, b) => a - b)[0];
+		return boardCard(
+			task,
+			"working",
+			{
+				icon: (
+					<Loader2 className={cn("size-3", toneText(activity.tone), SPIN)} />
+				),
+				// A repository stage runs as part of Build: "Build · Security scan".
+				detail: activity.station.stage
+					? FACTORY_STAGES.subStep(activity.station.stage)
+					: activity.station.checks
+						? FACTORY_LINE.runningChecks
+						: (liveLine(task, { compact: true, className: "text-xs" }) ??
+							rowLabel(task)),
+				time:
+					startedAt === undefined ? undefined : (
+						<BoardElapsed since={startedAt} />
+					),
+				stages: true,
+			},
+			// The shared watch control, sized as a 24px quick action.
+			watch ? (
+				<span className="flex [&_button]:h-6 [&_button]:gap-1 [&_button]:bg-background [&_button]:px-2 [&_button]:text-[11.5px] [&_svg]:size-3">
+					{watch}
+				</span>
+			) : null,
+		);
+	};
+
+	const waitingRow = (task: AgendaTaskRecord) => {
+		const label = rowLabel(task);
+		// While paused the banner says why cards wait, not each card.
+		const detail =
+			queueStopped && label === FACTORY_ACTIVITY.waitingForSlot
+				? undefined
+				: label;
+		return boardCard(
+			task,
+			"waiting",
+			{
+				icon: detail ? <Clock className="size-3" /> : undefined,
+				detail,
+			},
+			startable(task)
+				? quickAction(
+						task,
+						FACTORY_RECOVERY.start,
+						Play,
+						() => void startTasks([task], `Starting “${task.title}”.`),
+						busy || !activityConfirmed,
+					)
+				: null,
+		);
+	};
+
+	const deliveredRow = (task: AgendaTaskRecord) => {
+		const activity = activityOf(task);
+		const outcome = outcomes.get(task.taskId);
+		const url =
+			factoryOutcomeDetails(outcome).pullRequestUrl ??
+			factoryOpenFindings(task, outcome)?.pullRequestUrl;
+		const Icon = url ? GitPullRequest : GitBranch;
+		// Feedback never stops a card: a delivery the person flagged stays
+		// delivered, with their note as its quiet last line.
+		const flagged = outcome?.audit?.finding;
+		return boardCard(
+			task,
+			"delivered",
+			{
+				icon: flagged ? (
+					<Flag className="size-3" />
+				) : (
+					<Icon className={cn("size-3", toneText("success"))} />
+				),
+				twoLines: Boolean(flagged),
+				detail: flagged ? (
+					<span data-factory-flagged>{FACTORY_LINE.flagged(flagged)}</span>
+				) : (
+					<span data-factory-proof>
+						{[
+							// Without its outcome, the muted "Status not loaded yet".
+							outcome ? deliveryProof(task, outcome) : activity.label,
+							url
+								? FACTORY_BOARD.pullRequest(
+										outcome?.pullRequestOutcome,
+										outcome?.pullRequestReady === true,
+									)
+								: FACTORY_LINE.proof.onBranch,
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</span>
+				),
+				end: formatRelativeTime(task.updatedAt),
+			},
+			url
+				? quickAction(
+						task,
+						factoryPullRequestActionLabel(outcome),
+						ExternalLink,
+						() => void openExternalUrl(url),
+					)
+				: null,
+		);
+	};
+
+	const cardFor: Record<
+		FactoryHomeGroup,
+		(task: AgendaTaskRecord) => ReactNode
+	> = {
+		needsYou: needsYouRow,
+		working: workingRow,
+		waiting: waitingRow,
+		delivered: deliveredRow,
+	};
+	// Every card the board lists, once, with its status group; a grouping
+	// turns them into columns.
+	const statusOf = new Map<string, FactoryHomeGroup>();
+	const boardRows: FactoryBoardRow[] = [];
+	const taskById = new Map<string, AgendaTaskRecord>();
+	for (const [group, , items] of homeGroups)
+		for (const task of items) {
+			statusOf.set(task.taskId, group);
+			taskById.set(task.taskId, task);
+			boardRows.push({
+				id: task.taskId,
+				status: group,
+				stage: activityOf(task).station.station,
+				project: projectOf(task),
+			});
+		}
+	const columns = resolveFactoryBoard(boardView, boardRows);
+	const historyColumnShown = columns.some(
+		(column) => column.id === "delivered" && !column.hidden,
+	);
+	const allHistory = (
+		<Button
+			variant="link"
+			size="sm"
+			className="ml-auto h-auto shrink-0 p-0 text-xs font-normal text-accent-foreground"
+			onClick={() => setView("history")}
+		>
+			{FACTORY_LINE.allHistory}
+		</Button>
+	);
+	const skeletons = [0, 1, 2].map((index) => (
+		<li key={`skeleton-${index}`} aria-hidden>
+			<Skeleton className="h-[62px] rounded-md" />
+		</li>
+	));
+	const emptyLine = (id: string) =>
+		id === "waiting" && nothingAtAll
+			? FACTORY_BOARD.empty.nothing
+			: boardView.grouping === "status" && id in FACTORY_BOARD.empty
+				? FACTORY_BOARD.empty[id as FactoryHomeGroup]
+				: FACTORY_BOARD.empty.column;
+	const boardColumn = (column: FactoryBoardResolvedColumn) => {
+		const pinned = factoryBoardPinned(boardView.grouping, column.id);
+		const collapsed = factoryBoardCollapsed(boardView, column, tier);
+		const items = order(
+			`${boardView.grouping}:${column.id}`,
+			column.rows.flatMap((row) => taskById.get(row.id) ?? []),
+			byId,
+		);
+		const shown =
+			column.id === "waiting" ? items.slice(0, WAITING_LIMIT) : items;
+		const isStatus = boardView.grouping === "status";
+		const footer =
+			column.id === "waiting" && items.length > shown.length
+				? FACTORY_BOARD.moreWaiting(items.length - shown.length)
+				: column.id === "delivered" &&
+						delivered.length > deliveredRecently.length
+					? FACTORY_BOARD.mostRecent(deliveredRecently.length)
+					: undefined;
+		return (
+			<BoardColumn
+				key={column.id}
+				id={column.id}
+				label={column.title}
+				tone={
+					isStatus && column.id === "needsYou" && items.length === 0
+						? "neutral"
+						: (column.tone ?? "neutral")
+				}
+				count={items.length}
+				pill={isStatus && column.id === "needsYou" && items.length > 0}
+				countTitle={
+					column.id === "delivered"
+						? FACTORY_LINE.deliveredToday(deliveredToday)
+						: undefined
+				}
+				aside={
+					isStatus && column.id === "working" ? (
+						<FactoryWorkingLimit
+							running={running}
+							state={limits}
+							className={slotsFull ? toneText("attention") : undefined}
+						/>
+					) : column.id === "delivered" ? (
+						allHistory
+					) : null
+				}
+				collapsed={collapsed}
+				collapsible={!pinned}
+				alwaysShowCollapse={factoryBoardAutoCollapsed(
+					boardView.grouping,
+					tier,
+				).has(column.id)}
+				onToggle={() =>
+					setBoardView(
+						collapseFactoryBoardColumn(
+							boardView,
+							columns,
+							tier,
+							column.id,
+							!collapsed,
+						),
+					)
+				}
+				empty={emptyLine(column.id)}
+				footer={footer}
+				hold={hold(`${boardView.grouping}:${column.id}`)}
+			>
+				{loadingActivity && items.length === 0
+					? skeletons
+					: shown.map((task) =>
+							cardFor[statusOf.get(task.taskId) ?? "waiting"](task),
+						)}
+			</BoardColumn>
+		);
+	};
+	const pauseLabel = queueStopped
+		? FACTORY_MESSAGES.resume
+		: FACTORY_MESSAGES.pauseNewWork;
+	const compactHeader = tier !== "wide";
+	const header = (
+		<header className="flex h-12 shrink-0 items-center gap-2 border-b pr-3 pl-4">
+			<h1 className="flex min-w-0 items-center gap-2 text-[15px] font-semibold">
+				<FactoryIcon
+					aria-hidden
+					className="size-[17px] shrink-0 text-primary"
+				/>
+				Factory
+			</h1>
+			<Badge
+				variant="outline"
+				className="h-4 px-1.5 text-[10.5px] font-medium text-muted-foreground"
+			>
+				Preview
+			</Badge>
+			<span className="flex-1" />
+			{view === "activity" && spendText && !nothingAtAll && tier !== "tight" ? (
+				<span
+					data-factory-spend
+					className="px-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+				>
+					{spendText}
+				</span>
+			) : null}
+			{view === "activity" ? (
+				<BoardDisplayMenu
+					view={boardView}
+					columns={columns}
+					onChange={setBoardView}
+					onAllHistory={
+						historyColumnShown ? undefined : () => setView("history")
 					}
 				/>
-
-				<nav
-					aria-label="Factory destinations"
-					className="mb-6 flex flex-wrap gap-1 border-b pb-3"
+			) : null}
+			{/* One toggle, one place: Pause new work, or Resume. */}
+			{view === "activity" && (queueStopped || !nothingAtAll) ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					data-factory-pause={queueStopped ? "resume" : "pause"}
+					aria-label={pauseLabel}
+					disabled={queueStopped ? resumeDisabled : busy}
+					title={
+						queueStopped
+							? pauseLabel
+							: "Stop starting queued work. Work that is already running continues."
+					}
+					onClick={queueStopped ? resumeWork : pauseWork}
+					className={cn("h-7", compactHeader ? "w-7 px-0" : "px-2")}
 				>
-					{(
-						[
-							["attention", "Attention"],
-							["board", "Runs"],
-							["workflows", "Workflows"],
-							["samples", "Improve"],
-						] satisfies [FactoryDestination, string][]
-					).map(([destination, label]) => (
-						<Button
-							key={destination}
-							size="sm"
-							variant={
-								activeDestination === destination ? "secondary" : "ghost"
-							}
-							aria-current={
-								activeDestination === destination ? "page" : undefined
-							}
-							onClick={() => setView(destination)}
-						>
-							{label}
-							{destination === "attention" && attentionCount
-								? ` (${attentionCount})`
-								: ""}
-						</Button>
-					))}
-				</nav>
-				{feedback}
-				{view === "board" || showArchived || showOutcomes ? (
-					<div className="mb-4 flex flex-wrap items-center gap-2">
-						{view === "board" || showArchived || view === "history" ? (
-							<>
-								<Button
-									size="sm"
-									variant={view === "board" ? "secondary" : "ghost"}
-									onClick={() => setView("board")}
-								>
-									Active runs
-								</Button>
-								<Button
-									size="sm"
-									variant={view === "history" ? "secondary" : "ghost"}
-									onClick={() => setView("history")}
-								>
-									History ({finished.length})
-								</Button>
-								<Button
-									size="sm"
-									variant={showArchived ? "secondary" : "ghost"}
-									onClick={() => setView("archived")}
-								>
-									Archived ({archived.length})
-								</Button>
-								{view === "board" ? (
-									<Button
-										size="sm"
-										variant={needsYouOnly ? "secondary" : "ghost"}
-										aria-pressed={needsYouOnly}
-										onClick={() => setNeedsYouOnly((current) => !current)}
-									>
-										Needs you ({attentionCount})
-									</Button>
-								) : null}
-							</>
-						) : (
-							<>
-								<Button
-									size="sm"
-									variant={samplesOnly ? "secondary" : "ghost"}
-									onClick={() => setView("samples")}
-								>
-									Sample queue ({sampleQueue.length})
-								</Button>
-								<Button
-									size="sm"
-									variant={view === "outcomes" ? "secondary" : "ghost"}
-									onClick={() => setView("outcomes")}
-								>
-									Outcomes ({finished.length})
-								</Button>
-							</>
-						)}
-					</div>
-				) : null}
-				{showOutcomes && view !== "history" ? (
-					<div className="mb-4">
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={
-								busy ||
-								!finished.some(
-									(task) =>
-										outcomes.get(task.taskId) &&
-										!outcomes.get(task.taskId)?.audit,
-								)
-							}
-							onClick={() =>
-								void perform(async () => {
-									const eligible = finished.filter(
-										(task) =>
-											outcomes.get(task.taskId) &&
-											!outcomes.get(task.taskId)?.audit,
-									);
-									const task =
-										eligible[Math.floor(Math.random() * eligible.length)];
-									if (!task) return;
-									await desktopClient.invoke("task.factory.audit", {
-										taskId: task.taskId,
-										selectionReason: "random",
-										allWorkspaces: true,
-									});
-									await attention.refresh();
-									setView("samples");
-								})
-							}
-						>
-							Pick a random outcome
-						</Button>
-					</div>
-				) : null}
+					{queueStopped ? (
+						<Play aria-hidden className="size-3.5" />
+					) : (
+						<Pause aria-hidden className="size-3.5" />
+					)}
+					{compactHeader ? null : <span aria-hidden>{pauseLabel}</span>}
+				</Button>
+			) : null}
+			<Button
+				variant="ghost"
+				size="sm"
+				aria-label={FACTORY_TERMS.settings}
+				title={FACTORY_TERMS.settings}
+				data-factory-settings
+				onClick={() => setView("settings")}
+				className={cn("h-7", compactHeader ? "w-7 px-0" : "px-2")}
+			>
+				<Settings2 aria-hidden className="size-3.5" />
+				{compactHeader ? null : (
+					<span aria-hidden>{FACTORY_COMPACT.settings}</span>
+				)}
+			</Button>
+			{/* One way in: the manager chat adds work as well as answering. */}
+			{onAskFactory ? (
+				<Button
+					size="sm"
+					variant={askFactoryOpen ? "secondary" : "default"}
+					aria-expanded={askFactoryOpen}
+					data-ask-factory=""
+					onClick={onAskFactory}
+					className={cn("h-7 px-2.5", askFactoryOpen && "border")}
+				>
+					<MessageSquare aria-hidden className="size-3.5" />
+					{FACTORY_MANAGER.ask}
+				</Button>
+			) : null}
+		</header>
+	);
 
-				{showOutcomes || showArchived ? (
-					<div className="overflow-x-auto pb-6">
-						<p className="mb-3 text-xs text-muted-foreground">
-							{showArchived ? (
-								"Archived work is kept here. Open a feature to restore or delete it."
-							) : (
-								<>
-									Recent loaded outcomes, including failures. Random selection
-									draws from unsampled outcomes with execution evidence in this
-									view; manual samples are recorded separately.
-								</>
-							)}
-						</p>
-						<table className="w-full text-left text-sm">
-							<thead>
-								<tr className="border-b">
-									<th className="p-2">Feature</th>
-									<th className="p-2">{showArchived ? "Status" : "Outcome"}</th>
-									{showArchived ? (
-										<th className="p-2">Archived</th>
-									) : (
-										<>
-											<th className="p-2">Recorded model cost</th>
-											<th className="p-2">Repairs</th>
-											<th className="p-2">Sample</th>
-										</>
-									)}
-								</tr>
-							</thead>
-							<tbody>
-								{visibleOutcomes.map((task) => {
-									const outcome = outcomes.get(task.taskId);
-									return (
-										<tr key={task.taskId} className="border-b">
-											<td className="p-2">
-												<button
-													type="button"
-													className="text-left underline underline-offset-4"
-													onClick={() => selectTask(task.taskId)}
-												>
-													{task.title}
-												</button>
-											</td>
-											<td className="p-2">
-												{showArchived ||
-												task.status === "cancelled" ||
-												task.status === "expired"
-													? task.status
-													: outcome?.humanApproval
-														? "Checked off"
-														: (outcome?.phase ?? task.status)}
-											</td>
-											{showArchived ? (
-												<td className="p-2">
-													{task.archivedAt
-														? new Date(task.archivedAt).toLocaleString()
-														: "—"}
-												</td>
-											) : (
-												<>
-													<td className="p-2">
-														{outcome?.usage
-															? `$${outcome.usage.totals.totalCost.toFixed(2)}${outcome.usage.unknownSessionIds.length ? " + unknown usage" : ""}`
-															: "Unknown"}
-													</td>
-													<td className="p-2">{outcome?.repairRound ?? "—"}</td>
-													<td className="p-2">
-														{outcome?.audit
-															? `${outcome.audit.selectionReason ?? "manual"} · ${outcome.audit.reviewedAt ? (outcome.audit.finding ? "finding" : "passed") : "pending"}`
-															: outcome
-																? "Not sampled"
-																: "Unknown"}
-													</td>
-												</>
-											)}
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
-						{visibleOutcomes.length === 0 ? (
-							<p className="py-8 text-sm text-muted-foreground">
-								{showArchived
-									? "No archived work."
-									: !attention.hasLoaded || attention.error || agenda.error
-										? "Current outcome and sample status is unavailable."
-										: samplesOnly
-											? "No samples waiting for review in loaded work."
-											: "No finished outcomes yet."}
-							</p>
-						) : null}
-					</div>
-				) : null}
-				{(view === "attention" || (view === "board" && !needsYouOnly)) &&
-				unknownTasks.length > 0 ? (
-					<section
-						aria-label="Status unavailable"
-						className="mb-5 rounded-lg border border-dashed p-4"
-					>
-						<h2 className="text-sm font-medium">
-							Status unavailable ({unknownTasks.length})
-						</h2>
-						<p className="mt-1 text-xs text-muted-foreground">
-							Current activity has not been confirmed. Open work to inspect its
-							latest state.
-						</p>
-						<div className="mt-3 flex flex-wrap gap-2">
-							{unknownTasks.map((task) => (
-								<Button
-									key={task.taskId}
-									size="sm"
-									variant="outline"
-									onClick={() => selectTask(task.taskId)}
-								>
-									{task.title}
-								</Button>
-							))}
-						</div>
-					</section>
-				) : null}
-				{view === "attention" ? (
-					<div className="space-y-5">
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<div>
-								<h2 className="text-lg font-medium">Decisions waiting</h2>
-								<p className="mt-1 text-sm text-muted-foreground">
-									Questions, plan approvals, and results in your loaded work.
-								</p>
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setView("board")}
-							>
-								{running} working · View runs
-							</Button>
-						</div>
-						{(agenda.isLoading && tasks.length === 0) ||
-						(!attention.hasLoaded && attention.isLoading) ? (
-							<output className="flex items-center gap-2 text-sm text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />
-								Loading current activity…
-							</output>
-						) : null}
-						{[...attentionGroups].map(([label, items]) => (
-							<section
-								key={label}
-								aria-label={label}
-								className="overflow-hidden rounded-lg border"
-							>
-								<h3 className="border-b bg-muted/20 px-4 py-3 text-sm font-medium">
-									{label}{" "}
-									<span className="ml-1 text-muted-foreground">
-										{items.length}
-									</span>
-								</h3>
-								<ul className="divide-y">
-									{items.map((task) => (
-										<li key={task.taskId}>
-											<button
-												type="button"
-												onClick={() => selectTask(task.taskId)}
-												className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-											>
-												<span className="min-w-0 flex-1">
-													<span className="block text-sm font-medium">
-														{task.title}
-													</span>
-													<span className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-														{task.workspaceRoot
-															?.split("/")
-															.filter(Boolean)
-															.pop() || "Repository"}
-														{task.description ? ` · ${task.description}` : ""}
-													</span>
-												</span>
-												<span className="text-xs text-muted-foreground">
-													Open work →
-												</span>
-											</button>
-										</li>
-									))}
-								</ul>
-							</section>
-						))}
-						{attentionCount === 0 &&
-						unknownTasks.length === 0 &&
-						attention.hasLoaded &&
-						attention.transportReady &&
-						!attention.isLoading &&
-						!agenda.isLoading &&
-						!agenda.error &&
-						!attention.error ? (
-							<p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-								No decisions waiting in loaded work. Follow progress in Runs or
-								add work to begin.
-							</p>
-						) : null}
-					</div>
-				) : null}
-				{view === "workflows" ? (
-					<section className="max-w-4xl">
-						<h2 className="text-lg font-medium">Factory workflows</h2>
-						<p className="mb-6 mt-2 text-sm text-muted-foreground">
-							Configure reusable participants and policies, save a named preset,
-							and choose the default for new work.
-						</p>
-						<FactoryWorkflowEditor
-							config={workflowConfig}
-							onChange={setWorkflowConfig}
-							disabled={false}
-							standalone
-						/>
-					</section>
-				) : null}
-				{view === "board" ? (
-					<>
-						<p className="mb-4 text-xs text-muted-foreground">
-							{running} working · Local execution · Draft PRs require opt-in ·
-							Loaded work only
-						</p>
-						{agenda.isLoading && tasks.length === 0 ? (
-							<output className="p-6 text-sm text-muted-foreground">
-								Loading features…
-							</output>
-						) : (
-							<div className="grid min-h-80 grid-cols-1 gap-4 pb-6 md:grid-cols-2 xl:grid-cols-4">
-								{COLUMNS.map((column) => {
-									const items = boardTasks.filter(
-										(task) =>
-											activities.get(task.taskId)?.column === column &&
-											(!needsYouOnly || needsYou(task)),
-									);
-									return (
-										<section
-											key={column}
-											aria-label={column}
-											className="rounded-xl border bg-muted/15 p-3"
+	if (view === "settings")
+		return (
+			<div
+				ref={boardRef}
+				className="@container/factory flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+				data-testid="factory-view"
+			>
+				<FactorySettingsPage
+					onBack={() => {
+						setSettingsFocus(undefined);
+						returnToSettingsButton.current = true;
+						setView("activity");
+					}}
+					onAskFactory={onAskFactory}
+					askFactoryOpen={askFactoryOpen}
+					limits={limits}
+					focus={settingsFocus}
+					projects={[
+						...new Set(
+							tasks
+								.filter((task) => !task.archivedAt && task.workspaceRoot)
+								.map((task) => task.workspaceRoot as string),
+						),
+					]}
+				/>
+			</div>
+		);
+	return (
+		<div
+			ref={boardRef}
+			className="@container/factory flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+			data-testid="factory-view"
+		>
+			{header}
+			{banners}
+			{view === "activity" ? (
+				<section
+					aria-label={FACTORY_BOARD.board}
+					data-factory-home
+					data-factory-grouping={boardView.grouping}
+					data-factory-tier={tier}
+					className="flex min-h-0 flex-1 snap-x snap-proximity gap-2 overflow-x-auto overflow-y-hidden p-2"
+				>
+					{loadingActivity ? (
+						<output className="sr-only">{FACTORY_MESSAGES.loading}</output>
+					) : null}
+					{columns.filter((column) => !column.hidden).map(boardColumn)}
+				</section>
+			) : (
+				<div className="min-h-0 flex-1">
+					<PageFrame key={view} fit>
+						{showHistory ? (
+							<div className="pb-6">
+								{backToActivity}
+								<div className="mb-4 flex flex-wrap items-center gap-1.5">
+									{(
+										[
+											["history", `Finished (${finished.length})`],
+											["archived", `Archived (${archived.length})`],
+										] satisfies [FactoryDestination, string][]
+									).map(([destination, label]) => (
+										<Button
+											type="button"
+											size="xs"
+											key={destination}
+											aria-pressed={view === destination}
+											variant={view === destination ? "default" : "outline"}
+											onClick={() => setView(destination)}
 										>
-											<div className="mb-4 flex items-center justify-between px-1">
-												<h2 className="text-sm font-medium">{column}</h2>
-												<span className="text-xs tabular-nums text-muted-foreground">
-													{items.length}
-												</span>
-											</div>
-											<div className="space-y-3">
-												{items.map((task) => (
-													<button
-														key={task.taskId}
-														type="button"
-														onClick={() => selectTask(task.taskId)}
-														className="w-full rounded-lg border bg-background p-4 text-left shadow-sm transition-colors hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-													>
-														<div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-															<span className="truncate">
-																{task.workspaceRoot
-																	?.split("/")
-																	.filter(Boolean)
-																	.pop() || "Repository"}
-															</span>
-															{needsYou(task) ? (
-																<span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600 dark:text-amber-400">
-																	Needs you
+											{label}
+										</Button>
+									))}
+								</div>
+								<p className="mb-3 text-xs text-muted-foreground">
+									{view === "archived"
+										? "Archived work. Open an item to restore or delete it."
+										: "Everything Factory finished, including failures."}
+								</p>
+								{visibleOutcomes.length > 0 ? (
+									<div className="overflow-x-auto rounded-lg border bg-card">
+										<table className="w-full text-left text-sm">
+											<thead>
+												<tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+													<th className="px-4 py-2 font-medium">Work</th>
+													<th className="px-4 py-2 font-medium">
+														{view === "archived" ? "Status" : "Outcome"}
+													</th>
+													{view === "archived" ? (
+														<th className="px-4 py-2 font-medium">Archived</th>
+													) : (
+														<>
+															<th className="hidden px-4 py-2 text-right font-medium @min-[720px]/page:table-cell">
+																Cost
+															</th>
+															<th className="hidden px-4 py-2 text-right font-medium @min-[720px]/page:table-cell">
+																Review fixes
+															</th>
+															<th className="px-4 py-2 font-medium">
+																{FACTORY_TERMS.feedback}
+															</th>
+														</>
+													)}
+												</tr>
+											</thead>
+											<tbody className="divide-y">
+												{visibleOutcomes.map((task) => {
+													const outcome = outcomes.get(task.taskId);
+													const status = factoryHistoryStatus({
+														status: task.status,
+														phase:
+															view === "archived" ? undefined : outcome?.phase,
+														reviewed:
+															view !== "archived" &&
+															Boolean(outcome?.humanApproval),
+														openFindings: factoryOpenFindings(task, outcome)
+															?.findings.length,
+													});
+													const tone: FactoryTone =
+														status === FACTORY_ACTIVITY.reviewed
+															? "success"
+															: factoryOpenFindings(task, outcome)
+																? "attention"
+																: task.status === "failed" ||
+																		outcome?.phase === "blocked"
+																	? "danger"
+																	: task.status === "completed"
+																		? "accent"
+																		: "neutral";
+													return (
+														<tr
+															key={task.taskId}
+															className="transition-colors hover:bg-muted/30"
+														>
+															<td className="px-4 py-2.5">
+																<button
+																	type="button"
+																	data-factory-task={task.taskId}
+																	className="rounded-sm text-left font-medium hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+																	onClick={() => selectTask(task.taskId)}
+																>
+																	<FactoryIdChip
+																		task={task}
+																		className="inline-block align-middle"
+																	/>{" "}
+																	{task.title}
+																</button>
+																{ruleBadge(task) ? (
+																	<span className="ml-2 inline-flex align-middle">
+																		{ruleBadge(task)}
+																	</span>
+																) : null}
+																<span className="block text-xs text-muted-foreground">
+																	{basenamePath(task.workspaceRoot)}
 																</span>
-															) : null}
-														</div>
-														<h3 className="text-sm font-medium leading-5">
-															{task.title}
-														</h3>
-														<p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
-															{task.description || task.instructions}
-														</p>
-														<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-															{column === "Working" ? (
-																<Loader2 className="size-3 animate-spin" />
-															) : column === "Done" ? (
-																<CheckCircle2 className="size-3 text-emerald-500" />
-															) : null}
-															<span>{activities.get(task.taskId)?.label}</span>
-														</div>
-													</button>
-												))}
-												{items.length === 0 ? (
-													<p className="rounded-lg border border-dashed px-3 py-8 text-center text-xs leading-5 text-muted-foreground">
-														{column === "Queued"
-															? "Features waiting to start."
-															: column === "Needs you"
-																? "Questions, approvals, and blockers appear here."
-																: column === "Working"
-																	? "Implementation, tests, review, and repairs."
-																	: "Features you have stamped appear here."}
-													</p>
-												) : null}
-											</div>
-										</section>
-									);
-								})}
+															</td>
+															<td className="px-4 py-2.5">
+																<StatusPill tone={tone}>{status}</StatusPill>
+															</td>
+															{view === "archived" ? (
+																<td className="px-4 py-2.5 text-muted-foreground">
+																	{task.archivedAt
+																		? new Date(task.archivedAt).toLocaleString()
+																		: "—"}
+																</td>
+															) : (
+																<>
+																	<td className="hidden px-4 py-2.5 text-right tabular-nums @min-[720px]/page:table-cell">
+																		{outcome?.usage
+																			? `$${outcome.usage.totals.totalCost.toFixed(2)}${outcome.usage.unknownSessionIds.length ? " + unknown" : ""}`
+																			: "—"}
+																	</td>
+																	<td className="hidden px-4 py-2.5 text-right tabular-nums @min-[720px]/page:table-cell">
+																		{outcome?.repairRound ?? "—"}
+																	</td>
+																	<td className="px-4 py-2.5 text-muted-foreground">
+																		{outcome
+																			? (factoryFeedbackLabel(outcome.audit) ??
+																				"—")
+																			: FACTORY_ACTIVITY.statusNotLoaded}
+																	</td>
+																</>
+															)}
+														</tr>
+													);
+												})}
+											</tbody>
+										</table>
+									</div>
+								) : (
+									<PageEmptyState className="flex flex-col items-center gap-3 py-8 text-center">
+										<CircleDashed className="size-6" />
+										{view === "archived"
+											? "No archived work."
+											: !attention.hasLoaded || attention.error || agenda.error
+												? "Results aren't loaded yet. Use Retry above."
+												: "Nothing finished yet."}
+									</PageEmptyState>
+								)}
 							</div>
-						)}
-					</>
-				) : null}
-
-				<Dialog open={creating} onOpenChange={setCreating}>
-					<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-						<DialogHeader>
-							<DialogTitle>Add work</DialogTitle>
-							<DialogDescription>
-								Describe a request or import a GitHub or Linear issue. Add it to
-								the queue, or start scoping it with an agent.
-							</DialogDescription>
-						</DialogHeader>
-						<AddWork
-							workspacePaths={workspacePaths}
-							onExisting={(taskId) => {
-								setCreating(false);
-								selectTask(taskId);
-							}}
-							onCreate={async ({
-								title,
-								request,
-								workspaceRoot,
-								sourceIssue,
-								startScoping,
-								workflow,
-							}) => {
-								const model = getInitialChatConfig(
-									LOCAL_WORKSPACE_ENVIRONMENT_ID,
-									{ executionTarget: "local" },
-								);
-								const requestedTaskId = createSessionId("task_");
-								const task = await agenda.createTask({
-									taskId: requestedTaskId,
-									type: "todo",
-									title,
-									description: request,
-									instructions: request,
-									scope: "workspace",
-									allWorkspaces: true,
-									workspaceRoot,
-									cwd: workspaceRoot,
-									queueFactoryDesign: startScoping,
-									factory: structuredClone({
-										...DEFAULT_FACTORY,
-										...workflow,
-										sourceIssue,
-									}),
-									modelSelection: {
-										providerId: model.provider,
-										modelId: model.model,
-									},
-									expiresAt: new Date(
-										Date.now() + 90 * 86_400_000,
-									).toISOString(),
-									automationEligible: false,
-								});
-								setCreating(false);
-								selectTask(task.taskId);
-								if (startScoping && task.taskId === requestedTaskId) {
-									try {
-										await desktopClient.designFactoryTask(task.taskId);
-									} catch (cause) {
-										const message = `Work was added, but scoping could not start: ${cause instanceof Error ? cause.message : "Open the plan to retry."}`;
-										setError(message);
-										toast({
-											title: "Scoping could not start",
-											description: message,
-											variant: "destructive",
-										});
-									}
-								}
-							}}
-						/>
-					</DialogContent>
-				</Dialog>
-			</PageFrame>
+						) : null}
+					</PageFrame>
+				</div>
+			)}
 		</div>
+	);
+}
+
+/** Elapsed time on a Working card, coarse ("4m"), kept current. */
+function BoardElapsed({ since }: { since: number }) {
+	const now = useFactoryNow(true);
+	return <>{formatFactoryDuration(now - since)}</>;
+}
+
+/**
+ * The board's Display menu, as Linear's and GitHub Projects' view options:
+ * group by, which columns show, their order, and back to the default.
+ */
+function BoardDisplayMenu({
+	view,
+	columns,
+	onChange,
+	onAllHistory,
+}: {
+	view: FactoryBoardView;
+	columns: FactoryBoardResolvedColumn[];
+	onChange: (view: FactoryBoardView) => void;
+	/** All history, when no Delivered column on the board carries it. */
+	onAllHistory?: () => void;
+}) {
+	// The columns section renders from the view's columns; Other is not one.
+	const listed = columns.filter(
+		(column) => column.id !== FACTORY_BOARD_OTHER_ID,
+	);
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="ghost"
+					size="sm"
+					aria-label={FACTORY_BOARD.display}
+					title={FACTORY_BOARD.display}
+					data-factory-display
+					className="h-7 w-7 px-0"
+				>
+					<Columns3 aria-hidden className="size-3.5" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				className="max-h-[min(32rem,var(--radix-dropdown-menu-content-available-height))] w-60 overflow-y-auto"
+			>
+				<DropdownMenuLabel className="text-xs text-muted-foreground">
+					{FACTORY_BOARD.groupBy}
+				</DropdownMenuLabel>
+				<DropdownMenuRadioGroup
+					value={view.grouping}
+					onValueChange={(value) =>
+						onChange(groupFactoryBoard(view, value as FactoryBoardGrouping))
+					}
+				>
+					{(Object.keys(FACTORY_BOARD_GROUPINGS) as FactoryBoardGrouping[]).map(
+						(grouping) => (
+							<DropdownMenuRadioItem key={grouping} value={grouping}>
+								{FACTORY_BOARD_GROUPINGS[grouping].label}
+							</DropdownMenuRadioItem>
+						),
+					)}
+				</DropdownMenuRadioGroup>
+				<DropdownMenuSeparator />
+				<DropdownMenuLabel className="text-xs text-muted-foreground">
+					{FACTORY_BOARD.columns}
+				</DropdownMenuLabel>
+				{listed.map((column) => (
+					<DropdownMenuCheckboxItem
+						key={column.id}
+						checked={!column.hidden}
+						disabled={factoryBoardPinned(view.grouping, column.id)}
+						onSelect={(event) => event.preventDefault()}
+						onCheckedChange={() =>
+							onChange(toggleFactoryBoardColumn(view, columns, column.id))
+						}
+					>
+						{column.title}
+					</DropdownMenuCheckboxItem>
+				))}
+				<DropdownMenuSub>
+					<DropdownMenuSubTrigger>
+						{FACTORY_BOARD.reorder}
+					</DropdownMenuSubTrigger>
+					<DropdownMenuSubContent className="max-h-80 overflow-y-auto">
+						{listed.flatMap((column, index) => [
+							<DropdownMenuItem
+								key={`${column.id}-left`}
+								disabled={index === 0}
+								onSelect={(event) => {
+									event.preventDefault();
+									onChange(
+										moveFactoryBoardColumn(view, columns, column.id, -1),
+									);
+								}}
+							>
+								<ArrowLeft aria-hidden className="size-3.5" />
+								{FACTORY_BOARD.moveLeft(column.title)}
+							</DropdownMenuItem>,
+							<DropdownMenuItem
+								key={`${column.id}-right`}
+								disabled={index === listed.length - 1}
+								onSelect={(event) => {
+									event.preventDefault();
+									onChange(moveFactoryBoardColumn(view, columns, column.id, 1));
+								}}
+							>
+								<ArrowRight aria-hidden className="size-3.5" />
+								{FACTORY_BOARD.moveRight(column.title)}
+							</DropdownMenuItem>,
+						])}
+					</DropdownMenuSubContent>
+				</DropdownMenuSub>
+				<DropdownMenuSeparator />
+				{onAllHistory ? (
+					<DropdownMenuItem onSelect={onAllHistory}>
+						{FACTORY_LINE.allHistory}
+					</DropdownMenuItem>
+				) : null}
+				<DropdownMenuItem onSelect={() => onChange(DEFAULT_FACTORY_BOARD_VIEW)}>
+					<RotateCcw aria-hidden className="size-3.5" />
+					{FACTORY_BOARD.reset}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

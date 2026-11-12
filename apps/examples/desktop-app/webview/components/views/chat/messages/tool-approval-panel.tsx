@@ -2,6 +2,10 @@
 
 import { AgentApprovalCard } from "@cline/ui";
 import { Clock3, ShieldAlert } from "lucide-react";
+import {
+	FactoryGuidanceApprovalCard,
+	isFactoryGuidanceApproval,
+} from "./factory-guidance-approval";
 
 export type ToolApprovalRequestItem = {
 	requestId: string;
@@ -38,6 +42,59 @@ function formatApprovalInput(input: unknown): string {
 }
 
 export function ToolApprovalPanel({
+	items,
+	pendingActions,
+	requestErrors,
+	onApprove,
+	onReject,
+}: {
+	items: ToolApprovalRequestItem[];
+	pendingActions: Record<string, "approving" | "rejecting">;
+	requestErrors: Record<string, string>;
+	onApprove: (requestId: string) => void;
+	onReject: (requestId: string) => void;
+}) {
+	// Factory guidance changes get their own confirmation with the Hub's
+	// diff; every other tool keeps the generic card.
+	const guidanceItems = items.filter(isFactoryGuidanceApproval);
+	const toolItems = items.filter((item) => !isFactoryGuidanceApproval(item));
+	if (guidanceItems.length === 0) {
+		return (
+			<GenericToolApprovalPanel
+				items={toolItems}
+				onApprove={onApprove}
+				onReject={onReject}
+				pendingActions={pendingActions}
+				requestErrors={requestErrors}
+			/>
+		);
+	}
+	return (
+		<div className="flex flex-col gap-2">
+			{guidanceItems.map((item) => (
+				<FactoryGuidanceApprovalCard
+					error={requestErrors[item.requestId]}
+					item={item}
+					key={item.requestId}
+					onApprove={onApprove}
+					onReject={onReject}
+					pendingAction={pendingActions[item.requestId]}
+				/>
+			))}
+			{toolItems.length > 0 ? (
+				<GenericToolApprovalPanel
+					items={toolItems}
+					onApprove={onApprove}
+					onReject={onReject}
+					pendingActions={pendingActions}
+					requestErrors={requestErrors}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+function GenericToolApprovalPanel({
 	items,
 	pendingActions,
 	requestErrors,

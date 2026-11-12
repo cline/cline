@@ -12,9 +12,7 @@ export const INPUT_ARG_CHAR_LIMIT = 6000;
 /**
  * Schema for read tool input
  */
-const AbsolutePath = z
-	.string()
-	.describe("The absolute path of a text file to read content from");
+const AbsolutePath = z.string().describe("Path of the file to read");
 
 export const ReadFileLineRangeSchema = z
 	.object({

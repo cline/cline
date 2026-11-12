@@ -2633,3 +2633,151 @@ describe("ChatMessages credential failures", () => {
 		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });
+
+describe("ChatMessages read-only mode", () => {
+	const transcript: ChatMessage[] = [
+		{
+			id: "first-user",
+			sessionId: "session-1",
+			role: "user",
+			content: "First prompt",
+			createdAt: 1,
+		},
+		{
+			id: "first-assistant",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "First answer",
+			createdAt: 2,
+		},
+		{
+			id: "second-user",
+			sessionId: "session-1",
+			role: "user",
+			content: "Second prompt",
+			createdAt: 3,
+			meta: {
+				runCount: 2,
+				checkpoint: { ref: "checkpoint-ref", createdAt: 3, runCount: 2 },
+			},
+		},
+		{
+			id: "auth-error",
+			sessionId: "session-1",
+			role: "error",
+			content: "The run failed: cline requires re-authentication.",
+			createdAt: 4,
+			meta: { reason: "credentials", providerId: "cline" },
+		},
+		{
+			id: "running-command",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "run_commands",
+				input: { commands: ["bun test"] },
+				result: null,
+			}),
+			createdAt: 5,
+			meta: {
+				toolName: "run_commands",
+				toolCallId: "call-live",
+				toolOutput: "running\n",
+				toolDetachable: true,
+				hookEventName: "tool_call_start",
+			},
+		},
+	];
+	const callbacks = () => ({
+		onApproveToolApproval: vi.fn(),
+		onRejectToolApproval: vi.fn(),
+		onAnswerAskQuestion: vi.fn(),
+		onRestoreCheckpoint: vi.fn(),
+		onEditMessage: vi.fn(),
+		onForkSession: vi.fn(),
+		onProceedWhileRunning: vi.fn(),
+		onFixCredentials: vi.fn(),
+		errorAction: { label: "Retry the run", onClick: vi.fn() },
+		error: "Something went wrong",
+		status: "running" as const,
+		pendingToolApprovals: [
+			{
+				requestId: "req-1",
+				sessionId: "session-1",
+				createdAt: new Date(1).toISOString(),
+				toolCallId: "call-1",
+				toolName: "execute_command",
+				input: { command: "pwd" },
+			},
+		],
+		pendingAskQuestions: [
+			{
+				createdAt: "2026-07-31T00:00:00.000Z",
+				options: ["Keep going", "Stop here"],
+				question: "Continue this task?",
+				requestId: "question-1",
+				sessionId: "session-1",
+			},
+		],
+	});
+	const buttonLabels = () =>
+		[...container.querySelectorAll("button")].map(
+			(button) => button.getAttribute("aria-label") ?? button.textContent ?? "",
+		);
+	const mutating = [
+		"Edit user message",
+		"Restore checkpoint",
+		"Fork session",
+		"Proceed while running",
+		"Sign in to Cline",
+		"Retry the run",
+		"Keep going",
+	];
+
+	it("offers every mutating control in the normal chat", async () => {
+		await renderMessages(transcript, callbacks());
+		// A completed assistant reply carries the fork action.
+		const labels = buttonLabels();
+		for (const label of mutating)
+			expect(labels.some((text) => text.includes(label))).toBe(true);
+		expect(
+			container.querySelector(".cline-ui-agent-approval-card"),
+		).not.toBeNull();
+		expect(container.textContent).toContain("Continue this task?");
+	});
+
+	it("renders no mutating control when read-only, even with callbacks set", async () => {
+		const props = callbacks();
+		await renderMessages(transcript, { ...props, readOnly: true });
+		const labels = buttonLabels();
+		for (const label of mutating)
+			expect(labels.some((text) => text.includes(label))).toBe(false);
+		expect(container.querySelector(".cline-ui-agent-approval-card")).toBeNull();
+		expect(container.textContent).not.toContain("Continue this task?");
+		// The transcript itself and copy stay.
+		expect(container.textContent).toContain("Second prompt");
+		expect(container.textContent).toContain("First answer");
+		expect(
+			container.querySelector('button[aria-label="Copy user message"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Command output"]')?.textContent,
+		).toContain("running");
+	});
+
+	it("renders without any approval, question or versioning callbacks", async () => {
+		await renderMessages(transcript, {
+			onAnswerAskQuestion: undefined,
+			onApproveToolApproval: undefined,
+			onRejectToolApproval: undefined,
+			pendingAskQuestions: undefined,
+			pendingToolApprovals: undefined,
+			readOnly: true,
+			status: "completed",
+		});
+		expect(container.textContent).toContain("First prompt");
+		expect(
+			container.querySelector('button[aria-label="Restore checkpoint"]'),
+		).toBeNull();
+	});
+});

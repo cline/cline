@@ -1,5 +1,10 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { HubCommandInput } from "./hub";
+import type {
+	HubCommandInput,
+	HubCommandOutput,
+	HubEventName,
+	HubFactoryActivityPayload,
+} from "./hub";
 import {
 	describeOutdatedHubSessions,
 	HUB_CAPABILITIES,
@@ -23,8 +28,37 @@ describe("HUB_CAPABILITIES", () => {
 				"task.run",
 				"task.automation.get",
 				"task.automation.set",
+				"task.factory.defaults.get",
+				"task.factory.defaults.set",
+				"task.factory.limits.get",
+				"task.factory.limits.set",
 			]),
 		);
+	});
+
+	it("types the Factory limits commands", () => {
+		expectTypeOf<HubCommandInput<"task.factory.limits.set">>().toEqualTypeOf<{
+			concurrency?: number;
+			paused?: boolean;
+			dailyCostUsd?: number | null;
+		}>();
+		expectTypeOf<HubCommandOutput<"task.factory.limits.get">>().toEqualTypeOf<{
+			concurrency: number;
+			paused?: boolean;
+			dailyCostUsd?: number;
+			spentTodayUsd?: number;
+			spendingLimitReached?: boolean;
+		}>();
+	});
+
+	it("types the Factory live activity event", () => {
+		expectTypeOf<"task.factory.activity">().toMatchTypeOf<HubEventName>();
+		expectTypeOf<HubFactoryActivityPayload["role"]>().toEqualTypeOf<
+			"designer" | "plan_reviewer" | "builder" | "verifier" | "reviewer"
+		>();
+		expectTypeOf<HubFactoryActivityPayload["input"]>().toEqualTypeOf<
+			{ path?: string; command?: string; query?: string } | undefined
+		>();
 	});
 
 	it("requires optimistic revisions on lifecycle commands", () => {

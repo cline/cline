@@ -1,4 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import type { AgentToolContext } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,8 +10,12 @@ const spawn = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", () => ({ spawn }));
 
+import { ToolResultCache } from "../../session/services/tool-result-cache";
+
 import {
 	CommandTerminationError,
+	createDefaultExecutors,
+	createDefaultTools,
 	createBuiltinTools,
 	createShellExecutor,
 } from "./index";
@@ -113,5 +120,55 @@ describe("createBuiltinTools shell configuration", () => {
 			expect.any(Array),
 			expect.any(Object),
 		);
+	});
+});
+
+describe("default read_files working directory", () => {
+	it.each([
+		"builtin",
+		"separate-defaults",
+	])("reads assigned workspace content through %s assembly while preserving external and cached paths", async (assembly) => {
+		const root = await mkdtemp(join(tmpdir(), "cline-read-cwd-"));
+		const hub = join(root, "hub");
+		const assigned = join(root, "assigned");
+		const filename = "same-name.txt";
+		await Promise.all([mkdir(hub), mkdir(assigned)]);
+		await Promise.all([
+			writeFile(join(hub, filename), "hub copy"),
+			writeFile(join(assigned, filename), "assigned copy"),
+		]);
+		const processCwd = vi.spyOn(process, "cwd").mockReturnValue(hub);
+		try {
+			const tools =
+				assembly === "builtin"
+					? createBuiltinTools({ cwd: assigned })
+					: createDefaultTools({
+							cwd: assigned,
+							executors: createDefaultExecutors(),
+						});
+			const reader = tools.find((tool) => tool.name === "read_files");
+			if (!reader) throw new Error("Expected read_files tool");
+			const cache = new ToolResultCache("read-cwd-session");
+			const uri = cache.store("cached-call", "cached copy");
+			if (!uri) throw new Error("Expected cached result URI");
+			const result = await reader.execute(
+				{
+					files: [
+						{ path: filename },
+						{ path: join(hub, filename) },
+						{ path: uri },
+					],
+				},
+				{ ...context, metadata: { toolResultCache: cache } },
+			);
+			expect(result).toEqual([
+				{ query: filename, result: "1 | assigned copy", success: true },
+				{ query: join(hub, filename), result: "1 | hub copy", success: true },
+				{ query: uri, result: "1 | cached copy", success: true },
+			]);
+		} finally {
+			processCwd.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

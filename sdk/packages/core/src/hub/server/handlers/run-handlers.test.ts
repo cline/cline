@@ -2,7 +2,40 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
 import { buildHubEvent, type HubTransportContext } from "./context";
-import { handleRunAbort, handleSessionInput } from "./run-handlers";
+import {
+	awaitHumanInput,
+	handleRunAbort,
+	handleSessionInput,
+} from "./run-handlers";
+
+// The deadline measures its remaining budget with performance.now().
+const DEADLINE_TIMERS = {
+	toFake: [
+		"setTimeout",
+		"clearTimeout",
+		"setInterval",
+		"clearInterval",
+		"performance",
+	],
+} satisfies Parameters<typeof vi.useFakeTimers>[0];
+
+function runStart(requestId: string, timeoutMs: number) {
+	return {
+		version: "v1" as const,
+		command: "run.start" as const,
+		requestId,
+		sessionId: "session-1",
+		payload: { sessionId: "session-1", prompt: "go", timeoutMs },
+	};
+}
+
+function deferred<T>() {
+	let resolve: (value: T) => void = () => {};
+	const promise = new Promise<T>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
+}
 
 function createContext(
 	overrides: Partial<RuntimeHost> = {},
@@ -16,6 +49,8 @@ function createContext(
 		pendingCapabilityRequests: new Map(),
 		suppressNextTerminalEventBySession: new Map(),
 		activeRpcTurnCountBySession: new Map(),
+		abandonedRpcTurnCountBySession: new Map(),
+		runDeadlinesBySession: new Map(),
 		sessionHost: {
 			startSession: vi.fn(),
 			runTurn: vi.fn(),
@@ -185,6 +220,80 @@ describe("run handlers", () => {
 				}),
 			}),
 		);
+		expect(ctx.runDeadlinesBySession.size).toBe(0);
+	});
+
+	it("pauses the run deadline until every human wait settles, then spends only the remaining budget", async () => {
+		vi.useFakeTimers(DEADLINE_TIMERS);
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const abort = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({
+			runTurn: vi.fn(() => new Promise<undefined>(() => {})),
+			abort,
+		});
+		let rejection: string | undefined;
+		const run = handleSessionInput(ctx, runStart("req-human", 100)).catch(
+			(error: unknown) => {
+				rejection = error instanceof Error ? error.message : String(error);
+			},
+		);
+
+		await vi.advanceTimersByTimeAsync(40);
+		const first = deferred<string>();
+		const second = deferred<string>();
+		const firstWait = awaitHumanInput(ctx, "session-1", first.promise);
+		const secondWait = awaitHumanInput(ctx, "session-1", second.promise);
+
+		await vi.advanceTimersByTimeAsync(1_000);
+		first.resolve("A");
+		await expect(firstWait).resolves.toBe("A");
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(rejection).toBeUndefined();
+		expect(abort).not.toHaveBeenCalled();
+
+		second.resolve("B");
+		await expect(secondWait).resolves.toBe("B");
+		await vi.advanceTimersByTimeAsync(59);
+		expect(rejection).toBeUndefined();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(rejection).toBe("Hub run run.start timed out after 100ms.");
+		expect(abort).toHaveBeenCalledWith(
+			"session-1",
+			"Hub run run.start timed out after 100ms.",
+		);
+		await run;
+		expect(ctx.runDeadlinesBySession.size).toBe(0);
+	});
+
+	it("ends a human wait when the run is aborted and ignores the late answer", async () => {
+		vi.useFakeTimers(DEADLINE_TIMERS);
+		const abort = vi.fn().mockResolvedValue(undefined);
+		const turn = deferred<undefined>();
+		const ctx = createContext({ runTurn: vi.fn(() => turn.promise), abort });
+		const run = handleSessionInput(ctx, runStart("req-human-abort", 100));
+
+		await vi.advanceTimersByTimeAsync(10);
+		const answer = deferred<string>();
+		const waiting = awaitHumanInput(ctx, "session-1", answer.promise);
+		const cancelled = expect(waiting).rejects.toThrow("user cancelled");
+		await handleRunAbort(ctx, {
+			version: "v1",
+			command: "run.abort",
+			requestId: "req-abort-human",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", reason: "user cancelled" },
+		});
+		await cancelled;
+
+		answer.resolve("too late");
+		turn.resolve(undefined);
+		await expect(run).resolves.toMatchObject({ ok: true });
+		await vi.advanceTimersByTimeAsync(1_000);
+
+		expect(abort).toHaveBeenCalledOnce();
+		expect(abort).toHaveBeenCalledWith("session-1", "user cancelled");
+		expect(ctx.runDeadlinesBySession.size).toBe(0);
 	});
 
 	it("rejects promptly when timeout abort remains pending", async () => {
@@ -291,6 +400,103 @@ describe("run handlers", () => {
 
 		resolveRun?.(undefined);
 		await expect(promise).resolves.toMatchObject({ ok: true });
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+	});
+
+	it("keeps a timed-out turn counted as in flight until its run settles", async () => {
+		vi.useFakeTimers();
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		let resolveRun: ((result: undefined) => void) | undefined;
+		const ctx = createContext({
+			runTurn: vi.fn(
+				() =>
+					new Promise<undefined>((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+
+		const promise = handleSessionInput(ctx, runStart("req-late", 50));
+		const expectation = expect(promise).rejects.toThrow(
+			"Hub run run.start timed out after 50ms.",
+		);
+		await vi.advanceTimersByTimeAsync(51);
+		await expectation;
+
+		// The reply has gone out, but the runtime is still unwinding the turn.
+		expect(ctx.activeRpcTurnCountBySession.get("session-1")).toBe(1);
+		resolveRun?.(undefined);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+	});
+
+	it("stops counting a timed-out turn that never unwinds after the grace period", async () => {
+		vi.useFakeTimers();
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+		const ctx = createContext({
+			runTurn: vi.fn(() => new Promise<undefined>(() => {})),
+		});
+
+		const promise = handleSessionInput(ctx, runStart("req-stuck", 50));
+		const expectation = expect(promise).rejects.toThrow(
+			"Hub run run.start timed out after 50ms.",
+		);
+		// The deadline fires at exactly 50ms, which starts the grace period.
+		await vi.advanceTimersByTimeAsync(50);
+		await expectation;
+		expect(ctx.activeRpcTurnCountBySession.get("session-1")).toBe(1);
+
+		await vi.advanceTimersByTimeAsync(5 * 60_000 - 1);
+		expect(ctx.activeRpcTurnCountBySession.get("session-1")).toBe(1);
+		expect(String(logged.mock.calls)).not.toContain("run.unwind_abandoned");
+		await vi.advanceTimersByTimeAsync(1);
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+		expect(String(logged.mock.calls)).toContain("run.unwind_abandoned");
+	});
+
+	it("does not log an abandoned unwind for a turn that settles within the grace period", async () => {
+		vi.useFakeTimers();
+		const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+		let resolveRun: ((result: undefined) => void) | undefined;
+		const ctx = createContext({
+			runTurn: vi.fn(
+				() =>
+					new Promise<undefined>((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+
+		const promise = handleSessionInput(ctx, runStart("req-unwinds", 50));
+		const expectation = expect(promise).rejects.toThrow("timed out");
+		await vi.advanceTimersByTimeAsync(51);
+		await expectation;
+		resolveRun?.(undefined);
+		await vi.advanceTimersByTimeAsync(5 * 60_000);
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+		expect(String(logged.mock.calls)).not.toContain("run.unwind_abandoned");
+	});
+
+	it("keeps the turn counted until its terminal event is published", async () => {
+		const ctx = createContext({
+			runTurn: vi.fn().mockResolvedValue({
+				finishReason: "completed",
+				text: "done",
+			}),
+		});
+		const counts: Array<[string, number | undefined]> = [];
+		ctx.publish = (event) => {
+			counts.push([
+				event.event,
+				ctx.activeRpcTurnCountBySession.get("session-1"),
+			]);
+		};
+
+		await expect(
+			handleSessionInput(ctx, runStart("req-terminal", 0)),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(counts.at(-1)).toEqual(["run.completed", 1]);
 		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
 	});
 

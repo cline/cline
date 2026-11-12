@@ -26,6 +26,10 @@ import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
+import {
+	FACTORY_MANAGER_METADATA_KEY,
+	FACTORY_MANAGER_REQUEST_METADATA_KEY,
+} from "../../../tasks/factory-tool";
 import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
 import {
 	createHubClientContributionRuntime,
@@ -208,7 +212,7 @@ function asNullableString(value: unknown): string | null | undefined {
 	return typeof value === "string" || value === null ? value : undefined;
 }
 
-function stripServerOwnedSessionMetadata(
+export function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
 	// Clients may echo old records back through session.update; keep ownership
@@ -219,7 +223,9 @@ function stripServerOwnedSessionMetadata(
 			!(CAPABILITY_OWNER_METADATA_KEY in metadata) &&
 			!("factoryTaskId" in metadata) &&
 			!("factoryRole" in metadata) &&
-			!("factoryDesignConfig" in metadata))
+			!("factoryDesignConfig" in metadata) &&
+			!(FACTORY_MANAGER_METADATA_KEY in metadata) &&
+			!(FACTORY_MANAGER_REQUEST_METADATA_KEY in metadata))
 	) {
 		return metadata;
 	}
@@ -229,7 +235,46 @@ function stripServerOwnedSessionMetadata(
 	delete sanitized.factoryTaskId;
 	delete sanitized.factoryRole;
 	delete sanitized.factoryDesignConfig;
+	delete sanitized[FACTORY_MANAGER_METADATA_KEY];
+	delete sanitized[FACTORY_MANAGER_REQUEST_METADATA_KEY];
 	return sanitized;
+}
+
+/**
+ * The Factory manager marker is server-owned: whatever a client sends under
+ * it is dropped. A client asks for a manager session with
+ * `factoryManagerRequested: true`, which the Hub honours only for a
+ * token-authenticated local client trusted across workspaces (the authority
+ * that changes Factory defaults); the Hub then stamps the marker itself.
+ * Returns why a request is refused, or undefined. Mutates `metadata`.
+ */
+export function applyFactoryManagerRequest(
+	metadata: Record<string, unknown>,
+	mayStartFactoryManager: boolean,
+): string | undefined {
+	const requested = metadata[FACTORY_MANAGER_REQUEST_METADATA_KEY];
+	delete metadata[FACTORY_MANAGER_METADATA_KEY];
+	delete metadata[FACTORY_MANAGER_REQUEST_METADATA_KEY];
+	if (requested === undefined || requested === false) return undefined;
+	if (requested !== true)
+		return `${FACTORY_MANAGER_REQUEST_METADATA_KEY} must be true when set.`;
+	if (!mayStartFactoryManager)
+		return "Only the desktop app, connected to the Hub with its token, can start the Factory manager.";
+	if (
+		metadata.factoryTaskId !== undefined ||
+		metadata.factoryRole !== undefined ||
+		metadata.agendaTaskId !== undefined ||
+		metadata.factoryIntake !== undefined ||
+		metadata.remoteEnvironmentId !== undefined
+	)
+		return "A Factory manager session cannot also be a Factory task, intake or remote session.";
+	metadata[FACTORY_MANAGER_METADATA_KEY] = { schemaVersion: 1 };
+	return undefined;
+}
+
+export interface HubSessionCreateOptions {
+	/** The caller may start the Factory manager (see applyFactoryManagerRequest). */
+	mayStartFactoryManager?: boolean;
 }
 
 export function resolveSessionAutoApproveTools(
@@ -275,6 +320,7 @@ export async function handleSessionCreate(
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
 	requestCapability: HubTransportContext["requestCapability"] = ctx.requestCapability,
+	options: HubSessionCreateOptions = {},
 ): Promise<HubReplyEnvelope> {
 	const startedAt = performance.now();
 	const baseLogContext = {
@@ -292,6 +338,12 @@ export async function handleSessionCreate(
 		payload.metadata && typeof payload.metadata === "object"
 			? JSON.parse(JSON.stringify(payload.metadata))
 			: {};
+	const managerRefusal = applyFactoryManagerRequest(
+		metadata,
+		options.mayStartFactoryManager === true,
+	);
+	if (managerRefusal)
+		return errorReply(envelope, "factory_manager_refused", managerRefusal);
 	const sessionConfig =
 		payload.sessionConfig && typeof payload.sessionConfig === "object"
 			? (JSON.parse(
@@ -547,6 +599,7 @@ export async function handleSessionRestore(
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<{ approved: boolean; reason?: string }>,
+	options: HubSessionCreateOptions = {},
 ): Promise<HubReplyEnvelope> {
 	const payload =
 		envelope.payload && typeof envelope.payload === "object"
@@ -604,6 +657,12 @@ export async function handleSessionRestore(
 			payload.metadata && typeof payload.metadata === "object"
 				? JSON.parse(JSON.stringify(payload.metadata))
 				: {};
+		const managerRefusal = applyFactoryManagerRequest(
+			metadata,
+			options.mayStartFactoryManager === true,
+		);
+		if (managerRefusal)
+			return errorReply(envelope, "factory_manager_refused", managerRefusal);
 		if (typeof sessionConfig?.mode === "string") {
 			metadata.mode = sessionConfig.mode;
 		} else if (typeof runtimeOptions.mode === "string") {

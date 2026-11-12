@@ -17,13 +17,22 @@ import {
 	captureSdkError,
 	createSessionId,
 	DEFAULT_FACTORY_AGENTS,
+	FACTORY_INTAKE_METADATA_KEY,
+	factoryReviewMode,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	selectFactoryReviewAgents,
 } from "@cline/shared";
-import { isChatWorkspacePath } from "@cline/shared/storage";
+import {
+	isChatWorkspacePath,
+	resolveAgentSchedulesDir,
+} from "@cline/shared/storage";
 import { z } from "zod";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
-import { HubScheduleService } from "../../cron/service/schedule-service";
+import {
+	type HubScheduleRuntimeHandlers,
+	HubScheduleService,
+} from "../../cron/service/schedule-service";
 import { resolveConfiguredAgentToolName } from "../../extensions/tools/team/configured-agent-config";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
@@ -48,8 +57,37 @@ import {
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntimeResult,
+	createFactoryGuidanceTool,
+	createFactoryListTool,
+	createFactoryManagerGuidanceExtension,
+	createFactoryPromptExtension,
+	createFactoryStagesTool,
+	createFactoryStatusTool,
+	createFactoryTool,
 	createTasksPromptExtension,
 	createTasksTool,
+	FACTORY_GUIDANCE_TOOL_NAME,
+	FACTORY_LIST_TOOL_NAME,
+	FACTORY_STAGES_TOOL_NAME,
+	FACTORY_STATUS_TOOL_NAME,
+	FACTORY_TOOL_NAME,
+	type FactoryGuidanceConfirmationRequest,
+	FactoryGuidanceStore,
+	type FactoryRoleGuidanceRole,
+	type FactorySessionDefaults,
+	type FactoryStagesConfirmationRequest,
+	FileFactoryAgentCardLedger,
+	FileFactoryDefaultsStore,
+	FileFactoryStageTrustStore,
+	FileFactoryVerificationProfileStore,
+	isFactoryManagerSessionMetadata,
+	parseFactoryIntakeContext,
+	readFactoryManagerReadme,
+	resolveFactoryAgentCardsPath,
+	resolveFactoryDefaultsPath,
+	resolveFactoryGuidanceDir,
+	resolveFactoryStageTrustPath,
+	resolveFactoryVerificationProfilesPath,
 } from "../../tasks";
 import {
 	freezeFactoryAgent,
@@ -58,6 +96,8 @@ import {
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
+import { FactoryActivityPublisher } from "./factory-activity";
+import { reconcileFactorySession } from "./factory-session-reconcile";
 import {
 	handleApprovalRespond,
 	pendingApprovalEvents,
@@ -86,6 +126,8 @@ import {
 	type PendingCapabilityRequest,
 } from "./handlers/context";
 import {
+	awaitHumanInput,
+	cancelHumanInputWaits,
 	handleRunAbort,
 	handleRunProceedWhileRunning,
 	handleSessionHook,
@@ -286,9 +328,13 @@ export class HubServerTransport implements NativeHubTransport {
 		string
 	>();
 	private readonly activeRpcTurnCountBySession = new Map<string, number>();
+	private readonly abandonedRpcTurnCountBySession = new Map<string, number>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly tasks: AgendaTaskManager;
+	/** Standing guidance for Factory roles, set from the Factory manager chat. */
+	private readonly factoryGuidance: FactoryGuidanceStore;
+	private readonly factoryActivity: FactoryActivityPublisher;
 	private readonly taskCommands: HubAgendaTaskCommandService;
 	private readonly sessionTools: AgentTool[] = [];
 	private readonly sessionExtensions: AgentExtension[] = [];
@@ -344,6 +390,8 @@ export class HubServerTransport implements NativeHubTransport {
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
+			abandonedRpcTurnCountBySession: this.abandonedRpcTurnCountBySession,
+			runDeadlinesBySession: new Map(),
 			telemetry: options.telemetry,
 			sessionTools: this.sessionTools,
 			sessionExtensions: this.sessionExtensions,
@@ -366,8 +414,61 @@ export class HubServerTransport implements NativeHubTransport {
 					onProgress,
 				),
 		};
+		// The user's default Factory workflow sits beside the task database.
+		// Hosts push it (task.factory.defaults.set); the Hub cannot read their
+		// settings. A test Hub or an injected store without a path keeps it in memory.
+		const taskDbPath = options.taskOptions?.dbPath;
+		const hubLogger = options.taskOptions?.logger ?? options.logger;
+		const factoryDefaults = new FileFactoryDefaultsStore(
+			taskDbPath !== undefined
+				? resolveFactoryDefaultsPath(taskDbPath)
+				: options.taskOptions?.store || process.env.NODE_ENV === "test"
+					? undefined
+					: resolveFactoryDefaultsPath(),
+			{ logger: hubLogger },
+		);
+		// Verification profiles trusted per workspace sit beside it too.
+		const factoryVerificationProfiles = new FileFactoryVerificationProfileStore(
+			taskDbPath !== undefined
+				? resolveFactoryVerificationProfilesPath(taskDbPath)
+				: options.taskOptions?.store || process.env.NODE_ENV === "test"
+					? undefined
+					: resolveFactoryVerificationProfilesPath(),
+		);
+		// Role guidance and the agent card count sit beside them as well.
+		const inMemoryFactoryState =
+			taskDbPath === undefined &&
+			(!!options.taskOptions?.store || process.env.NODE_ENV === "test");
+		this.factoryGuidance = new FactoryGuidanceStore(
+			inMemoryFactoryState ? undefined : resolveFactoryGuidanceDir(taskDbPath),
+			{ log: (line) => logHubMessage("warn", line) },
+		);
+		const factoryAgentCards = new FileFactoryAgentCardLedger(
+			inMemoryFactoryState
+				? undefined
+				: resolveFactoryAgentCardsPath(taskDbPath),
+		);
 		this.tasks = new AgendaTaskManager({
 			...options.taskOptions,
+			factoryVerificationProfiles,
+			// A person's decisions on repository stages, by hash.
+			factoryStageTrust: new FileFactoryStageTrustStore(
+				inMemoryFactoryState
+					? undefined
+					: resolveFactoryStageTrustPath(taskDbPath),
+			),
+			// Feedback on a delivered card may propose a rule into this store.
+			factoryGuidance: this.factoryGuidance,
+			resolveFactoryDefaultWorkflow: () => factoryDefaults.getDefaultWorkflow(),
+			// The user's working limit (task.factory.limits.set) survives restarts.
+			resolveFactoryConcurrency: () => factoryDefaults.getConcurrency(),
+			// So does the pause (task.factory.limits.set with paused).
+			resolveFactoryPaused: () => factoryDefaults.getPaused(),
+			// Legacy cards adopt a policy only once a host has pushed the default.
+			resolveFactoryDefaultsReceived: () =>
+				factoryDefaults.getDefaultsReceived(),
+			// And the Hub-wide daily spending limit (task.factory.limits.set).
+			resolveFactoryDailyCostUsd: () => factoryDefaults.getDailyCostUsd(),
 			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
@@ -384,6 +485,7 @@ export class HubServerTransport implements NativeHubTransport {
 							? {
 									...freezeFactoryAgent(task, agents.verifier),
 									artifacts: agents.verifier.artifacts,
+									environment: agents.verifier.environment,
 								}
 							: undefined,
 						planReviewers: agents.planReviewers.map((agent) =>
@@ -397,17 +499,28 @@ export class HubServerTransport implements NativeHubTransport {
 				validateFactoryAgents: (task) => {
 					const agents =
 						(task.factoryDesignProgress?.revision === task.revision
-							? task.factoryDesignProgress.agents
+							? selectFactoryReviewAgents(
+									task.factoryDesignProgress.agents,
+									task.factoryDesignProgress.reviewSelection,
+								)
 							: undefined) ??
 						task.factory?.agents ??
 						DEFAULT_FACTORY_AGENTS;
-					for (const agent of [
-						agents.designer,
-						...agents.planReviewers,
-						...agents.implementers,
-						...(agents.verifier ? [agents.verifier] : []),
-						...agents.reviewers,
-					])
+					const participants =
+						factoryReviewMode(task.factory) === "adaptive" &&
+						!(
+							task.factoryDesignProgress?.revision === task.revision &&
+							task.factoryDesignProgress.reviewSelection
+						)
+							? [agents.designer]
+							: [
+									agents.designer,
+									...agents.planReviewers,
+									...agents.implementers,
+									...(agents.verifier ? [agents.verifier] : []),
+									...agents.reviewers,
+								];
+					for (const agent of participants)
 						assertFactoryProvider(resolveFactoryAgent(task, agent));
 				},
 				startDesignReviewSession: (task, clientId, agent, sessionId) =>
@@ -419,6 +532,7 @@ export class HubServerTransport implements NativeHubTransport {
 						"reviewer",
 						agent,
 						sessionId,
+						"plan_reviewer",
 					),
 				isInteractiveClientAvailable: () =>
 					[...this.clients.values()].some((client) =>
@@ -494,39 +608,11 @@ export class HubServerTransport implements NativeHubTransport {
 						runtimeOptions?.factoryRole,
 						runtimeOptions?.factoryAgent,
 						runtimeOptions?.sessionId,
+						undefined,
+						runtimeOptions?.factoryStage,
 					),
-				reconcileSession: async (sessionId) => {
-					const session = await this.sessionHost.getSession(sessionId);
-					if (!session) return { status: "missing" };
-					const persistedResult = z
-						.object({
-							status: z.enum(["completed", "failed", "cancelled"]),
-							summary: z.string().optional(),
-							error: z.string().optional(),
-						})
-						.safeParse(session.metadata?.factoryRuntimeResult);
-					if (
-						persistedResult.success &&
-						persistedResult.data.status !== "cancelled"
-					)
-						return persistedResult.data;
-					if (
-						session.status === "running" ||
-						session.status === "pending" ||
-						session.status === "idle" ||
-						session.status === "cancelled"
-					)
-						return {
-							status:
-								(this.ctx.activeRpcTurnCountBySession.get(sessionId) ?? 0) > 0
-									? "running"
-									: "resumable",
-						};
-					return {
-						status: "failed",
-						error: "Factory session ended without a durable completion result",
-					};
-				},
+				reconcileSession: (sessionId) =>
+					reconcileFactorySession(this.ctx, sessionId),
 				getSessionUsage: async (sessionId) => {
 					const live = await this.sessionHost.getAccumulatedUsage?.(sessionId);
 					if (live?.aggregateUsage || live?.usage)
@@ -545,22 +631,115 @@ export class HubServerTransport implements NativeHubTransport {
 						);
 					return usage.success ? usage.data : undefined;
 				},
+				getSessionModel: async (sessionId) => {
+					const session = await this.sessionHost.getSession(sessionId);
+					return session?.provider && session.model
+						? { providerId: session.provider, modelId: session.model }
+						: undefined;
+				},
 				runSession: (sessionId, task, run) =>
 					this.runAgendaTaskSession(sessionId, task, run),
 				abortSession: async (sessionId, reason) => {
-					await this.sessionHost.abort(sessionId, reason);
+					try {
+						await this.sessionHost.abort(sessionId, reason);
+					} finally {
+						cancelHumanInputWaits(this.ctx, sessionId, reason);
+					}
 				},
 			},
-			logger: options.taskOptions?.logger ?? options.logger,
+			logger: hubLogger,
 			publish: (event, payload, sessionId) => {
 				this.publish(buildHubEvent(event, payload, sessionId));
 			},
 		});
-		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
+		this.taskCommands = new HubAgendaTaskCommandService(
+			this.tasks,
+			factoryDefaults,
+		);
+		const projectWorkspace = (workspaceRoot: string) =>
+			!isChatWorkspacePath(workspaceRoot) &&
+			resolve(workspaceRoot) !== resolve(resolveAgentSchedulesDir())
+				? workspaceRoot
+				: undefined;
+		const factoryPrompt = createFactoryPromptExtension();
+		// The Factory manager chat works across the user's projects: those of
+		// their cards and of their own sessions. The Factory tools keep only
+		// existing git repositories outside Cline's directories.
+		const listProjects = async () => {
+			const [cards, sessions] = await Promise.all([
+				this.tasks.listTasks({
+					scope: "workspace",
+					factoryOnly: true,
+					includeArchived: true,
+					limit: 1000,
+				}),
+				this.sessionHost.listSessions(500, { rootOnly: true }),
+			]);
+			return [
+				...cards.map((task) => task.workspaceRoot),
+				...sessions
+					.filter(
+						(session) =>
+							session.metadata?.factoryRole === undefined &&
+							session.metadata?.factoryTaskId === undefined,
+					)
+					.map((session) => session.workspaceRoot),
+			];
+		};
+		const factoryTools = (
+			resolveSessionDefaults: (
+				sessionId: string,
+			) => Promise<FactorySessionDefaults | undefined>,
+		): AgentTool[] => [
+			createFactoryTool({
+				manager: this.tasks,
+				telemetry: options.telemetry,
+				agentCards: factoryAgentCards,
+				resolveSessionDefaults,
+				listProjects,
+				resolveDefaultWorkflow: () => factoryDefaults.getDefaultWorkflow(),
+			}) as AgentTool,
+			createFactoryListTool({
+				manager: this.tasks,
+				resolveSessionDefaults,
+				listProjects,
+			}) as AgentTool,
+			createFactoryStatusTool({
+				manager: this.tasks,
+				resolveSessionDefaults,
+				listProjects,
+			}) as AgentTool,
+		];
+		const scheduledRuntime = options.runtimeHandlers;
+		// Scheduled sessions run in the scheduler's own runtime host, so the
+		// manager-backed Factory tools are added to each one here. They are
+		// never intakes: only the host that starts a chat can supply that context.
+		const runtimeHandlers: HubScheduleRuntimeHandlers = {
+			startSession: (request, start) =>
+				scheduledRuntime.startSession(request, {
+					...start,
+					localRuntime: {
+						extensions: [factoryPrompt],
+						extraTools: factoryTools(async () => ({
+							// Scheduled sessions have no person in them.
+							interactive: false,
+							workspaceRoot: projectWorkspace(request.workspaceRoot),
+							modelSelection: {
+								providerId: normalizeProviderId(request.provider),
+								modelId: request.model,
+							},
+						})),
+					},
+				}),
+			sendSession: (sessionId, request) =>
+				scheduledRuntime.sendSession(sessionId, request),
+			abortSession: (sessionId) => scheduledRuntime.abortSession(sessionId),
+			stopSession: (sessionId) => scheduledRuntime.stopSession(sessionId),
+		};
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
 			telemetry: options.telemetry,
-			runtimeHandlers: options.runtimeHandlers,
+			runtimeHandlers,
 			eventPublisher: (eventType, payload) => {
 				const mapped =
 					eventType === "schedule.execution.completed"
@@ -638,18 +817,174 @@ export class HubServerTransport implements NativeHubTransport {
 				},
 			}) as AgentTool,
 		);
+		// `factory_guidance` reaches only the user's Factory manager chat: an
+		// interactive session the desktop marks only when the user creates it
+		// in the local environment; never a Factory role, task, intake, remote
+		// or scheduled session (scheduled sessions run in their own host
+		// without this extension).
+		const resolveFactoryManagerSession = async (sessionId: string) => {
+			const session = await this.sessionHost.getSession(sessionId);
+			if (
+				!session ||
+				!isFactoryManagerSessionMetadata(session.metadata) ||
+				session.interactive === false
+			)
+				return undefined;
+			return { workspaceRoot: projectWorkspace(session.workspaceRoot) };
+		};
+		// A guidance change is saved only after the user confirms it in their
+		// app: the Hub raises a tool approval carrying the diff, answered by a
+		// client that can show approvals. With none connected it fails closed.
+		const canConfirm = () =>
+			[...this.clients.values()].some((client) =>
+				client.capabilities.some(
+					(capability) =>
+						capability.name === HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+				),
+			);
+		const noAppToConfirm = {
+			approved: false,
+			reason: "No app that can ask the user to confirm is connected.",
+		};
+		const confirmFactoryGuidance = async (
+			request: FactoryGuidanceConfirmationRequest,
+		) => {
+			if (!canConfirm()) return noAppToConfirm;
+			return requestToolApprovalHandler(this.ctx, {
+				sessionId: request.sessionId,
+				agentId: request.agentId,
+				conversationId: request.conversationId ?? request.sessionId,
+				iteration: request.iteration,
+				toolCallId: request.toolCallId,
+				toolName: FACTORY_GUIDANCE_TOOL_NAME,
+				input: {
+					// accept/discard change the wording the app shows; anything else is a normal save.
+					action:
+						request.origin === "accept" || request.origin === "discard"
+							? request.origin
+							: "apply",
+					question: `Save this change to ${request.scope === "repository" ? "the repository's" : "your"} Factory ${request.role === "manager" ? "manager readme" : `${request.role === "factory" ? "routing" : request.role.replace("_", " ")} guidance`}?`,
+					role: request.role,
+					scope: request.scope,
+					...(request.workspaceRoot
+						? { workspaceRoot: request.workspaceRoot }
+						: {}),
+					...(request.path ? { path: request.path } : {}),
+					summary: request.summary,
+					diff: request.diff,
+				},
+				policy: { autoApprove: false },
+			});
+		};
+		// A repository stages change the same way: saved, and its added or
+		// changed stages approved, only after the user confirms the diff.
+		const confirmFactoryStages = async (
+			request: FactoryStagesConfirmationRequest,
+		) => {
+			if (!canConfirm()) return noAppToConfirm;
+			return requestToolApprovalHandler(this.ctx, {
+				sessionId: request.sessionId,
+				agentId: request.agentId,
+				conversationId: request.conversationId ?? request.sessionId,
+				iteration: request.iteration,
+				toolCallId: request.toolCallId,
+				toolName: FACTORY_STAGES_TOOL_NAME,
+				input: {
+					action: "apply",
+					question: `Change ${request.project}'s Factory stages?`,
+					project: request.project,
+					workspaceRoot: request.workspaceRoot,
+					path: request.path,
+					summary: request.summary,
+					diff: request.diff,
+					warnings: request.warnings,
+				},
+				policy: { autoApprove: false },
+			});
+		};
 		this.sessionExtensions.push(
 			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
+			factoryPrompt,
+			createFactoryManagerGuidanceExtension({
+				tools: [
+					createFactoryGuidanceTool({
+						store: this.factoryGuidance,
+						resolveManagerSession: resolveFactoryManagerSession,
+						listProjects,
+						confirm: confirmFactoryGuidance,
+					}) as AgentTool,
+					createFactoryStagesTool({
+						manager: this.tasks,
+						resolveManagerSession: resolveFactoryManagerSession,
+						listProjects,
+						confirm: confirmFactoryStages,
+					}) as AgentTool,
+				],
+				isManagerSession: async (sessionId) =>
+					(await resolveFactoryManagerSession(sessionId)) !== undefined,
+				// The manager's readme goes into its instructions only when the
+				// user's file passed tamper detection (or is the built-in default).
+				readme: () => readFactoryManagerReadme(this.factoryGuidance).block,
+			}),
+		);
+		this.sessionTools.push(
+			...factoryTools(async (sessionId) => {
+				const session = await this.sessionHost.getSession(sessionId);
+				if (!session || session.metadata?.factoryRole) return undefined;
+				return {
+					interactive:
+						session.interactive !== false &&
+						session.metadata?.interactive !== false,
+					manager:
+						isFactoryManagerSessionMetadata(session.metadata) &&
+						session.interactive !== false,
+					workspaceRoot: projectWorkspace(session.workspaceRoot),
+					modelSelection: {
+						providerId: session.provider,
+						modelId: session.model,
+					},
+					originTaskId:
+						typeof session.metadata?.agendaTaskId === "string"
+							? session.metadata.agendaTaskId
+							: undefined,
+					intake: parseFactoryIntakeContext(
+						session.metadata?.[FACTORY_INTAKE_METADATA_KEY],
+					),
+				};
+			}),
 		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({
-				runtimeHandlers: options.runtimeHandlers,
+				runtimeHandlers,
 				...options.cronOptions,
 				telemetry: options.telemetry,
 			});
 		}
+		// Live activity for Factory role sessions (`task.factory.activity`):
+		// one bounded, throttled event per tool start; never blocks the session.
+		this.factoryActivity = new FactoryActivityPublisher({
+			resolveSession: async (sessionId) => {
+				const metadata = (await this.sessionHost.getSession(sessionId))
+					?.metadata;
+				const role = metadata?.factoryRole;
+				const taskId = metadata?.factoryTaskId;
+				return typeof taskId === "string" &&
+					(role === "designer" ||
+						role === "builder" ||
+						role === "verifier" ||
+						role === "reviewer")
+					? { taskId, role }
+					: undefined;
+			},
+			getTask: (taskId) => this.tasks.getTask(taskId, { reconcile: false }),
+			publish: (payload) =>
+				this.publish(buildHubEvent("task.factory.activity", { ...payload })),
+			onError: (error) =>
+				logHubBoundaryError("factory activity publishing failed", error),
+		});
 		this.sessionHost.subscribe((event: CoreSessionEvent) => {
+			this.factoryActivity.handle(event);
 			void projectSessionEvent(this.ctx, event).catch((error) => {
 				logHubBoundaryError("session event handling failed", error);
 				captureSdkError(this.options.telemetry, {
@@ -677,10 +1012,19 @@ export class HubServerTransport implements NativeHubTransport {
 		run: AgendaTaskRunRecord | undefined,
 		requestedByClientId?: string,
 		unattended = false,
-		factoryRole?: "builder" | "reviewer" | "designer" | "verifier",
+		factoryRole?: "builder" | "reviewer" | "designer" | "verifier" | "analyst",
 		factoryAgent?: FactoryAgent,
 		requestedSessionId?: string,
+		// The feedback analyst gets no guidance: it judges the guidance itself.
+		guidanceRole: FactoryRoleGuidanceRole | undefined = factoryRole ===
+		"analyst"
+			? undefined
+			: factoryRole,
+		// A repository stage's session: the role's tools, but no role
+		// guidance and no questions to a person.
+		factoryStage?: string,
 	): Promise<{ sessionId: string }> {
+		if (factoryStage) guidanceRole = undefined;
 		if (task.factory) assertFactoryProvider(task);
 		if (factoryAgent) factoryAgent = freezeFactoryAgent(task, factoryAgent);
 		const skills =
@@ -696,12 +1040,14 @@ export class HubServerTransport implements NativeHubTransport {
 		const roleTools =
 			!factoryRole || factoryRole === "builder"
 				? undefined
-				: [
-						"read_files",
-						"search_codebase",
-						"skills",
-						...(factoryRole === "verifier" ? ["run_commands"] : []),
-					];
+				: factoryRole === "analyst"
+					? ["read_files", "search_codebase"]
+					: [
+							"read_files",
+							"search_codebase",
+							"skills",
+							...(factoryRole === "verifier" ? ["run_commands"] : []),
+						];
 		const allowedTools = allowedProfileTools
 			? allowedProfileTools.filter(
 					(name) =>
@@ -737,6 +1083,32 @@ export class HubServerTransport implements NativeHubTransport {
 			resolve(task.cwd) !== resolve(task.workspaceRoot)
 				? `Factory execution directory: ${task.cwd}. File-location references under the original project root ${task.workspaceRoot} refer to matching paths in this assigned worktree. Inspect, edit, and run checks against the candidate worktree; never edit the original project. Preserve literal code and data requirements unchanged; this mapping applies to file locations, not their contents.`
 				: undefined;
+		// The user's standing guidance for this role, then the repository's
+		// (fenced as data). Read when the role session starts, so every later
+		// card uses the current version; absent guidance adds nothing. A
+		// scoping (designer) session gets the routing guidance first, ahead of
+		// its role guidance; no other role sees it.
+		const guidanceLocation = { workspaceRoot: task.workspaceRoot ?? task.cwd };
+		const roleGuidance =
+			task.factory && guidanceRole
+				? [
+						...(guidanceRole === "designer"
+							? [this.factoryGuidance.routingGuidance(guidanceLocation).block]
+							: []),
+						this.factoryGuidance.promptBlock(guidanceRole, guidanceLocation),
+					]
+						.filter((block): block is string => !!block)
+						.join("\n\n") || undefined
+				: undefined;
+		const basePrompt =
+			executionRule && task.systemPrompt?.trim()
+				? `${task.systemPrompt}\n\n${executionRule}`
+				: (task.systemPrompt ?? "");
+		const systemPrompt = roleGuidance
+			? basePrompt
+				? `${basePrompt}\n\n${roleGuidance}`
+				: roleGuidance
+			: basePrompt;
 		const metadata = withSessionHistoryOriginMetadata(
 			{
 				title: task.title,
@@ -744,6 +1116,7 @@ export class HubServerTransport implements NativeHubTransport {
 				agendaTaskRunId: run?.runId,
 				factoryTaskId: task.factory ? task.taskId : undefined,
 				factoryRole,
+				...(factoryStage ? { factoryStage } : {}),
 				factoryDesignConfig:
 					factoryRole === "designer"
 						? factoryDesignConfig(task, factoryAgent)
@@ -773,10 +1146,7 @@ export class HubServerTransport implements NativeHubTransport {
 						skills,
 						providerId,
 						modelId,
-						systemPrompt:
-							executionRule && task.systemPrompt?.trim()
-								? `${task.systemPrompt}\n\n${executionRule}`
-								: (task.systemPrompt ?? ""),
+						systemPrompt,
 						rules: executionRule,
 						mode: task.mode ?? "act",
 						maxIterations: task.maxIterations,
@@ -803,6 +1173,7 @@ export class HubServerTransport implements NativeHubTransport {
 							: {}),
 					runtimeOptions: {
 						...(task.factory &&
+						!factoryStage &&
 						(factoryRole === "builder" || factoryRole === "designer")
 							? {
 									clientContributions: [
@@ -832,8 +1203,21 @@ export class HubServerTransport implements NativeHubTransport {
 							]),
 						),
 						...(task.factory &&
+						!factoryStage &&
 						(factoryRole === "builder" || factoryRole === "designer")
 							? { ask_question: { enabled: true, autoApprove: true } }
+							: {}),
+						...(factoryStage ? { ask_question: { enabled: false } } : {}),
+						// Factory roles never queue more Factory work; a builder's card
+						// would also be committed into its candidate worktree.
+						...(factoryRole
+							? {
+									[FACTORY_TOOL_NAME]: { enabled: false },
+									[FACTORY_LIST_TOOL_NAME]: { enabled: false },
+									[FACTORY_STATUS_TOOL_NAME]: { enabled: false },
+									[FACTORY_GUIDANCE_TOOL_NAME]: { enabled: false },
+									[FACTORY_STAGES_TOOL_NAME]: { enabled: false },
+								}
 							: {}),
 					},
 				},
@@ -851,12 +1235,16 @@ export class HubServerTransport implements NativeHubTransport {
 						.tuple([z.string(), z.array(z.string())])
 						.parse(payload.args);
 					return {
-						result: await this.tasks.requestFactoryQuestion({
-							taskId: task.taskId,
+						result: await awaitHumanInput(
+							this.ctx,
 							sessionId,
-							question,
-							options,
-						}),
+							this.tasks.requestFactoryQuestion({
+								taskId: task.taskId,
+								sessionId,
+								question,
+								options,
+							}),
+						),
 					};
 				}
 				return this.ctx.requestCapability(
@@ -1069,6 +1457,7 @@ export class HubServerTransport implements NativeHubTransport {
 			"Hub shutting down before capability request was resolved.",
 		);
 		await this.sessionSearch.dispose();
+		this.factoryActivity.dispose();
 		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
@@ -1160,6 +1549,10 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					undefined,
+					// Only a token-authenticated local client may start the
+					// Factory manager; the Hub stamps its marker itself.
+					{ mayStartFactoryManager: authority?.crossWorkspace === true },
 				);
 			case "session.restore":
 				return await handleSessionRestore(
@@ -1167,6 +1560,7 @@ export class HubServerTransport implements NativeHubTransport {
 					envelope,
 					(request: ToolApprovalRequest) =>
 						requestToolApprovalHandler(this.ctx, request),
+					{ mayStartFactoryManager: authority?.crossWorkspace === true },
 				);
 			case "session.attach":
 				return await handleSessionAttach(this.ctx, envelope);

@@ -1,4 +1,11 @@
-import { existsSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
@@ -1493,6 +1500,154 @@ describe("Code sidecar runtime capabilities", () => {
 			taskId: "task-1",
 			expectedRevision: 4,
 		});
+	});
+
+	it.each([
+		["no saved workflows", undefined, "Hands-off"],
+		["a missing default", "Unavailable", "Hands-off"],
+	] as const)("sends the default Factory workflow once per Hub connection before the first task command (%s)", async (_case, defaultPreset, expected) => {
+		const dataDir = mkdtempSync(join(tmpdir(), "sidecar-factory-defaults-"));
+		vi.stubEnv("CLINE_DATA_DIR", dataDir);
+		try {
+			if (defaultPreset) {
+				mkdirSync(join(dataDir, "settings"), { recursive: true });
+				writeFileSync(
+					join(dataDir, "settings", "code-settings.json"),
+					JSON.stringify({ factoryDefaultPreset: defaultPreset }),
+				);
+			}
+			const { createSidecarContext, initializeSessionManager } = await import(
+				"./context"
+			);
+			const { handleCommand } = await import("./commands");
+			const ctx = createSidecarContext("/workspace/project");
+			const log = vi.fn();
+			ctx.logger = { log } as never;
+			await initializeSessionManager(ctx);
+			hubCommandMock.mockResolvedValue({ ok: true, payload: { tasks: [] } });
+
+			await handleCommand(ctx, "task.list", {});
+			await handleCommand(ctx, "task.list", {});
+			expect(hubCommandMock.mock.calls.map(([command]) => command)).toEqual([
+				"task.factory.defaults.set",
+				"task.list",
+				"task.list",
+			]);
+			const [, input] = hubCommandMock.mock.calls[0] ?? [];
+			// A missing default falls back to Hands-off, as Desktop intake does.
+			expect(input.workflow).toMatchObject({ name: expected });
+			if (defaultPreset)
+				expect(log).toHaveBeenCalledWith(
+					expect.stringContaining("missing or invalid"),
+					expect.objectContaining({ severity: "warn" }),
+				);
+		} finally {
+			rmSync(dataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and sets the Factory limit through the shared Hub client", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		const connection = { data: { canApproveTools: true }, send: vi.fn() };
+		hubCommandMock.mockResolvedValue({ ok: true, payload: { concurrency: 4 } });
+
+		await expect(
+			handleCommand(
+				ctx,
+				"factory_set_limits",
+				{ concurrency: 4 },
+				{ connection },
+			),
+		).resolves.toEqual({ supported: true, concurrency: 4 });
+		expect(hubCommandMock).toHaveBeenLastCalledWith("task.factory.limits.set", {
+			concurrency: 4,
+		});
+		await expect(
+			handleCommand(ctx, "factory_get_limits", {}, { connection }),
+		).resolves.toEqual({ supported: true, concurrency: 4 });
+		await expect(
+			handleCommand(ctx, "factory_set_limits", { concurrency: 4 }),
+		).rejects.toThrow("trusted desktop connection");
+	});
+
+	it("upgrades a legacy default to hands-off before sending it, without a click", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "sidecar-factory-defaults-"));
+		vi.stubEnv("CLINE_DATA_DIR", dataDir);
+		try {
+			mkdirSync(join(dataDir, "settings"), { recursive: true });
+			writeFileSync(
+				join(dataDir, "settings", "code-settings.json"),
+				JSON.stringify({
+					factoryDefaultPreset: "Reviewed delivery",
+					factoryPresets: [
+						{ name: "Reviewed delivery", config: { approval: "required" } },
+					],
+				}),
+			);
+			const { createSidecarContext, initializeSessionManager } = await import(
+				"./context"
+			);
+			const { handleCommand } = await import("./commands");
+			const ctx = createSidecarContext("/workspace/project");
+			await initializeSessionManager(ctx);
+			hubCommandMock.mockResolvedValue({ ok: true, payload: { tasks: [] } });
+
+			await handleCommand(ctx, "task.list", {});
+			const [command, input] = hubCommandMock.mock.calls[0] ?? [];
+			expect(command).toBe("task.factory.defaults.set");
+			expect(input.workflow).toMatchObject({
+				name: "Reviewed delivery",
+				config: { autonomy: "hands_off", approval: "automatic" },
+			});
+			const saved = JSON.parse(
+				readFileSync(join(dataDir, "settings", "code-settings.json"), "utf8"),
+			);
+			expect(saved.factoryHandsOffUpgradeApplied).toBe(true);
+			expect(saved.factoryPresets[0].config).toMatchObject({
+				autonomy: "hands_off",
+				approval: "automatic",
+			});
+		} finally {
+			rmSync(dataDir, { recursive: true, force: true });
+		}
+	});
+
+	it("logs a rejected default workflow and still runs the task command", async () => {
+		const dataDir = mkdtempSync(join(tmpdir(), "sidecar-factory-defaults-"));
+		vi.stubEnv("CLINE_DATA_DIR", dataDir);
+		try {
+			const { createSidecarContext, initializeSessionManager } = await import(
+				"./context"
+			);
+			const { handleCommand } = await import("./commands");
+			const ctx = createSidecarContext("/workspace/project");
+			const log = vi.fn();
+			ctx.logger = { log } as never;
+			await initializeSessionManager(ctx);
+			hubCommandMock
+				.mockResolvedValueOnce({
+					ok: false,
+					error: { message: "unsupported command" },
+				})
+				.mockResolvedValue({ ok: true, payload: { tasks: [] } });
+
+			await expect(handleCommand(ctx, "task.list", {})).resolves.toEqual({
+				tasks: [],
+			});
+			expect(log).toHaveBeenCalledWith(
+				"Failed to send the default Factory workflow",
+				expect.objectContaining({
+					error: expect.objectContaining({ message: "unsupported command" }),
+				}),
+			);
+		} finally {
+			rmSync(dataDir, { recursive: true, force: true });
+		}
 	});
 
 	it.each([

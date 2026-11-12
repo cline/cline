@@ -8,11 +8,14 @@ import type {
 	ChatStartSessionRequest,
 	ChatStartSessionResponse,
 	ChatTurnResult,
+	FactoryWorkflowRecipe,
 	HubCommandInput,
 	HubCommandOutput,
 	HubEventEnvelope,
 	HubSessionSearchHit,
 	HubTaskCreateInput,
+	HubTaskFactoryLimits,
+	HubTaskFactoryLimitsUpdate,
 	HubTaskUpdateInput,
 	HubTypedCommandName,
 	TeamProgressProjectionEvent,
@@ -868,5 +871,48 @@ export class HubSessionClient {
 	): Promise<AgendaAutomationPolicy> {
 		const result = await this.taskCommand("task.automation.set", { policy });
 		return result.policy;
+	}
+
+	/** The user's default Factory workflow for new work, if one is set. */
+	async getFactoryDefaultWorkflow(): Promise<
+		FactoryWorkflowRecipe | undefined
+	> {
+		const result = await this.taskCommand("task.factory.defaults.get", {});
+		return result.workflow;
+	}
+
+	/** Sets the default Factory workflow for new work; null clears it. */
+	async setFactoryDefaultWorkflow(
+		workflow: FactoryWorkflowRecipe | null,
+	): Promise<FactoryWorkflowRecipe | undefined> {
+		const result = await this.taskCommand("task.factory.defaults.set", {
+			workflow,
+		});
+		return result.workflow;
+	}
+
+	/** How many Factory cards the Hub works at once; the rest wait queued. */
+	async getFactoryLimits(): Promise<HubTaskFactoryLimits> {
+		return this.taskCommand("task.factory.limits.get", {});
+	}
+
+	/**
+	 * Sets the Factory working limit (an integer from 1 to 8), the pause, the
+	 * daily spending limit in USD (null restores the default), or several.
+	 * While paused, or once today's spend reaches the daily limit, nothing new
+	 * starts; running work continues.
+	 */
+	async setFactoryLimits(
+		limits: HubTaskFactoryLimitsUpdate,
+	): Promise<HubTaskFactoryLimits> {
+		return this.taskCommand("task.factory.limits.set", {
+			...(limits.concurrency !== undefined
+				? { concurrency: limits.concurrency }
+				: {}),
+			...(limits.paused !== undefined ? { paused: limits.paused } : {}),
+			...(limits.dailyCostUsd !== undefined
+				? { dailyCostUsd: limits.dailyCostUsd }
+				: {}),
+		} as HubTaskFactoryLimitsUpdate);
 	}
 }

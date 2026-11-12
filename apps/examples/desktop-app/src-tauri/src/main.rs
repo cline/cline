@@ -57,6 +57,10 @@ enum DesktopAction {
         #[serde(rename = "sessionId")]
         session_id: String,
     },
+    OpenFactoryTask {
+        #[serde(rename = "taskId")]
+        task_id: String,
+    },
 }
 
 #[derive(Default)]
@@ -1174,20 +1178,39 @@ fn notification_response_opens_session(response: &notify_rust::NotificationRespo
     )
 }
 
+/// A notification opens exactly one destination: an agent session or a Factory task.
+fn notification_target_action(
+    session_id: Option<&str>,
+    factory_task_id: Option<&str>,
+) -> Result<DesktopAction, String> {
+    let non_empty = |value: Option<&str>| {
+        value
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    match (non_empty(session_id), non_empty(factory_task_id)) {
+        (Some(session_id), None) => Ok(DesktopAction::OpenSession { session_id }),
+        (None, Some(task_id)) => Ok(DesktopAction::OpenFactoryTask { task_id }),
+        _ => Err("notification requires either a session ID or a Factory task ID".to_string()),
+    }
+}
+
 #[tauri::command]
 fn show_session_notification(
     app: tauri::AppHandle,
     title: String,
     body: String,
-    session_id: String,
+    session_id: Option<String>,
+    factory_task_id: Option<String>,
     sound: Option<String>,
 ) -> Result<(), String> {
     let title = title.trim();
     let body = body.trim();
-    let session_id = session_id.trim();
-    if title.is_empty() || body.is_empty() || session_id.is_empty() {
-        return Err("notification title, body, and session ID are required".to_string());
+    if title.is_empty() || body.is_empty() {
+        return Err("notification title and body are required".to_string());
     }
+    let action = notification_target_action(session_id.as_deref(), factory_task_id.as_deref())?;
 
     let mut notification = notify_rust::Notification::new();
     notification
@@ -1231,12 +1254,11 @@ fn show_session_notification(
         .show()
         .map_err(|error| format!("failed showing notification: {error}"))?;
     let app_handle = app.clone();
-    let session_id = session_id.to_string();
     thread::spawn(move || {
         if let Err(error) =
             handle.wait_for_response(move |response: &notify_rust::NotificationResponse| {
                 if notification_response_opens_session(response) {
-                    queue_desktop_action(&app_handle, DesktopAction::OpenSession { session_id });
+                    queue_desktop_action(&app_handle, action);
                 }
             })
         {
@@ -1697,6 +1719,26 @@ mod tests {
                 "sessionId": "session-1",
             })
         );
+    }
+
+    #[test]
+    fn notifications_route_to_exactly_one_destination() {
+        assert_eq!(
+            notification_target_action(Some(" session-1 "), None),
+            Ok(DesktopAction::OpenSession {
+                session_id: "session-1".to_string(),
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(notification_target_action(None, Some("task-1")).unwrap())
+                .unwrap(),
+            serde_json::json!({
+                "type": "open-factory-task",
+                "taskId": "task-1",
+            })
+        );
+        assert!(notification_target_action(Some("session-1"), Some("task-1")).is_err());
+        assert!(notification_target_action(Some(" "), None).is_err());
     }
 
     #[test]

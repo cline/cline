@@ -406,6 +406,11 @@ async function projectAgentErrorEvent(
 	if ((ctx.activeRpcTurnCountBySession.get(sessionId) ?? 0) > 0) {
 		return;
 	}
+	// A turn abandoned after its unwind grace already had its terminal event
+	// published by the RPC handler; a late error from it is not a new run.
+	if ((ctx.abandonedRpcTurnCountBySession.get(sessionId) ?? 0) > 0) {
+		return;
+	}
 	const message =
 		agentEvent.error instanceof Error
 			? agentEvent.error.message

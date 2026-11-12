@@ -22,6 +22,7 @@ import {
 import {
 	ArrowUp,
 	Brain,
+	ChevronDown,
 	CircleStop,
 	Cloud,
 	Cpu,
@@ -46,6 +47,7 @@ import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
+import { FACTORY_INTAKE, FACTORY_MANAGER } from "@/lib/factory-copy";
 import {
 	buildModelPickerData,
 	type ModelPickerData,
@@ -307,6 +309,15 @@ export function buildWorkspaceFileSearchKey(
 type ChatInputBarProps = {
 	environmentId: string;
 	variant?: "conversation" | "welcome";
+	/**
+	 * The composer talks to Factory: Add work ("intake") runs on its
+	 * workflow's models, so the model and thinking pickers hide; Ask Factory
+	 * ("manager") keeps them, labelled as the manager's model, and drops
+	 * everything tied to one workspace (pull request bar, workspace and branch,
+	 * @-file mentions): it works across all projects. Both get their own
+	 * placeholder and a visible focus style on the welcome composer.
+	 */
+	factory?: "intake" | "manager";
 	readOnly?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
@@ -357,6 +368,7 @@ type ChatInputBarProps = {
 function ChatInputBarImpl({
 	environmentId,
 	variant = "conversation",
+	factory,
 	readOnly = false,
 	status,
 	hasRunningAgents = false,
@@ -630,6 +642,7 @@ function ChatInputBarImpl({
 		: null;
 	const mentionOpen =
 		executionTarget === "local" &&
+		factory !== "manager" &&
 		mentionKey !== null &&
 		dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
@@ -1106,10 +1119,42 @@ function ChatInputBarImpl({
 		[promptsInQueue],
 	);
 
+	const modelSelector = (
+		<ModelSelector
+			key={executionTarget}
+			autoCorrectModel={!cloudSettingsLocked}
+			includeCloudModels={executionTarget === "cloud"}
+			isBusy={isBusy}
+			model={model}
+			onModelReadyChange={setCloudModelReady}
+			onModelChange={onModelChange}
+			onModelSupportsImagesChange={handleModelSupportsImagesChange}
+			onModelSupportsReasoningChange={handleModelSupportsReasoningChange}
+			onOpenModelSettings={
+				executionTarget === "cloud" ? undefined : onOpenModelSettings
+			}
+			onProviderChange={onProviderChange}
+			persistSelection={executionTarget !== "cloud"}
+			provider={provider}
+		/>
+	);
+
 	return (
-		<AgentComposer variant={variant}>
+		<AgentComposer
+			className={
+				// The welcome composer has no focus style of its own; Factory's
+				// screens take the conversation composer's.
+				factory && variant === "welcome"
+					? "focus-within:border-cline-ui-primary/50 focus-within:ring-1 focus-within:ring-cline-ui-primary/20"
+					: undefined
+			}
+			data-factory-composer={factory}
+			variant={variant}
+		>
 			{/* Input area */}
-			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
+			{factory === "manager" ? null : (
+				<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
+			)}
 			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
@@ -1370,11 +1415,15 @@ function ChatInputBarImpl({
 											? promptsInQueue.length > 0
 												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
 												: "Agent is working... submit to queue another message"
-											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
-												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+											: factory === "intake"
+												? FACTORY_INTAKE.placeholder
+												: factory === "manager"
+													? FACTORY_MANAGER.placeholder
+													: executionTarget === "cloud"
+														? "Describe what Cline should do in this repository."
+														: variant === "welcome"
+															? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+															: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
@@ -1543,57 +1592,67 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0">
-						<ModelSelector
-							key={executionTarget}
-							autoCorrectModel={!cloudSettingsLocked}
-							includeCloudModels={executionTarget === "cloud"}
-							isBusy={isBusy}
-							model={model}
-							onModelReadyChange={setCloudModelReady}
-							onModelChange={onModelChange}
-							onModelSupportsImagesChange={handleModelSupportsImagesChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onOpenModelSettings={
-								executionTarget === "cloud" ? undefined : onOpenModelSettings
-							}
-							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
-							provider={provider}
-						/>
-					</div>
-					<Select
-						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
-							size="sm"
-							title={
-								cloudSettingsLocked
-									? "Thinking level is fixed when a cloud session starts"
-									: modelSupportsReasoning === false
-										? "The selected model does not report reasoning support"
-										: undefined
-							}
+					{factory === "manager" ? (
+						<span
+							className="shrink-0 text-xs text-muted-foreground max-[560px]:sr-only"
+							data-testid="factory-manager-model-label"
+							title={FACTORY_MANAGER.modelHint}
 						>
-							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+							{FACTORY_MANAGER.modelLabel}
+						</span>
+					) : null}
+					{/* Add work runs on its workflow's models, so the picker is not
+					    shown; it stays mounted (display: none) so the intake chat's
+					    model is still checked and corrected as usual. Ask Factory
+					    names it as the manager's model. */}
+					{factory === "manager" ? (
+						<fieldset
+							aria-label={FACTORY_MANAGER.modelLabel}
+							className="min-w-0"
+							data-composer-model-picker=""
+						>
+							{modelSelector}
+						</fieldset>
+					) : (
+						<div
+							className={factory === "intake" ? "hidden" : "min-w-0"}
+							data-composer-model-picker=""
+						>
+							{modelSelector}
+						</div>
+					)}
+					{factory === "intake" ? null : (
+						<Select
+							disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
+							onValueChange={handleEffortChange}
+							value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+						>
+							<SelectTrigger
+								aria-label="Thinking level"
+								className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+								size="sm"
+								title={
+									cloudSettingsLocked
+										? "Thinking level is fixed when a cloud session starts"
+										: modelSupportsReasoning === false
+											? "The selected model does not report reasoning support"
+											: undefined
+								}
+							>
+								<Brain className="size-3" />
+								<span className="max-[560px]:sr-only">
+									<SelectValue>{effortLabel}</SelectValue>
+								</span>
+							</SelectTrigger>
+							<SelectContent align="start">
+								{EFFORT_LEVELS.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 				</AgentComposerSettingsGroup>
 
 				{/* Reserve room for the model and thinking controls so a long
@@ -1602,7 +1661,7 @@ function ChatInputBarImpl({
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
-								{executionTarget === "cloud" ? (
+								{factory === "manager" ? null : executionTarget === "cloud" ? (
 									<span
 										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
 										title={cloudContextLabel}
@@ -1666,6 +1725,7 @@ export const ModelSelector = memo(function ModelSelector({
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
 	onOpenModelSettings,
+	compactLabel,
 }: {
 	onSelectionChange?: (selection: {
 		providerId: string;
@@ -1685,6 +1745,11 @@ export const ModelSelector = memo(function ModelSelector({
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
 	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
+	/**
+	 * One trigger with this text instead of the two pickers, at any width:
+	 * it opens the provider and model pickers below it, as narrow windows do.
+	 */
+	compactLabel?: string;
 }) {
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
@@ -2262,30 +2327,53 @@ export const ModelSelector = memo(function ModelSelector({
 			</button>
 		);
 	}
+	const compact = compactLabel !== undefined;
 	return (
 		<div className="relative min-w-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
-				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				aria-label={compact ? undefined : "Model and provider"}
+				className={cn(
+					"items-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+					compact
+						? "inline-flex h-7 max-w-52 gap-1 px-2 text-xs"
+						: "hidden size-7 justify-center max-[560px]:inline-flex",
+				)}
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
-				<Cpu className="size-3.5" />
+				{compact ? (
+					<>
+						<span className="truncate">{compactLabel}</span>
+						<ChevronDown className="size-3 shrink-0 opacity-60" />
+					</>
+				) : (
+					<Cpu className="size-3.5" />
+				)}
 			</button>
 
 			{mobileOpen ? (
 				<>
 					<button
 						aria-label="Close model selector"
-						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						className={cn(
+							"fixed inset-0 z-40 cursor-default opacity-0",
+							compact ? "block" : "hidden max-[560px]:block",
+						)}
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
+					<div
+						className={cn(
+							"absolute z-50 w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 motion-reduce:animate-none",
+							compact
+								? "top-full right-0 mt-2 block slide-in-from-top-1"
+								: "bottom-full left-0 mb-2 hidden slide-in-from-bottom-1 max-[560px]:block",
+						)}
+					>
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
 								Provider
@@ -2307,15 +2395,17 @@ export const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{/* Wide enough for the longest built-in provider names ("Cline
-				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
-				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
-				<div className="bg-border-2 h-4 w-[0.1rem] shrink-0" />
-				{/* Uncapped so long model names show in full when the row has
-				    room; the name truncates only once the row runs out of space. */}
-				{renderModelSelect("max-w-full")}
-			</div>
+			{compact ? null : (
+				<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
+					{/* Wide enough for the longest built-in provider names ("Cline
+					    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
+					<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
+					<div className="bg-border-2 h-4 w-[0.1rem] shrink-0" />
+					{/* Uncapped so long model names show in full when the row has
+					    room; the name truncates only once the row runs out of space. */}
+					{renderModelSelect("max-w-full")}
+				</div>
+			)}
 		</div>
 	);
 });

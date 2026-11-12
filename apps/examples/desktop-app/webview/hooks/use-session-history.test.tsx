@@ -243,6 +243,39 @@ describe("useSessionHistory session mapping", () => {
 		).toMatchObject({ source: "core", isScheduled: false });
 	});
 
+	it("leaves Factory's own sessions out of the session list", async () => {
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("manager"),
+					metadata: { factoryManager: { schemaVersion: 1 } },
+				},
+				{ ...sessionRow("role-run"), metadata: { factoryTaskId: "task-1" } },
+				// An older manager chat, marked only as requested.
+				{
+					...sessionRow("older-manager"),
+					metadata: { factoryManagerRequested: true },
+				},
+				// A title alone does not hide a session.
+				{ ...sessionRow("titled"), title: "Factory manager" },
+				sessionRow("ordinary"),
+			]);
+			await Promise.resolve();
+		});
+		expect(current.threads.map((thread) => thread.id).sort()).toEqual(
+			[
+				sessionKey({ sessionId: "titled" }),
+				sessionKey({ sessionId: "ordinary" }),
+			].sort(),
+		);
+		// Still resolvable, so the Ask Factory panel can reopen it.
+		expect(
+			current.sessions.some((session) => session.sessionId === "manager"),
+		).toBe(true);
+	});
+
 	it("marks sessions scheduled when a schedule execution names them", async () => {
 		// Scheduled runs executed by the local hub don't reliably stamp the
 		// hub-schedule trigger into session metadata, so the executions list

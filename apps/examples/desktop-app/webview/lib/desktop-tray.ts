@@ -12,7 +12,8 @@ export type DesktopAction =
 	| { type: "export-diagnostics" }
 	| { type: "check-for-updates" }
 	| { type: AppZoomAction }
-	| { type: "open-session"; sessionId: string };
+	| { type: "open-session"; sessionId: string }
+	| { type: "open-factory-task"; taskId: string };
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
@@ -25,7 +26,11 @@ function isDesktopAction(value: unknown): value is DesktopAction {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return false;
 	}
-	const action = value as { type?: unknown; sessionId?: unknown };
+	const action = value as {
+		type?: unknown;
+		sessionId?: unknown;
+		taskId?: unknown;
+	};
 	if (
 		action.type === "new-session" ||
 		action.type === "open-settings" ||
@@ -34,6 +39,9 @@ function isDesktopAction(value: unknown): value is DesktopAction {
 		isAppZoomAction(action.type)
 	) {
 		return true;
+	}
+	if (action.type === "open-factory-task") {
+		return typeof action.taskId === "string" && action.taskId.trim().length > 0;
 	}
 	return (
 		action.type === "open-session" &&

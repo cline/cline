@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { AgendaTaskRecord } from "@cline/shared";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +10,12 @@ import {
 	getSessionOverviewTitle,
 } from "@/components/agent-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import {
+	FACTORY_ACTIVITY_REQUEST,
+	type FactoryBoardData,
+} from "@/components/views/factory/factory-ui";
 import { AccountProvider } from "@/contexts/account-context";
+import type { FactoryAttention } from "@/hooks/use-factory-attention";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -1483,5 +1489,207 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			container.querySelector('[aria-label="Settings"]')?.textContent,
 		).toContain("Settings");
+	});
+});
+
+describe("AgentSidebar Factory entry", () => {
+	function factoryTask(
+		taskId: string,
+		overrides: Partial<AgendaTaskRecord> = {},
+	): AgendaTaskRecord {
+		return {
+			taskId,
+			title: `Card ${taskId}`,
+			instructions: "Build it.",
+			type: "todo",
+			scope: "workspace",
+			workspaceRoot: "/repo",
+			status: "in_progress",
+			resourcePaths: [],
+			priority: 2,
+			availableAt: "2026-01-01T00:00:00Z",
+			expiresAt: "2027-01-01T00:00:00Z",
+			automationEligible: false,
+			revision: 1,
+			createdBy: { kind: "user" },
+			updatedBy: { kind: "user" },
+			createdAt: "2026-01-01T00:00:00Z",
+			updatedAt: "2026-01-01T00:00:00Z",
+			factory: {
+				execution: "local",
+				approval: "required",
+				maxRepairRounds: 2,
+				checks: [],
+				acceptanceCriteria: [],
+				publishPullRequest: false,
+			},
+			...overrides,
+		} as AgendaTaskRecord;
+	}
+	function board(
+		tasks: AgendaTaskRecord[],
+		items: FactoryBoardData["attention"]["items"] = [],
+	): FactoryBoardData {
+		return {
+			agenda: { tasks, error: null, isLoading: false },
+			attention: {
+				items,
+				error: null,
+				hasLoaded: true,
+				isLoading: false,
+				transportReady: true,
+			},
+		} as unknown as FactoryBoardData;
+	}
+	async function renderSidebar(
+		factoryBoard: FactoryBoardData,
+		onOpenFactoryTask = vi.fn(),
+		threads: SessionThread[] = [],
+	) {
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						factoryBoard={factoryBoard}
+						onHome={vi.fn()}
+						onOpenFactoryTask={onOpenFactoryTask}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(threads, vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+		return onOpenFactoryTask;
+	}
+	const outcome = (
+		extra: Partial<NonNullable<FactoryAttention["outcome"]>> = {},
+	) =>
+		({
+			phase: "watching",
+			repairRound: 0,
+			activeRoles: [],
+			activeSessions: [],
+			followupPaused: false,
+			...extra,
+		}) as FactoryAttention["outcome"];
+	const entry = () =>
+		container.querySelector<HTMLButtonElement>(
+			'button[title="Feature factory"]',
+		);
+
+	it("lists no cards, and counts on its one entry the cards that need the person", async () => {
+		const onOpen = await renderSidebar(
+			board(
+				[
+					factoryTask("working", { currentRunId: "run-w" }),
+					factoryTask("question", {
+						status: "approved",
+						factoryQuestions: [
+							{ status: "pending", revision: 1 },
+						] as AgendaTaskRecord["factoryQuestions"],
+					}),
+					factoryTask("failed", { status: "failed" }),
+					factoryTask("flagged", { status: "completed", lastRunId: "run-f" }),
+					// Delivered and never rated: delivered, not waiting on anyone.
+					factoryTask("unrated", { status: "completed", lastRunId: "run-u" }),
+					factoryTask("queued", { status: "approved" }),
+					factoryTask("archived", {
+						status: "failed",
+						archivedAt: "2026-01-02T00:00:00Z",
+					}),
+				],
+				[
+					{
+						taskId: "working",
+						revision: 1,
+						runId: "run-w",
+						questions: [],
+						needsAttention: false,
+						outcome: outcome({
+							phase: "implementing",
+							activeRoles: ["builder"],
+						}),
+					},
+					{
+						taskId: "flagged",
+						revision: 1,
+						runId: "run-f",
+						questions: [],
+						// A note on a delivery asks nothing of the person.
+						needsAttention: false,
+						outcome: outcome({
+							audit: {
+								selectedAt: "2026-01-02T00:00:00Z",
+								reviewedAt: "2026-01-02T00:00:00Z",
+								finding: "The count is wrong",
+							},
+						}),
+					},
+					{
+						taskId: "unrated",
+						revision: 1,
+						runId: "run-u",
+						questions: [],
+						needsAttention: false,
+						outcome: outcome({
+							pullRequestUrl: "https://github.com/acme/app/pull/1",
+							audit: {
+								selectedAt: "2026-01-02T00:00:00Z",
+								selectionReason: "delivered",
+							},
+						}),
+					},
+					{
+						taskId: "queued",
+						revision: 1,
+						questions: [],
+						needsAttention: false,
+					},
+				],
+			),
+		);
+		// The Factory page lists the cards; the sidebar does not repeat them.
+		expect(container.querySelector("[data-factory-sidebar-task]")).toBeNull();
+		expect(container.textContent).not.toContain("Card failed");
+		expect(container.textContent).not.toMatch(/feedback|rating/i);
+		expect(entry()?.getAttribute("aria-label")).toBe("Factory, 2 need you");
+		expect(
+			entry()?.querySelector('[data-testid="factory-sidebar-count"]')
+				?.textContent,
+		).toBe("2");
+		// Something needs the person: the count alone, no working spinner.
+		expect(
+			entry()?.querySelector('[data-testid="factory-sidebar-working"]'),
+		).toBeNull();
+		await click(entry() as HTMLButtonElement);
+		expect(onOpen).toHaveBeenCalledWith(FACTORY_ACTIVITY_REQUEST);
+	});
+
+	it("shows a spinner while work runs and nothing needs the person, and nothing when idle", async () => {
+		const sessions = [makeThread("alpha", 1)];
+		await renderSidebar(
+			board([factoryTask("working", { currentRunId: "run-w" })]),
+			vi.fn(),
+			sessions,
+		);
+		expect(entry()?.getAttribute("aria-label")).toBe("Factory, working");
+		expect(
+			entry()?.querySelector('[data-testid="factory-sidebar-working"]'),
+		).not.toBeNull();
+		expect(
+			entry()?.querySelector('[data-testid="factory-sidebar-count"]'),
+		).toBeNull();
+		// Session rows come from history only; Factory cards add none.
+		expect(sessionIsVisible("alpha session 1")).toBe(true);
+		await renderSidebar(
+			board([factoryTask("queued", { status: "approved" })]),
+			vi.fn(),
+			sessions,
+		);
+		expect(entry()?.getAttribute("aria-label")).toBe("Factory");
+		expect(entry()?.querySelector("[data-testid]")).toBeNull();
 	});
 });

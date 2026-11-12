@@ -4,7 +4,13 @@ import type {
 	FactoryRunState,
 	FactoryTaskConfig,
 } from "./factory";
-import { factoryAgentsSchema, factoryReviewerResultSchema } from "./factory";
+import {
+	factoryAgentsSchema,
+	factoryDesignConclusionSchema,
+	factoryReviewerResultSchema,
+	factoryReviewSelectionSchema,
+	selectFactoryReviewAgents,
+} from "./factory";
 import type { GatewayModelSelection } from "./llms/gateway";
 
 const factoryQuestionFields = {
@@ -26,27 +32,119 @@ export const factoryQuestionSchema = z.discriminatedUnion("status", [
 ]);
 export type FactoryQuestion = z.infer<typeof factoryQuestionSchema>;
 
+/**
+ * How scoping ran for a card's plan. `prepared`: the plan came with the
+ * request and Factory checked it quickly instead of running a designer;
+ * `designer`: the designer scoped it, here because a supplied plan was not
+ * used (`reason`). Absent: an ordinary card (the designer scoped it).
+ */
+export const factoryDesignRouteSchema = z.object({
+	scoping: z.enum(["prepared", "designer"]),
+	/** Who supplied the plan: the card's intake source (such as `agent` or a routine's name). */
+	source: z.string().max(200).optional(),
+	/** The repository paths the supplied plan said it touches. */
+	paths: z.array(z.string().max(1000)).max(100).optional(),
+	/**
+	 * The deepest quick-check level that ran: `model` (the deterministic
+	 * validation and one capped plan reviewer). `checks` (no model) is only on
+	 * cards scoped before every supplied plan got the plan reviewer.
+	 */
+	sweep: z.enum(["checks", "model"]).optional(),
+	/** Why the supplied plan went to the designer. */
+	reason: z.string().max(4000).optional(),
+	/**
+	 * The supplied checks, run once at the base commit as the first step of
+	 * the approved run, before any builder.
+	 * `fails`: at least one fails there (the plan proves a change);
+	 * `all_pass`: nothing to prove; `inconclusive`: a check could not run
+	 * (missing tool, timeout, no worktree).
+	 */
+	base: z
+		.object({
+			commit: z.string().optional(),
+			outcome: z.enum(["fails", "all_pass", "inconclusive"]),
+			checks: z
+				.array(
+					z.object({
+						name: z.string(),
+						status: z.enum(["passed", "failed", "inconclusive"]),
+						exitCode: z.number().int().nullable().optional(),
+						/** First line of output or the reason, bounded. */
+						detail: z.string().max(1000).optional(),
+					}),
+				)
+				.max(20),
+			durationMs: z.number().int().nonnegative(),
+			at: z.string(),
+		})
+		.optional(),
+});
+export type FactoryDesignRoute = z.infer<typeof factoryDesignRouteSchema>;
+
 const factoryDesignProgressFields = {
+	/** The brief this design started from; generated plans replace task instructions. */
+	originalRequest: z.string().optional(),
+	reviewSelection: factoryReviewSelectionSchema.optional(),
+	formatRetries: z.number().int().nonnegative().optional(),
+	formatFeedback: z.string().max(120_000).optional(),
 	revision: z.number().int().positive(),
 	repairRound: z.number().int().nonnegative(),
 	agents: factoryAgentsSchema,
 	designerSessionId: z.string().min(1),
 	findings: z.array(z.string()),
+	/**
+	 * The plan-fault findings Factory last sent back to scoping by itself for
+	 * this card's plan lineage; the same set again stops instead of looping.
+	 */
+	planFaultFindings: z.array(z.string()).optional(),
+	/**
+	 * How many times Factory sent this plan lineage back to scoping by itself
+	 * for a plan fault, whatever the findings' wording; capped at
+	 * FACTORY_MAX_PLAN_FAULT_REDESIGNS. A person's edit starts a new lineage.
+	 */
+	planFaultRedesigns: z.number().int().nonnegative().optional(),
+	/**
+	 * Re-scopes an agent (not a person) made of this card after it stopped;
+	 * capped at FACTORY_MAX_AGENT_RETRIES with run retries' `agentRetries`.
+	 */
+	agentRetries: z.number().int().nonnegative().optional(),
+	/** Set only with phase "complete": the designer found nothing to build at this revision. */
+	conclusion: factoryDesignConclusionSchema.optional(),
+	/** How scoping ran when the request came with a plan (see factoryDesignRouteSchema). */
+	route: factoryDesignRouteSchema.optional(),
+	/**
+	 * A person (not automatic approval) approved this plan revision, and when.
+	 * Runs freeze it as `planApprovedByPerson`, so delivery asks only about
+	 * what went beyond the plan (factoryStampRequirement).
+	 */
+	approvedByPerson: z.object({ at: z.string() }).optional(),
 };
-export const factoryDesignProgressSchema = z.discriminatedUnion("phase", [
-	z.object({ ...factoryDesignProgressFields, phase: z.literal("designing") }),
-	z.object({
-		...factoryDesignProgressFields,
-		phase: z.enum(["reviewing", "complete"]),
-		reviewerSessions: z.array(
-			z.object({
-				reviewerIndex: z.number().int().nonnegative(),
-				sessionId: z.string().min(1),
-			}),
-		),
-		reviews: z.array(factoryReviewerResultSchema),
-	}),
-]);
+export const factoryDesignProgressSchema = z
+	.discriminatedUnion("phase", [
+		z.object({ ...factoryDesignProgressFields, phase: z.literal("designing") }),
+		z.object({
+			...factoryDesignProgressFields,
+			phase: z.enum(["reviewing", "complete"]),
+			reviewerSessions: z.array(
+				z.object({
+					reviewerIndex: z.number().int().nonnegative(),
+					sessionId: z.string().min(1),
+				}),
+			),
+			reviews: z.array(factoryReviewerResultSchema),
+		}),
+	])
+	.superRefine((progress, context) => {
+		try {
+			selectFactoryReviewAgents(progress.agents, progress.reviewSelection);
+		} catch (error) {
+			context.addIssue({
+				code: "custom",
+				path: ["reviewSelection"],
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	});
 export type FactoryDesignProgress = z.infer<typeof factoryDesignProgressSchema>;
 
 /** Semantic labels used to group work on a user's agenda. */
@@ -95,6 +193,17 @@ export interface AgendaTaskRecord {
 	factoryDesignProgress?: FactoryDesignProgress;
 	factory?: FactoryTaskConfig;
 	factoryDesignReview?: FactoryDesignReview;
+	/**
+	 * The Factory queue entry waiting for this card, when there is one:
+	 * `design` waits to start scoping, `run` waits to start execution.
+	 */
+	factoryQueued?: "design" | "run";
+	/**
+	 * The card's short number within its Hub task database, shown as
+	 * `F<n>` (see `formatFactoryId`). Present on Factory cards; assigned at
+	 * creation and never reused.
+	 */
+	factoryNumber?: number;
 	taskId: string;
 	type: AgendaTaskType;
 	status: AgendaTaskStatus;
@@ -228,6 +337,12 @@ export interface AgendaTaskListInput {
 	automationEligible?: boolean;
 	availableBefore?: string;
 	includeArchived?: boolean;
+	/** Only Factory replays of this source run, newest first. */
+	factoryReplaySourceRunId?: string;
+	/** Only Factory replays created by this comparison request. */
+	factoryComparisonId?: string;
+	/** Only Factory cards, newest first. */
+	factoryOnly?: boolean;
 	limit?: number;
 }
 

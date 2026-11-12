@@ -1,6 +1,22 @@
+import {
+	type AgendaTaskRecord,
+	type AgendaTaskRunRecord,
+	DEFAULT_FACTORY_AGENTS,
+	type FactoryRunState,
+	factoryPullRequestReadyAllowed,
+	factoryRunStateSchema,
+	factoryTaskConfigSchema,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { runFactoryCommand } from "./factory-local";
-import { readFactoryPullRequest } from "./factory-pull-request";
+import type { AgendaTaskRuntime } from "./agenda-task-manager";
+import {
+	markFactoryPullRequestReady,
+	type runFactoryCommand,
+} from "./factory-local";
+import {
+	readFactoryPullRequest,
+	runFactoryPullRequestFollowup,
+} from "./factory-pull-request";
 
 const connection = <T>(nodes: T[], hasNextPage = false) => ({
 	nodes,
@@ -261,5 +277,305 @@ describe("PR snapshot boundaries", () => {
 			).state,
 		).toBe("MERGED");
 		expect(run).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("PR outcome", () => {
+	const url = "https://github.com/example/project/pull/1";
+	const published = "factory-commit";
+	// Hands-off defaults: publish the draft PR, read-only watching.
+	const task = {
+		taskId: "task_a",
+		title: "Fix typo",
+		instructions: "Fix the typo.",
+		factory: factoryTaskConfigSchema.parse({
+			approval: "automatic",
+			publishPullRequest: true,
+			watchPullRequest: false,
+		}),
+	} as AgendaTaskRecord;
+	const watching = factoryRunStateSchema.parse({
+		phase: "watching",
+		repairRound: 0,
+		sessions: [],
+		workspace: {
+			path: "/wt",
+			branch: "factory/fix-typo",
+			baseBranch: "main",
+			baseCommit: "base",
+		},
+		pullRequestUrl: url,
+		pullRequestWatch: { headCommit: published, handledFeedbackIds: [] },
+	});
+	/** gh answering for a PR in `state` whose head is `head`. */
+	const gh = (state: "OPEN" | "CLOSED" | "MERGED", head = published) =>
+		vi.fn<typeof runFactoryCommand>(async ({ args }) => ({
+			exitCode: 0,
+			timedOut: false,
+			truncated: false,
+			output: JSON.stringify(
+				args[0] === "api"
+					? {
+							data: {
+								repository: {
+									pullRequest: {
+										state,
+										headRefOid: head,
+										headRefName: "factory/fix-typo",
+										comments: connection([]),
+										reviews: connection([]),
+										reviewThreads: connection([]),
+									},
+								},
+							},
+						}
+					: args[1] === "checks"
+						? []
+						: args.includes("headRefOid")
+							? { headRefOid: head }
+							: { statusCheckRollup: [] },
+			),
+		}));
+	const follow = async (state: FactoryRunState, run: ReturnType<typeof gh>) => {
+		let saved = state;
+		const result = await runFactoryPullRequestFollowup(
+			{
+				task,
+				run: { runId: "run_1" } as AgendaTaskRunRecord,
+				state,
+				runtime: {} as AgendaTaskRuntime,
+				storageDir: "/tmp",
+				signal: new AbortController().signal,
+				save: (updated) => {
+					saved = updated;
+				},
+				sessionStarted: () => {},
+			},
+			{ run },
+		);
+		// Read-only: only gh reads; nothing is pushed or posted.
+		expect(
+			run.mock.calls.every(
+				([input]) => input.file === "gh" && input.args[1] !== "comment",
+			),
+		).toBe(true);
+		return { result, state: saved };
+	};
+
+	it("records a PR merged as Factory delivered it and stops watching", async () => {
+		const { result, state } = await follow(watching, gh("MERGED"));
+		expect(result).toBe("closed");
+		expect(state).toMatchObject({
+			phase: "ready",
+			pullRequestOutcome: { state: "merged", headChanged: false },
+		});
+		expect(state.pullRequestWatch).toBeUndefined();
+	});
+
+	it("keeps watching read-only after someone pushes, then records the merge as changed", async () => {
+		const open = await follow(watching, gh("OPEN", "human-commit"));
+		expect(open.result).toBe("idle");
+		expect(open.state.phase).toBe("watching");
+		expect(open.state.pullRequestOutcome).toBeUndefined();
+		const merged = await follow(open.state, gh("MERGED", "human-commit"));
+		expect(merged.state.pullRequestOutcome).toMatchObject({
+			state: "merged",
+			headChanged: true,
+		});
+	});
+
+	it("records a PR closed without merging", async () => {
+		const { state } = await follow(watching, gh("CLOSED"));
+		expect(state.pullRequestOutcome).toMatchObject({
+			state: "closed",
+			headChanged: false,
+		});
+		expect(state.pullRequestWatch).toBeUndefined();
+	});
+
+	it("records nothing while the PR is open", async () => {
+		const { result, state } = await follow(watching, gh("OPEN"));
+		expect(result).toBe("idle");
+		expect(state.pullRequestOutcome).toBeUndefined();
+		expect(state.pullRequestWatch).toEqual(watching.pullRequestWatch);
+	});
+
+	it("never polls a run without a PR", async () => {
+		const run = gh("MERGED");
+		await expect(
+			follow(
+				{ ...watching, pullRequestUrl: undefined, pullRequestWatch: undefined },
+				run,
+			),
+		).rejects.toThrow("verified pull request");
+		expect(run).not.toHaveBeenCalled();
+	});
+});
+
+describe("marking a draft PR ready", () => {
+	const pass = { verdict: "pass" as const, summary: "ok", findings: [] };
+	const candidate = {
+		commit: "abc",
+		checks: [
+			{
+				name: "Unit tests",
+				kind: "test" as const,
+				command: "bun test",
+				status: "passed" as const,
+				exitCode: 0,
+				output: "ok",
+				artifacts: [],
+			},
+		],
+		reviews: [{ reviewerIndex: 0, sessionId: "r", review: pass }],
+		verification: { sessionId: "v", review: pass, artifacts: [] },
+	};
+	const config = {
+		pullRequestReady: "when_no_review_required" as const,
+		agents: { ...DEFAULT_FACTORY_AGENTS, verifier: {} },
+	};
+	const state = {
+		candidate,
+		humanReview: { required: false, reason: "local change" },
+	} as unknown as FactoryRunState;
+	const changes = {
+		verdict: "changes_requested" as const,
+		summary: "no",
+		findings: ["Fix it."],
+	};
+
+	it("allows only a fully clean delivery that needs no person", () => {
+		expect(factoryPullRequestReadyAllowed(config, state, true)).toBe(true);
+		const denied: [string, boolean][] = [
+			[
+				"setting off",
+				factoryPullRequestReadyAllowed(
+					{ ...config, pullRequestReady: undefined },
+					state,
+					true,
+				),
+			],
+			[
+				"check failed",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						candidate: {
+							...candidate,
+							checks: [{ ...candidate.checks[0], status: "failed" }],
+						},
+					} as FactoryRunState,
+					true,
+				),
+			],
+			[
+				"tester failed",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						candidate: {
+							...candidate,
+							verification: { ...candidate.verification, review: changes },
+						},
+					} as FactoryRunState,
+					true,
+				),
+			],
+			[
+				"tester missing",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						candidate: { ...candidate, verification: undefined },
+					} as FactoryRunState,
+					true,
+				),
+			],
+			[
+				"review not clean",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						candidate: {
+							...candidate,
+							reviews: [{ ...candidate.reviews[0], review: changes }],
+						},
+					} as FactoryRunState,
+					true,
+				),
+			],
+			["not independent", factoryPullRequestReadyAllowed(config, state, false)],
+			[
+				"review required",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						humanReview: { required: true, reason: "shared contract" },
+					},
+					true,
+				),
+			],
+			[
+				"open findings",
+				factoryPullRequestReadyAllowed(
+					config,
+					{
+						...state,
+						unresolvedFindings: { commit: "abc", findings: ["x"] },
+					} as FactoryRunState,
+					true,
+				),
+			],
+		];
+		expect(denied.filter(([, allowed]) => allowed)).toEqual([]);
+	});
+
+	it("marks only an open draft ready, and never merges", async () => {
+		const views: string[] = [];
+		const gh = (view: { state: string; isDraft: boolean }) =>
+			vi.fn<typeof runFactoryCommand>(async (input) => {
+				views.push(input.args.slice(0, 2).join(" "));
+				const stdout = JSON.stringify(view);
+				return {
+					exitCode: 0,
+					output: stdout,
+					stdout,
+					truncated: false,
+					timedOut: false,
+				};
+			});
+		const input = {
+			workspace: { path: "/work" } as never,
+			url: "https://github.com/example/project/pull/7",
+		};
+		const draft = gh({ state: "OPEN", isDraft: true });
+		expect(await markFactoryPullRequestReady(input, draft)).toBe(true);
+		expect(draft.mock.calls.map(([call]) => call.args)).toEqual([
+			[
+				"pr",
+				"view",
+				"7",
+				"--repo",
+				"example/project",
+				"--json",
+				"state,isDraft",
+			],
+			["pr", "ready", "7", "--repo", "example/project"],
+		]);
+		for (const existing of [
+			{ state: "OPEN", isDraft: false },
+			{ state: "MERGED", isDraft: false },
+			{ state: "CLOSED", isDraft: true },
+		]) {
+			const run = gh(existing);
+			expect(await markFactoryPullRequestReady(input, run)).toBe(false);
+			expect(run).toHaveBeenCalledTimes(1);
+		}
+		expect(views.some((args) => /merge/.test(args))).toBe(false);
 	});
 });

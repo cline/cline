@@ -1449,7 +1449,7 @@ describe("useChatSession", () => {
 	it.each([
 		"local",
 		"remote",
-	])("heals a running attached session in %s with a dead event stream by polling history", async (environmentId) => {
+	])("keeps an attached session in %s running through hydrated narration and settles from canonical status", async (environmentId) => {
 		await act(async () =>
 			root.render(<HookHarness environmentId={environmentId} />),
 		);
@@ -1474,6 +1474,20 @@ describe("useChatSession", () => {
 							content: "tell me the current time",
 							createdAt: 1,
 						},
+						{
+							id: "history-narration",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "I will inspect the current state.",
+							createdAt: 2,
+						},
+						{
+							id: "history-tool",
+							sessionId: hydratedSessionId,
+							role: "tool",
+							content: "Inspection result",
+							createdAt: 3,
+						},
 					];
 					return readCount === 1
 						? base
@@ -1484,7 +1498,7 @@ describe("useChatSession", () => {
 									sessionId: hydratedSessionId,
 									role: "assistant",
 									content: "It is 12:28 PM PT.",
-									createdAt: 2,
+									createdAt: 4,
 								},
 							];
 				}
@@ -1535,7 +1549,7 @@ describe("useChatSession", () => {
 				});
 			});
 			expect(current.status).toBe("running");
-			expect(current.messages).toHaveLength(1);
+			expect(current.messages).toHaveLength(3);
 
 			// No chat_event chunks arrive. The first poll surfaces the
 			// narration mid-run; the record still says running, and the
@@ -1543,8 +1557,8 @@ describe("useChatSession", () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(3_100);
 			});
-			expect(current.messages).toHaveLength(2);
-			expect(current.messages[1]?.content).toBe("It is 12:28 PM PT.");
+			expect(current.messages).toHaveLength(4);
+			expect(current.messages[3]?.content).toBe("It is 12:28 PM PT.");
 			expect(current.status).toBe("running");
 
 			// The record flips to completed; the next poll mirrors it.
@@ -1555,6 +1569,59 @@ describe("useChatSession", () => {
 			vi.useRealTimers();
 		}
 
+		expect(current.status).toBe("completed");
+	});
+
+	it("keeps a newer terminal event when an older local attach response arrives", async () => {
+		const sessionId = "session-attach-race";
+		const attachment = deferred<{ sessionId: string; status: string }>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context")
+					return { cwd: "/workspace", workspaceRoot: "/workspace" };
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "u",
+							sessionId,
+							role: "user",
+							content: "Inspect this",
+							createdAt: 1,
+						},
+					];
+				const request = args?.request;
+				if (
+					command === "chat_session_command" &&
+					request &&
+					typeof request === "object" &&
+					"action" in request &&
+					request.action === "attach"
+				)
+					return attachment.promise;
+				return [];
+			},
+		);
+		let hydration: Promise<void> | undefined;
+		await act(async () => {
+			hydration = current.hydrateSession({
+				environmentId: "local",
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-12T00:00:00.000Z",
+			});
+		});
+		await act(async () => {
+			handlerFor("chat_session_ended")({ sessionId, reason: "completed" });
+		});
+		expect(current.status).toBe("completed");
+		await act(async () => {
+			attachment.resolve({ sessionId, status: "running" });
+			await hydration;
+		});
 		expect(current.status).toBe("completed");
 	});
 

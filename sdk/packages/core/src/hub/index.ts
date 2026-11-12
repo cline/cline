@@ -30,6 +30,26 @@ export {
 	createConfiguredTelemetryService,
 } from "../services/telemetry/OpenTelemetryProvider";
 export {
+	type CreateFactoryListToolOptions,
+	type CreateFactoryToolOptions,
+	createFactoryListTool,
+	createFactoryPromptExtension,
+	createFactoryTool,
+	FACTORY_INTAKE_PROMPT_RULE,
+	FACTORY_INTAKE_SOURCE,
+	FACTORY_LIST_TOOL_NAME,
+	FACTORY_SYSTEM_PROMPT_RULE,
+	FACTORY_TOOL_NAME,
+	type FactoryListToolInput,
+	FactoryListToolInputSchema,
+	type FactoryListToolResult,
+	type FactorySessionDefaults,
+	type FactoryToolInput,
+	FactoryToolInputSchema,
+	type FactoryToolResult,
+	parseFactoryIntakeContext,
+} from "../tasks/factory-tool";
+export {
 	type CreateTasksToolOptions,
 	createTasksPromptExtension,
 	createTasksTool,

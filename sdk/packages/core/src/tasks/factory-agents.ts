@@ -2,8 +2,14 @@ import type {
 	AgendaTaskRecord,
 	FactoryAgent,
 	FactoryReview,
+	FactoryVerificationReview,
 } from "@cline/shared";
-import { factoryReviewSchema } from "@cline/shared";
+import {
+	DEFAULT_FACTORY_AGENT_TIMEOUT_SECONDS,
+	factoryReviewSchema,
+	factoryVerificationReviewSchema,
+	parseFactoryJson,
+} from "@cline/shared";
 
 import { loadConfiguredAgentConfigs } from "../extensions/tools/team/configured-agent-config";
 
@@ -56,7 +62,9 @@ export function resolveFactoryAgent(
 			task.maxIterations,
 			agent.maxIterations ?? profile?.maxIterations,
 		),
-		timeoutSeconds: limit(task.timeoutSeconds, agent.timeoutSeconds),
+		timeoutSeconds:
+			limit(task.timeoutSeconds, agent.timeoutSeconds) ??
+			DEFAULT_FACTORY_AGENT_TIMEOUT_SECONDS,
 		systemPrompt:
 			[task.systemPrompt, profile?.systemPrompt, agent.instructions]
 				.filter(Boolean)
@@ -65,9 +73,12 @@ export function resolveFactoryAgent(
 }
 
 export function parseFactoryReview(summary: string): FactoryReview {
-	return factoryReviewSchema.parse(
-		JSON.parse(
-			summary.replace(/^\s*```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, ""),
-		),
-	);
+	return factoryReviewSchema.parse(parseFactoryJson(summary));
+}
+
+/** Keeps the verifier's per-criterion `acceptance` results, which reviews do not carry. */
+export function parseFactoryVerification(
+	summary: string,
+): FactoryVerificationReview {
+	return factoryVerificationReviewSchema.parse(parseFactoryJson(summary));
 }

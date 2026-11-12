@@ -209,8 +209,13 @@ describe("desktop settings commands", () => {
 		await expect(
 			handleCommand(ctx, "get_feature_flags", {}),
 		).resolves.toMatchObject({ cloudAgents: false });
+		// The built-in Hands-off workflow is listed but never written.
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: enabled });
+		).resolves.toMatchObject({
+			cloudSessionsEnabled: enabled,
+			factoryDefaultPreset: "Hands-off",
+			factoryPresets: [{ name: "Hands-off" }],
+		});
 	});
 });

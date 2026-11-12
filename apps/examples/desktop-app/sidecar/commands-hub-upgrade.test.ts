@@ -105,6 +105,7 @@ describe("Factory Hub command routing", () => {
 	it.each([
 		"task.factory.answer",
 		"task.factory.audit",
+		"task.factory.audit.resolve",
 		"task.factory.stamp",
 	])("routes trusted %s and rejects untrusted requests before dispatch", async (name) => {
 		const { handleCommand } = await import("./commands");

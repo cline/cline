@@ -1,4 +1,9 @@
 import type { AgentMessage } from "./agent";
+import type {
+	FactoryFeedbackAnalysis,
+	FactoryReplayRequest,
+	FactoryWorkflowRecipe,
+} from "./factory";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
@@ -41,9 +46,17 @@ export type HubCapabilityName =
 	| "task.factory.stop"
 	| "task.factory.stamp"
 	| "task.factory.audit"
+	| "task.factory.audit.resolve"
 	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
+	| "task.factory.replay"
+	| "task.factory.defaults.get"
+	| "task.factory.defaults.set"
+	| "task.factory.limits.get"
+	| "task.factory.limits.set"
+	| "task.factory.stages.get"
+	| "task.factory.stages.set"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.get"
@@ -81,9 +94,17 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.stop",
 	"task.factory.stamp",
 	"task.factory.audit",
+	"task.factory.audit.resolve",
 	"task.factory.answer",
 	"task.factory.design",
 	"task.factory.watch",
+	"task.factory.replay",
+	"task.factory.defaults.get",
+	"task.factory.defaults.set",
+	"task.factory.limits.get",
+	"task.factory.limits.set",
+	"task.factory.stages.get",
+	"task.factory.stages.set",
 	"task.automation.get",
 	"task.automation.set",
 	"settings.get",
@@ -488,6 +509,79 @@ export interface HubTaskAutomationSetInput {
 	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
 }
 
+/** Sets the default Factory workflow for new work; null clears it. */
+export interface HubTaskFactoryDefaultsSetInput {
+	workflow: FactoryWorkflowRecipe | null;
+}
+
+/**
+ * How many Factory cards may be worked at once (scoping and execution
+ * together); the rest wait queued. An integer from 1 to 8.
+ */
+export interface HubTaskFactoryLimits {
+	concurrency: number;
+	/**
+	 * New work is paused: nothing starts scoping, a run or a PR follow-up,
+	 * while running work continues. Persisted with the limit. Older Hubs omit it.
+	 */
+	paused?: boolean;
+	/**
+	 * Hub-wide limit on Factory model spend per local day, in USD (50 when
+	 * never set). Once today's spend reaches it no new scoping or run starts;
+	 * running work finishes. Older Hubs omit it.
+	 */
+	dailyCostUsd?: number;
+	/**
+	 * Factory session cost recorded since local midnight across all cards, in
+	 * USD. Sessions still running count what they have reported so far.
+	 * Older Hubs omit it.
+	 */
+	spentTodayUsd?: number;
+	/** Today's spend reached `dailyCostUsd`: new work waits for tomorrow or a higher limit. */
+	spendingLimitReached?: boolean;
+}
+
+/**
+ * `task.factory.limits.set` input: any of the fields alone, or several.
+ * `dailyCostUsd: null` clears the daily limit back to its default.
+ */
+export type HubTaskFactoryLimitsUpdate = {
+	concurrency?: number;
+	paused?: boolean;
+	dailyCostUsd?: number | null;
+};
+
+/** The Factory role a session works in, for live activity. */
+export type HubFactoryActivityRole =
+	| "designer"
+	| "plan_reviewer"
+	| "builder"
+	| "verifier"
+	| "reviewer";
+
+/**
+ * `task.factory.activity` payload: one tool start of a Factory role session,
+ * throttled per session. `input` is a short redacted view (one path, command
+ * head or query), never file contents; `summary` is a plain line such as
+ * "Reading src/api/routes.ts".
+ */
+export interface HubFactoryActivityPayload {
+	taskId: string;
+	/** The card's short id, such as `F42`, when it has one. */
+	factoryId?: string;
+	sessionId: string;
+	role: HubFactoryActivityRole;
+	toolName: string;
+	input?: { path?: string; command?: string; query?: string };
+	summary?: string;
+	/** ISO-8601 time of the tool start. */
+	at: string;
+}
+
+export const FACTORY_CONCURRENCY_MIN = 1;
+export const FACTORY_CONCURRENCY_MAX = 8;
+export const FACTORY_CONCURRENCY_DEFAULT = 2;
+
 export interface HubSessionSearchInput {
 	query: string;
 	limit?: number;
@@ -533,12 +627,28 @@ export interface HubCommandInputMap {
 		finding?: string;
 		selectionReason?: "manual" | "random";
 	};
+	/**
+	 * The person's decision on the feedback analysis of the card's last run:
+	 * `save` writes the proposed rule (exactly the diff whose hash is
+	 * `expectedHash`; needs a client trusted across workspaces), `discard`
+	 * writes nothing, `retry` re-proposes a stored rule against the current
+	 * guidance or, after a failed analysis, runs the analyst once more.
+	 */
+	"task.factory.audit.resolve": HubTaskIdInput & {
+		decision: "save" | "discard" | "retry";
+		expectedHash?: string;
+	};
 	"task.factory.answer": HubTaskIdInput & {
 		questionId: string;
 		answer: string;
 	};
 	"task.factory.design": HubTaskIdInput;
 	"task.factory.watch": HubTaskRevisionInput & { enabled: boolean };
+	"task.factory.replay": FactoryReplayRequest & { allWorkspaces?: boolean };
+	"task.factory.defaults.get": Record<string, never>;
+	"task.factory.defaults.set": HubTaskFactoryDefaultsSetInput;
+	"task.factory.limits.get": Record<string, never>;
+	"task.factory.limits.set": HubTaskFactoryLimitsUpdate;
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
 }
@@ -560,9 +670,19 @@ export interface HubCommandOutputMap {
 	"task.factory.stop": { stopped: boolean };
 	"task.factory.stamp": { task: AgendaTaskRecord };
 	"task.factory.audit": { task: AgendaTaskRecord };
+	"task.factory.audit.resolve": {
+		task: AgendaTaskRecord;
+		/** The analysis after the decision. */
+		analysis?: FactoryFeedbackAnalysis;
+	};
 	"task.factory.answer": { task: AgendaTaskRecord };
 	"task.factory.design": { sessionId: string };
 	"task.factory.watch": { task: AgendaTaskRecord };
+	"task.factory.replay": { tasks: AgendaTaskRecord[] };
+	"task.factory.defaults.get": { workflow?: FactoryWorkflowRecipe };
+	"task.factory.defaults.set": { workflow?: FactoryWorkflowRecipe };
+	"task.factory.limits.get": HubTaskFactoryLimits;
+	"task.factory.limits.set": HubTaskFactoryLimits;
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
 }
@@ -646,9 +766,17 @@ export type HubCommandName =
 	| "task.factory.stop"
 	| "task.factory.stamp"
 	| "task.factory.audit"
+	| "task.factory.audit.resolve"
 	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
+	| "task.factory.replay"
+	| "task.factory.defaults.get"
+	| "task.factory.defaults.set"
+	| "task.factory.limits.get"
+	| "task.factory.limits.set"
+	| "task.factory.stages.get"
+	| "task.factory.stages.set"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.list"
@@ -772,6 +900,7 @@ export type HubEventName =
 	| "task.run.completed"
 	| "task.run.failed"
 	| "task.automation.updated"
+	| "task.factory.activity"
 	| "settings.changed"
 	| "ui.notify"
 	| "ui.show_window"

@@ -16,6 +16,10 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	/** Opened from Factory → Add work; its first prompt starts a Factory intake. */
+	factoryIntake?: true;
+	/** Opened from Factory → Ask Factory; its first prompt starts the Factory manager. */
+	factoryManager?: true;
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -33,7 +37,32 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| { type: "navigate"; destination: DesktopAppLocation<SettingsSection> }
 	| { type: "back" }
 	| { type: "forward" }
-	| { type: "new-thread"; threadId: string; environmentId: string }
+	| {
+			type: "new-thread";
+			threadId: string;
+			environmentId: string;
+			factoryIntake?: true;
+	  }
+	| {
+			/** Returns to an unstarted Factory manager thread, or opens one. */
+			type: "open-factory-manager";
+			threadId: string;
+			environmentId: string;
+	  }
+	| {
+			/**
+			 * Gives the docked Ask Factory panel a manager thread without leaving
+			 * the current view: attaches `session` when given, otherwise reuses the
+			 * latest manager thread (or opens one; always a new one when `fresh`).
+			 */
+			type: "ensure-factory-manager";
+			threadId: string;
+			environmentId: string;
+			session?: SessionHistoryItem;
+			fresh?: true;
+			/** Text for the panel's composer, such as Factory → Discuss. */
+			initialPromptDraft?: string;
+	  }
 	| { type: "bind-unstarted-thread"; threadId: string; environmentId: string }
 	| {
 			type: "select-environment-draft";
@@ -115,7 +144,11 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				threads: [
 					...state.threads,
-					{ id: action.threadId, environmentId: action.environmentId },
+					{
+						id: action.threadId,
+						environmentId: action.environmentId,
+						...(action.factoryIntake ? { factoryIntake: true as const } : {}),
+					},
 				],
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
@@ -126,6 +159,95 @@ export function desktopAppReducer<SettingsSection extends string>(
 					},
 				}),
 			};
+		case "open-factory-manager": {
+			const unstarted = [...state.threads]
+				.reverse()
+				.find(
+					(thread) =>
+						thread.factoryManager &&
+						thread.environmentId === action.environmentId &&
+						!thread.hasStarted &&
+						!thread.historySession,
+				);
+			const threadId = unstarted?.id ?? action.threadId;
+			const destination = {
+				...state.navigation.current,
+				activeThreadId: threadId,
+				view: "chat" as const,
+			};
+			if (
+				unstarted &&
+				areLocationsEqual(state.navigation.current, destination)
+			) {
+				return state;
+			}
+			return {
+				threads: unstarted
+					? state.threads
+					: [
+							...state.threads,
+							{
+								id: threadId,
+								environmentId: action.environmentId,
+								factoryManager: true as const,
+							},
+						],
+				navigation: navigationHistoryReducer(state.navigation, {
+					type: "navigate",
+					destination,
+				}),
+			};
+		}
+		case "ensure-factory-manager": {
+			const draft =
+				action.initialPromptDraft === undefined
+					? {}
+					: { initialPromptDraft: action.initialPromptDraft };
+			if (action.session) {
+				const opened = desktopAppReducer(state, {
+					type: "open-session",
+					session: action.session,
+					environmentId: action.environmentId,
+				});
+				const openedId = opened.navigation.current.activeThreadId;
+				return {
+					...state,
+					threads: opened.threads.map((thread) =>
+						thread.id === openedId
+							? { ...thread, factoryManager: true as const, ...draft }
+							: thread,
+					),
+				};
+			}
+			const existing = action.fresh
+				? undefined
+				: state.threads.findLast(
+						(thread) =>
+							thread.factoryManager &&
+							thread.environmentId === action.environmentId,
+					);
+			if (existing)
+				return action.initialPromptDraft === undefined
+					? state
+					: {
+							...state,
+							threads: state.threads.map((thread) =>
+								thread === existing ? { ...thread, ...draft } : thread,
+							),
+						};
+			return {
+				...state,
+				threads: [
+					...state.threads,
+					{
+						id: action.threadId,
+						environmentId: action.environmentId,
+						factoryManager: true as const,
+						...draft,
+					},
+				],
+			};
+		}
 		case "bind-unstarted-thread":
 			return {
 				...state,
@@ -144,7 +266,9 @@ export function desktopAppReducer<SettingsSection extends string>(
 					(thread) =>
 						thread.environmentId === action.environmentId &&
 						!thread.hasStarted &&
-						!thread.historySession,
+						!thread.historySession &&
+						!thread.factoryIntake &&
+						!thread.factoryManager,
 				);
 			const targetThreadId = existingDraft?.id ?? action.threadId;
 			const threads = existingDraft

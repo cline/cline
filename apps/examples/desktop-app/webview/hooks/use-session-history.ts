@@ -1874,11 +1874,19 @@ export function useSessionHistory({
 		});
 	}, [scheduledSessionLinks, threads]);
 
+	// Factory's own sessions open from Factory: role runs from their card and
+	// the manager conversation from the Ask Factory panel. Older manager
+	// chats carry only the request marker.
 	const visibleThreads = useMemo(
 		() =>
-			threadsWithScheduled.filter(
-				(thread) => !sessionById.get(thread.id)?.metadata?.factoryTaskId,
-			),
+			threadsWithScheduled.filter((thread) => {
+				const metadata = sessionById.get(thread.id)?.metadata;
+				return (
+					!metadata?.factoryTaskId &&
+					!metadata?.factoryManager &&
+					!metadata?.factoryManagerRequested
+				);
+			}),
 		[threadsWithScheduled, sessionById],
 	);
 

@@ -50,6 +50,8 @@ describe("desktop tray", () => {
 			[{ type: "new-session" }, { type: "unexpected" }],
 			[
 				{ type: "open-session", sessionId: "session-1" },
+				{ type: "open-factory-task", taskId: "task-1" },
+				{ type: "open-factory-task", taskId: " " },
 				{ type: "open-settings" },
 				{ type: "check-for-updates" },
 				{ type: "export-diagnostics" },
@@ -91,6 +93,7 @@ describe("desktop tray", () => {
 			expect(onAction.mock.calls).toEqual([
 				[{ type: "new-session" }],
 				[{ type: "open-session", sessionId: "session-1" }],
+				[{ type: "open-factory-task", taskId: "task-1" }],
 				[{ type: "open-settings" }],
 				[{ type: "check-for-updates" }],
 				[{ type: "export-diagnostics" }],

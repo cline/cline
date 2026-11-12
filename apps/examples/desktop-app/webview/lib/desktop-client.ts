@@ -6,6 +6,7 @@ import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	DesktopDebugLogPayload,
+	FactoryReplayRequest,
 	HubTaskCreateInput,
 	HubTaskUpdateInput,
 } from "@cline/shared";
@@ -799,6 +800,16 @@ class DesktopClient {
 				expectedRevision: revision,
 			})),
 		});
+	}
+
+	async replayFactoryTask(
+		input: FactoryReplayRequest,
+	): Promise<AgendaTaskRecord[]> {
+		const response = await this.invoke<{ tasks: AgendaTaskRecord[] }>(
+			"task.factory.replay",
+			{ ...input, allWorkspaces: true },
+		);
+		return response.tasks;
 	}
 
 	async stopFactoryQueue(): Promise<{ stopped: boolean }> {

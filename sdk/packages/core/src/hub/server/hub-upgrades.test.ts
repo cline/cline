@@ -276,7 +276,7 @@ describe("Hub app-server upgrades", () => {
 			});
 			const ctx = (
 				transport as unknown as {
-					ctx: import("./handlers/context").HubTransportContext;
+					ctx: HubTransportContext;
 				}
 			).ctx;
 			const { requestToolApproval } = await import(

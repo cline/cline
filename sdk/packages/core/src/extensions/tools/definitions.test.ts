@@ -1444,6 +1444,21 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
+	it("supplies assigned cwd without rewriting a custom reader's request or context", async () => {
+		const execute = vi.fn(async () => "custom host content");
+		const tool = createReadFilesTool(execute, { cwd: "/assigned-worktree" });
+		const request = { path: "source.ts", start_line: 2, end_line: 4 };
+		const context: AgentToolContext = { agentId: "custom-agent", iteration: 1 };
+		expect(await tool.execute({ files: [request] }, context)).toEqual([
+			{ query: "source.ts:2-4", result: "custom host content", success: true },
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			request,
+			context,
+			"/assigned-worktree",
+		);
+	});
+
 	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);
@@ -1483,6 +1498,7 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			process.cwd(),
 		);
 	});
 
@@ -1503,6 +1519,7 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			process.cwd(),
 		);
 	});
 
@@ -1532,16 +1549,19 @@ describe("default read_files tool", () => {
 			1,
 			{ path: "/tmp/a.ts" },
 			expect.objectContaining({ iteration: 1 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			2,
 			{ path: "/tmp/b.ts", start_line: 2 },
 			expect.objectContaining({ iteration: 1 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			3,
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
+			process.cwd(),
 		);
 	});
 
@@ -1569,16 +1589,19 @@ describe("default read_files tool", () => {
 			1,
 			{ path: "/tmp/a.ts" },
 			expect.objectContaining({ iteration: 1 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			2,
 			{ path: "/tmp/b.ts", end_line: 4 },
 			expect.objectContaining({ iteration: 1 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			3,
 			{ path: "/tmp/c.ts" },
 			expect.objectContaining({ iteration: 2 }),
+			process.cwd(),
 		);
 	});
 
@@ -1614,16 +1637,19 @@ describe("default read_files tool", () => {
 			1,
 			{ path: "/tmp/example.ips", start_line: 45, end_line: 100 },
 			expect.objectContaining({ iteration: 1 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			2,
 			{ path: "/tmp/a.ts", end_line: 4 },
 			expect.objectContaining({ iteration: 2 }),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			3,
 			{ path: "/tmp/b.ts" },
 			expect.objectContaining({ iteration: 2 }),
+			process.cwd(),
 		);
 	});
 
@@ -1719,6 +1745,7 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			process.cwd(),
 		);
 	});
 
@@ -1785,6 +1812,7 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			process.cwd(),
 		);
 		expect(execute).toHaveBeenNthCalledWith(
 			2,
@@ -1796,6 +1824,7 @@ describe("default read_files tool", () => {
 				conversationId: "conv-1",
 				iteration: 1,
 			}),
+			process.cwd(),
 		);
 	});
 });
@@ -1829,8 +1858,7 @@ describe("zod schema conversion", () => {
 				properties: {
 					path: {
 						type: "string",
-						description:
-							"The absolute path of a text file to read content from",
+						description: "Path of the file to read",
 					},
 					start_line: {
 						anyOf: [{ type: "integer" }, { type: "null" }],

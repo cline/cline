@@ -8,19 +8,28 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SessionNotFoundError } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	FACTORY_INTAKE_PROMPT_RULE,
+	parseFactoryIntakeContext,
+	SessionNotFoundError,
+} from "@cline/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	createDesktopMistakeLimitPrompt,
 	createDesktopMistakeRecovery,
+	FACTORY_MANAGER_METADATA_KEY,
+	FACTORY_MANAGER_PROMPT_RULE,
+	FACTORY_MANAGER_REQUEST_METADATA_KEY,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	resolveDesktopSessionMode,
+	resolveFactoryIntakeStart,
+	resolveFactoryManagerStart,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
@@ -31,6 +40,8 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import { readDesktopSettings, writeDesktopSettings } from "./desktop-settings";
+import { handleFactoryCommand } from "./factory-commands";
 import type { SidecarContext } from "./types";
 
 const { createContextCompactionPrepareTurnMock } = vi.hoisted(() => ({
@@ -45,8 +56,11 @@ vi.mock("@cline/core", async (importOriginal) => {
 	return {
 		...actual,
 		createContextCompactionPrepareTurn: createContextCompactionPrepareTurnMock,
+		// The Factory manager's neutral workspace, without touching the real data dir.
+		ensureChatWorkspace: vi.fn(async () => CHAT_WORKSPACE),
 	};
 });
+const CHAT_WORKSPACE = "/home/host/.cline/data/workspaces/chat";
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -222,6 +236,30 @@ describe("starting SSH sessions", () => {
 		expect(ctx.liveSessions.size).toBe(0);
 	});
 
+	it("refuses to start a Factory intake outside the local environment", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { ...config, factoryIntake: {} },
+			}),
+		).rejects.toThrow("Factory intake runs in the local environment.");
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(start).not.toHaveBeenCalled();
+	});
+
+	it("refuses to start the Factory manager outside the local environment", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { ...config, factoryManager: true },
+			}),
+		).rejects.toThrow("The Factory manager runs in the local environment.");
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(start).not.toHaveBeenCalled();
+	});
+
 	it("uses explicit initial messages without reading remote history", async () => {
 		const { ctx, config, readMessages, start } = setup();
 		await handleChatSessionCommand(ctx, {
@@ -232,6 +270,374 @@ describe("starting SSH sessions", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: transcript }),
 		);
+	});
+});
+
+describe("Factory intake session start", () => {
+	let dataDir: string;
+	beforeEach(() => {
+		dataDir = mkdtempSync(join(tmpdir(), "cline-factory-intake-start-"));
+		process.env.CLINE_DATA_DIR = dataDir;
+	});
+	afterEach(() => {
+		delete process.env.CLINE_DATA_DIR;
+		rmSync(dataDir, { recursive: true, force: true });
+	});
+	const sourceIssue = {
+		provider: "github" as const,
+		id: "I_kwDO42",
+		url: "https://github.com/owner/repo/issues/42",
+	};
+
+	it("freezes the saved default workflow for a new intake and never re-reads it on resume", async () => {
+		await handleFactoryCommand(
+			{ pendingQuestions: new Map() },
+			"factory_save_preset",
+			{
+				name: "Focused",
+				config: { approval: "automatic", maxRepairRounds: 1 },
+				useByDefault: true,
+			},
+			async () => {
+				throw new Error("Saving a preset must not read tasks");
+			},
+		);
+		const saved = readDesktopSettings().factoryPresets?.[0];
+		const started = resolveFactoryIntakeStart({
+			requested: { sourceIssue },
+			existing: undefined,
+			local: true,
+		});
+		expect(started).toEqual({
+			context: {
+				workflow: {
+					schemaVersion: 1,
+					name: "Focused",
+					revision: saved?.revision,
+					config: saved?.config,
+				},
+				sourceIssue,
+			},
+			rules: FACTORY_INTAKE_PROMPT_RULE,
+		});
+		// What the sidecar stores is what the Hub's tool boundary accepts.
+		expect(
+			parseFactoryIntakeContext(JSON.parse(JSON.stringify(started?.context))),
+		).toMatchObject({ workflow: { revision: saved?.revision }, sourceIssue });
+
+		const readSettings = vi.fn(readDesktopSettings);
+		expect(
+			resolveFactoryIntakeStart({
+				requested: undefined,
+				existing: { metadata: { factoryIntake: started?.context } },
+				local: true,
+				readSettings,
+			}),
+		).toEqual({ rules: FACTORY_INTAKE_PROMPT_RULE });
+		// An ordinary chat cannot be turned into an intake when it resumes.
+		expect(
+			resolveFactoryIntakeStart({
+				requested: {},
+				existing: { metadata: {} },
+				local: true,
+				readSettings,
+			}),
+		).toBeUndefined();
+		expect(readSettings).not.toHaveBeenCalled();
+		// The webview may pass an imported issue, never a policy.
+		expect(() =>
+			resolveFactoryIntakeStart({
+				requested: { workflow: started?.context?.workflow },
+				existing: undefined,
+				local: true,
+			}),
+		).toThrow();
+	});
+
+	it("uses the built-in Hands-off workflow without a saved default or when the chosen default is missing", () => {
+		expect(
+			resolveFactoryIntakeStart({
+				requested: {},
+				existing: undefined,
+				local: true,
+			})?.context?.workflow,
+		).toMatchObject({
+			name: "Hands-off",
+			config: { autonomy: "hands_off", approval: "automatic" },
+		});
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Unavailable",
+		});
+		// A missing default does not block intake; it uses Hands-off, as the
+		// Hub default does.
+		expect(
+			resolveFactoryIntakeStart({
+				requested: {},
+				existing: undefined,
+				local: true,
+			})?.context?.workflow,
+		).toMatchObject({
+			name: "Hands-off",
+			config: { autonomy: "hands_off", approval: "automatic" },
+		});
+	});
+});
+
+describe("Factory manager session start", () => {
+	it("tells the manager that repository stages are saved only after the user confirms the diff", () => {
+		const section = FACTORY_MANAGER_PROMPT_RULE.slice(
+			FACTORY_MANAGER_PROMPT_RULE.indexOf("## Repository stages"),
+			FACTORY_MANAGER_PROMPT_RULE.indexOf("## Untrusted content"),
+		);
+		expect(section).toContain("`.cline/factory/stages.json`");
+		expect(section).toContain("always pass `project`");
+		expect(section).toContain(
+			"Nothing is saved, approved or run until they confirm there",
+		);
+		expect(section).toContain("Prefer a `command` stage over an `agent` stage");
+	});
+
+	it("tells the manager about routing and role guidance, always proposed first", () => {
+		const section = FACTORY_MANAGER_PROMPT_RULE.slice(
+			FACTORY_MANAGER_PROMPT_RULE.indexOf("## Guidance for Factory"),
+			FACTORY_MANAGER_PROMPT_RULE.indexOf("## Untrusted content"),
+		);
+		expect(section).toContain(
+			"Routing guidance (`factory_guidance` role `factory`)",
+		);
+		expect(section).toContain(
+			"Role guidance (role `designer`, `plan_reviewer`, `builder`, `verifier` or `reviewer`)",
+		);
+		expect(section).toContain("Pick the kind from what they say");
+		// The manager's own readme: readable, changeable by asking, same confirmed flow.
+		expect(section).toContain("Preferences for you (role `manager`)");
+		expect(section).toContain('"show me your readme"');
+		expect(section).toContain('"from now on always include cost"');
+		expect(section).toContain("same confirmed flow");
+		expect(section).toContain('"what do you follow?" or "what are my rules?"');
+		expect(section).toContain("action `show` and summarise all the guidance");
+		expect(section).toContain("show the user the returned diff");
+		expect(section).toContain(
+			"the app then asks them to confirm that exact change, and it is saved only if they confirm there",
+		);
+		expect(section).toContain("changed outside Factory");
+		expect(section).toContain(
+			"cannot turn on anything Factory settings forbid",
+		);
+		expect(section).toContain(
+			"Factory settings (open them from the Factory page)",
+		);
+		expect(section).toContain("is not available in this chat");
+		// The tool exists now: no "coming" fallback.
+		expect(FACTORY_MANAGER_PROMPT_RULE).not.toMatch(/is coming/);
+	});
+
+	it("reads the Ask Factory panel's open-card line as context, not state", () => {
+		expect(FACTORY_MANAGER_PROMPT_RULE).toContain(
+			'A final line `Open card: F12` names the card the user is looking at; "this card" means it. Still call `factory_status` for its state.',
+		);
+	});
+
+	it("marks a new local session as the Factory manager and only that session", () => {
+		expect(
+			resolveFactoryManagerStart({
+				requested: true,
+				existing: undefined,
+				local: true,
+			}),
+		).toEqual({
+			context: { schemaVersion: 1 },
+			rules: FACTORY_MANAGER_PROMPT_RULE,
+		});
+		expect(
+			resolveFactoryManagerStart({
+				requested: undefined,
+				existing: undefined,
+				local: true,
+			}),
+		).toBeUndefined();
+		// Resumed sessions keep the rule from metadata only.
+		expect(
+			resolveFactoryManagerStart({
+				requested: undefined,
+				existing: { metadata: { [FACTORY_MANAGER_METADATA_KEY]: {} } },
+				local: true,
+			}),
+		).toEqual({ rules: FACTORY_MANAGER_PROMPT_RULE });
+		expect(
+			resolveFactoryManagerStart({
+				requested: true,
+				existing: { metadata: {} },
+				local: true,
+			}),
+		).toBeUndefined();
+		expect(() =>
+			resolveFactoryManagerStart({
+				requested: true,
+				existing: undefined,
+				local: false,
+			}),
+		).toThrow("The Factory manager runs in the local environment.");
+		expect(() =>
+			resolveFactoryManagerStart({
+				requested: { workflow: "anything" },
+				existing: undefined,
+				local: true,
+			}),
+		).toThrow();
+	});
+
+	it("never combines with a Factory intake", async () => {
+		expect(() =>
+			resolveFactoryManagerStart({
+				requested: true,
+				intakeRequested: {},
+				existing: undefined,
+				local: true,
+			}),
+		).toThrow(
+			"A session cannot be both a Factory intake and the Factory manager.",
+		);
+		// An intake session is never resumed as the manager.
+		expect(
+			resolveFactoryManagerStart({
+				requested: undefined,
+				existing: {
+					metadata: { factoryIntake: {}, [FACTORY_MANAGER_METADATA_KEY]: {} },
+				},
+				local: true,
+			}),
+		).toBeUndefined();
+
+		const start = vi.fn();
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext({ start }),
+		} as unknown as SidecarContext;
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: {
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					factoryIntake: {},
+					factoryManager: true,
+				},
+			}),
+		).rejects.toThrow("both a Factory intake and the Factory manager");
+		expect(start).not.toHaveBeenCalled();
+	});
+
+	it("refuses a cloud Factory manager", async () => {
+		await expect(
+			handleChatSessionCommand({ liveSessions: new Map() } as never, {
+				action: "start",
+				config: {
+					executionTarget: "cloud",
+					factoryManager: true,
+				},
+			}),
+		).rejects.toThrow("The Factory manager runs in the local environment.");
+	});
+
+	it("adds the rule on start, records the session as the Factory manager and keeps the rule across a provider switch", async () => {
+		const sessionId = "factory-manager-session";
+		const start = vi.fn(async (_input: unknown) => ({
+			sessionId,
+			manifest: { cwd: "/workspace", workspace_root: "/workspace" },
+		}));
+		const readMessages = vi.fn(async () => [
+			{ role: "user", content: "What needs me right now?" },
+			{ role: "assistant", content: "Nothing." },
+		]);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext(
+				{
+					start,
+					readMessages,
+					readSessionCompactionState: vi.fn(async () => undefined),
+					stop: vi.fn(async () => undefined),
+					send: vi.fn(async () => ({
+						text: "done",
+						finishReason: "completed",
+						messages: [],
+					})),
+					updateSessionConnection: vi.fn(async () => undefined),
+					pendingPrompts: { list: vi.fn(async () => []) },
+				},
+				{ sessionIds: [sessionId] },
+			),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				rules: "Prefer small diffs.",
+				factoryManager: true,
+				// The folder the app last had open, here a Factory worktree.
+				cwd: "/data/factory-worktrees/abc/repo",
+				workspaceRoot: "/data/factory-worktrees/abc/repo",
+			},
+		});
+		// It works across projects: the neutral chat workspace and only the
+		// Factory tools, asking the user and reading a page.
+		const managerTools = {
+			"*": { enabled: false, autoApprove: true },
+			factory: { enabled: true },
+			factory_list: { enabled: true },
+			factory_status: { enabled: true },
+			factory_guidance: { enabled: true },
+			factory_stages: { enabled: true },
+			ask_question: { enabled: true },
+			fetch_web_content: { enabled: true },
+			web_search: { enabled: true },
+		};
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: CHAT_WORKSPACE,
+					workspaceRoot: CHAT_WORKSPACE,
+				}),
+				toolPolicies: managerTools,
+			}),
+		);
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				// The Hub stamps the manager marker itself; the app only asks.
+				sessionMetadata: {
+					[FACTORY_MANAGER_REQUEST_METADATA_KEY]: true,
+					title: "Factory manager",
+				},
+			}),
+		);
+		const live = ctx.liveSessions.get(sessionId);
+		expect(live?.title).toBe("Factory manager");
+		expect(live?.config.rules).toBe(
+			`Prefer small diffs.\n\n${FACTORY_MANAGER_PROMPT_RULE}`,
+		);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "How is F12 going?",
+			config: { provider: "openai-codex", model: "gpt-5.3-codex" },
+		});
+		expect(start).toHaveBeenCalledTimes(2);
+		expect(ctx.liveSessions.get(sessionId)?.config).toMatchObject({
+			provider: "openai-codex",
+			rules: `Prefer small diffs.\n\n${FACTORY_MANAGER_PROMPT_RULE}`,
+		});
+		expect(start.mock.calls[1]?.[0]).toMatchObject({
+			toolPolicies: managerTools,
+		});
 	});
 });
 
@@ -431,6 +837,64 @@ describe("pathless session starts", () => {
 });
 
 describe("environment-bound session attach", () => {
+	it("restores Factory intake guidance from persisted metadata on a cold attach", async () => {
+		const sessionId = "factory-intake-session";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId,
+						status: "idle",
+						provider: "cline",
+						model: "test-model",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+						metadata: { factoryIntake: {} },
+					})),
+				},
+				{ sessionIds: [sessionId], workspaceRoot: "/workspace/project" },
+			),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, { action: "attach", sessionId });
+
+		expect(ctx.liveSessions.get(sessionId)?.config.rules).toContain(
+			FACTORY_INTAKE_PROMPT_RULE,
+		);
+	});
+
+	it("restores Factory manager guidance from persisted metadata on a cold attach", async () => {
+		const sessionId = "factory-manager-session";
+		const ctx = {
+			liveSessions: new Map(),
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId,
+						status: "idle",
+						provider: "cline",
+						model: "test-model",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+						metadata: {
+							[FACTORY_MANAGER_METADATA_KEY]: { schemaVersion: 1 },
+							title: "Factory manager",
+						},
+					})),
+				},
+				{ sessionIds: [sessionId], workspaceRoot: "/workspace/project" },
+			),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, { action: "attach", sessionId });
+
+		const live = ctx.liveSessions.get(sessionId);
+		expect(live?.config.rules).toContain(FACTORY_MANAGER_PROMPT_RULE);
+		expect(live?.config.rules).not.toContain(FACTORY_INTAKE_PROMPT_RULE);
+		expect(live?.title).toBe("Factory manager");
+	});
+
 	it("does not fall through to another host when the requested environment lacks the session", async () => {
 		const sessionId = "same-session-id";
 		const localGet = vi.fn(async () => ({

@@ -36,7 +36,7 @@ import {
 import { resolveTasksDbPath } from "@cline/shared/storage";
 import { z } from "zod";
 import { normalizeAgendaTaskLocation } from "../task-location";
-import { ensureAgendaTaskSchema } from "./task-schema";
+import { ensureAgendaTaskSchema, numberFactoryCards } from "./task-schema";
 
 const SYSTEM_ACTOR: AgendaTaskActor = { kind: "system", id: "task_store" };
 
@@ -120,8 +120,19 @@ function toInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
+/** Task columns plus the card's Factory queue stage, read with every task. */
+const SELECT_TASKS = `SELECT agenda_tasks.*, (SELECT stage FROM factory_queue
+	WHERE factory_queue.task_id = agenda_tasks.task_id) AS factory_queue_stage
+	FROM agenda_tasks`;
+
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
+	const queued = row.factory_queue_stage;
+	const factoryNumber = toInteger(row.factory_number);
 	return {
+		...(queued === "design" || queued === "run"
+			? { factoryQueued: queued }
+			: {}),
+		...(factoryNumber ? { factoryNumber } : {}),
 		factoryDesignProgress:
 			row.factory_design_progress_json == null
 				? undefined
@@ -354,7 +365,8 @@ export class SqliteAgendaTaskStore {
 		const requiresApproval = input.requiresApproval !== false;
 		const initialStatus = requiresApproval ? "pending_approval" : "approved";
 		const approvedRevision = requiresApproval ? null : 1;
-		if (enqueueDesign) this.db.exec("BEGIN IMMEDIATE;");
+		const transaction = enqueueDesign || Boolean(input.factory);
+		if (transaction) this.db.exec("BEGIN IMMEDIATE;");
 		try {
 			this.db
 				.prepare(
@@ -403,6 +415,7 @@ export class SqliteAgendaTaskStore {
 						? JSON.stringify(factoryTaskConfigSchema.parse(input.factory))
 						: null,
 				);
+			if (input.factory) numberFactoryCards(this.db);
 			if (enqueueDesign) {
 				this.enqueueFactory({
 					taskId,
@@ -410,10 +423,10 @@ export class SqliteAgendaTaskStore {
 					actor: input.createdBy,
 					stage: "design",
 				});
-				this.db.exec("COMMIT;");
 			}
+			if (transaction) this.db.exec("COMMIT;");
 		} catch (error) {
-			if (enqueueDesign) this.db.exec("ROLLBACK;");
+			if (transaction) this.db.exec("ROLLBACK;");
 			throw error;
 		}
 		const record = this.getTask(taskId);
@@ -423,8 +436,37 @@ export class SqliteAgendaTaskStore {
 
 	public getTask(taskId: string): AgendaTaskRecord | undefined {
 		const row = this.db
-			.prepare("SELECT * FROM agenda_tasks WHERE task_id = ?")
+			.prepare(`${SELECT_TASKS} WHERE task_id = ?`)
 			.get(taskId);
+		return row ? taskRowToRecord(row) : undefined;
+	}
+
+	/** The Factory card with this short number (`F<n>`), if it still exists. */
+	public getTaskByFactoryNumber(
+		factoryNumber: number,
+	): AgendaTaskRecord | undefined {
+		const row = this.db
+			.prepare(`${SELECT_TASKS} WHERE factory_number = ?`)
+			.get(factoryNumber);
+		return row ? taskRowToRecord(row) : undefined;
+	}
+
+	public findTaskByFactoryIntake(input: {
+		scope: AgendaTaskRecord["scope"];
+		workspaceRoot?: string;
+		intake: NonNullable<FactoryTaskConfig["intake"]>;
+	}): AgendaTaskRecord | undefined {
+		const row = this.db
+			.prepare(`${SELECT_TASKS}
+			WHERE scope = ? AND workspace_root IS ?
+			AND json_extract(factory_json, '$.intake.source') = ?
+			AND json_extract(factory_json, '$.intake.key') = ? LIMIT 1`)
+			.get(
+				input.scope,
+				input.workspaceRoot ?? null,
+				input.intake.source,
+				input.intake.key,
+			);
 		return row ? taskRowToRecord(row) : undefined;
 	}
 
@@ -434,7 +476,7 @@ export class SqliteAgendaTaskStore {
 		source: NonNullable<FactoryTaskConfig["sourceIssue"]>;
 	}): AgendaTaskRecord | undefined {
 		const row = this.db
-			.prepare(`SELECT * FROM agenda_tasks
+			.prepare(`${SELECT_TASKS}
 			WHERE scope = ? AND workspace_root IS ?
 			AND json_extract(factory_json, '$.sourceIssue.provider') = ?
 			AND json_extract(factory_json, '$.sourceIssue.id') = ? LIMIT 1`)
@@ -449,7 +491,7 @@ export class SqliteAgendaTaskStore {
 
 	public getTaskBySpecPath(specPath: string): AgendaTaskRecord | undefined {
 		const row = this.db
-			.prepare("SELECT * FROM agenda_tasks WHERE spec_path = ?")
+			.prepare(`${SELECT_TASKS} WHERE spec_path = ?`)
 			.get(specPath);
 		return row ? taskRowToRecord(row) : undefined;
 	}
@@ -524,12 +566,25 @@ export class SqliteAgendaTaskStore {
 		if (!input.includeArchived) {
 			where.push("archived_at IS NULL");
 		}
+		for (const [path, value] of [
+			["$.replay.sourceRunId", input.factoryReplaySourceRunId],
+			["$.replay.comparisonId", input.factoryComparisonId],
+		] as const) {
+			if (value === undefined) continue;
+			where.push(`json_extract(factory_json, '${path}') = ?`);
+			params.push(value);
+		}
+		if (input.factoryOnly) where.push("factory_json IS NOT NULL");
 		const limit = Math.min(1000, Math.max(1, Math.floor(input.limit ?? 200)));
+		const order =
+			input.factoryReplaySourceRunId || input.factoryOnly
+				? "created_at DESC, task_id DESC"
+				: "priority ASC, available_at ASC, created_at ASC, task_id ASC";
 		const rows = this.db
 			.prepare(
-				`SELECT * FROM agenda_tasks
+				`${SELECT_TASKS}
 				${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
-				ORDER BY priority ASC, available_at ASC, created_at ASC, task_id ASC
+				ORDER BY ${order}
 				LIMIT ?`,
 			)
 			.all(...params, limit);
@@ -579,7 +634,10 @@ export class SqliteAgendaTaskStore {
 				: current.status;
 		const revision = current.revision + 1;
 		const now = nowIso();
-		if (designProgress) this.db.exec("BEGIN IMMEDIATE;");
+		const numberCard =
+			current.factoryNumber === undefined && Boolean(input.factory);
+		const transaction = Boolean(designProgress) || numberCard;
+		if (transaction) this.db.exec("BEGIN IMMEDIATE;");
 		try {
 			const changed = this.db
 				.prepare(
@@ -657,10 +715,11 @@ export class SqliteAgendaTaskStore {
 						"UPDATE factory_queue SET task_revision = ? WHERE task_id = ? AND stage = 'design' AND task_revision = ?",
 					)
 					.run(revision, input.taskId, current.revision);
-				this.db.exec("COMMIT;");
 			}
+			if (numberCard) numberFactoryCards(this.db);
+			if (transaction) this.db.exec("COMMIT;");
 		} catch (error) {
-			if (designProgress) this.db.exec("ROLLBACK;");
+			if (transaction) this.db.exec("ROLLBACK;");
 			throw error;
 		}
 		return this.getTask(input.taskId);

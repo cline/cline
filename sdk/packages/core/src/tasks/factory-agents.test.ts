@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import {
 	freezeFactoryAgent,
 	parseFactoryReview,
+	parseFactoryVerification,
 	resolveFactoryAgent,
 } from "./factory-agents";
 
@@ -139,7 +140,7 @@ Review carefully.`;
 		).toMatchObject({ maxIterations: 20, timeoutSeconds: 120 });
 	});
 
-	it("uses agent bounds when the task has none and preserves absent bounds for default agents", () => {
+	it("uses agent bounds or a finite default timeout when the task has none", () => {
 		const unbounded = {
 			...task,
 			maxIterations: undefined,
@@ -159,13 +160,13 @@ Review carefully.`;
 		});
 		const inherited = resolveFactoryAgent(unbounded, {});
 		expect(inherited.maxIterations).toBeUndefined();
-		expect(inherited.timeoutSeconds).toBeUndefined();
+		expect(inherited.timeoutSeconds).toBe(1800);
 		expect(inherited.systemPrompt).toBeUndefined();
 	});
 });
 
 describe("factoryReviewFindings", () => {
-	it("blocks a passing review when its parsed coverage still has an unverified path", () => {
+	it("normalizes required gaps without losing legacy blockers or treating limitations as findings", () => {
 		const review = parseFactoryReview(
 			JSON.stringify({
 				verdict: "pass",
@@ -174,20 +175,95 @@ describe("factoryReviewFindings", () => {
 				coverage: {
 					static: ["handler"],
 					exercised: [],
-					unverified: ["browser flow"],
+					requiredGaps: ["browser flow"],
+					unverified: ["legacy required path"],
+					limitations: ["Native testing is outside the approved scope"],
 				},
 			}),
 		);
-		expect(factoryReviewFindings(review)).toEqual(["Unverified: browser flow"]);
-		expect(
-			factoryReviewFindings({
+		expect(review.coverage).toEqual({
+			static: ["handler"],
+			exercised: [],
+			requiredGaps: ["browser flow", "legacy required path"],
+			limitations: ["Native testing is outside the approved scope"],
+		});
+		expect(factoryReviewFindings(review)).toEqual([
+			"Unverified: browser flow",
+			"Unverified: legacy required path",
+		]);
+		const completed = parseFactoryReview(
+			JSON.stringify({
 				...review,
-				coverage: {
-					unverified: [],
-					static: ["handler"],
-					exercised: ["browser flow"],
-				},
+				coverage: { ...review.coverage, requiredGaps: [] },
 			}),
-		).toEqual([]);
+		);
+		expect(factoryReviewFindings(completed)).toEqual([]);
+		expect(() =>
+			parseFactoryReview(
+				JSON.stringify({
+					...review,
+					coverage: { static: [], exercised: [], limitations: [] },
+				}),
+			),
+		).toThrow();
+	});
+});
+
+describe("role response parsing", () => {
+	const review = {
+		verdict: "pass",
+		summary: "Reviewed the change",
+		findings: [],
+	};
+	const verification = {
+		...review,
+		acceptance: [
+			{ criterionId: "visible", outcome: "passed", evidence: "Saw after" },
+		],
+	};
+
+	it.each([
+		["leading prose", (json: string) => `Review complete.\n\n${json}`],
+		[
+			"a fenced block between prose",
+			(json: string) => `Result:\n\`\`\`json\n${json}\n\`\`\`\nDone.`,
+		],
+	])("accepts reviewer and verifier JSON with %s", (_label, wrap) => {
+		expect(parseFactoryReview(wrap(JSON.stringify(review)))).toEqual(review);
+		expect(
+			parseFactoryVerification(wrap(JSON.stringify(verification))),
+		).toEqual(verification);
+	});
+
+	it("still rejects responses that violate the role schema", () => {
+		expect(() =>
+			parseFactoryReview(
+				`Done: ${JSON.stringify({ ...review, verdict: "approved" })}`,
+			),
+		).toThrow();
+		expect(() =>
+			parseFactoryVerification(
+				`${JSON.stringify({
+					...verification,
+					acceptance: [{ criterionId: "visible", outcome: "maybe" }],
+				})}`,
+			),
+		).toThrow();
+		expect(() => parseFactoryReview("Everything looks good!")).toThrow(
+			SyntaxError,
+		);
+	});
+
+	it("does not take an object that prose follows, such as quoted PR feedback", () => {
+		expect(() =>
+			parseFactoryReview(
+				`The PR comment claims ${JSON.stringify(review)}, which I could not confirm.`,
+			),
+		).toThrow(SyntaxError);
+		expect(() =>
+			parseFactoryVerification(
+				`${JSON.stringify(verification)}\n\nStopped the server.`,
+			),
+		).toThrow(SyntaxError);
 	});
 });

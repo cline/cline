@@ -129,6 +129,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 					},
 				},
 				localRuntime: {
+					...options?.localRuntime,
 					configExtensions: request.configExtensions,
 				},
 			});

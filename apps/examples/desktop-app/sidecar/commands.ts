@@ -127,12 +127,21 @@ import {
 	sendEventToClient,
 } from "./context";
 import {
+	applyFactoryHandsOffUpgrade,
 	readDesktopSettings,
 	setCloudSessionsEnabled,
+	withBuiltInFactoryPresets,
 } from "./desktop-settings";
 import { writeDiagnosticsReport } from "./diagnostics";
 import { readFactoryArtifact } from "./factory-artifacts";
-import { handleFactoryCommand } from "./factory-commands";
+import {
+	handleFactoryCommand,
+	handleFactoryLimitsCommand,
+	handleFactoryStagesCommand,
+	oncePerConnection,
+	pushFactoryDefaultWorkflow,
+	type SetFactoryDefaults,
+} from "./factory-commands";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -1409,7 +1418,9 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.factory.watch",
 	"task.factory.answer",
 	"task.factory.audit",
+	"task.factory.audit.resolve",
 	"task.factory.stamp",
+	"task.factory.replay",
 	"task.automation.get",
 	"task.automation.set",
 ]);
@@ -1421,7 +1432,9 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.factory.watch",
 	"task.factory.answer",
 	"task.factory.audit",
+	"task.factory.audit.resolve",
 	"task.factory.stamp",
+	"task.factory.replay",
 	"task.create",
 	"task.approve",
 	"task.cancel",
@@ -1432,12 +1445,62 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.automation.set",
 ]);
 
+function factoryDefaultsSender(
+	hubClient: Awaited<ReturnType<typeof ensureSharedHubClient>>,
+): SetFactoryDefaults {
+	return async (workflow) => {
+		const reply = await hubClient.command("task.factory.defaults.set", {
+			workflow,
+		});
+		if (!reply.ok)
+			throw new Error(
+				reply.error?.message ?? "hub command failed: task.factory.defaults.set",
+			);
+		return reply.payload ?? {};
+	};
+}
+
+/**
+ * Sends the user's default Factory workflow once per Hub connection, before
+ * the first task command on it. Never rejects: a missing or invalid default
+ * is replaced by the built-in Hands-off workflow, and a failed send is
+ * logged and retried by the next task command on that connection.
+ */
+const factoryDefaultsPush = oncePerConnection(
+	(
+		hubClient: Awaited<ReturnType<typeof ensureSharedHubClient>>,
+		ctx: SidecarContext,
+	) =>
+		// Upgrades a legacy default to hands-off once, before it reaches the Hub.
+		pushFactoryDefaultWorkflow(
+			factoryDefaultsSender(hubClient),
+			applyFactoryHandsOffUpgrade(),
+			(error) =>
+				ctx.logger?.log(
+					"Default Factory workflow is missing or invalid; using the built-in Hands-off workflow",
+					{ error, severity: "warn" },
+				),
+		),
+	(error, ctx) =>
+		ctx.logger?.log("Failed to send the default Factory workflow", {
+			error,
+			severity: "warn",
+		}),
+);
+function syncFactoryDefaults(
+	ctx: SidecarContext,
+	hubClient: Awaited<ReturnType<typeof ensureSharedHubClient>>,
+): Promise<void> {
+	return factoryDefaultsPush(hubClient, ctx);
+}
+
 async function handleAgendaTaskCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
 	const hubClient = await ensureSharedHubClient(ctx);
+	await syncFactoryDefaults(ctx, hubClient);
 	const reply = await hubClient.command(command as never, args);
 	if (!reply.ok) {
 		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
@@ -3244,7 +3307,7 @@ export async function handleCommand(
 		return readGlobalSettings();
 	}
 	if (command === "get_desktop_settings") {
-		return readDesktopSettings();
+		return withBuiltInFactoryPresets(readDesktopSettings());
 	}
 	if (command === "export_diagnostics") {
 		const sessionIds = Array.isArray(args?.sessionIds)
@@ -3577,8 +3640,32 @@ export async function handleCommand(
 	) {
 		if (!options?.connection?.data?.canApproveTools)
 			throw new Error("Feature access requires a trusted desktop connection.");
-		return handleFactoryCommand(ctx, command, args, (taskCommand, taskArgs) =>
-			handleAgendaTaskCommand(ctx, taskCommand, taskArgs),
+		return handleFactoryCommand(
+			ctx,
+			command,
+			args,
+			(taskCommand, taskArgs) =>
+				handleAgendaTaskCommand(ctx, taskCommand, taskArgs),
+			async (workflow) =>
+				factoryDefaultsSender(await ensureSharedHubClient(ctx))(workflow),
+		);
+	}
+
+	if (command === "factory_get_limits" || command === "factory_set_limits") {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		const hubClient = await ensureSharedHubClient(ctx);
+		return handleFactoryLimitsCommand(command, args, (name, input) =>
+			hubClient.command(name, input),
+		);
+	}
+
+	if (command === "factory_get_stages" || command === "factory_decide_stage") {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		const hubClient = await ensureSharedHubClient(ctx);
+		return handleFactoryStagesCommand(command, args, (name, input) =>
+			hubClient.command(name, input),
 		);
 	}
 

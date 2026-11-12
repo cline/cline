@@ -13,6 +13,7 @@ import {
 	type ScheduleRecord,
 } from "@cline/shared";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
+import type { LocalRuntimeStartOptions } from "../../runtime/host/runtime-host";
 import { CronMaterializer } from "../runner/cron-materializer";
 import { CronRunner } from "../runner/cron-runner";
 import { validateCronPattern, validateTimezone } from "../schedule/scheduler";
@@ -54,6 +55,8 @@ export interface HubScheduleStartSessionOptions {
 	 * into the session metadata so clients can group runs by schedule.
 	 */
 	sessionMetadata?: Record<string, unknown>;
+	/** Hub-owned tools and extensions added to the scheduled session. */
+	localRuntime?: Pick<LocalRuntimeStartOptions, "extraTools" | "extensions">;
 }
 
 export interface HubScheduleRuntimeHandlers {

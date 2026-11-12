@@ -6,12 +6,17 @@ import {
 	DEFAULT_FACTORY_AGENTS,
 	type FactoryPullRequestChecks,
 	type FactoryRunState,
+	parseFactoryJson,
 } from "@cline/shared";
 import { z } from "zod";
+import { FactoryDecisionError } from "./factory-errors";
+import { factoryPullRequestDescription } from "./factory-evidence";
 import {
 	assertFactoryCandidate,
 	assertOwnedWorkspace,
+	readFactoryPullRequestContext,
 	runFactoryCommand,
+	updateFactoryPullRequestBody,
 } from "./factory-local";
 import { createFactorySessionRunner } from "./factory-session";
 import {
@@ -114,6 +119,8 @@ export async function readFactoryPullRequest(
 	run: Command = runFactoryCommand,
 ): Promise<FactoryPullRequestSnapshot> {
 	const { owner, name, number } = pullRequestIdentity(input.url);
+	// gh is pointed at the PR's own repository, never the checkout's guess.
+	const target = [number, "--repo", `${owner}/${name}`];
 	const commentFields = "id body url authorAssociation author{__typename}";
 	const query = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){state headRefOid headRefName comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}} reviews(first:100){nodes{${commentFields} state} pageInfo{hasNextPage}} reviewThreads(first:100){nodes{isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`;
 	const options = {
@@ -188,7 +195,7 @@ export async function readFactoryPullRequest(
 				await checkedCommand(
 					{
 						...options,
-						args: ["pr", "view", input.url, "--json", "statusCheckRollup"],
+						args: ["pr", "view", ...target, "--json", "statusCheckRollup"],
 					},
 					run,
 				),
@@ -251,7 +258,7 @@ export async function readFactoryPullRequest(
 	if (snapshot.state === "OPEN") {
 		const required = await run({
 			...options,
-			args: ["pr", "checks", input.url, "--required", "--json", "name,bucket"],
+			args: ["pr", "checks", ...target, "--required", "--json", "name,bucket"],
 			timeoutMs: 15_000,
 		});
 		if (
@@ -277,7 +284,7 @@ export async function readFactoryPullRequest(
 				const confirmed = await checkedCommand(
 					{
 						...options,
-						args: ["pr", "view", input.url, "--json", "headRefOid"],
+						args: ["pr", "view", ...target, "--json", "headRefOid"],
 						timeoutMs: 15_000,
 					},
 					run,
@@ -318,6 +325,25 @@ export async function readFactoryPullRequest(
 	};
 }
 
+/**
+ * Ends follow-up on a PR that is no longer open and records its outcome
+ * against `publishedCommit`, the commit Factory last pushed to it.
+ */
+function closedPullRequest(
+	snapshot: Pick<FactoryPullRequestSnapshot, "state" | "headCommit">,
+	publishedCommit: string,
+): Partial<FactoryRunState> {
+	return {
+		phase: "ready",
+		pullRequestWatch: undefined,
+		pullRequestOutcome: {
+			state: snapshot.state === "MERGED" ? "merged" : "closed",
+			headChanged: snapshot.headCommit !== publishedCommit,
+			at: new Date().toISOString(),
+		},
+	};
+}
+
 const triageSchema = z.object({
 	action: z.enum(["repair", "ignore", "needs_user"]),
 	summary: z.string().min(1),
@@ -325,11 +351,7 @@ const triageSchema = z.object({
 });
 
 function parseTriage(summary: string) {
-	return triageSchema.parse(
-		JSON.parse(
-			summary.replace(/^\s*```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, ""),
-		),
-	);
+	return triageSchema.parse(parseFactoryJson(summary));
 }
 
 export async function runFactoryPullRequestFollowup(
@@ -349,6 +371,7 @@ export async function runFactoryPullRequestFollowup(
 			"PR follow-up requires an opted-in feature with a verified pull request.",
 		);
 	const url = state.pullRequestUrl;
+	const identity = pullRequestIdentity(url);
 	const agents = state.agents ?? config.agents ?? DEFAULT_FACTORY_AGENTS;
 	const triageAgent = agents.reviewers[0];
 	if (!triageAgent) throw new Error("Factory requires a reviewer.");
@@ -385,8 +408,14 @@ export async function runFactoryPullRequestFollowup(
 		},
 	});
 	if (snapshot.state !== "OPEN") {
-		save({ phase: "ready", pullRequestWatch: undefined });
+		save(closedPullRequest(snapshot, initialWatch.headCommit));
 		return "closed";
+	}
+	// Read-only watching never pushes or comments, so a head someone else
+	// pushed is no hazard; it keeps watching until the PR closes.
+	if (!config.watchPullRequest) {
+		save({ phase: "watching" });
+		return "idle";
 	}
 	let watch = initialWatch;
 	if (
@@ -394,13 +423,9 @@ export async function runFactoryPullRequestFollowup(
 		(snapshot.headCommit !== watch.headCommit &&
 			snapshot.headCommit !== state.candidate?.commit)
 	)
-		throw new Error(
+		throw new FactoryDecisionError(
 			"The PR branch changed outside this feature. Review its new head before resuming.",
 		);
-	if (!config.watchPullRequest) {
-		save({ phase: "watching" });
-		return "idle";
-	}
 	if (!watch.pending) {
 		const feedback = snapshot.feedback.filter(
 			(entry) => !watch.handledFeedbackIds.includes(entry.id),
@@ -415,12 +440,14 @@ export async function runFactoryPullRequestFollowup(
 		];
 		if (feedback.some((entry) => !entry.trusted)) {
 			save({ pullRequestWatch: { ...watch, handledFeedbackIds } });
-			throw new Error(
+			throw new FactoryDecisionError(
 				"Outside-contributor feedback needs maintainer confirmation. Automatic follow-up accepts GitHub OWNER, MEMBER, COLLABORATOR, review bots, and CI feedback. Ask a repository maintainer to confirm the requested change in a new PR comment, then Resume.",
 			);
 		}
 		if (state.repairRound >= config.maxRepairRounds)
-			throw new Error(`Repair limit (${config.maxRepairRounds}) reached.`);
+			throw new FactoryDecisionError(
+				`Repair limit (${config.maxRepairRounds}) reached.`,
+			);
 		const previousFeedback = snapshot.feedback.filter((entry) =>
 			watch.handledFeedbackIds.includes(entry.id),
 		);
@@ -450,7 +477,7 @@ export async function runFactoryPullRequestFollowup(
 		const triage = parseTriage(response.summary);
 		if (triage.action === "needs_user") {
 			save({ pullRequestWatch: { ...watch, handledFeedbackIds } });
-			throw new Error(
+			throw new FactoryDecisionError(
 				`${triage.summary} Clarify this in a new PR comment, then Resume.`,
 			);
 		}
@@ -500,8 +527,9 @@ export async function runFactoryPullRequestFollowup(
 		});
 	}
 	const pending = state.pullRequestWatch?.pending;
-	const candidateCommit = state.candidate?.commit;
-	if (!pending || pending.phase !== "publish" || !candidateCommit)
+	const verified = state.candidate;
+	const candidateCommit = verified?.commit;
+	if (!pending || pending.phase !== "publish" || !verified || !candidateCommit)
 		throw new Error("PR repair did not produce a verified candidate.");
 	await assertFactoryCandidate({
 		workspace: state.workspace,
@@ -510,7 +538,7 @@ export async function runFactoryPullRequestFollowup(
 	});
 	const current = await load();
 	if (current.state !== "OPEN") {
-		save({ phase: "ready", pullRequestWatch: undefined });
+		save(closedPullRequest(current, watch.headCommit));
 		return "closed";
 	}
 	if (
@@ -522,6 +550,12 @@ export async function runFactoryPullRequestFollowup(
 		);
 	const options = { cwd: state.workspace.path, signal: input.signal };
 	save({ phase: "publishing" });
+	// The candidate is checked again right before it leaves the machine.
+	await assertFactoryCandidate({
+		workspace: state.workspace,
+		candidateCommit,
+		signal: input.signal,
+	});
 	await checkedCommand(
 		{
 			...options,
@@ -557,7 +591,15 @@ export async function runFactoryPullRequestFollowup(
 				{
 					...options,
 					file: "gh",
-					args: ["pr", "comment", url, "--body-file", bodyFile],
+					args: [
+						"pr",
+						"comment",
+						identity.number,
+						"--repo",
+						`${identity.owner}/${identity.name}`,
+						"--body-file",
+						bodyFile,
+					],
 				},
 				run,
 			);
@@ -565,6 +607,26 @@ export async function runFactoryPullRequestFollowup(
 			await rm(temp, { recursive: true, force: true });
 		}
 	}
+	// Best-effort: the repair is already published and announced.
+	await updateFactoryPullRequestBody(
+		{
+			workspace: state.workspace,
+			url,
+			section: factoryPullRequestDescription({
+				task: input.task,
+				state,
+				candidate: verified,
+				context: await readFactoryPullRequestContext(
+					{ workspace: state.workspace, candidateCommit, signal: input.signal },
+					run,
+				),
+			}),
+			signal: input.signal,
+		},
+		run,
+	).catch((error: unknown) => {
+		if (input.signal.aborted) throw error;
+	});
 	save({
 		phase: "watching",
 		pullRequestChecks: published.requiredChecks ?? {

@@ -11,6 +11,9 @@ import {
 	readCloudRepositorySelection,
 	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
+import { FACTORY_HARD_HAT_GEOMETRY } from "./factory-hard-hat";
+import { FactoryIntakeNotice } from "./factory-intake-notice";
+import { FactoryManagerNotice } from "./factory-manager-notice";
 import { WelcomeScreen } from "./welcome-chat";
 
 const { invokeMock, subscribeMock, accountRef, openExternalUrlMock } =
@@ -750,3 +753,109 @@ function agendaTask(
 		...overrides,
 	};
 }
+
+describe("WelcomeScreen Factory hard hat", () => {
+	const hardHat = () => container.querySelector("[data-factory-hard-hat]");
+
+	it("keeps the plain mascot on the normal welcome screen", async () => {
+		await renderWelcomeScreen({ workspaceRoot: "/repo", workspaces: [] });
+
+		expect(container.querySelector("[data-welcome-hero]")).not.toBeNull();
+		expect(hardHat()).toBeNull();
+	});
+
+	it("puts a decorative hard hat on the mascot in Factory intake mode", async () => {
+		await renderWelcomeScreen({
+			workspaceRoot: "/repo",
+			workspaces: [],
+			notice: <FactoryIntakeNotice />,
+		});
+
+		expect(hardHat()?.getAttribute("aria-hidden")).toBe("true");
+	});
+
+	it("wears the hat like a helmet: the shell is wider than the head and covers its top, and the brim sits on the forehead", () => {
+		const { brim, dome, head } = FACTORY_HARD_HAT_GEOMETRY;
+		expect(brim.left).toBeLessThan(head.left);
+		expect(brim.right).toBeGreaterThan(head.right);
+		expect(brim.right - brim.left).toBeGreaterThanOrEqual(
+			head.right - head.left,
+		);
+		// The brim sits below the head's top band, so the shell covers the head.
+		expect(brim.top).toBeGreaterThan(head.bandBottom);
+		expect(dome.left).toBeLessThan(head.left);
+		expect(dome.right).toBeGreaterThan(head.right);
+		// The dome rises above the antenna loop and its base hides under the brim.
+		expect(dome.top).toBeLessThan(head.antennaTop);
+		expect(dome.base).toBeGreaterThan(brim.top);
+		expect(dome.base).toBeLessThan(brim.bottom);
+	});
+
+	it("says what Add work does without repeating the repository chip", async () => {
+		await renderWelcomeScreen({
+			workspaceRoot: "/repo",
+			workspaces: [],
+			notice: <FactoryIntakeNotice />,
+		});
+		const notice = container.querySelector('[data-factory-notice="intake"]');
+		expect(notice?.textContent).toContain("Add work to Factory");
+		expect(notice?.textContent).not.toContain("Repository");
+	});
+
+	it("keeps the hard hat in Ask Factory mode", async () => {
+		await renderWelcomeScreen({
+			workspaceRoot: "/repo",
+			workspaces: [],
+			notice: <FactoryManagerNotice />,
+		});
+
+		expect(hardHat()?.getAttribute("aria-hidden")).toBe("true");
+	});
+
+	it("follows an explicit factory prop over the notice", async () => {
+		await renderWelcomeScreen({
+			workspaceRoot: "/repo",
+			workspaces: [],
+			factory: "intake",
+			notice: <p>Preparing request…</p>,
+		});
+		expect(hardHat()).not.toBeNull();
+	});
+
+	it("shows Ask Factory without any workspace, branch or environment control", async () => {
+		const worktree = "/data/factory-worktrees/abc/repo";
+		await renderWelcomeScreen({
+			factory: "manager",
+			environmentSelector: (
+				<button data-testid="environment-selector" type="button">
+					Local
+				</button>
+			),
+			gitBranch: "feat/factory-3122107af10795ac2f6b37cd",
+			notice: <FactoryManagerNotice />,
+			workspaceRoot: worktree,
+			workspaces: [worktree, "/projects/project-1"],
+		});
+
+		expect(hardHat()).not.toBeNull();
+		expect(
+			container.querySelector('[data-factory-notice="manager"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[data-testid="environment-selector"]'),
+		).toBeNull();
+		expect(container.querySelector('button[title="repo"]')).toBeNull();
+		expect(container.textContent).not.toContain("feat/factory-");
+		// Workspace quick actions are not loaded either.
+		expect(listAgendaTasksMock).not.toHaveBeenCalled();
+
+		// Add work keeps its repository chip.
+		await renderWelcomeScreen({
+			factory: "intake",
+			notice: <FactoryIntakeNotice />,
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		expect(container.querySelector('button[title="project-1"]')).not.toBeNull();
+	});
+});

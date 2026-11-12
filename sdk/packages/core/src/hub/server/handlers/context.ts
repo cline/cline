@@ -51,6 +51,12 @@ export type PendingCapabilityRequest = {
 	}) => void;
 };
 
+export type SessionRunDeadlines = {
+	deadlines: Set<{ pause(): void; resume(): void }>;
+	/** Each entry ends one human-input wait with the given reason. */
+	humanWaits: Set<(reason: string) => void>;
+};
+
 /**
  * Shared mutable state and helpers passed to every command-handler module.
  * The transport class owns the maps; handlers get a stable read/write surface.
@@ -72,6 +78,21 @@ export interface HubTransportContext {
 	 * the projector is their only failure reporter.
 	 */
 	readonly activeRpcTurnCountBySession: Map<string, number>;
+	/**
+	 * Count of RPC turns per session whose unwind outlived the grace period:
+	 * they no longer count as active for idle/status accounting, but their run
+	 * promise has not settled, so the runtime may still be writing. Factory
+	 * reconciliation keeps reporting such a session as running, and the
+	 * projector does not publish a second terminal event for it. An entry is
+	 * removed when the abandoned run finally settles.
+	 */
+	readonly abandonedRpcTurnCountBySession: Map<string, number>;
+	/**
+	 * Active `run.start` deadlines and outstanding human-input waits per
+	 * session. Deadlines pause while the session waits on a person. An entry
+	 * exists only while either set is non-empty.
+	 */
+	readonly runDeadlinesBySession: Map<string, SessionRunDeadlines>;
 	readonly telemetry?: ITelemetryService;
 	/** Hub-owned tools injected into every local session runtime. */
 	readonly sessionTools?: readonly AgentTool[];

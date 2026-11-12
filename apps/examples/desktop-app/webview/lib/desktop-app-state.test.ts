@@ -335,6 +335,222 @@ describe("desktopAppReducer", () => {
 		).toBe(false);
 	});
 
+	it("keeps a Factory intake draft out of ordinary new-session reuse", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "local-draft",
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "intake-draft",
+			environmentId: "local",
+			factoryIntake: true,
+		});
+		expect(state.threads.at(-1)).toEqual({
+			id: "intake-draft",
+			environmentId: "local",
+			factoryIntake: true,
+		});
+		state = desktopAppReducer(state, {
+			type: "select-environment-draft",
+			environmentId: "local",
+			threadId: "chat-draft",
+		});
+		expect(state.navigation.current.activeThreadId).toBe("chat-draft");
+		expect(state.threads.at(-1)).toEqual({
+			id: "chat-draft",
+			environmentId: "local",
+		});
+	});
+
+	it("gives the Ask Factory panel a manager thread without leaving the view", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "factory" },
+		});
+		const navigation = state.navigation;
+		state = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "manager",
+			environmentId: "local",
+		});
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads.at(-1)).toEqual({
+			id: "manager",
+			environmentId: "local",
+			factoryManager: true,
+		});
+
+		// The panel keeps one conversation, started or not.
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "manager",
+			sessionId: "session-1",
+		});
+		expect(
+			desktopAppReducer(state, {
+				type: "ensure-factory-manager",
+				threadId: "manager-2",
+				environmentId: "local",
+			}),
+		).toBe(state);
+
+		// New conversation adds another and it becomes the latest.
+		const fresh = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "manager-2",
+			environmentId: "local",
+			fresh: true,
+		});
+		expect(fresh.navigation).toBe(navigation);
+		expect(fresh.threads.filter((thread) => thread.factoryManager)).toEqual([
+			expect.objectContaining({ id: "manager" }),
+			{ id: "manager-2", environmentId: "local", factoryManager: true },
+		]);
+
+		// Coming back attaches the session record to the same thread.
+		state = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "unused",
+			environmentId: "local",
+			session: createSession("session-1"),
+		});
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads.at(-1)).toMatchObject({
+			id: "manager",
+			factoryManager: true,
+			hasStarted: true,
+			historySession: { sessionId: "session-1", environmentId: "local" },
+		});
+	});
+
+	it("hands the Ask Factory panel a draft without leaving the view", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "factory" },
+		});
+		const navigation = state.navigation;
+		state = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "manager",
+			environmentId: "local",
+			initialPromptDraft: "My feedback on F12",
+		});
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads.at(-1)).toEqual({
+			id: "manager",
+			environmentId: "local",
+			factoryManager: true,
+			initialPromptDraft: "My feedback on F12",
+		});
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId: "manager",
+		});
+		// The existing conversation takes a later draft too.
+		state = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "unused",
+			environmentId: "local",
+			initialPromptDraft: "My feedback on F13",
+		});
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads.filter((thread) => thread.factoryManager)).toEqual([
+			{
+				id: "manager",
+				environmentId: "local",
+				factoryManager: true,
+				initialPromptDraft: "My feedback on F13",
+			},
+		]);
+	});
+
+	it("reopens a stored manager session after a restart as a flagged thread", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		const navigation = state.navigation;
+		state = desktopAppReducer(state, {
+			type: "ensure-factory-manager",
+			threadId: "unused",
+			environmentId: "local",
+			session: createSession("stored"),
+		});
+		expect(state.navigation).toBe(navigation);
+		expect(state.threads.at(-1)).toMatchObject({
+			id: `session_${sessionKey({ sessionId: "stored", environmentId: "local" })}`,
+			factoryManager: true,
+			historySession: { sessionId: "stored" },
+		});
+	});
+
+	it("returns to an unstarted Factory manager thread and keeps it out of new-session reuse", () => {
+		let state = createDesktopAppState("local-draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-factory-manager",
+			threadId: "manager",
+			environmentId: "local",
+		});
+		expect(state.threads.at(-1)).toEqual({
+			id: "manager",
+			environmentId: "local",
+			factoryManager: true,
+		});
+		expect(state.navigation.current).toMatchObject({
+			activeThreadId: "manager",
+			view: "chat",
+		});
+
+		// Opening it again from Factory returns to the same unstarted thread.
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "factory" },
+		});
+		state = desktopAppReducer(state, {
+			type: "open-factory-manager",
+			threadId: "manager-2",
+			environmentId: "local",
+		});
+		expect(state.navigation.current.activeThreadId).toBe("manager");
+		expect(
+			state.threads.filter((thread) => thread.factoryManager),
+		).toHaveLength(1);
+		expect(
+			desktopAppReducer(state, {
+				type: "open-factory-manager",
+				threadId: "manager-3",
+				environmentId: "local",
+			}),
+		).toBe(state);
+
+		// New session never lands on the manager draft.
+		const chat = desktopAppReducer(state, {
+			type: "select-environment-draft",
+			environmentId: "local",
+			threadId: "chat-draft",
+		});
+		expect(chat.navigation.current.activeThreadId).toBe("local-draft");
+
+		// Once started, Ask Factory opens a fresh manager conversation.
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "manager",
+			sessionId: "session-1",
+		});
+		state = desktopAppReducer(state, {
+			type: "open-factory-manager",
+			threadId: "manager-4",
+			environmentId: "local",
+		});
+		expect(state.navigation.current.activeThreadId).toBe("manager-4");
+		expect(state.threads.at(-1)).toEqual({
+			id: "manager-4",
+			environmentId: "local",
+			factoryManager: true,
+		});
+	});
+
 	it("does not reuse a started thread as an environment draft", () => {
 		let state = createDesktopAppState("local-draft", settingsSection, "local");
 		state = desktopAppReducer(state, {

@@ -10,7 +10,14 @@ import {
 } from "@cline/ui";
 import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	isValidElement,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -35,6 +42,9 @@ import {
 	CloudOnboardingCard,
 	type CloudOnboardingVariant,
 } from "./cloud-onboarding";
+import { FactoryHardHat } from "./factory-hard-hat";
+import { FactoryIntakeNotice } from "./factory-intake-notice";
+import { FactoryManagerNotice } from "./factory-manager-notice";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Used only until the API's connectUrl arrives (or when it is blank), so a
@@ -66,6 +76,7 @@ export function WelcomeScreen({
 	body,
 	composer,
 	notice,
+	factory,
 	environmentSelector,
 	gitBranch,
 	onListGitBranches,
@@ -85,6 +96,14 @@ export function WelcomeScreen({
 	composer: ReactNode;
 	/** Rendered above the composer on the welcome state (e.g. setup notice). */
 	notice?: ReactNode;
+	/**
+	 * The composer is talking to Factory (as ChatInputBar's `factory`): the
+	 * mascot wears a hard hat. Ask Factory ("manager") works across all
+	 * projects, so it shows no workspace, branch or worktree controls and no
+	 * workspace quick actions. Without it, the hard hat follows whether
+	 * `notice` is a Factory notice.
+	 */
+	factory?: "intake" | "manager";
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	environmentSelector: ReactNode;
@@ -359,7 +378,10 @@ export function WelcomeScreen({
 			statuses: ["pending_approval", "approved", "in_progress", "failed"],
 			limit: 8,
 		},
-		AGENDA_UI_ENABLED && active && workspaceRoot.trim().length > 0,
+		AGENDA_UI_ENABLED &&
+			active &&
+			factory !== "manager" &&
+			workspaceRoot.trim().length > 0,
 	);
 	const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
@@ -411,9 +433,11 @@ export function WelcomeScreen({
 		[agenda.approveTask, agenda.runTask, onOpenSession],
 	);
 
+	const workspaceControls = factory !== "manager";
 	useEffect(() => {
-		if (active && executionTarget === "local") void refreshWorkspaces();
-	}, [active, executionTarget, refreshWorkspaces]);
+		if (active && executionTarget === "local" && workspaceControls)
+			void refreshWorkspaces();
+	}, [active, executionTarget, refreshWorkspaces, workspaceControls]);
 
 	// Clear repositories made inaccessible by account/org or GitHub access changes.
 	useEffect(() => {
@@ -447,6 +471,11 @@ export function WelcomeScreen({
 							cloudSetup.status === "restore_error"
 						? "error"
 						: null;
+	const showsFactoryHardHat =
+		factory !== undefined ||
+		(isValidElement(notice) &&
+			(notice.type === FactoryIntakeNotice ||
+				notice.type === FactoryManagerNotice));
 	// A failed restore must still allow a manual repository selection.
 	const showCloudOnboarding =
 		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";
@@ -462,42 +491,47 @@ export function WelcomeScreen({
 			welcomeHeader={
 				<div className="cline-view-enter">
 					<h1 className="sr-only">What would you like to build?</h1>
-					<AgentWelcomeHero />
-
-					<div className="mt-11 flex min-w-0 items-center gap-2">
-						{environmentSelector}
-						<WelcomeWorkspaceControls
-							cloudBranch={cloudBranch}
-							cloudControlsHidden={showCloudOnboarding}
-							cloudEnabled={cloudAgentsEnabled}
-							currentBranch={gitBranch}
-							executionTarget={executionTarget}
-							onCloudBranchChange={onCloudBranchChange}
-							onListCloudBranches={listCloudBranches}
-							onListCloudRepositories={listCloudRepositories}
-							onListGitBranches={onListGitBranches}
-							onOpenExternalUrl={connectGitHub}
-							onPickWorkspaceDirectory={pickWorkspaceDirectory}
-							onRefreshWorkspaces={refreshWorkspaces}
-							onRepoUrlChange={onRepoUrlChange}
-							onSignIn={signIn}
-							onSelectChat={selectChat}
-							onSwitchGitBranch={onSwitchGitBranch}
-							onSwitchWorkspace={switchWorkspace}
-							repoUrl={repoUrl}
-							signedIn={signedIn}
-							signingIn={signingIn}
-							onWorkInChange={onWorkInChange}
-							workIn={workIn}
-							workspaceRoot={workspaceRoot}
-							workspaces={workspaces}
-						/>
-						{signInError ? (
-							<p className="mt-2 text-xs text-destructive">
-								Sign in failed: {signInError}
-							</p>
-						) : null}
+					<div className="relative">
+						<AgentWelcomeHero />
+						{showsFactoryHardHat ? <FactoryHardHat /> : null}
 					</div>
+
+					{workspaceControls ? (
+						<div className="mt-11 flex min-w-0 items-center gap-2">
+							{environmentSelector}
+							<WelcomeWorkspaceControls
+								cloudBranch={cloudBranch}
+								cloudControlsHidden={showCloudOnboarding}
+								cloudEnabled={cloudAgentsEnabled}
+								currentBranch={gitBranch}
+								executionTarget={executionTarget}
+								onCloudBranchChange={onCloudBranchChange}
+								onListCloudBranches={listCloudBranches}
+								onListCloudRepositories={listCloudRepositories}
+								onListGitBranches={onListGitBranches}
+								onOpenExternalUrl={connectGitHub}
+								onPickWorkspaceDirectory={pickWorkspaceDirectory}
+								onRefreshWorkspaces={refreshWorkspaces}
+								onRepoUrlChange={onRepoUrlChange}
+								onSignIn={signIn}
+								onSelectChat={selectChat}
+								onSwitchGitBranch={onSwitchGitBranch}
+								onSwitchWorkspace={switchWorkspace}
+								repoUrl={repoUrl}
+								signedIn={signedIn}
+								signingIn={signingIn}
+								onWorkInChange={onWorkInChange}
+								workIn={workIn}
+								workspaceRoot={workspaceRoot}
+								workspaces={workspaces}
+							/>
+							{signInError ? (
+								<p className="mt-2 text-xs text-destructive">
+									Sign in failed: {signInError}
+								</p>
+							) : null}
+						</div>
+					) : null}
 				</div>
 			}
 			welcomeSetup={

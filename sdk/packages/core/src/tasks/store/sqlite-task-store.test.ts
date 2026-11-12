@@ -9,11 +9,12 @@ import type {
 } from "@cline/shared";
 import {
 	factoryDesignProgressSchema,
+	factoryReviewFindings,
 	factoryRunStateSchema,
 	factoryTaskConfigSchema,
 } from "@cline/shared";
-import { loadSqliteDb } from "@cline/shared/db";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { loadSqliteDb, nowIso } from "@cline/shared/db";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	AgendaTaskRevisionConflictError,
 	SqliteAgendaTaskStore,
@@ -217,6 +218,131 @@ describe("SqliteAgendaTaskStore", () => {
 		).toBe("global");
 	});
 
+	it("numbers Factory cards in order and never reuses a number", () => {
+		const factory = factoryTaskConfigSchema.parse({});
+		const first = store.createTask({ ...createInput("first"), factory });
+		const second = store.createTask(
+			{ ...createInput("second"), factory },
+			true,
+		);
+		const plain = store.createTask(createInput("plain"));
+		expect([first.factoryNumber, second.factoryNumber]).toEqual([1, 2]);
+		expect(plain.factoryNumber).toBeUndefined();
+		store.updateTaskState(second.taskId, { archivedAt: nowIso() });
+		expect(store.getTask(second.taskId)?.factoryNumber).toBe(2);
+		expect(store.deleteTask(second.taskId)).toBe(true);
+		const third = store.createTask({ ...createInput("third"), factory });
+		expect(third.factoryNumber).toBe(3);
+		// A card that becomes a Factory card takes the next number then.
+		const promoted = store.updateTask({
+			taskId: plain.taskId,
+			expectedRevision: plain.revision,
+			factory,
+			updatedBy: USER,
+		});
+		expect(promoted?.factoryNumber).toBe(4);
+		expect(store.getTaskByFactoryNumber(3)?.taskId).toBe(third.taskId);
+		expect(store.getTaskByFactoryNumber(2)).toBeUndefined();
+		// Numbers survive reopening, and the counter remembers deleted ones.
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath: join(directory, "tasks.db") });
+		expect(store.getTask(first.taskId)?.factoryNumber).toBe(1);
+		store.deleteTask(promoted?.taskId ?? "");
+		expect(
+			store.createTask({ ...createInput("fifth"), factory }).factoryNumber,
+		).toBe(5);
+	});
+
+	it("numbers existing Factory cards in creation order once, including cards an older Hub adds later", () => {
+		const factory = factoryTaskConfigSchema.parse({});
+		const created = ["late", "early", "middle"].map((id) =>
+			store.createTask({ ...createInput(id), factory }),
+		);
+		const replay = store.createTask({
+			...createInput("replay"),
+			factory: factoryTaskConfigSchema.parse({
+				replay: {
+					comparisonId: "cmp",
+					variantIndex: 0,
+					requestHash: "a".repeat(64),
+					sourceTaskId: "late",
+					sourceRunId: "run_x",
+					sourceTaskRevision: 1,
+					baseCommit: "abc",
+					baseBranch: "main",
+					label: "baseline",
+				},
+			}),
+		});
+		store.createTask(createInput("plain"));
+		const dbPath = join(directory, "tasks.db");
+		store.close();
+		// A database from before short ids: no number column, index or counter,
+		// and creation times that differ from insertion order.
+		const oldDb = loadSqliteDb(dbPath);
+		try {
+			oldDb.exec("DROP INDEX agenda_tasks_factory_number_idx");
+			oldDb.exec("DROP INDEX agenda_tasks_factory_unnumbered_idx");
+			oldDb.exec("ALTER TABLE agenda_tasks DROP COLUMN factory_number");
+			oldDb.exec("DROP TABLE factory_counter");
+			const at = oldDb.prepare(
+				"UPDATE agenda_tasks SET created_at = ? WHERE task_id = ?",
+			);
+			at.run("2030-01-03T00:00:00.000Z", "late");
+			at.run("2030-01-01T00:00:00.000Z", "early");
+			at.run("2030-01-02T00:00:00.000Z", "middle");
+			at.run("2030-01-04T00:00:00.000Z", "replay");
+		} finally {
+			oldDb.close?.();
+		}
+		store = new SqliteAgendaTaskStore({ dbPath });
+		const numbers = () =>
+			Object.fromEntries(
+				store
+					.listTasks({ includeArchived: true })
+					.map((task) => [task.taskId, task.factoryNumber]),
+			);
+		expect(numbers()).toEqual({
+			early: 1,
+			middle: 2,
+			late: 3,
+			replay: 4,
+			plain: undefined,
+		});
+		expect(created).toHaveLength(3);
+		expect(replay.factory?.replay).toBeDefined();
+		// Idempotent: reopening renumbers nothing.
+		store.close();
+		store = new SqliteAgendaTaskStore({ dbPath });
+		expect(numbers()).toMatchObject({
+			early: 1,
+			middle: 2,
+			late: 3,
+			replay: 4,
+		});
+		// A card an older Hub inserts without a number is numbered on the next
+		// open, after the counter, even when the newest numbered card is gone.
+		store.deleteTask("replay");
+		store.close();
+		const olderHub = loadSqliteDb(dbPath);
+		try {
+			olderHub
+				.prepare(
+					`INSERT INTO agenda_tasks (task_id, type, status, title, instructions, scope,
+					workspace_root, available_at, expires_at, created_by_json, updated_by_json,
+					created_at, updated_at, factory_json)
+					VALUES ('older', 'todo', 'pending_approval', 'Older', 'Do it', 'workspace',
+					?, '2035-01-01T00:00:00.000Z', '2035-01-10T00:00:00.000Z', '{}', '{}',
+					'2030-01-05T00:00:00.000Z', '2030-01-05T00:00:00.000Z', '{}')`,
+				)
+				.run(WORKSPACE_ROOT);
+		} finally {
+			olderHub.close?.();
+		}
+		store = new SqliteAgendaTaskStore({ dbPath });
+		expect(store.getTask("older")?.factoryNumber).toBe(5);
+	});
+
 	it("creates, reads, updates, and deletes a task", () => {
 		const created = store.createTask(createInput("task_crud", 2));
 		expect(created).toMatchObject({
@@ -415,15 +541,27 @@ describe("SqliteAgendaTaskStore", () => {
 
 	it("migrates existing tasks and preserves factory intent and evidence across reopen", () => {
 		const oldTask = store.createTask(createInput("existing"));
-		store.close();
 		const dbPath = join(directory, "tasks.db");
 		const oldDb = loadSqliteDb(dbPath);
-		oldDb.exec("ALTER TABLE agenda_tasks DROP COLUMN factory_json");
-		oldDb.exec(
-			"ALTER TABLE agenda_tasks DROP COLUMN factory_design_review_json",
-		);
-		oldDb.exec("ALTER TABLE agenda_task_runs DROP COLUMN factory_json");
-		oldDb.close?.();
+		try {
+			// Older schemas had neither factory_json nor its expression indexes.
+			for (const index of [
+				"agenda_tasks_factory_intake_idx",
+				"agenda_tasks_factory_replay_run_idx",
+				"agenda_tasks_factory_comparison_idx",
+				"agenda_tasks_factory_number_idx",
+				"agenda_tasks_factory_unnumbered_idx",
+			])
+				oldDb.exec(`DROP INDEX ${index}`);
+			oldDb.exec("ALTER TABLE agenda_tasks DROP COLUMN factory_json");
+			oldDb.exec(
+				"ALTER TABLE agenda_tasks DROP COLUMN factory_design_review_json",
+			);
+			oldDb.exec("ALTER TABLE agenda_task_runs DROP COLUMN factory_json");
+		} finally {
+			oldDb.close?.();
+		}
+		store.close();
 		store = new SqliteAgendaTaskStore({ dbPath });
 		expect(store.getTask(oldTask.taskId)).toEqual(oldTask);
 		const factory = factoryTaskConfigSchema.parse({
@@ -463,15 +601,29 @@ describe("SqliteAgendaTaskStore", () => {
 					artifacts: [],
 				},
 			],
-			review: { verdict: "pass", summary: "Reviewed", findings: [] },
+			review: {
+				verdict: "pass",
+				summary: "Reviewed",
+				findings: [],
+				coverage: {
+					static: ["API"],
+					exercised: [],
+					unverified: ["Legacy required behavior"],
+				},
+			},
 		};
 		store.updateTaskState(task.taskId, { originSessionId: "design" });
-		store.close();
 		const legacyDb = loadSqliteDb(dbPath);
-		legacyDb
-			.prepare("UPDATE agenda_task_runs SET factory_json = ? WHERE run_id = ?")
-			.run(JSON.stringify(legacyFactory), run.runId);
-		legacyDb.close?.();
+		try {
+			legacyDb
+				.prepare(
+					"UPDATE agenda_task_runs SET factory_json = ? WHERE run_id = ?",
+				)
+				.run(JSON.stringify(legacyFactory), run.runId);
+		} finally {
+			legacyDb.close?.();
+		}
+		store.close();
 		store = new SqliteAgendaTaskStore({ dbPath });
 		expect(store.getTask(task.taskId)).toMatchObject({
 			factory,
@@ -488,7 +640,15 @@ describe("SqliteAgendaTaskStore", () => {
 					{
 						reviewerIndex: 0,
 						sessionId: "reviewer",
-						review: legacyFactory.review,
+						review: {
+							...legacyFactory.review,
+							coverage: {
+								static: ["API"],
+								exercised: [],
+								requiredGaps: ["Legacy required behavior"],
+								limitations: [],
+							},
+						},
 					},
 				],
 			},
@@ -497,6 +657,11 @@ describe("SqliteAgendaTaskStore", () => {
 			"candidateCommit",
 		);
 		const restoredFactory = store.getRun(run.runId)?.factory;
+		const restoredReview = restoredFactory?.candidate?.reviews[0]?.review;
+		if (!restoredReview) throw new Error("Missing persisted review");
+		expect(factoryReviewFindings(restoredReview)).toEqual([
+			"Unverified: Legacy required behavior",
+		]);
 		store.updateRun(run.runId, { factory: restoredFactory });
 		store.close();
 		store = new SqliteAgendaTaskStore({ dbPath });
@@ -533,7 +698,8 @@ describe("SqliteAgendaTaskStore", () => {
 						coverage: {
 							static: ["Plan"],
 							exercised: [],
-							unverified: ["Implementation"],
+							requiredGaps: ["Implementation"],
+							limitations: [],
 						},
 					},
 				},
@@ -643,6 +809,41 @@ describe("SqliteAgendaTaskStore", () => {
 				.listTasks({ scope: "global", workspaceRoot: WORKSPACE_ROOT })
 				.map((task) => task.taskId),
 		).toEqual(["global-p0"]);
+	});
+
+	it("lists newest source replays before applying the limit without changing queue order", () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			for (const [index, taskId] of ["older", "newer"].entries()) {
+				vi.setSystemTime(new Date(`2030-01-0${index + 1}T00:00:00Z`));
+				store.createTask({
+					...createInput(taskId, index === 0 ? 0 : 5),
+					factory: factoryTaskConfigSchema.parse({
+						replay: {
+							comparisonId: `comparison_${index}`,
+							variantIndex: 0,
+							requestHash: "a".repeat(64),
+							sourceTaskId: "source",
+							sourceRunId: "source_run",
+							sourceTaskRevision: 1,
+							baseCommit: "b".repeat(40),
+							baseBranch: "main",
+							label: taskId,
+						},
+					}),
+				});
+			}
+			expect(
+				store
+					.listTasks({ factoryReplaySourceRunId: "source_run", limit: 1 })
+					.map((task) => task.taskId),
+			).toEqual(["newer"]);
+			expect(store.listTasks({ limit: 1 }).map((task) => task.taskId)).toEqual([
+				"older",
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("lists distinct canonical workspace roots including archived tasks", () => {

@@ -79,6 +79,10 @@ const TASK_SCHEMA_STATEMENTS: readonly string[] = [
 		requested_by_client_id TEXT,
 		created_at TEXT NOT NULL
 	);`,
+	`CREATE TABLE IF NOT EXISTS factory_counter (
+		name TEXT PRIMARY KEY,
+		last_number INTEGER NOT NULL
+	);`,
 	`CREATE INDEX IF NOT EXISTS agenda_tasks_ready_idx
 		ON agenda_tasks(status, priority, available_at, expires_at, created_at);`,
 	`CREATE INDEX IF NOT EXISTS agenda_tasks_scope_idx
@@ -113,22 +117,43 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 		["agenda_tasks", "factory_design_sessions_json", "TEXT"],
 		["agenda_tasks", "factory_design_progress_json", "TEXT"],
 		["factory_queue", "stage", "TEXT NOT NULL DEFAULT 'run'"],
+		["agenda_tasks", "factory_number", "INTEGER"],
 	]) {
-		if (
-			!db
+		const present = () =>
+			db
 				.prepare(`PRAGMA table_info(${table})`)
 				.all()
-				.some((entry) => entry.name === column)
-		)
+				.some((entry) => entry.name === column);
+		if (present()) continue;
+		try {
 			db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
+		} catch (error) {
+			// Another Hub opening the same database may have added it first.
+			if (!present()) throw error;
+		}
 	}
-
 	for (const table of ["agenda_tasks", "agenda_task_runs"]) {
 		const columns = db.prepare(`PRAGMA table_info(${table})`).all();
 		if (!columns.some((column) => column.name === "factory_json")) {
 			db.exec(`ALTER TABLE ${table} ADD COLUMN factory_json TEXT`);
 		}
 	}
+	// Expressions match the store's lookups so SQLite can use these indexes.
+	for (const [name, columns] of [
+		[
+			"agenda_tasks_factory_intake_idx",
+			"scope, workspace_root, json_extract(factory_json, '$.intake.source'), json_extract(factory_json, '$.intake.key')",
+		],
+		[
+			"agenda_tasks_factory_replay_run_idx",
+			"json_extract(factory_json, '$.replay.sourceRunId')",
+		],
+		[
+			"agenda_tasks_factory_comparison_idx",
+			"json_extract(factory_json, '$.replay.comparisonId')",
+		],
+	])
+		db.exec(`CREATE INDEX IF NOT EXISTS ${name} ON agenda_tasks(${columns})`);
 	if (
 		!db
 			.prepare("PRAGMA table_info(agenda_tasks)")
@@ -139,4 +164,60 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 			"ALTER TABLE agenda_tasks ADD COLUMN factory_design_review_json TEXT",
 		);
 	}
+	db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS agenda_tasks_factory_number_idx
+		ON agenda_tasks(factory_number) WHERE factory_number IS NOT NULL`);
+	db.exec(`CREATE INDEX IF NOT EXISTS agenda_tasks_factory_unnumbered_idx
+		ON agenda_tasks(created_at)
+		WHERE factory_number IS NULL AND factory_json IS NOT NULL`);
+	// Number Factory cards created before short ids existed, or by an older
+	// Hub sharing this database since. Idempotent: only unnumbered cards move.
+	if (
+		!db
+			.prepare(
+				"SELECT 1 FROM agenda_tasks WHERE factory_number IS NULL AND factory_json IS NOT NULL LIMIT 1",
+			)
+			.get()
+	)
+		return;
+	db.exec("BEGIN IMMEDIATE;");
+	try {
+		numberFactoryCards(db);
+		db.exec("COMMIT;");
+	} catch (error) {
+		db.exec("ROLLBACK;");
+		throw error;
+	}
+}
+
+/**
+ * Give every Factory card without a short number the next numbers, in
+ * creation order. The counter only grows, so a number is never reused after
+ * its card is deleted. Call inside a write transaction.
+ */
+export function numberFactoryCards(db: SqliteDb): void {
+	const unnumbered = db
+		.prepare(
+			`SELECT task_id FROM agenda_tasks
+			WHERE factory_number IS NULL AND factory_json IS NOT NULL
+			ORDER BY created_at ASC, rowid ASC`,
+		)
+		.all();
+	if (unnumbered.length === 0) return;
+	const row = db
+		.prepare(
+			`SELECT MAX(
+				COALESCE((SELECT last_number FROM factory_counter WHERE name = 'card'), 0),
+				COALESCE((SELECT MAX(factory_number) FROM agenda_tasks), 0)
+			) AS last_number`,
+		)
+		.get();
+	let last = Number(row?.last_number ?? 0);
+	const assign = db.prepare(
+		"UPDATE agenda_tasks SET factory_number = ? WHERE task_id = ?",
+	);
+	for (const card of unnumbered) assign.run(++last, card.task_id);
+	db.prepare(
+		`INSERT INTO factory_counter (name, last_number) VALUES ('card', ?)
+		ON CONFLICT(name) DO UPDATE SET last_number = excluded.last_number`,
+	).run(last);
 }
