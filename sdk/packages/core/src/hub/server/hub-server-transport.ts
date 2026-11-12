@@ -15,6 +15,8 @@ import {
 	captureSdkError,
 	createSessionId,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	parseHookEventPayload,
+	resolveRootSessionId,
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
@@ -135,7 +137,10 @@ import { logHubBoundaryError, logHubMessage } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
-import { authorizeSessionWorkspace } from "./session-authority";
+import {
+	authorizeSessionWorkspace,
+	hasUnconfinedSessionAuthority,
+} from "./session-authority";
 import {
 	HubAgendaTaskCommandService,
 	isAgendaTaskCommand,
@@ -303,12 +308,20 @@ const PER_SESSION_AUTHORITY_COMMANDS: ReadonlySet<string> = new Set([
 	"run.abort",
 	"run.proceed_while_running",
 	"approval.respond",
+	"capability.request",
+	"capability.progress",
+	"capability.respond",
 ]);
 
-/** Commands that enumerate sessions and so require a registered workspace. */
+/**
+ * Commands that enumerate sessions. They require a registered workspace, and
+ * a confined connection only receives the entries for sessions it could
+ * operate on (`visibleEnumerationReply`).
+ */
 const SESSION_ENUMERATION_COMMANDS: ReadonlySet<string> = new Set([
 	"session.list",
 	"session.search",
+	"run.list",
 ]);
 
 const REGISTER_BEFORE_SESSIONS_MESSAGE =
@@ -977,19 +990,91 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	/**
-	 * The session a session-scoped command targets. For `approval.respond` the
-	 * session is the one that raised the pending approval; everything else
-	 * addresses it directly via the envelope/payload.
+	 * The session a session-scoped command targets, resolved the same way its
+	 * handler resolves it. `approval.respond` and `capability.respond`/
+	 * `capability.progress` act on the session that raised the pending
+	 * request; `session.hook` acts on the root session named inside the hook
+	 * payload; everything else addresses it directly via the envelope/payload.
 	 */
 	private resolveCommandSessionId(envelope: HubCommandEnvelope): string {
-		if (envelope.command === "approval.respond") {
-			const approvalId =
-				typeof envelope.payload?.approvalId === "string"
-					? envelope.payload.approvalId.trim()
-					: "";
-			return this.pendingApprovals.get(approvalId)?.sessionId ?? "";
+		switch (envelope.command) {
+			case "approval.respond": {
+				const approvalId =
+					typeof envelope.payload?.approvalId === "string"
+						? envelope.payload.approvalId.trim()
+						: "";
+				return this.pendingApprovals.get(approvalId)?.sessionId ?? "";
+			}
+			case "capability.respond":
+			case "capability.progress": {
+				const requestId =
+					typeof envelope.payload?.requestId === "string"
+						? envelope.payload.requestId.trim()
+						: "";
+				return this.pendingCapabilityRequests.get(requestId)?.sessionId ?? "";
+			}
+			case "session.hook":
+				return (
+					resolveRootSessionId(
+						parseHookEventPayload(envelope.payload?.payload)?.sessionContext,
+					) ?? ""
+				);
+			default:
+				return extractSessionId(envelope);
 		}
-		return extractSessionId(envelope);
+	}
+
+	/**
+	 * Drops enumerated entries for sessions a workspace-confined connection may
+	 * not operate on, so listing is held to the same boundary that
+	 * `authorizeConnectionForSession` applies to a single session. Trusted
+	 * in-process and token connections see everything.
+	 */
+	private async visibleEnumerationReply(
+		reply: HubReplyEnvelope,
+		key: "sessions" | "hits" | "runs",
+		connectionAuthority: HubConnectionAuthority | null | undefined,
+	): Promise<HubReplyEnvelope> {
+		if (
+			!connectionAuthority ||
+			hasUnconfinedSessionAuthority(connectionAuthority)
+		) {
+			return reply;
+		}
+		const entries = reply.payload?.[key];
+		if (!Array.isArray(entries)) return reply;
+		const visibleBySession = new Map<string, Promise<boolean>>();
+		const isVisible = (sessionId: string): Promise<boolean> => {
+			let visible = visibleBySession.get(sessionId);
+			if (!visible) {
+				visible = (async () => {
+					const session = sessionId
+						? await this.ctx.sessionHost.getSession(sessionId)
+						: undefined;
+					return (
+						!!session &&
+						authorizeSessionWorkspace(connectionAuthority, {
+							workspaceRoot: session.workspaceRoot,
+							cwd: session.cwd,
+						}) === undefined
+					);
+				})();
+				visibleBySession.set(sessionId, visible);
+			}
+			return visible;
+		};
+		const visibility = await Promise.all(
+			entries.map((entry) =>
+				isVisible(typeof entry?.sessionId === "string" ? entry.sessionId : ""),
+			),
+		);
+		return {
+			...reply,
+			payload: {
+				...reply.payload,
+				[key]: entries.filter((_, index) => visibility[index]),
+			},
+		};
 	}
 
 	/**
@@ -1000,14 +1085,14 @@ export class HubServerTransport implements NativeHubTransport {
 	 *
 	 * `connectionAuthority` is `undefined` for trusted in-process callers (always
 	 * allowed), `null` for a remote connection that has not registered, and
-	 * otherwise the registered authority (token connections carry
-	 * `crossWorkspace`).
+	 * otherwise the registered authority (token connections are unconfined;
+	 * see `hasUnconfinedSessionAuthority`).
 	 */
 	private async authorizeConnectionForSession(
 		envelope: HubCommandEnvelope,
 		connectionAuthority: HubConnectionAuthority | null | undefined,
 	): Promise<HubReplyEnvelope | undefined> {
-		if (connectionAuthority === undefined) return undefined;
+		if (hasUnconfinedSessionAuthority(connectionAuthority)) return undefined;
 		const command = envelope.command;
 		if (SESSION_ENUMERATION_COMMANDS.has(command)) {
 			// Listing/searching has no single target session; a confined
@@ -1204,7 +1289,11 @@ export class HubServerTransport implements NativeHubTransport {
 			case "session.compaction.get":
 				return await handleSessionCompactionGet(this.ctx, envelope);
 			case "session.list": {
-				const reply = await handleSessionList(this.ctx, envelope);
+				const reply = await this.visibleEnumerationReply(
+					await handleSessionList(this.ctx, envelope),
+					"sessions",
+					connectionAuthority,
+				);
 				return {
 					...reply,
 					payload: {
@@ -1219,7 +1308,11 @@ export class HubServerTransport implements NativeHubTransport {
 				};
 			}
 			case "session.search":
-				return await handleSessionSearch(this.ctx, envelope);
+				return await this.visibleEnumerationReply(
+					await handleSessionSearch(this.ctx, envelope),
+					"hits",
+					connectionAuthority,
+				);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
 			case "session.update_connection":
@@ -1271,7 +1364,11 @@ export class HubServerTransport implements NativeHubTransport {
 				if (!this.runQueue) {
 					return okReply(envelope, { runs: [] });
 				}
-				return handleRunList(envelope, this.runQueue);
+				return await this.visibleEnumerationReply(
+					handleRunList(envelope, this.runQueue),
+					"runs",
+					connectionAuthority,
+				);
 			}
 			case "hub.drain":
 				return this.handleHubDrain(envelope);

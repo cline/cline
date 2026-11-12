@@ -58,6 +58,14 @@ describe("authorizeSessionWorkspace", () => {
 				{ workspaceRoot: "/elsewhere", cwd: "/elsewhere" },
 			),
 		).toBeUndefined();
+		// Registered with a token but without a workspace (Hub started without
+		// one): no workspaceContext and no crossWorkspace, still unconfined.
+		expect(
+			authorizeSessionWorkspace(
+				{ clientId: "token-ui", tokenAuthenticated: true },
+				{ workspaceRoot: "/elsewhere", cwd: "/elsewhere" },
+			),
+		).toBeUndefined();
 	});
 
 	it("allows confined connections inside their workspace", () => {

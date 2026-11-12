@@ -394,12 +394,16 @@ workspace-confined authority: registration pins them to the hub's workspace, and
 every session command rejects them until they register. After that,
 `session.create`, `session.resume` and `session.restore` refuse any new session,
 resume source or restore source whose directories fall outside that workspace,
-and commands that act on an existing session (`run.start`, `run.enqueue`,
-`session.send_input`, `approval.respond`, `session.get`, and the rest of
-`PER_SESSION_AUTHORITY_COMMANDS`) refuse sessions outside it
-(`authorizeSessionWorkspace`). `session.list` and `session.search` require
-registration. Token connections keep full session authority whether or not they
-have registered.
+and any requested session id that names an existing session outside it.
+Commands that act on an existing session (`run.start`, `run.enqueue`,
+`session.send_input`, `approval.respond`, `capability.respond`, `session.get`,
+and the rest of `PER_SESSION_AUTHORITY_COMMANDS`) resolve their target the way
+their handler does (the session behind a pending approval or capability request,
+or the hook payload's root session for `session.hook`) and refuse sessions
+outside it (`authorizeSessionWorkspace`). `session.list`, `session.search` and
+`run.list` require registration and only return sessions inside that workspace.
+Token connections keep full session authority whether or not they have
+registered.
 
 Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
 headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every

@@ -20,15 +20,32 @@ export function isPathInsideWorkspace(
 }
 
 /**
+ * Whether a connection may operate on sessions in any workspace: trusted
+ * in-process callers (`undefined`) and token-authenticated connections, which
+ * could register any workspace anyway. A token connection that registered
+ * without a workspace carries `tokenAuthenticated` but not `crossWorkspace`.
+ */
+export function hasUnconfinedSessionAuthority(
+	authority: HubConnectionAuthority | null | undefined,
+): boolean {
+	return (
+		authority === undefined ||
+		authority?.crossWorkspace === true ||
+		authority?.tokenAuthenticated === true
+	);
+}
+
+/**
  * Decides whether a connection may run an agent session in the requested
  * directories. Returns a denial message, or `undefined` when allowed.
  *
  * `authority` is `undefined` for trusted in-process callers, `null` for a
  * remote connection that has not registered yet, and otherwise the authority
  * granted at `client.register`: token-authenticated connections carry
- * `crossWorkspace: true`, while origin-only browser connections are confined
- * to the Hub's `workspaceContext.workspaceRoot` (which may be absent when the
- * Hub was started without a workspace).
+ * `tokenAuthenticated` (and `crossWorkspace` when they bound a workspace),
+ * while origin-only browser connections are confined to the Hub's
+ * `workspaceContext.workspaceRoot` (which may be absent when the Hub was
+ * started without a workspace).
  */
 export function authorizeSessionWorkspace(
 	authority: HubConnectionAuthority | null | undefined,
@@ -38,7 +55,7 @@ export function authorizeSessionWorkspace(
 	if (authority === null) {
 		return "Register this connection before starting sessions";
 	}
-	if (authority.crossWorkspace) return undefined;
+	if (hasUnconfinedSessionAuthority(authority)) return undefined;
 	const workspaceRoot = authority.workspaceContext?.workspaceRoot;
 	if (!workspaceRoot) {
 		return "This connection is not authorized for any workspace";

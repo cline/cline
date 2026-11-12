@@ -35,7 +35,10 @@ import {
 } from "../hub-client-contributions";
 import { logHubMessage } from "../hub-server-logging";
 import { toHubSessionRecord } from "../hub-session-records";
-import { authorizeSessionWorkspace } from "../session-authority";
+import {
+	authorizeSessionWorkspace,
+	hasUnconfinedSessionAuthority,
+} from "../session-authority";
 import {
 	CAPABILITY_OWNER_GONE_MESSAGE,
 	cancelPendingCapabilityRequests,
@@ -282,6 +285,27 @@ export function parsePluginPolicies(
 	return Object.keys(policies).length > 0 ? policies : undefined;
 }
 
+/**
+ * Starting under a caller-chosen id that already exists reattaches to, or
+ * re-creates, that session, so the caller also needs authority over the
+ * existing session's workspace, not just over the directories it requested.
+ */
+async function authorizeRequestedSessionId(
+	ctx: HubTransportContext,
+	authority: HubConnectionAuthority | null | undefined,
+	requestedSessionId: string,
+): Promise<string | undefined> {
+	if (!requestedSessionId || hasUnconfinedSessionAuthority(authority)) {
+		return undefined;
+	}
+	const existing = await ctx.sessionHost.getSession(requestedSessionId);
+	if (!existing) return undefined;
+	return authorizeSessionWorkspace(authority, {
+		workspaceRoot: existing.workspaceRoot,
+		cwd: existing.cwd,
+	});
+}
+
 export async function handleSessionResume(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -435,6 +459,19 @@ export async function handleSessionCreate(
 		typeof sessionConfig?.sessionId === "string"
 			? sessionConfig.sessionId.trim()
 			: "";
+	const existingSessionDenial = await authorizeRequestedSessionId(
+		ctx,
+		authority,
+		requestedSessionId,
+	);
+	if (existingSessionDenial) {
+		logHubMessage("warn", "session.create.workspace_denied", baseLogContext);
+		return errorReply(
+			envelope,
+			"workspace_not_authorized",
+			existingSessionDenial,
+		);
+	}
 	const sessionId = requestedSessionId || createSessionId();
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
@@ -771,6 +808,18 @@ export async function handleSessionRestore(
 			typeof sessionConfig?.sessionId === "string"
 				? sessionConfig.sessionId.trim()
 				: "";
+		const existingSessionDenial = await authorizeRequestedSessionId(
+			ctx,
+			authority,
+			requestedSessionId,
+		);
+		if (existingSessionDenial) {
+			return errorReply(
+				envelope,
+				"workspace_not_authorized",
+				existingSessionDenial,
+			);
+		}
 		const sessionId = requestedSessionId || createSessionId();
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
