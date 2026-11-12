@@ -24,7 +24,7 @@ import { getLatestAnnouncementId } from "./utils/announcements"
 import { arePathsEqual } from "./utils/path"
 
 /**
- * Performs intialization for Cline that is common to all platforms.
+ * Performs initialization for Cline that is common to all platforms.
  *
  * @param context
  * @returns The webview provider
