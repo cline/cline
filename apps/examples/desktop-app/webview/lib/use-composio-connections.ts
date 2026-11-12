@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	cancelComposioConnect,
 	connectComposioIntegration,
@@ -12,16 +12,6 @@ import type {
 } from "./composio-types";
 import { useComposioStatus } from "./use-composio-status";
 
-function connectionSignature(status: ComposioStatusResponse) {
-	return JSON.stringify([
-		status.configured,
-		status.integrations
-			.filter(({ status }) => status === "connected")
-			.map(({ toolkit }) => toolkit)
-			.sort(),
-	]);
-}
-
 /**
  * Shared state machine for Composio connections, used by both the Customize >
  * Connectors tab and the Marketplace connector browser.
@@ -29,11 +19,7 @@ function connectionSignature(status: ComposioStatusResponse) {
  * Status, errors, and pending OAuth polling belong to the shared status store;
  * action feedback remains scoped to the control that started the request.
  */
-export function useComposioConnections({
-	onChanged,
-}: {
-	onChanged?: () => void;
-} = {}) {
+export function useComposioConnections() {
 	const {
 		status,
 		loading: refreshing,
@@ -50,25 +36,6 @@ export function useComposioConnections({
 		null,
 	);
 	const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
-
-	const onChangedRef = useRef(onChanged);
-	useEffect(() => {
-		onChangedRef.current = onChanged;
-	}, [onChanged]);
-
-	const previousConnectionSignature = useRef<string | null>(null);
-	useEffect(() => {
-		if (!status) {
-			previousConnectionSignature.current = null;
-			return;
-		}
-		const signature = connectionSignature(status);
-		const previous = previousConnectionSignature.current;
-		previousConnectionSignature.current = signature;
-		if (previous !== null && previous !== signature) {
-			onChangedRef.current?.();
-		}
-	}, [status]);
 
 	const runAction = useCallback(
 		(toolkit: ComposioToolkitSlug, action: () => Promise<unknown>) => {

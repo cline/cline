@@ -8,14 +8,33 @@ import {
 	invalidateExtensionInventoryCache,
 } from "./extensions-view";
 
-const { fetchMarketplaceCatalog, invoke } = vi.hoisted(() => ({
-	fetchMarketplaceCatalog: vi.fn(),
-	invoke: vi.fn(),
-}));
+const { connectorChanges, fetchMarketplaceCatalog, invoke, subscribers } =
+	vi.hoisted(() => ({
+		connectorChanges: new Set<() => void>(),
+		fetchMarketplaceCatalog: vi.fn(),
+		invoke: vi.fn(),
+		subscribers: new Map<string, () => void>(),
+	}));
 
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: {
+		invoke,
+		subscribe: (eventName: string, callback: () => void) => {
+			subscribers.set(eventName, callback);
+			return () => {
+				if (subscribers.get(eventName) === callback) {
+					subscribers.delete(eventName);
+				}
+			};
+		},
+	},
 	openExternalUrl: vi.fn(),
+}));
+vi.mock("@/lib/composio", () => ({
+	subscribeComposioInventoryChanges: (callback: () => void) => {
+		connectorChanges.add(callback);
+		return () => connectorChanges.delete(callback);
+	},
 }));
 
 vi.mock("@/lib/marketplace", async (importOriginal) => ({
@@ -81,7 +100,14 @@ beforeEach(() => {
 				skills: [AGENT_PLUGIN_SKILL],
 				agents: [],
 				plugins: [AGENT_PLUGIN],
-				tools: [],
+				tools: [
+					{
+						id: "read_file",
+						name: "read_file",
+						source: "builtin",
+						enabled: true,
+					},
+				],
 				hooks: [],
 				mcp: { servers: [] },
 				warnings: [],
@@ -261,6 +287,45 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 			expect(container.textContent).toContain("example-skill");
 			expect(container.textContent).toContain("Agent Plugin");
 		});
+	});
+
+	it("invalidates cached inventory after connector and account changes while unmounted", async () => {
+		const renderPlugins = async () => {
+			await act(async () => {
+				root.render(
+					<CustomizationSectionView
+						catalogPrimitive="plugin"
+						chrome="embedded"
+						marketplaceVariant="installed"
+						section="Plugins"
+					/>,
+				);
+			});
+		};
+		const inventoryReads = () =>
+			invoke.mock.calls.filter(
+				([command]) => command === "list_user_instruction_configs",
+			).length;
+
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(1));
+		expect(subscribers.has("settings.changed")).toBe(true);
+		expect(subscribers.has("cloud_sessions_changed")).toBe(true);
+		expect(connectorChanges.size).toBe(1);
+
+		await act(async () => root.unmount());
+		act(() => {
+			for (const callback of connectorChanges) callback();
+		});
+		root = createRoot(container);
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(2));
+
+		await act(async () => root.unmount());
+		act(() => subscribers.get("cloud_sessions_changed")?.());
+		root = createRoot(container);
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(3));
 	});
 });
 

@@ -25,7 +25,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -33,6 +32,7 @@ import {
 	type MarketplaceEntry,
 	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
+import { useComposioStatus } from "@/lib/use-composio-status";
 import { cn } from "@/lib/utils";
 import {
 	MarketplaceListRow,
@@ -44,7 +44,6 @@ import {
 	ComposioConnectorsView,
 	ConnectorLogo,
 } from "./settings/composio-connectors-view";
-import { invalidateExtensionInventoryCache } from "./settings/extensions-view";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -594,30 +593,15 @@ export function MarketplaceExplorerView({
 	initialTypeFilter?: MarketplaceTypeFilter | null;
 }) {
 	const directory = useMarketplaceDirectory();
+	const { status: composioStatus } = useComposioStatus();
 	const [query, setQuery] = useState("");
 	const [typeFilter, setTypeFilter] = useState<MarketplaceTypeFilter | null>(
 		initialTypeFilter,
 	);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
-	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
 	const [connectorCount, setConnectorCount] = useState<number | null>(null);
-	useEffect(() => {
-		let cancelled = false;
-		const refresh = async () => {
-			const status = await fetchComposioStatus().catch(() => null);
-			if (!cancelled) setConnectorsAvailable(status?.configured === true);
-		};
-		void refresh();
-		const unsubscribe = desktopClient.subscribe("settings.changed", () => {
-			invalidateExtensionInventoryCache();
-			void refresh();
-		});
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
-	}, []);
+	const connectorsAvailable = composioStatus?.configured === true;
 	const showConnectors =
 		connectorsAvailable &&
 		!selectedTag &&
@@ -876,7 +860,6 @@ export function MarketplaceExplorerView({
 									appendOnScroll
 									searchQuery={query}
 									onCatalogCountChange={setConnectorCount}
-									onChanged={invalidateExtensionInventoryCache}
 									renderItem={({ entry, status, onOpenDetails, selected }) => (
 										<MarketplaceListRow
 											name={entry.name}

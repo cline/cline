@@ -8,24 +8,25 @@ const mocks = vi.hoisted(() => ({
 	catalog: vi.fn(),
 	marketplace: vi.fn(),
 	connect: vi.fn(),
-	invalidateInventory: vi.fn(),
-	subscribe: vi.fn(),
-	onConnectorsChanged: undefined as (() => void) | undefined,
 }));
 vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
-	fetchComposioStatus: async () => ({ configured: mocks.configured }),
+}));
+vi.mock("@/lib/use-composio-status", () => ({
+	useComposioStatus: () => ({
+		status: { configured: mocks.configured, integrations: [] },
+		loading: false,
+		error: null,
+		refresh: vi.fn(),
+	}),
 }));
 vi.mock("@/lib/use-composio-connections", () => ({
-	useComposioConnections: (options?: { onChanged?: () => void }) => {
-		mocks.onConnectorsChanged = options?.onChanged;
-		return {
-			configured: mocks.configured,
-			status: { integrations: [] },
-			statusBySlug: new Map(),
-			connect: mocks.connect,
-		};
-	},
+	useComposioConnections: () => ({
+		configured: mocks.configured,
+		status: { integrations: [] },
+		statusBySlug: new Map(),
+		connect: mocks.connect,
+	}),
 }));
 vi.mock("@/lib/marketplace", () => ({
 	fetchMarketplaceCatalog: mocks.marketplace,
@@ -33,12 +34,8 @@ vi.mock("@/lib/marketplace", () => ({
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
 		invoke: async () => ({ installedKeys: [] }),
-		subscribe: mocks.subscribe,
 	},
 	openExternalUrl: vi.fn(),
-}));
-vi.mock("./settings/extensions-view", () => ({
-	invalidateExtensionInventoryCache: mocks.invalidateInventory,
 }));
 
 import { MarketplaceExplorerView } from "./marketplace-explorer-view";
@@ -79,10 +76,6 @@ beforeEach(() => {
 	mocks.configured = true;
 	mocks.catalog.mockReset();
 	mocks.connect.mockReset();
-	mocks.invalidateInventory.mockReset();
-	mocks.subscribe.mockReset();
-	mocks.subscribe.mockReturnValue(() => {});
-	mocks.onConnectorsChanged = undefined;
 	mocks.catalog.mockResolvedValue({
 		toolkits: [
 			{ slug: "gmail", name: "Gmail" },
@@ -118,16 +111,6 @@ describe("Marketplace directory", () => {
 		expect(
 			container.querySelector('input[aria-label="Search marketplace"]'),
 		).not.toBeNull();
-	});
-	it("invalidates the installed inventory for connector and settings changes", async () => {
-		await render();
-		act(() => mocks.onConnectorsChanged?.());
-		expect(mocks.invalidateInventory).toHaveBeenCalledTimes(1);
-		const settingsChanged = mocks.subscribe.mock.calls.find(
-			([event]) => event === "settings.changed",
-		)?.[1] as (() => void) | undefined;
-		act(() => settingsChanged?.());
-		expect(mocks.invalidateInventory).toHaveBeenCalledTimes(2);
 	});
 	it("shows the shared marketplace rows in All and the Connectors filter, with marketplace search and install", async () => {
 		await render();

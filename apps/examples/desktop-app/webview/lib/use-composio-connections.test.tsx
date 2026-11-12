@@ -40,10 +40,18 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 
+function emitDesktopEvent(name: string) {
+	const callback = mocks.subscribe.mock.calls.find(
+		([eventName]) => eventName === name,
+	)?.[1] as (() => void) | undefined;
+	expect(callback).toBeTypeOf("function");
+	callback?.();
+}
+
 let root: Root;
 let container: HTMLDivElement;
-function Probe({ onChanged }: { onChanged?: () => void } = {}) {
-	const connections = useComposioConnections({ onChanged });
+function Probe() {
+	const connections = useComposioConnections();
 	return (
 		<div>
 			<output>
@@ -261,25 +269,7 @@ describe("connector connection state across navigation", () => {
 		);
 	});
 
-	it("reports installed connector changes without treating metadata or pending refreshes as inventory changes", async () => {
-		const onChanged = vi.fn();
-		mocks.invoke.mockResolvedValueOnce(status());
-		await act(async () => root.render(<Probe onChanged={onChanged} />));
-		expect(onChanged).not.toHaveBeenCalled();
-		const renamed = status();
-		renamed.integrations[0].name = "Renamed Gmail";
-		mocks.invoke.mockResolvedValueOnce(renamed);
-		await act(async () => container.querySelector("button")?.click());
-		expect(onChanged).not.toHaveBeenCalled();
-		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
-		await act(async () => container.querySelector("button")?.click());
-		expect(onChanged).toHaveBeenCalledOnce();
-		mocks.invoke.mockResolvedValueOnce(status("pending"));
-		await act(async () => container.querySelector("button")?.click());
-		expect(onChanged).toHaveBeenCalledOnce();
-	});
-
-	it("reloads mounted consumers after settings invalidation without restoring old account data", async () => {
+	it("reloads mounted consumers after account invalidation without restoring old account data", async () => {
 		mocks.invoke.mockResolvedValueOnce(status());
 		await act(async () => root.render(<Probe />));
 		const old = deferred<ComposioStatusResponse>();
@@ -288,7 +278,7 @@ describe("connector connection state across navigation", () => {
 			.mockReturnValueOnce(old.promise)
 			.mockReturnValueOnce(current.promise);
 		await act(async () => container.querySelector("button")?.click());
-		await act(async () => mocks.subscribe.mock.calls[0][1]());
+		await act(async () => emitDesktopEvent("cloud_sessions_changed"));
 		expect(container.querySelector("output")?.textContent).toBe("loading");
 		await act(async () => old.resolve(status()));
 		expect(getComposioStatusSnapshot().status).toBeNull();
