@@ -258,8 +258,9 @@ export function ImportSessionsDialog({
 									No sessions found
 								</p>
 								<p className="max-w-sm text-sm text-muted-foreground">
-									Cline looks for local history from Claude Code, Codex, and
-									opencode. Nothing importable turned up on this machine.
+									Cline looks for local history from Claude Code, Codex,
+									opencode, and Cursor. Nothing importable turned up on this
+									machine.
 								</p>
 							</div>
 						) : null}

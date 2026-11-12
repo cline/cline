@@ -16,8 +16,14 @@ describe("readImportedFromTool", () => {
 		expect(readImportedFromTool({ title: "native" })).toBeUndefined();
 		expect(readImportedFromTool({ importedFrom: "codex" })).toBeUndefined();
 		expect(
-			readImportedFromTool({ importedFrom: { tool: "cursor" } }),
+			readImportedFromTool({ importedFrom: { tool: "not-a-tool" } }),
 		).toBeUndefined();
+	});
+
+	it("reads Cursor off the importedFrom marker", () => {
+		expect(readImportedFromTool({ importedFrom: { tool: "cursor" } })).toBe(
+			"cursor",
+		);
 	});
 });
 
