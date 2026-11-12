@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -51,6 +51,18 @@ function resolveBunExecutable(): string {
 		}
 	}
 	throw new Error(`Bun executable (${executableName}) was not found on PATH`);
+}
+
+function resolveBunVersion(executable: string): string {
+	const version = execFileSync(executable, ["--version"], {
+		encoding: "utf8",
+		timeout: 10_000,
+		windowsHide: true,
+	}).trim();
+	if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+		throw new Error(`Unexpected Bun version output from ${executable}`);
+	}
+	return version;
 }
 
 function delay(ms: number): Promise<void> {
@@ -248,7 +260,7 @@ describe("hub daemon shutdown", () => {
 			expect(result).toEqual({ code: 0, signal: null });
 			expect(Date.now() - startedAt).toBeLessThan(5_000);
 			expect(daemon.stderr()).toContain(
-				"[shutdown-fixture] runtime: bun 1.4.2",
+				`[shutdown-fixture] runtime: bun ${resolveBunVersion(resolveBunExecutable())}`,
 			);
 			await expect(
 				readFile(daemon.discoveryPath, "utf8"),
@@ -282,7 +294,7 @@ describe("hub daemon shutdown", () => {
 				expect(result).toEqual({ code: 0, signal: null });
 				expect(Date.now() - startedAt).toBeLessThan(5_000);
 				expect(daemon.stderr()).toContain(
-					"[shutdown-fixture] runtime: bun 1.4.2",
+					`[shutdown-fixture] runtime: bun ${resolveBunVersion(resolveBunExecutable())}`,
 				);
 				await expect(
 					readFile(daemon.discoveryPath, "utf8"),
