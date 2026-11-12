@@ -10,7 +10,7 @@ import type {
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import type { UserContext } from "@cline/shared";
+import type { PluginUiOrder, UserContext } from "@cline/shared";
 import type { HubStartup } from "./hub-startup";
 
 export const LOCAL_ENVIRONMENT_ID = "local";
@@ -74,6 +74,19 @@ export type LiveSession = {
 	endedAt?: number;
 	status: string;
 	transitioningProvider?: boolean;
+	/**
+	 * A local session's plugins changed since it started (install, uninstall,
+	 * toggle, or a replaced Hub). Plugins load once per start, so its next own
+	 * turn restarts it first.
+	 */
+	pluginsStale?: boolean;
+	/** The order of each plugin UI slot's latest state, as the Hub sent them. */
+	pluginUiOrders?: Map<string, PluginUiOrder>;
+	/**
+	 * While the Hub reports a turn under way: each slot's order when the
+	 * sidecar first saw it running. Unset otherwise.
+	 */
+	pluginUiTurnStart?: Map<string, PluginUiOrder>;
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
@@ -146,6 +159,12 @@ export type SidecarWebSocketClient = {
 	close?: () => void;
 };
 
+/** The webview sockets viewing one session's plugin UI slots, and the environment their attach went to. */
+export type PluginUiSessionViewers = {
+	environmentId: string;
+	sockets: Set<SidecarWebSocketClient>;
+};
+
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
@@ -177,6 +196,12 @@ export type SidecarContext = {
 	 * replayed to webviews that connect after the event fired.
 	 */
 	hubBuildMismatch: ManagedHubBuildMismatchEvent | null;
+	/**
+	 * Webview sockets viewing each session's plugin UI slots, by session id.
+	 * Optional so hand-built contexts still work; read and written only through
+	 * the `plugin-ui.ts` helpers.
+	 */
+	pluginUiViews?: Map<string, PluginUiSessionViewers>;
 	/** Local Hub setup, which runs after the transport is published. */
 	hubStartup?: HubStartup;
 };

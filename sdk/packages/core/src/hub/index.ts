@@ -43,6 +43,7 @@ export * from "./client";
 export * from "./client/connect";
 export * from "./client/managed-hub-build-watcher";
 export { createHubMcpApi, type HubMcpApi } from "./client/mcp";
+export type { HubPluginUiStreamHandlers } from "./client/plugin-ui";
 export { createHubProvidersApi } from "./client/providers";
 export * from "./client/session-client";
 export * from "./client/ui-client";

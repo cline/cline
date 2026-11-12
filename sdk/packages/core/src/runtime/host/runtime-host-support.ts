@@ -14,6 +14,13 @@ export class RuntimeHostEventBus {
 		sessionId?: string;
 	}>();
 
+	constructor(
+		private readonly onListenerError?: (
+			error: unknown,
+			event: CoreSessionEvent,
+		) => void,
+	) {}
+
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,
@@ -34,7 +41,14 @@ export class RuntimeHostEventBus {
 			if (entry.sessionId && entry.sessionId !== sessionId) {
 				continue;
 			}
-			entry.listener(event);
+			// One throwing subscriber must not starve the rest or throw into the emitter.
+			try {
+				entry.listener(event);
+			} catch (error) {
+				try {
+					this.onListenerError?.(error, event);
+				} catch {}
+			}
 		}
 	}
 

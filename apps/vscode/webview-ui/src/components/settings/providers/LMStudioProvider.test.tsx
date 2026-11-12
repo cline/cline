@@ -58,7 +58,7 @@ vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeLink: ({ children, href }: { children?: ReactNode; href?: string }) => <a href={href}>{children}</a>,
 	VSCodeOption: ({ children, value }: { children?: ReactNode; value?: string }) => <option value={value}>{children}</option>,
 	VSCodeTextField: ({ children, disabled, value }: { children?: ReactNode; disabled?: boolean; value?: string }) => (
-		<input disabled={disabled} value={value ?? ""} readOnly />
+		<input disabled={disabled} readOnly value={value ?? ""} />
 	),
 }))
 

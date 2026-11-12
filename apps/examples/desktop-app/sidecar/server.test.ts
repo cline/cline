@@ -3,8 +3,26 @@ import {
 	MAX_RECORDED_AUDIO_BASE64_BYTES,
 	MAX_RECORDED_AUDIO_BYTES,
 } from "../webview/lib/voice-input-limits";
+import { hubBuildWatchCallbacks } from "./hub-capability";
 import { createFetchHandler, createWebSocketHandler } from "./server";
 import type { SidecarContext } from "./types";
+
+const { enabledPluginPaths } = vi.hoisted(() => ({
+	enabledPluginPaths: { current: [] as string[] },
+}));
+
+vi.mock("@cline/core", async () => {
+	const actual =
+		await vi.importActual<typeof import("@cline/core")>("@cline/core");
+	return {
+		...actual,
+		resolveAgentPluginPathsWithDiagnostics: () => ({
+			paths: enabledPluginPaths.current,
+			disabledPaths: [],
+			discoveryFailures: [],
+		}),
+	};
+});
 
 const TEST_APPROVAL_TOKEN = "test-approval-token";
 
@@ -294,5 +312,143 @@ describe("desktop error telemetry", () => {
 
 		expect(response?.status).toBe(403);
 		expect(capture).not.toHaveBeenCalled();
+	});
+});
+
+describe("plugin UI viewers on socket close", () => {
+	it("detaches only the sessions the closed socket was the last to view", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { invokePluginUi } = await import("./plugin-ui");
+		const invoke = vi.fn(async () => ({ outcome: "ok" as const }));
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			sessionManager: { pluginUi: { invoke } },
+			hubClient: { updateCapabilities: vi.fn(async () => undefined) },
+			unsubscribeSessionEvents: () => {},
+		} as never);
+		const closing = { data: { canApproveTools: true }, send: vi.fn() };
+		const staying = { data: { canApproveTools: true }, send: vi.fn() };
+		const attach = (sessionId: string) => ({
+			environmentId: "local",
+			sessionId,
+			slot: "composer.suggestions",
+			action: { verb: "attach", surface: "desktop" },
+		});
+		await invokePluginUi(ctx, attach("shared"), closing);
+		await invokePluginUi(ctx, attach("shared"), staying);
+		await invokePluginUi(ctx, attach("solo"), closing);
+		invoke.mockClear();
+
+		const handler = createWebSocketHandler(ctx);
+		handler.open(closing);
+		handler.close(closing);
+
+		await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
+		expect(invoke).toHaveBeenCalledWith({
+			sessionId: "solo",
+			slot: "composer.suggestions",
+			action: { verb: "detach" },
+		});
+		expect(ctx.pluginUiViews?.get("shared")).toEqual({
+			environmentId: "local",
+			sockets: new Set([staying]),
+		});
+	});
+});
+
+describe("replaying a pending Hub mismatch to a new webview", () => {
+	const missingPluginUi = {
+		url: "ws://127.0.0.1:25463/hub",
+		reason: "missing_capability" as const,
+		hubBuildId: "source-0.0.93",
+		expectedBuildId: "source-0.0.93",
+		missingCapabilities: ["plugins.ui"],
+	};
+
+	function connectWebview() {
+		return { data: { canApproveTools: true }, send: vi.fn() };
+	}
+
+	function mismatchesSentTo(
+		socket: ReturnType<typeof connectWebview>,
+	): unknown[] {
+		return socket.send.mock.calls
+			.map(
+				([encoded]) =>
+					JSON.parse(String(encoded)) as {
+						event?: { name: string; payload: unknown };
+					},
+			)
+			.filter((message) => message.event?.name === "hub_build_mismatch")
+			.map((message) => message.event?.payload);
+	}
+
+	async function replayedMismatches(
+		hubBuildMismatch: SidecarContext["hubBuildMismatch"],
+	): Promise<unknown[]> {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.hubBuildMismatch = hubBuildMismatch;
+		const socket = connectWebview();
+
+		createWebSocketHandler(ctx).open(socket);
+
+		return mismatchesSentTo(socket);
+	}
+
+	it("holds back the plugin UI notice while no plugin is enabled", async () => {
+		enabledPluginPaths.current = [];
+
+		await expect(replayedMismatches(missingPluginUi)).resolves.toEqual([null]);
+	});
+
+	it("tells a webview that connects without a mismatch that there is none", async () => {
+		await expect(replayedMismatches(null)).resolves.toEqual([null]);
+	});
+
+	it("replays the plugin UI notice once a plugin is enabled", async () => {
+		enabledPluginPaths.current = ["/plugins/next-turn/index.ts"];
+
+		await expect(replayedMismatches(missingPluginUi)).resolves.toEqual([
+			missingPluginUi,
+		]);
+	});
+
+	it("replays the other Hub prompts regardless of plugins", async () => {
+		enabledPluginPaths.current = [];
+		const outdated = { ...missingPluginUi, reason: "outdated_hub" as const };
+
+		await expect(replayedMismatches(outdated)).resolves.toEqual([outdated]);
+	});
+
+	it("withdraws the notice once the watcher finds the Hub fixed, including from a webview that was reconnecting", async () => {
+		enabledPluginPaths.current = ["/plugins/next-turn/index.ts"];
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const watcher = hubBuildWatchCallbacks(ctx);
+		const handler = createWebSocketHandler(ctx);
+		const staying = connectWebview();
+		const dropped = connectWebview();
+		handler.open(staying);
+		handler.open(dropped);
+
+		const broadcastMismatch = expect.objectContaining(missingPluginUi);
+
+		watcher.onMismatch(missingPluginUi);
+		handler.close(dropped);
+		watcher.onResolved?.();
+		const reconnected = connectWebview();
+		handler.open(reconnected);
+
+		expect(ctx.hubBuildMismatch).toBeNull();
+		expect(mismatchesSentTo(staying)).toEqual([null, broadcastMismatch, null]);
+		expect(mismatchesSentTo(dropped)).toEqual([null, broadcastMismatch]);
+		expect(mismatchesSentTo(reconnected)).toEqual([null]);
+
+		watcher.onResolved?.();
+		expect(mismatchesSentTo(staying)).toEqual([null, broadcastMismatch, null]);
 	});
 });

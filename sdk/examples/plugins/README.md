@@ -25,6 +25,7 @@ What a plugin can do:
 | [openrouter-provider.ts](./openrouter-provider.ts) | Custom model provider via `registerProvider` | Registers an OpenAI-compatible model provider (pointed at OpenRouter) plus its model catalog so the agent can run inference against it. Swap the base URL, API key env var, and models to add any OpenAI-compatible endpoint Cline does not bundle. Requires `OPENROUTER_API_KEY`. |
 | [typescript-lsp/](./typescript-lsp/) | `goto_definition` tool powered by the TypeScript Language Service | Adds `goto_definition(file, line)` for TypeScript/JavaScript projects. It loads the target project’s own TypeScript version, finds identifiers on a line, and resolves definitions through imports, re-exports, aliases, and other language-service semantics. |
 | [agents-squad/](./agents-squad/) | Multi-agent team — spin up subagents with their own models and personalities | Adds tools for starting, messaging, polling, and coordinating background subagents. It includes bundled agent presets, skill discovery/loading, and a shared handoff store for passing notes between subagents in the same conversation. Reports subagent lifecycle outcomes through `ctx.logger` and `ctx.telemetry` (start counters, completion events, turn-duration histograms). |
+| [next-turn/](./next-turn/) | Turn-end suggestions from one `afterRun` hook and one `composer.suggestions` slot | Offers up to three next-step rows after each root turn, chosen by rules over the turn's status and tool parts: a stopped turn leads with Resume, a failed turn or errored tool with Fix, a completed turn that edited files adds Verify and Review, and every turn ends at Next step. `skip` and `refresh` page through the pool; a row keeps its id for the turn, and a `refresh` aimed at a set already replaced is refused. |
 
 The runtime-hook variant of compaction lives in [../hooks/custom-compaction-hook.example.ts](../hooks/custom-compaction-hook.example.ts).
 
@@ -144,15 +145,17 @@ Declare what the plugin uses in `manifest.capabilities`. Each one unlocks one pa
 
 The setup `ctx` may include `session`, `client`, `user`, `workspaceInfo`, `automation`, `logger`, and `telemetry` depending on the host. See [`automation-events.ts`](./automation-events.ts) for an end-to-end example.
 
-`ctx.telemetry` works in both plugin execution modes: in-process plugins receive the host telemetry service directly, and sandboxed plugins receive a bridge that forwards `capture`/`captureRequired`/`recordCounter`/`recordHistogram`/`recordGauge` calls to the host over IPC (pass only JSON-serializable properties). The host namespaces every plugin event and metric under `plugin.` and stamps it with `plugin_name`, and drops them when the user has opted out of telemetry. Always feature-detect it (`ctx.telemetry?.capture(...)`) — it is undefined when the host has no telemetry service. One sandbox caveat: the bridge is stateless, so `isEnabled()` always reports `true` and opted-out events are simply dropped host-side — do not use it to gate expensive property computation, and keep telemetry properties cheap to build. Identity setters (`setDistinctId`, `setCommonProperties`, …) are host concerns and are no-ops in the sandbox. See [`weather-metrics.ts`](./weather-metrics.ts) for usage.
+Plugins always run sandboxed, so `ctx.telemetry` is a bridge that forwards `capture`/`captureRequired`/`recordCounter`/`recordHistogram`/`recordGauge` calls to the host over IPC (pass only JSON-serializable properties). The host namespaces every plugin event and metric under `plugin.` and stamps it with `plugin_name`, and drops them when the user has opted out of telemetry. Always feature-detect it (`ctx.telemetry?.capture(...)`) — it is undefined when the host has no telemetry service. One sandbox caveat: the bridge is stateless, so `isEnabled()` always reports `true` and opted-out events are simply dropped host-side — do not use it to gate expensive property computation, and keep telemetry properties cheap to build. Identity setters (`setDistinctId`, `setCommonProperties`, …) are host concerns and are no-ops in the sandbox. See [`weather-metrics.ts`](./weather-metrics.ts) for usage.
 
 ### Sandboxed plugin lifetime
 
-Discovered plugins run in a session-owned subprocess. An idle subprocess is
-reclaimed after 30 minutes without an active plugin call, and the next tool,
-hook, command, rule, or message-builder call transparently starts a fresh
-process and runs plugin setup again. Hosts can tune the idle period with
-`CLINE_PLUGIN_IDLE_TIMEOUT_MS` (milliseconds). Active calls are never evicted.
+Each session runs its plugins in a sandbox of its own: a worker thread, or a
+subprocess where a host opts into that sandbox. An idle sandbox is reclaimed
+after 30 minutes without an active plugin call (a worker first runs the
+plugin's `ctx.onDispose` cleanup), and the next tool, hook, command, rule, or
+message-builder call transparently starts a fresh one and runs plugin setup
+again. Hosts can tune the idle period with `CLINE_PLUGIN_IDLE_TIMEOUT_MS`
+(milliseconds). Active calls are never evicted.
 
 Treat module-level variables as a cache, not durable storage: they reset after
 idle eviction, a hub restart, or a sandbox crash. Persist state that must survive

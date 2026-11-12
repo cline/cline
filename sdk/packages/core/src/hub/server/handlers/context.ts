@@ -19,6 +19,7 @@ import type {
 	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
+import type { PluginUiHostRuntimeService } from "../../../services/plugin-ui-api";
 import type { SessionHistorySearchService } from "../../../session/search";
 import {
 	type CoreSessionSnapshot,
@@ -95,6 +96,7 @@ export interface HubTransportContext {
 				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService &
+				PluginUiHostRuntimeService &
 				McpAppsRuntimeService
 		>;
 	/**
@@ -105,6 +107,12 @@ export interface HubTransportContext {
 	 */
 	isDraining?(): boolean;
 	publish(event: HubEventEnvelope): void;
+	/**
+	 * Delivers to live listeners without appending to the durable event log,
+	 * for last-value state that must never replay. Optional: absent contexts
+	 * (test fixtures) drop such events.
+	 */
+	publishEphemeral?(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],
 		payload?: Record<string, unknown>,
