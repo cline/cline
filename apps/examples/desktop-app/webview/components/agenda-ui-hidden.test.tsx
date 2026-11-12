@@ -74,6 +74,7 @@ describe("Agenda UI hidden by default", () => {
 				<SidebarProvider>
 					<AgentSidebar
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory()}
 						setView={vi.fn()}

@@ -4,6 +4,8 @@ import {
 	AgentSessionOverview,
 	AgentSessionRow,
 	AgentSessionRowEditor,
+	AlertDialog,
+	Badge,
 } from "@cline/ui";
 
 import {
@@ -34,7 +36,6 @@ import {
 	Search,
 	Settings,
 	SlidersHorizontal,
-	Store,
 	Trash2,
 } from "lucide-react";
 import {
@@ -48,17 +49,6 @@ import {
 } from "react";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -85,8 +75,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
 import {
-	CUSTOMIZATION_SECTION_LABELS,
-	CUSTOMIZATION_SECTIONS,
 	isProviderSection,
 	PROVIDER_SECTION_LABELS,
 	PROVIDER_SECTIONS,
@@ -106,6 +94,7 @@ import {
 	isBetaVersion,
 	productNameForVersion,
 } from "@/lib/app-channel";
+import type { DesktopAppView } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import { formatAccelerator, useKeybindings } from "@/lib/keybindings";
 import {
@@ -132,7 +121,6 @@ import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
-type AppView = "chat" | "sessions" | "settings";
 
 const filterOptions = ["All", "Running"] as const;
 type FilterOption = (typeof filterOptions)[number];
@@ -175,20 +163,7 @@ const SETTINGS_SECTION_ICONS = {
 	Account: CircleUserRound,
 	Debug: Bug,
 	About: Info,
-	Customize: Blocks,
-	Marketplace: Store,
 } satisfies Record<SettingsSection, typeof Settings>;
-
-// The Customize section is the installed inventory, so its nav row reads
-// "Installed" (it sits under a "Customize" group header / next to the
-// Marketplace row, which supplies the context).
-function settingsSectionLabel(section: SettingsSection): string {
-	return (
-		CUSTOMIZATION_SECTION_LABELS[
-			section as keyof typeof CUSTOMIZATION_SECTION_LABELS
-		] ?? section
-	);
-}
 
 function SettingsSectionNavigation({
 	activeSection,
@@ -204,28 +179,27 @@ function SettingsSectionNavigation({
 	const hasConnectedProvider = useHasConnectedProvider();
 	const renderSectionButton = (section: SettingsSection) => {
 		const Icon = SETTINGS_SECTION_ICONS[section];
-		const label = settingsSectionLabel(section);
+		const active = activeSection === section;
 		const disabled = section === "Voice" && hasConnectedProvider === false;
 		const button = (
 			<Button
-				aria-current={activeSection === section ? "page" : undefined}
-				aria-label={label}
+				aria-current={active ? "page" : undefined}
+				aria-label={section}
 				className={cn(
 					"min-w-0 justify-start",
-					activeSection === section &&
-						"bg-surface-hover text-sidebar-foreground",
+					active && "bg-surface-hover text-sidebar-foreground",
 					collapsed && "size-9 justify-center px-0",
 					disabled && !collapsed && "w-full",
 				)}
 				disabled={disabled}
 				key={disabled ? undefined : section}
 				onClick={() => onSelect(section)}
-				title={label}
+				title={section}
 				type="button"
 				variant="sidebarItem"
 			>
 				<Icon className="size-4 shrink-0" />
-				{!collapsed ? <span className="truncate">{label}</span> : null}
+				{!collapsed ? <span className="truncate">{section}</span> : null}
 			</Button>
 		);
 		if (!disabled) {
@@ -301,25 +275,12 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{/* Schedules and Customize already have dedicated rows at the top of
-			    the expanded sidebar (Customize's Installed/Marketplace sub-tabs
-			    render under that row), so the section nav skips them there.
-			    The collapsed sidebar has no action rows and keeps them
-			    reachable. */}
-			{SETTINGS_SECTIONS.filter(
-				(section) => collapsed || section !== "Schedules",
-			).map((section) => {
+			{SETTINGS_SECTIONS.map((section) => {
 				if (collapsed || !isProviderSection(section)) {
 					return renderSectionButton(section);
 				}
 				return section === "Account" ? renderProvidersGroup() : null;
 			})}
-			{collapsed ? (
-				<>
-					<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
-					{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
-				</>
-			) : null}
 		</nav>
 	);
 }
@@ -331,6 +292,7 @@ export function AgentSidebar({
 	onHome,
 	onNavigateBack,
 	onNavigateForward,
+	onOpenCustomize,
 	onOpenSearch,
 	onSettingsSectionChange,
 	setView,
@@ -346,12 +308,13 @@ export function AgentSidebar({
 	onHome: () => void;
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
+	onOpenCustomize: () => void;
 	/** Opens the global session search command bar. */
 	onOpenSearch?: () => void;
 	onSettingsSectionChange: (section: SettingsSection) => void;
-	setView: (view: AppView) => void;
+	setView: (view: DesktopAppView) => void;
 	settingsSection: SettingsSection;
-	view: AppView;
+	view: DesktopAppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
 }) {
@@ -494,6 +457,14 @@ export function AgentSidebar({
 		setView("sessions");
 		closeMobileSidebar();
 	}, [closeMobileSidebar, setView]);
+	const openSchedules = useCallback(() => {
+		onSettingsSectionChange("Schedules");
+		closeMobileSidebar();
+	}, [closeMobileSidebar, onSettingsSectionChange]);
+	const openCustomize = useCallback(() => {
+		onOpenCustomize();
+		closeMobileSidebar();
+	}, [closeMobileSidebar, onOpenCustomize]);
 	// The gear is a shortcut to the General settings page rather than a
 	// resume-last-section toggle.
 	const openSettings = useCallback(() => {
@@ -821,11 +792,9 @@ export function AgentSidebar({
 		() => groupScheduledThreads(scheduledThreads),
 		[scheduledThreads],
 	);
-	const customizeSectionOpen =
-		view === "settings" &&
-		(CUSTOMIZATION_SECTIONS as readonly SettingsSection[]).includes(
-			settingsSection,
-		);
+	const scheduleSectionOpen =
+		view === "settings" && settingsSection === "Schedules";
+	const customizeSectionOpen = view === "customize";
 	const timeShowMoreButton = (
 		<Button
 			className="px-2!"
@@ -956,7 +925,7 @@ export function AgentSidebar({
 										</span>
 									</div>
 									{hubStatus && !hubStatus.connected && (
-										<p className="mt-1 text-[11px] text-destructive">
+										<p className="mt-1 text-[11px] text-error-text">
 											{hubStatus.error ?? "Cline Hub is not connected."}
 										</p>
 									)}
@@ -967,7 +936,7 @@ export function AgentSidebar({
 							<Badge
 								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
 								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
-								variant="secondary"
+								tone="neutral"
 							>
 								Beta
 							</Badge>
@@ -1014,14 +983,14 @@ export function AgentSidebar({
 							<span className="truncate">Session</span>
 						</Button>
 						<Button
+							aria-current={scheduleSectionOpen ? "page" : undefined}
 							aria-label="Schedule"
 							className={cn(
-								view === "settings" &&
-									settingsSection === "Schedules" &&
+								scheduleSectionOpen &&
 									"bg-surface-hover text-sidebar-foreground",
 							)}
-							onClick={() => openSettingsSection("Schedules")}
-							title="Schedules"
+							onClick={openSchedules}
+							title="Schedule"
 							type="button"
 							variant="sidebarItem"
 						>
@@ -1029,12 +998,13 @@ export function AgentSidebar({
 							<span className="truncate">Schedule</span>
 						</Button>
 						<Button
+							aria-current={customizeSectionOpen ? "page" : undefined}
 							aria-label="Customize"
 							className={cn(
 								customizeSectionOpen &&
-									"bg-surface-hover-lighter text-sidebar-foreground",
+									"bg-surface-hover text-sidebar-foreground",
 							)}
-							onClick={() => openSettingsSection("Customize")}
+							onClick={openCustomize}
 							title="Customize Cline with plugins, rules, and more"
 							type="button"
 							variant="sidebarItem"
@@ -1042,36 +1012,42 @@ export function AgentSidebar({
 							<Blocks className="size-4 shrink-0" />
 							<span className="truncate">Customize</span>
 						</Button>
-						{customizeSectionOpen
-							? CUSTOMIZATION_SECTIONS.map((section) => (
-									<Button
-										aria-current={
-											settingsSection === section ? "page" : undefined
-										}
-										aria-label={settingsSectionLabel(section)}
-										className={cn(
-											"pl-8!",
-											settingsSection === section &&
-												"bg-surface-hover text-sidebar-foreground",
-										)}
-										key={section}
-										onClick={() => openSettingsSection(section)}
-										title={settingsSectionLabel(section)}
-										type="button"
-										variant="sidebarItem"
-									>
-										<span className="truncate">
-											{settingsSectionLabel(section)}
-										</span>
-									</Button>
-								))
-							: null}
 					</nav>
 				) : null}
 
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
 						<AppUpdateIndicator className="mx-auto size-9" />
+						<Button
+							aria-current={scheduleSectionOpen ? "page" : undefined}
+							aria-label="Schedule"
+							className={cn(
+								"size-9 shrink-0 justify-center px-0",
+								scheduleSectionOpen &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={openSchedules}
+							title="Schedule"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Clock3 className="size-4 shrink-0" />
+						</Button>
+						<Button
+							aria-current={customizeSectionOpen ? "page" : undefined}
+							aria-label="Customize"
+							className={cn(
+								"size-9 shrink-0 justify-center px-0",
+								customizeSectionOpen &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={openCustomize}
+							title="Customize Cline with plugins, rules, and more"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Blocks className="size-4 shrink-0" />
+						</Button>
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
@@ -1365,48 +1341,40 @@ export function AgentSidebar({
 						setDeleteConfirmThread(null);
 					}
 				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete session?</AlertDialogTitle>
-						<AlertDialogDescription>
-							{deleteConfirmThread?.origin === "cloud"
-								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
-								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
-							{deleteConfirmThread?.origin !== "cloud" &&
-							isTaskWorktreePath(deleteConfirmThread?.workspacePath ?? "")
-								? ` ${TASK_WORKTREE_DELETE_WARNING}`
-								: null}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={pendingAction?.action === "delete"}>
-							Cancel
-						</AlertDialogCancel>
-						<AlertDialogAction
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							disabled={
-								!deleteConfirmThread || pendingAction?.action === "delete"
-							}
-							onClick={(event) => {
-								event.preventDefault();
-								if (deleteConfirmThread) {
-									void deleteThread(deleteConfirmThread);
-								}
-							}}
-						>
-							{pendingAction?.action === "delete" ? (
-								<>
-									<Loader2 className="size-4 animate-spin" />
-									Deleting...
-								</>
-							) : (
-								"Delete"
-							)}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				title="Delete session?"
+				description={
+					<>
+						{deleteConfirmThread?.origin === "cloud"
+							? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
+							: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
+						{deleteConfirmThread?.origin !== "cloud" &&
+						isTaskWorktreePath(deleteConfirmThread?.workspacePath ?? "")
+							? ` ${TASK_WORKTREE_DELETE_WARNING}`
+							: null}
+					</>
+				}
+				confirmLabel={
+					pendingAction?.action === "delete" ? (
+						<>
+							<Loader2 className="size-4 animate-spin" />
+							Deleting...
+						</>
+					) : (
+						"Delete"
+					)
+				}
+				confirmTone="destructive"
+				confirmDisabled={
+					!deleteConfirmThread || pendingAction?.action === "delete"
+				}
+				onConfirm={(event) => {
+					event.preventDefault();
+					if (deleteConfirmThread) {
+						void deleteThread(deleteConfirmThread);
+					}
+				}}
+				cancelDisabled={pendingAction?.action === "delete"}
+			/>
 		</>
 	);
 }
@@ -1667,7 +1635,7 @@ function ThreadItem({
 							action={
 								<Button
 									aria-label={`Delete ${title}`}
-									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 hover:text-error-text focus-visible:opacity-100 group-hover/row:opacity-100"
 									disabled={pending}
 									onClick={(event) => {
 										event.stopPropagation();
