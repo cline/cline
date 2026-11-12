@@ -51,6 +51,64 @@ function form() {
 	return element;
 }
 
+function resetButton() {
+	const element = container.querySelector<HTMLButtonElement>(
+		'button[type="reset"]',
+	);
+	if (!element) throw new Error("Expected a reset button");
+	return element;
+}
+
+// A trusted reset button click checkpoints microtasks between listeners.
+// jsdom keeps the caller on the stack, so drain microtasks queued by the
+// document capture listener before onReset and the native reset.
+function installTrustedResetCheckpoint() {
+	const queued: Array<() => void> = [];
+	const original = globalThis.queueMicrotask;
+	let intercepting = false;
+	let armed = false;
+	let drained = 0;
+	globalThis.queueMicrotask = (callback) => {
+		if (intercepting) queued.push(callback);
+		else original(callback);
+	};
+	const begin = () => {
+		if (armed) intercepting = true;
+	};
+	const checkpoint = () => {
+		intercepting = false;
+		const callbacks = queued.splice(0);
+		drained += callbacks.length;
+		for (const callback of callbacks) callback();
+	};
+	document.addEventListener("reset", begin, true);
+	return {
+		arm() {
+			if (armed) return;
+			armed = true;
+			document.addEventListener("reset", checkpoint, true);
+		},
+		async clickReset(button: HTMLButtonElement = resetButton()) {
+			const drainedBefore = drained;
+			await act(async () => {
+				button.click();
+				await new Promise((resolve) => setTimeout(resolve, 0));
+			});
+			if (drained === drainedBefore) {
+				throw new Error(
+					"Expected a reset microtask to run before later reset listeners",
+				);
+			}
+		},
+		stop() {
+			document.removeEventListener("reset", begin, true);
+			document.removeEventListener("reset", checkpoint, true);
+			globalThis.queueMicrotask = original;
+			for (const callback of queued) original(callback);
+		},
+	};
+}
+
 describe("SegmentedControl", () => {
 	it.each([
 		false,
@@ -360,6 +418,124 @@ describe("SegmentedControl", () => {
 		await act(async () => form().reset());
 		expect(input("dark").checked).toBe(true);
 		expect(input("system").checked).toBe(false);
+	});
+
+	it("resets uncontrolled selection from a reset button without emitting a user change", async () => {
+		const onValueChange = vi.fn();
+		const checkpoint = installTrustedResetCheckpoint();
+		try {
+			await render(
+				<form>
+					<SegmentedControl
+						aria-label="Color theme"
+						defaultValue="system"
+						name="theme"
+						onValueChange={onValueChange}
+						options={options}
+					/>
+					<button type="reset">Reset</button>
+				</form>,
+			);
+			checkpoint.arm();
+			await act(async () => input("dark").click());
+			expect(new FormData(form()).get("theme")).toBe("dark");
+			await checkpoint.clickReset();
+			expect(input("system").checked).toBe(true);
+			expect(input("dark").checked).toBe(false);
+			expect(new FormData(form()).get("theme")).toBe("system");
+			expect(
+				fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+			).toBe("0");
+			expect(onValueChange).toHaveBeenCalledExactlyOnceWith("dark");
+		} finally {
+			checkpoint.stop();
+		}
+	});
+
+	it("keeps the controlled choice and form data aligned when a reset button is clicked", async () => {
+		const checkpoint = installTrustedResetCheckpoint();
+		try {
+			const control = (value: string) => (
+				<form>
+					<SegmentedControl
+						aria-label="Color theme"
+						name="theme"
+						options={options}
+						value={value}
+					/>
+					<button type="reset">Reset</button>
+				</form>
+			);
+			await render(control("system"));
+			checkpoint.arm();
+			await render(control("dark"));
+			await checkpoint.clickReset();
+			expect(input("dark").checked).toBe(true);
+			expect(input("system").checked).toBe(false);
+			expect(new FormData(form()).get("theme")).toBe("dark");
+			expect(
+				fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+			).toBe("2");
+		} finally {
+			checkpoint.stop();
+		}
+	});
+
+	it("uses the latest controlled value committed during a reset button click", async () => {
+		const checkpoint = installTrustedResetCheckpoint();
+		try {
+			function ControlledForm() {
+				const [value, setValue] = useState("dark");
+				return (
+					<form onReset={() => flushSync(() => setValue("light"))}>
+						<SegmentedControl
+							aria-label="Color theme"
+							name="theme"
+							options={options}
+							value={value}
+						/>
+						<button type="reset">Reset</button>
+					</form>
+				);
+			}
+			await render(<ControlledForm />);
+			checkpoint.arm();
+			await checkpoint.clickReset();
+			expect(input("light").checked).toBe(true);
+			expect(input("dark").checked).toBe(false);
+			expect(new FormData(form()).getAll("theme")).toEqual(["light"]);
+			expect(
+				fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+			).toBe("1");
+		} finally {
+			checkpoint.stop();
+		}
+	});
+
+	it("keeps the current choice when a reset button click is canceled", async () => {
+		const checkpoint = installTrustedResetCheckpoint();
+		try {
+			await render(
+				<form onReset={(event) => event.preventDefault()}>
+					<SegmentedControl
+						aria-label="Color theme"
+						defaultValue="system"
+						options={options}
+					/>
+					<button type="reset">Reset</button>
+				</form>,
+			);
+			checkpoint.arm();
+			await act(async () => input("dark").click());
+			await checkpoint.clickReset();
+			expect(input("dark").checked).toBe(true);
+			expect(input("system").checked).toBe(false);
+			expect(
+				fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+			).toBe("2");
+		} finally {
+			checkpoint.stop();
+		}
 	});
 
 	it("runs a React 19 callback ref cleanup when the control unmounts", async () => {
