@@ -44,6 +44,7 @@ import {
 	ComposioConnectorsView,
 	ConnectorLogo,
 } from "./settings/composio-connectors-view";
+import { invalidateExtensionInventoryCache } from "./settings/extensions-view";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -608,10 +609,10 @@ export function MarketplaceExplorerView({
 			if (!cancelled) setConnectorsAvailable(status?.configured === true);
 		};
 		void refresh();
-		const unsubscribe = desktopClient.subscribe(
-			"settings.changed",
-			() => void refresh(),
-		);
+		const unsubscribe = desktopClient.subscribe("settings.changed", () => {
+			invalidateExtensionInventoryCache();
+			void refresh();
+		});
 		return () => {
 			cancelled = true;
 			unsubscribe();
@@ -875,6 +876,7 @@ export function MarketplaceExplorerView({
 									appendOnScroll
 									searchQuery={query}
 									onCatalogCountChange={setConnectorCount}
+									onChanged={invalidateExtensionInventoryCache}
 									renderItem={({ entry, status, onOpenDetails, selected }) => (
 										<MarketplaceListRow
 											name={entry.name}

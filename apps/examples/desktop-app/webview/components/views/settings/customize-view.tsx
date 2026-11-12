@@ -120,6 +120,10 @@ export function CustomizeView({
 	const handleInventoryChanged = useCallback(() => {
 		void refreshCounts();
 	}, [refreshCounts]);
+	const handleConnectorInventoryChanged = useCallback(() => {
+		invalidateExtensionInventoryCache();
+		void refreshCounts();
+	}, [refreshCounts]);
 
 	return (
 		<PageFrame>
@@ -198,7 +202,7 @@ export function CustomizeView({
 			) : tab === "integrations" ? (
 				<ComposioConnectorsView
 					appendOnScroll
-					onChanged={handleInventoryChanged}
+					onChanged={handleConnectorInventoryChanged}
 					variant="installed"
 				/>
 			) : tab === "plugins" ? (
