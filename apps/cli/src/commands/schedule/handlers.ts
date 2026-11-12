@@ -75,6 +75,10 @@ export function registerScheduleCommands(
 		action(async (name: string) => {
 			const opts = createCmd.opts();
 			const metadataJson = parseJsonObjectFlag(opts.metadataJson);
+			const timeoutSeconds = opts.timeout
+				? toPositiveInt(opts.timeout, 1, "--timeout")
+				: undefined;
+			const maxParallel = toPositiveInt(opts.maxParallel, 1, "--max-parallel");
 			const metadata = scheduleMetadata({
 				metadata: metadataJson && {
 					object: metadataJson,
@@ -107,10 +111,8 @@ export function registerScheduleCommands(
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
-					timeoutSeconds: opts.timeout
-						? toPositiveInt(opts.timeout, 1)
-						: undefined,
-					maxParallel: toPositiveInt(opts.maxParallel, 1),
+					timeoutSeconds,
+					maxParallel,
 					enabled: !opts.disabled,
 					createdBy: opts.createdBy,
 					tags: parseList(opts.tags),
@@ -212,7 +214,7 @@ export function registerScheduleCommands(
 				const executions = await client.listScheduleExecutions({
 					scheduleId,
 					status: opts.status,
-					limit: toPositiveInt(opts.limit, 20),
+					limit: toPositiveInt(opts.limit, 20, "--limit"),
 				});
 				emitJsonOrText(!!opts.json, io, executions);
 			} finally {
@@ -245,7 +247,7 @@ export function registerScheduleCommands(
 			try {
 				const enabled = opts.enabled ? true : opts.disabled ? false : undefined;
 				const schedules = await client.listSchedules({
-					limit: toPositiveInt(opts.limit, 100),
+					limit: toPositiveInt(opts.limit, 100, "--limit"),
 					enabled,
 					tags: parseList(opts.tags),
 				});
@@ -403,7 +405,7 @@ export function registerScheduleCommands(
 			const client = ensured.client;
 			try {
 				const runs = await client.getUpcomingScheduledRuns(
-					toPositiveInt(opts.limit, 20),
+					toPositiveInt(opts.limit, 20, "--limit"),
 				);
 				emitJsonOrText(!!opts.json, io, runs);
 			} finally {

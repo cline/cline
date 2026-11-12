@@ -528,6 +528,83 @@ describe("runScheduleCommand create", () => {
 		).rejects.toThrow(`unknown option '${flag[0]}'`);
 		expect(mockHubClientCommand).not.toHaveBeenCalled();
 	});
+	it.each(["1h", "30m", "0", "abc"])(
+		"rejects --timeout %j instead of storing a different timeout",
+		async (raw) => {
+			const errors: string[] = [];
+			const code = await runScheduleCommand(
+				[
+					"create",
+					"Nightly",
+					"--cron",
+					"0 2 * * *",
+					"--prompt",
+					"Run tests",
+					"--workspace",
+					"/tmp/workspace",
+					"--timeout",
+					raw,
+					"--address",
+					"127.0.0.1:25463",
+				],
+				{
+					writeln: () => {},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+
+			expect(code).toBe(1);
+			expect(errors).toEqual([
+				`invalid --timeout "${raw}" (expected integer >= 1)`,
+			]);
+			expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
+			expect(mockHubClientCommand).not.toHaveBeenCalled();
+		},
+	);
+
+	it("stores a whole-number --timeout as given", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_123" } },
+		});
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			[
+				"create",
+				"Nightly",
+				"--cron",
+				"0 2 * * *",
+				"--prompt",
+				"Run tests",
+				"--workspace",
+				"/tmp/workspace",
+				"--timeout",
+				"3600",
+				"--address",
+				"127.0.0.1:25463",
+			],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(errors).toEqual([]);
+		expect(code).toBe(0);
+		expect(mockHubClientCommand).toHaveBeenCalledWith(
+			"schedule.create",
+			expect.objectContaining({ timeoutSeconds: 3600 }),
+		);
+	});
 });
 
 describe("runScheduleCommand update", () => {
@@ -590,6 +667,35 @@ describe("runScheduleCommand update", () => {
 					},
 				},
 			}),
+		);
+	});
+
+	it("rejects an --timeout that isn't a whole number of seconds", async () => {
+		mockEnsureCliHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "test-token",
+		});
+		mockHubClientCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: { scheduleId: "sched_1" } },
+		});
+
+		const errors: string[] = [];
+		const code = await runScheduleCommand(
+			["update", "sched_1", "--timeout", "1h", "--address", "127.0.0.1:25463"],
+			{
+				writeln: () => {},
+				writeErr: (text: string) => {
+					errors.push(text);
+				},
+			},
+		);
+
+		expect(code).toBe(1);
+		expect(errors).toEqual(['invalid --timeout "1h" (expected integer >= 1)']);
+		expect(mockHubClientCommand).not.toHaveBeenCalledWith(
+			"schedule.update",
+			expect.anything(),
 		);
 	});
 

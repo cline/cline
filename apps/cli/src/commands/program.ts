@@ -5,6 +5,7 @@ import {
 	CLI_COMPACTION_MODE_OPTION_DESCRIPTION,
 	parseCliCompactionMode,
 } from "../utils/compaction-mode";
+import { parsePositiveInt } from "../utils/positive-int";
 import type { ParsedArgs } from "../utils/types";
 
 export { CommanderError };
@@ -163,8 +164,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	// Timeout validation
 	if (opts.timeout !== undefined) {
 		const raw = opts.timeout.trim();
-		const parsed = Number.parseInt(raw, 10);
-		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+		const parsed = parsePositiveInt(raw);
+		if (parsed !== undefined) {
 			result.timeoutSeconds = parsed;
 		} else if (raw) {
 			result.invalidTimeoutSeconds = raw;
@@ -206,8 +207,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	// Retries (max consecutive mistakes) validation
 	if (opts.retries !== undefined) {
 		const raw = opts.retries.trim();
-		const parsed = Number.parseInt(raw, 10);
-		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+		const parsed = parsePositiveInt(raw);
+		if (parsed !== undefined) {
 			result.retries = parsed;
 		} else if (raw) {
 			result.invalidRetries = raw;

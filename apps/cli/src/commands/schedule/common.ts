@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { parsePositiveInt } from "../../utils/positive-int";
 import type { CommandIo } from "./types";
 
 export function parseList(raw: string | undefined): string[] | undefined {
@@ -28,10 +29,14 @@ export function parseJsonObjectFlag(
 export function toPositiveInt(
 	value: string | undefined,
 	fallback: number,
+	flag = "value",
 ): number {
-	const parsed = Number.parseInt(value ?? "", 10);
-	if (!Number.isFinite(parsed) || parsed <= 0) {
+	if (value === undefined || value.trim() === "") {
 		return fallback;
+	}
+	const parsed = parsePositiveInt(value);
+	if (parsed === undefined) {
+		throw new Error(`invalid ${flag} "${value}" (expected integer >= 1)`);
 	}
 	return parsed;
 }
