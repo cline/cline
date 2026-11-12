@@ -16,6 +16,7 @@ import type {
 import { isValidElement, memo, useMemo, useRef, useState } from "react";
 import {
 	type Components,
+	defaultRehypePlugins,
 	defaultRemarkPlugins,
 	type ExtraProps,
 	type LinkSafetyModalProps,
@@ -34,6 +35,7 @@ import {
 	AlertDialogTitle,
 } from "./alert-dialog";
 import { CHIP_TOKEN_TAG, remarkChipTokens } from "./markdown-chip-tokens";
+import { rehypeSvgSource } from "./markdown-svg-source";
 
 /**
  * Mermaid is an owned block, not Streamdown's built-in: Streamdown consults
@@ -380,7 +382,24 @@ const chipTokenComponents = {
 		<span className={agentComposerTokenClassName}>{children}</span>
 	),
 } as Components;
-const chipTokenAllowedTags = { [CHIP_TOKEN_TAG]: [] };
+const rehypePlugins = [
+	defaultRehypePlugins.raw,
+	rehypeSvgSource,
+	defaultRehypePlugins.sanitize,
+	defaultRehypePlugins.harden,
+];
+const chipTokenRehypePlugins = rehypePlugins.map((plugin) =>
+	plugin === defaultRehypePlugins.sanitize && Array.isArray(plugin)
+		? [
+				plugin[0],
+				{
+					...plugin[1],
+					tagNames: [...plugin[1].tagNames, CHIP_TOKEN_TAG],
+					attributes: { ...plugin[1].attributes, [CHIP_TOKEN_TAG]: [] },
+				},
+			]
+		: plugin,
+);
 
 export const MemoizedMarkdown = memo(
 	({
@@ -423,7 +442,6 @@ export const MemoizedMarkdown = memo(
 				onPointerDownCapture={recordDiagramLinkPress}
 			>
 				<Streamdown
-					allowedTags={remarkPlugins ? chipTokenAllowedTags : undefined}
 					className={cn("cline-markdown", classNames)}
 					components={remarkPlugins ? chipTokenComponents : markdownComponents}
 					controls={agentMarkdownControls}
@@ -434,6 +452,7 @@ export const MemoizedMarkdown = memo(
 					normalizeHtmlIndentation
 					parseIncompleteMarkdown={streaming}
 					plugins={streamdownPlugins}
+					rehypePlugins={remarkPlugins ? chipTokenRehypePlugins : rehypePlugins}
 					remarkPlugins={remarkPlugins}
 				>
 					{content}
