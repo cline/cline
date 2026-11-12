@@ -151,6 +151,30 @@ describe("AgentHeader project files toggle", () => {
 	});
 });
 
+describe("AgentHeader browser toggle", () => {
+	it("reflects the open state and toggles on click", async () => {
+		const onToggleBrowser = vi.fn();
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					browserOpen
+					onToggleBrowser={onToggleBrowser}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+		const toggle =
+			container.querySelector<HTMLButtonElement>("#toggle-browser");
+		expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+		expect(toggle?.getAttribute("aria-label")).toBe("Hide browser");
+		await act(async () => {
+			toggle?.click();
+		});
+		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("AgentHeader changes toggle", () => {
 	it("is hidden until the session has changes", async () => {
 		await act(async () => {
