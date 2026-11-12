@@ -69,6 +69,9 @@ function Probe() {
 			<button onClick={() => void connections.connect("gmail")} type="button">
 				Connect
 			</button>
+			<button onClick={() => void connections.connect("github")} type="button">
+				Connect GitHub
+			</button>
 			<button
 				onClick={() => void connections.cancelConnect("gmail")}
 				type="button"
@@ -241,21 +244,23 @@ describe("connector connection state across navigation", () => {
 		).toEqual(["not_connected", "not_connected"]);
 	});
 
-	it("queues connector mutations instead of running them concurrently", async () => {
+	it("queues distinct connector mutations and deduplicates repeated clicks", async () => {
 		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
 		await act(async () => root.render(<Probe />));
 		const connection = deferred<{ status: ComposioStatusResponse }>();
 		mocks.invoke
 			.mockReturnValueOnce(connection.promise)
-			.mockResolvedValueOnce(status("not_connected"));
+			.mockResolvedValueOnce({ status: status("pending") });
 		const buttons = [...container.querySelectorAll("button")];
 		const connect = buttons.find((button) => button.textContent === "Connect");
-		const disconnect = buttons.find(
-			(button) => button.textContent === "Disconnect",
+		const connectGitHub = buttons.find(
+			(button) => button.textContent === "Connect GitHub",
 		);
 		await act(async () => {
 			connect?.click();
-			disconnect?.click();
+			connect?.click();
+			connectGitHub?.click();
+			connectGitHub?.click();
 			await Promise.resolve();
 		});
 		expect(mocks.invoke).toHaveBeenCalledTimes(2);
@@ -264,7 +269,7 @@ describe("connector connection state across navigation", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(3);
 		expect(mocks.invoke).toHaveBeenLastCalledWith(
 			"composio_integrations",
-			{ operation: "disconnect", toolkit: "gmail" },
+			{ operation: "connect", toolkit: "github" },
 			{ timeoutMs: 60_000 },
 		);
 	});
