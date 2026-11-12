@@ -31,6 +31,7 @@ import type {
 import { buildEffectiveProviderConfig } from "./effective-config"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { fromSdkApiFormat, nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-values"
+import { parseProviderId } from "./provider-id"
 import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
@@ -934,6 +935,87 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ResolvedMod
 	return rememberedSelection
 }
 
+function syncLegacyApiConfigurationToProviderSettings(updates: Partial<ApiConfiguration>): void {
+	const patchesByProvider = new Map<string, Record<string, unknown>>()
+	const ensurePatch = (provider: string): Record<string, unknown> => {
+		let patch = patchesByProvider.get(provider)
+		if (!patch) {
+			patch = {}
+			patchesByProvider.set(provider, patch)
+		}
+		return patch
+	}
+
+	const primaryApiKeyProviders: Partial<Record<SecretKey | SettingsKey, string>> = {
+		apiKey: "anthropic",
+		openRouterApiKey: "openrouter",
+		openAiApiKey: "openai",
+		openAiNativeApiKey: "openai-native",
+		awsBedrockApiKey: "bedrock",
+		geminiApiKey: "gemini",
+		deepSeekApiKey: "deepseek",
+		ollamaApiKey: "ollama",
+		requestyApiKey: "requesty",
+		togetherApiKey: "together",
+		fireworksApiKey: "fireworks",
+		qwenApiKey: "qwen",
+		doubaoApiKey: "doubao",
+		mistralApiKey: "mistral",
+		liteLlmApiKey: "litellm",
+		asksageApiKey: "asksage",
+		xaiApiKey: "xai",
+		moonshotApiKey: "moonshot",
+		zaiApiKey: "zai",
+		huggingFaceApiKey: "huggingface",
+		nebiusApiKey: "nebius",
+		sambanovaApiKey: "sambanova",
+		cerebrasApiKey: "cerebras",
+		groqApiKey: "groq",
+		basetenApiKey: "baseten",
+		huaweiCloudMaasApiKey: "huawei-cloud-maas",
+		difyApiKey: "dify",
+		minimaxApiKey: "minimax",
+		hicapApiKey: "hicap",
+		aihubmixApiKey: "aihubmix",
+		nousResearchApiKey: "nousresearch",
+		vercelAiGatewayApiKey: "vercel-ai-gateway",
+		wandbApiKey: "wandb",
+		ocaApiKey: "oca",
+		clineApiKey: "cline",
+	}
+
+	for (const [stateKey, provider] of Object.entries(primaryApiKeyProviders)) {
+		if (provider && stateKey in updates) {
+			const rawValue = updates[stateKey as keyof ApiConfiguration]
+			ensurePatch(provider).apiKey = typeof rawValue === "string" ? rawValue : null
+		}
+	}
+
+	for (const field of ["baseUrl", "apiLine", "headers", "region"] as const) {
+		for (const [provider, stateKey] of Object.entries(providerConfigStateKeys[field])) {
+			if (stateKey && stateKey in updates) {
+				const rawValue = updates[stateKey as keyof ApiConfiguration]
+				ensurePatch(provider)[field] = rawValue === undefined ? null : rawValue
+			}
+		}
+	}
+
+	if ("ollamaApiOptionsCtxNum" in updates) {
+		const raw = updates.ollamaApiOptionsCtxNum
+		const parsed = typeof raw === "string" && raw.trim().length > 0 ? Number(raw.trim()) : Number.NaN
+		ensurePatch("ollama").contextWindow = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null
+	}
+
+	for (const [provider, patch] of patchesByProvider) {
+		try {
+			const providerId = parseProviderId(provider)
+			writeProviderSettingsFields(providerId, sanitizeApiKeyPatch(patch as ProviderConfigPatch))
+		} catch {
+			// Best-effort sync for legacy callers (e.g. uninitialized settings manager in unit tests).
+		}
+	}
+}
+
 /**
  * Create a {@link ProviderConfigStore} backed by StateManager and the SDK
  * ProviderSettingsManager singleton. Writes update in-memory state before
@@ -989,6 +1071,10 @@ export function createProviderConfigStore(): ProviderConfigStore {
 			)
 			writeSelectionToState(providerId, mode, resolvedSelection)
 			emit({ kind: "selection", providerId, mode, selection: resolvedSelection })
+		},
+
+		syncLegacyApiConfiguration(updates: Partial<ApiConfiguration>): void {
+			syncLegacyApiConfigurationToProviderSettings(updates)
 		},
 	}
 }

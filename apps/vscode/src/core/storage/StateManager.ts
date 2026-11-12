@@ -764,6 +764,36 @@ export class StateManager {
 	}
 
 	/**
+	 * Construct only the active overlay subset of API configuration
+	 * (remote config > session override > task settings), excluding
+	 * persisted globalState and non-remote secrets.
+	 *
+	 * Used by provider-config resolvers so active enterprise/session/task
+	 * overlays take precedence over `providers.json` while `providers.json`
+	 * takes precedence over legacy `globalState.json` / `secrets.json`.
+	 */
+	public getApiConfigurationOverlays(): Partial<ApiConfiguration> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		const overlays: Partial<ApiConfiguration> = {}
+		const remoteLiteLlmApiKey = this.secretsCache.remoteLiteLlmApiKey
+		if (remoteLiteLlmApiKey !== undefined && remoteLiteLlmApiKey !== null && remoteLiteLlmApiKey !== "") {
+			overlays.liteLlmApiKey = remoteLiteLlmApiKey
+		}
+
+		for (const key of ApiHandlerSettingsKeys) {
+			const value = this.remoteConfigCache[key] ?? this.sessionOverrideCache[key] ?? this.taskStateCache[key]
+			if (value !== undefined) {
+				;(overlays as Record<string, unknown>)[key] = value
+			}
+		}
+
+		return overlays
+	}
+
+	/**
 	 * Get all global state entries (for debugging/inspection)
 	 */
 	public getAllGlobalStateEntries(): Record<string, unknown> {

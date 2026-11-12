@@ -298,6 +298,32 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).apiLine).toBe("china")
 	})
 
+	it("syncs legacy ApiConfiguration edits into providers.json so legacy settings forms stay authoritative", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			qwen: { provider: "qwen", apiKey: "old-qwen-key", apiLine: "international" },
+			requesty: { provider: "requesty", apiKey: "old-requesty-key", baseUrl: "https://old.requesty.example/v1" },
+		})
+		const store = createProviderConfigStore()
+
+		store.syncLegacyApiConfiguration?.({
+			qwenApiKey: "new-qwen-key",
+			requestyApiKey: "new-requesty-key",
+			requestyBaseUrl: "https://new.requesty.example/v1",
+		})
+
+		expect(mocks.getSavedProviderSettings("qwen")).toMatchObject({
+			provider: "qwen",
+			apiKey: "new-qwen-key",
+			apiLine: "international",
+		})
+		expect(mocks.getSavedProviderSettings("requesty")).toMatchObject({
+			provider: "requesty",
+			apiKey: "new-requesty-key",
+			baseUrl: "https://new.requesty.example/v1",
+		})
+	})
+
 	it("round-trips commitSelection then readSelection for provider-specific model info", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()

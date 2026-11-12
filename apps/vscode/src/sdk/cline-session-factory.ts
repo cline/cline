@@ -473,13 +473,33 @@ export function getDefaultModelIdForProvider(providerId: string): string | undef
  * For SDK-managed OAuth providers, reads the OAuth token from providers.json
  * via ProviderSettingsManager (the single source of truth for credentials).
  */
+function readStateOverlayField<K extends keyof ApiConfiguration>(key: K): ApiConfiguration[K] | undefined {
+	try {
+		return StateManager.get().getApiConfigurationOverlays?.()[key]
+	} catch {
+		return undefined
+	}
+}
+
 export function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
+	const keyField = PROVIDER_API_KEY_MAP[providerId]
+	const overlayApiKey = keyField ? (readStateOverlayField(keyField) as string | undefined)?.trim() : undefined
+	if (overlayApiKey) {
+		return overlayApiKey
+	}
+
+	// For OAuth-backed providers (Cline, ClinePass, OpenAI Codex), an explicit
+	// API key configured in StateManager (`clineApiKey`) is a direct token
+	// override that takes precedence over stored OAuth tokens in providers.json.
+	// OpenAI Codex shares `openAiNativeApiKey` in PROVIDER_API_KEY_MAP only for
+	// legacy state mapping, so exclude it from API-key override precedence.
 	const authHandler = getProviderAuthHandler(providerId)
 	if (authHandler) {
-		const keyField = PROVIDER_API_KEY_MAP[providerId]
-		const configuredApiKey = keyField ? (config[keyField] as string | undefined)?.trim() : undefined
-		if (configuredApiKey) {
-			return configuredApiKey
+		if (providerId !== "openai-codex") {
+			const configuredApiKey = keyField ? (config[keyField] as string | undefined)?.trim() : undefined
+			if (configuredApiKey) {
+				return configuredApiKey
+			}
 		}
 
 		// Read from providers.json via the shared ProviderSettingsManager. This is
@@ -499,19 +519,10 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		return undefined
 	}
 
-	// For all other providers, look up the API key field name
-	const keyField = PROVIDER_API_KEY_MAP[providerId]
-	if (keyField) {
-		const apiKey = config[keyField] as string | undefined
-		if (apiKey) {
-			return apiKey
-		}
-	}
-
-	// SDK-backed API-key providers save credentials in providers.json instead
-	// of legacy ApiConfiguration fields. Fall back to that store so providers
-	// exposed through the SDK settings UI still receive credentials at task
-	// startup.
+	// Prefer providers.json over legacy ApiConfiguration fields so credentials
+	// updated by the CLI or SDK settings store are not shadowed by older
+	// globalState/secrets values, while falling back to legacy state for
+	// unmigrated installs.
 	try {
 		const manager = getProviderSettingsManager()
 		const apiKey = resolveProviderApiKeyFromSettings(manager, providerSettingsProviderId(providerId))?.trim()
@@ -520,6 +531,13 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
 		}
 	} catch {
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} API key from providers.json`)
+	}
+
+	if (keyField) {
+		const apiKey = (config[keyField] as string | undefined)?.trim()
+		if (apiKey) {
+			return apiKey
+		}
 	}
 
 	return undefined
@@ -620,11 +638,13 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 		Logger.warn("[SessionFactory] Failed to read Vertex settings from providers.json")
 	}
 
-	const region = (providerSettingsRegion ?? config.vertexRegion?.trim()) || undefined
+	const overlayProjectId = readStateOverlayField("vertexProjectId")?.trim() || undefined
+	const overlayRegion = readStateOverlayField("vertexRegion")?.trim() || undefined
+	const region = (overlayRegion ?? providerSettingsRegion ?? config.vertexRegion?.trim()) || undefined
 	return {
 		region,
 		gcp: {
-			projectId: (providerSettingsProjectId ?? config.vertexProjectId?.trim()) || undefined,
+			projectId: (overlayProjectId ?? providerSettingsProjectId ?? config.vertexProjectId?.trim()) || undefined,
 			region,
 		},
 	}
@@ -786,17 +806,15 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 
 	const field = baseUrlMap[providerId]
 	if (field) {
-		const fromState = normalizeSdkBaseUrl(providerId, config[field])
-		if (fromState) {
-			return fromState
+		const fromOverlay = normalizeSdkBaseUrl(providerId, readStateOverlayField(field))
+		if (fromOverlay) {
+			return fromOverlay
 		}
 	}
 
-	// SDK-backed providers save their base URL in providers.json instead of
-	// legacy ApiConfiguration fields. Fall back to that store (mirroring
-	// resolveApiKey) so ProviderConfig consumers that don't re-resolve settings
-	// themselves — e.g. the compaction summarizer's createHandlerAsync — still
-	// reach the configured endpoint instead of the provider default.
+	// Prefer providers.json over legacy ApiConfiguration fields so base URLs
+	// updated by the CLI or SDK settings store are not shadowed by older
+	// globalState values, while falling back to legacy state below.
 	try {
 		const manager = getProviderSettingsManager()
 		const settingsBaseUrl = manager.getProviderSettings(providerSettingsProviderId(providerId))?.baseUrl
@@ -808,6 +826,13 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} base URL from providers.json`)
 	}
 
+	if (field) {
+		const fromState = normalizeSdkBaseUrl(providerId, config[field])
+		if (fromState) {
+			return fromState
+		}
+	}
+
 	return undefined
 }
 
@@ -816,12 +841,12 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
  * regional endpoints (Qwen, Moonshot, Z AI, MiniMax and their coding
  * variants). Resolution order:
  *
- * 1. The provider's own legacy StateManager field (mirroring resolveBaseUrl).
- * 2. The provider's own providers.json `apiLine` (SDK-store fallback).
- * 3. For coding variants without their own legacy field or stored line, the
+ * 1. Active StateManager overlay (remote config / session / task) for the provider.
+ * 2. The provider's own providers.json `apiLine`.
+ * 3. The provider's own legacy StateManager field.
+ * 4. For coding variants without their own legacy field or stored line, the
  *    base provider's legacy field (qwen-code shares Qwen's DashScope region,
- *    zai-coding-plan shares Z AI's account region) — so a variant-specific
- *    providers.json setting still wins over the shared field.
+ *    zai-coding-plan shares Z AI's account region).
  *
  * The SDK gateway maps the line to the provider's regional base URL when no
  * explicit base URL is configured.
@@ -840,9 +865,9 @@ export function resolveApiLine(providerId: string, config: ApiConfiguration): Pr
 
 	const field = apiLineMap[providerId]
 	if (field) {
-		const fromState = config[field]
-		if (isProviderApiLine(fromState)) {
-			return fromState
+		const fromOverlay = readStateOverlayField(field)
+		if (isProviderApiLine(fromOverlay)) {
+			return fromOverlay
 		}
 	}
 
@@ -853,6 +878,13 @@ export function resolveApiLine(providerId: string, config: ApiConfiguration): Pr
 		}
 	} catch {
 		Logger.warn(`[SessionFactory] Failed to read ${providerId} API line from providers.json`)
+	}
+
+	if (field) {
+		const fromState = config[field]
+		if (isProviderApiLine(fromState)) {
+			return fromState
+		}
 	}
 
 	const sharedField = sharedApiLineMap[providerId]

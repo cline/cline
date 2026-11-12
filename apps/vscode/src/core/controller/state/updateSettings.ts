@@ -51,6 +51,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			)
 
 			controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
+			const changedFields = Object.fromEntries(
+				Object.entries(normalizedApiConfiguration).filter(
+					([key, value]) =>
+						value !== undefined && previousApiConfiguration[key as keyof typeof previousApiConfiguration] !== value,
+				),
+			)
+			controller.getProviderConfigStore().syncLegacyApiConfiguration?.(changedFields)
 
 			if (controller.task) {
 				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")

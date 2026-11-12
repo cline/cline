@@ -11,7 +11,7 @@
  * those casts are never necessary or correct.
  */
 
-import type { ModelInfo } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
 // ---------------------------------------------------------------------------
@@ -422,6 +422,13 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
 	 */
 	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection, baseModelInfoHint?: ModelInfo): void
+
+	/**
+	 * Mirror legacy `ApiConfiguration` field edits into `providers.json` so
+	 * callers that still write through `updateApiConfiguration*` / `updateSettings`
+	 * keep `providers.json` in sync with `StateManager`.
+	 */
+	syncLegacyApiConfiguration?(updates: Partial<ApiConfiguration>): void
 }
 
 /**

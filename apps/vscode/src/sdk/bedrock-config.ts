@@ -12,9 +12,12 @@
 // credential chain with no region. This mirrors the structured aws block built
 // by the shared provider-settings legacy migration and the CLI.
 
+import type { ProviderSettings } from "@cline/core"
 import type { ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { StateManager } from "@/core/storage/StateManager"
+import { getProviderSettingsManager } from "./provider-migration"
 
 type AwsConfig = NonNullable<ProviderConfig["aws"]>
 type AwsAuthentication = NonNullable<AwsConfig["authentication"]>
@@ -30,6 +33,32 @@ function trimToUndefined(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined
 }
 
+function readStateOverlays(): Partial<ApiConfiguration> {
+	try {
+		return StateManager.get().getApiConfigurationOverlays?.() ?? {}
+	} catch {
+		return {}
+	}
+}
+
+function readBedrockProviderSettings(): ProviderSettings | undefined {
+	try {
+		return getProviderSettingsManager().getProviderSettings("bedrock")
+	} catch {
+		return undefined
+	}
+}
+
+function normalizeExplicitAuthentication(value: unknown): AwsAuthentication | undefined {
+	if (value === "apikey" || value === "api-key" || value === "profile" || value === "iam") {
+		return value
+	}
+	if (value === "credentials") {
+		return "iam"
+	}
+	return undefined
+}
+
 /**
  * Map the webview's `awsAuthentication` radio value onto the SDK's
  * `AwsConfig.authentication` spelling.
@@ -41,46 +70,57 @@ function trimToUndefined(value: unknown): string | undefined {
  * heuristic the UI uses for its default radio selection (profile when an AWS
  * profile is configured, otherwise the default credential chain).
  */
-export function resolveBedrockAuthentication(configuration: ApiConfiguration): AwsAuthentication {
-	const explicit = configuration.awsAuthentication
-	if (explicit === "apikey" || explicit === "api-key" || explicit === "profile" || explicit === "iam") {
+export function resolveBedrockAuthentication(
+	configuration: ApiConfiguration,
+	storedAws?: ProviderSettings["aws"],
+): AwsAuthentication {
+	const explicit =
+		normalizeExplicitAuthentication(storedAws?.authentication) ??
+		normalizeExplicitAuthentication(configuration.awsAuthentication)
+	if (explicit) {
 		return explicit
 	}
-	if (explicit === "credentials") {
-		return "iam"
-	}
 	// No explicit selection: mirror the webview's default radio resolution.
-	if (configuration.awsUseProfile || trimToUndefined(configuration.awsProfile)) {
+	if (configuration.awsUseProfile || trimToUndefined(storedAws?.profile) || trimToUndefined(configuration.awsProfile)) {
 		return "profile"
 	}
 	return "iam"
 }
 
 /**
- * Build the Bedrock `region` + `aws` portion of the SDK ProviderConfig from the
- * extension's ApiConfiguration for the given mode (plan/act).
+ * Build the Bedrock `region` + `aws` portion of the SDK ProviderConfig from
+ * active StateManager overlays, `providers.json`, and the extension's legacy
+ * ApiConfiguration for the given mode (plan/act).
  */
 export function buildBedrockProviderConfig(configuration: ApiConfiguration, mode: Mode): BedrockProviderConfig {
-	const authentication = resolveBedrockAuthentication(configuration)
+	const overlays = readStateOverlays()
+	const stored = readBedrockProviderSettings()
+	const storedAws = stored?.aws
+	const authentication = resolveBedrockAuthentication(configuration, storedAws)
 	const usesProfile = authentication === "profile"
+	const legacyCustomModelBaseId = trimToUndefined(
+		mode === "plan" ? configuration.planModeAwsBedrockCustomModelBaseId : configuration.actModeAwsBedrockCustomModelBaseId,
+	)
 	const aws: AwsConfig = {
-		accessKey: trimToUndefined(configuration.awsAccessKey),
-		secretKey: trimToUndefined(configuration.awsSecretKey),
-		sessionToken: trimToUndefined(configuration.awsSessionToken),
+		accessKey: trimToUndefined(storedAws?.accessKey) ?? trimToUndefined(configuration.awsAccessKey),
+		secretKey: trimToUndefined(storedAws?.secretKey) ?? trimToUndefined(configuration.awsSecretKey),
+		sessionToken: trimToUndefined(storedAws?.sessionToken) ?? trimToUndefined(configuration.awsSessionToken),
 		authentication,
-		profile: usesProfile ? trimToUndefined(configuration.awsProfile) : undefined,
-		usePromptCache: configuration.awsBedrockUsePromptCache,
-		endpoint: trimToUndefined(configuration.awsBedrockEndpoint),
-		customModelBaseId: trimToUndefined(
-			mode === "plan"
-				? configuration.planModeAwsBedrockCustomModelBaseId
-				: configuration.actModeAwsBedrockCustomModelBaseId,
-		),
+		profile: usesProfile ? (trimToUndefined(storedAws?.profile) ?? trimToUndefined(configuration.awsProfile)) : undefined,
+		usePromptCache: overlays.awsBedrockUsePromptCache ?? storedAws?.usePromptCache ?? configuration.awsBedrockUsePromptCache,
+		endpoint:
+			trimToUndefined(overlays.awsBedrockEndpoint) ??
+			trimToUndefined(storedAws?.endpoint) ??
+			trimToUndefined(configuration.awsBedrockEndpoint),
+		customModelBaseId: trimToUndefined(storedAws?.customModelBaseId) ?? legacyCustomModelBaseId,
 	}
 	return {
-		region: trimToUndefined(configuration.awsRegion),
+		region:
+			trimToUndefined(overlays.awsRegion) ?? trimToUndefined(stored?.region) ?? trimToUndefined(configuration.awsRegion),
 		aws,
-		useCrossRegionInference: configuration.awsUseCrossRegionInference,
-		useGlobalInference: configuration.awsUseGlobalInference,
+		useCrossRegionInference:
+			overlays.awsUseCrossRegionInference ?? storedAws?.useCrossRegionInference ?? configuration.awsUseCrossRegionInference,
+		useGlobalInference:
+			overlays.awsUseGlobalInference ?? storedAws?.useGlobalInference ?? configuration.awsUseGlobalInference,
 	}
 }

@@ -4,17 +4,24 @@ import { parseProviderId } from "./provider-id"
 
 const mocks = vi.hoisted(() => {
 	let apiConfiguration: ApiConfiguration = {}
+	let apiConfigurationOverlays: Partial<ApiConfiguration> = {}
 	let providerSettingsById: Record<string, unknown> = {}
 
 	return {
 		setApiConfiguration(value: ApiConfiguration): void {
 			apiConfiguration = value
 		},
+		setApiConfigurationOverlays(value: Partial<ApiConfiguration>): void {
+			apiConfigurationOverlays = value
+		},
 		setProviderSettings(value: Record<string, unknown>): void {
 			providerSettingsById = value
 		},
 		getStateManager() {
-			return { getApiConfiguration: () => apiConfiguration }
+			return {
+				getApiConfiguration: () => apiConfiguration,
+				getApiConfigurationOverlays: () => apiConfigurationOverlays,
+			}
 		},
 		getProviderSettingsManager() {
 			return { getProviderSettings: (providerId: string) => providerSettingsById[providerId] }
@@ -33,10 +40,11 @@ vi.mock("../provider-migration", () => ({
 describe("buildEffectiveProviderConfig", () => {
 	beforeEach(() => {
 		mocks.setApiConfiguration({})
+		mocks.setApiConfigurationOverlays({})
 		mocks.setProviderSettings({})
 	})
 
-	it("builds Ollama config with StateManager base URL over providers.json and local extras", async () => {
+	it("prefers providers.json base URL over legacy StateManager while falling back to legacy extras", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			ollama: {
@@ -53,7 +61,7 @@ describe("buildEffectiveProviderConfig", () => {
 		expect(buildEffectiveProviderConfig(parseProviderId("ollama"))).toEqual({
 			providerId: parseProviderId("ollama"),
 			apiKey: "provider-ollama-key",
-			baseUrl: "http://state-ollama:11434",
+			baseUrl: "http://provider-ollama:11434",
 			// The legacy state string surfaces as the provider-neutral
 			// contextWindow when providers.json has none.
 			contextWindow: 8192,
@@ -78,7 +86,7 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
-	it("builds LiteLLM config by merging providers.json fields and StateManager overlays", async () => {
+	it("builds LiteLLM config with providers.json over legacy state and StateManager overlays over providers.json", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			litellm: {
@@ -90,27 +98,27 @@ describe("buildEffectiveProviderConfig", () => {
 			},
 		})
 		mocks.setApiConfiguration({
-			liteLlmBaseUrl: "https://state-litellm.example.com/v1",
+			liteLlmBaseUrl: "https://legacy-state-litellm.example.com/v1",
 			liteLlmUsePromptCache: true,
 		})
 
 		expect(buildEffectiveProviderConfig(parseProviderId("litellm"))).toEqual({
 			providerId: parseProviderId("litellm"),
 			apiKey: "provider-litellm-key",
-			baseUrl: "https://state-litellm.example.com/v1",
+			baseUrl: "https://provider-litellm.example.com/v1",
 			headers: { "x-provider": "provider-header" },
 			extras: { providerOnly: true, liteLlmUsePromptCache: true },
 		})
 	})
 
-	it("uses StateManager DeepSeek API key over providers.json", async () => {
+	it("prefers providers.json DeepSeek API key over legacy StateManager secret", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ deepseek: { provider: "deepseek", apiKey: "provider-deepseek-key" } })
 		mocks.setApiConfiguration({ deepSeekApiKey: "state-deepseek-key" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("deepseek"))).toEqual({
 			providerId: parseProviderId("deepseek"),
-			apiKey: "state-deepseek-key",
+			apiKey: "provider-deepseek-key",
 		})
 	})
 
@@ -160,9 +168,8 @@ describe("buildEffectiveProviderConfig", () => {
 		expect("reasoningEffort" in config).toBe(expected !== undefined)
 	})
 
-	it("reads normalized nousResearch API key from StateManager", async () => {
+	it("reads normalized nousResearch API key from StateManager when providers.json has none", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
-		mocks.setProviderSettings({ nousResearch: { provider: "nousResearch", apiKey: "provider-nous-key" } })
 		mocks.setApiConfiguration({ nousResearchApiKey: "state-nous-key" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("nousResearch"))).toEqual({
@@ -171,15 +178,15 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
-	it("carries Qwen apiLine from StateManager effective configuration", async () => {
+	it("prefers Qwen providers.json apiLine over legacy StateManager while falling back to StateManager when unset", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({ qwen: { provider: "qwen", apiKey: "provider-qwen-key", apiLine: "china" } })
 		mocks.setApiConfiguration({ qwenApiKey: "state-qwen-key", qwenApiLine: "international" })
 
 		expect(buildEffectiveProviderConfig(parseProviderId("qwen"))).toEqual({
 			providerId: parseProviderId("qwen"),
-			apiKey: "state-qwen-key",
-			apiLine: "international",
+			apiKey: "provider-qwen-key",
+			apiLine: "china",
 		})
 	})
 
@@ -208,7 +215,7 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
-	it("respects remote-config-locked LiteLLM key already applied by StateManager", async () => {
+	it("respects remote-config-locked LiteLLM key and base URL from StateManager overlays over providers.json", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setProviderSettings({
 			litellm: {
@@ -218,6 +225,10 @@ describe("buildEffectiveProviderConfig", () => {
 			},
 		})
 		mocks.setApiConfiguration({
+			liteLlmApiKey: "remote-config-locked-litellm-key",
+			liteLlmBaseUrl: "https://remote-litellm.example.com/v1",
+		})
+		mocks.setApiConfigurationOverlays({
 			liteLlmApiKey: "remote-config-locked-litellm-key",
 			liteLlmBaseUrl: "https://remote-litellm.example.com/v1",
 		})

@@ -147,6 +147,9 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			)
 			clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
 		}
+		if (Object.keys(secrets).length > 0 || Object.keys(options).length > 0) {
+			controller.getProviderConfigStore().syncLegacyApiConfiguration?.({ ...options, ...secrets })
+		}
 
 		// Update the task's API model shim if there's an active task
 		if (controller.task) {

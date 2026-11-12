@@ -490,6 +490,35 @@ describe("buildSessionConfig", () => {
 		expect(resolveApiKey("lmstudio", { apiKey: "anthropic-key" } as any)).toBe("lmstudio-key")
 	})
 
+	it("prefers the providers.json API key and base URL over stale legacy state", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "cli-updated-compat-key",
+				baseUrl: "http://127.0.0.1:4141/v1",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "openai/gpt-4o-mini",
+			openAiApiKey: "stale-legacy-compat-key",
+			openAiBaseUrl: "http://127.0.0.1:1111/v1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.apiKey).toBe("cli-updated-compat-key")
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			apiKey: "cli-updated-compat-key",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
 	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai-compatible",

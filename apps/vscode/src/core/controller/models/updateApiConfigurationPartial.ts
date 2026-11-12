@@ -38,13 +38,17 @@ export async function updateApiConfigurationPartial(
 
 		// Apply only the fields specified in the mask
 		const updatedConfig = { ...currentConfig }
+		const maskedUpdates: Partial<typeof newConfigValues> = {}
 		for (const field of request.updateMask) {
-			;(updatedConfig as Record<string, any>)[field] = (newConfigValues as Record<string, any>)[field]
+			const nextValue = (newConfigValues as Record<string, any>)[field]
+			;(updatedConfig as Record<string, any>)[field] = nextValue
+			;(maskedUpdates as Record<string, any>)[field] = nextValue
 		}
 		const normalizedConfig = normalizeProviderSwitchModel(controller.getProviderConfigStore(), currentConfig, updatedConfig)
 
 		// Update storage and task API model shim
 		controller.stateManager.setApiConfiguration(normalizedConfig)
+		controller.getProviderConfigStore().syncLegacyApiConfiguration?.(maskedUpdates)
 		clearOrganizationForClinePassProviderSelection(controller, normalizedConfig)
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")

@@ -141,6 +141,13 @@ export async function updateApiConfigurationProto(
 
 		// Update the API configuration in storage
 		controller.stateManager.setApiConfiguration(normalizedApiConfiguration)
+		const changedFields = Object.fromEntries(
+			Object.entries(normalizedApiConfiguration).filter(
+				([key, value]) =>
+					value !== undefined && previousApiConfiguration[key as keyof typeof previousApiConfiguration] !== value,
+			),
+		)
+		controller.getProviderConfigStore().syncLegacyApiConfiguration?.(changedFields)
 		clearOrganizationForClinePassProviderSelection(controller, normalizedApiConfiguration)
 
 		// Update the task's API handler if there's an active task

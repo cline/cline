@@ -1,3 +1,4 @@
+import { resolveProviderApiKeyFromSettings } from "@cline/core"
 import type { ApiConfiguration } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
@@ -203,13 +204,17 @@ function readAws(record: Record<string, unknown>): AwsProviderConfig | undefined
 
 function readProviderSettings(providerId: ProviderId): ConfigParts {
 	try {
-		const settings: unknown = getProviderSettingsManager().getProviderSettings(toSdkProviderId(providerId))
+		const manager = getProviderSettingsManager()
+		const sdkProviderId = toSdkProviderId(providerId)
+		const settings: unknown = manager.getProviderSettings(sdkProviderId)
+		const resolvedApiKey =
+			typeof manager.read === "function" ? resolveProviderApiKeyFromSettings(manager, sdkProviderId)?.trim() : undefined
 		if (!isPlainRecord(settings)) {
-			return {}
+			return resolvedApiKey ? { apiKey: resolvedApiKey } : {}
 		}
 
 		return {
-			apiKey: readString(settings, "apiKey"),
+			apiKey: readString(settings, "apiKey") ?? resolvedApiKey,
 			baseUrl: readString(settings, "baseUrl"),
 			apiLine: readString(settings, "apiLine"),
 			headers: readHeaders(settings, "headers"),
@@ -375,37 +380,45 @@ function assignIfDefined<T extends ConfigKey>(target: Partial<ConfigParts>, key:
 }
 
 /**
- * Build an {@link EffectiveProviderConfig} by merging provider-owned settings
- * from SDK `providers.json` with the current StateManager effective API
- * configuration. StateManager's `getApiConfiguration()` already applies
- * task/session/remote-config overlays for legacy fields, so those values win.
+ * Build an {@link EffectiveProviderConfig} by merging active StateManager
+ * overlays (remote config, session overrides, task settings), SDK
+ * `providers.json`, and legacy StateManager global/secret fallbacks:
+ *
+ *   stateOverlays > providerSettings (providers.json) > legacyStateConfig
  *
  * Mode-dependent model selection is intentionally excluded; callers use
  * `ProviderConfigStore.readSelection(providerId, mode)` for that.
  */
 export function buildEffectiveProviderConfig(providerId: ProviderId): EffectiveProviderConfig {
+	const stateManager = StateManager.get()
+	const overlayConfig = readStateConfig(providerId, stateManager.getApiConfigurationOverlays?.() ?? {})
 	const providerSettings = readProviderSettings(providerId)
-	const stateConfig = readStateConfig(providerId, StateManager.get().getApiConfiguration())
+	const stateConfig = readStateConfig(providerId, stateManager.getApiConfiguration())
 	const merged: Partial<ConfigParts> = {}
 
-	assignIfDefined(merged, "apiKey", stateConfig.apiKey ?? providerSettings.apiKey)
-	assignIfDefined(merged, "baseUrl", stateConfig.baseUrl ?? providerSettings.baseUrl)
-	assignIfDefined(merged, "apiLine", stateConfig.apiLine ?? providerSettings.apiLine)
-	assignIfDefined(merged, "headers", stateConfig.headers ?? providerSettings.headers)
-	assignIfDefined(merged, "region", stateConfig.region ?? providerSettings.region)
+	assignIfDefined(merged, "apiKey", overlayConfig.apiKey ?? providerSettings.apiKey ?? stateConfig.apiKey)
+	assignIfDefined(merged, "baseUrl", overlayConfig.baseUrl ?? providerSettings.baseUrl ?? stateConfig.baseUrl)
+	assignIfDefined(merged, "apiLine", overlayConfig.apiLine ?? providerSettings.apiLine ?? stateConfig.apiLine)
+	assignIfDefined(merged, "headers", overlayConfig.headers ?? providerSettings.headers ?? stateConfig.headers)
+	assignIfDefined(merged, "region", overlayConfig.region ?? providerSettings.region ?? stateConfig.region)
 	// Bedrock/Vertex are migrated to providers.json. Keep legacy StateManager cloud
-	// fields as a fallback for old installs, but let providers.json win when both exist.
-	assignIfDefined(merged, "aws", mergeAws(stateConfig.aws, providerSettings.aws))
-	assignIfDefined(merged, "gcp", mergeGcp(stateConfig.gcp, providerSettings.gcp))
+	// fields as a fallback for old installs, let providers.json win over legacy
+	// globalState, and let active remote/task overlays win over both.
+	assignIfDefined(merged, "aws", mergeAws(mergeAws(stateConfig.aws, providerSettings.aws), overlayConfig.aws))
+	assignIfDefined(merged, "gcp", mergeGcp(mergeGcp(stateConfig.gcp, providerSettings.gcp), overlayConfig.gcp))
 	// providers.json is the source of truth for the context window; the legacy
 	// Ollama StateManager key is a migration fallback (the store mirrors writes
 	// to both).
-	assignIfDefined(merged, "contextWindow", providerSettings.contextWindow ?? stateConfig.contextWindow)
+	assignIfDefined(
+		merged,
+		"contextWindow",
+		overlayConfig.contextWindow ?? providerSettings.contextWindow ?? stateConfig.contextWindow,
+	)
 	// Reasoning lives only in providers.json; the legacy per-mode effort keys
 	// are not what the session reads.
 	assignIfDefined(merged, "reasoningEffort", providerSettings.reasoningEffort)
-	assignIfDefined(merged, "auth", stateConfig.auth ?? providerSettings.auth)
-	assignIfDefined(merged, "extras", mergeExtras(providerSettings.extras, stateConfig.extras))
+	assignIfDefined(merged, "auth", overlayConfig.auth ?? providerSettings.auth ?? stateConfig.auth)
+	assignIfDefined(merged, "extras", mergeExtras(mergeExtras(stateConfig.extras, providerSettings.extras), overlayConfig.extras))
 
 	return { providerId, ...merged }
 }
