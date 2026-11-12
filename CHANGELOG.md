@@ -1617,7 +1617,7 @@ These land through SDK v0.0.74 and therefore apply to windows running the SDK bu
 - Added Cline CLI (Preview)
 - Added Subagent support (Experimental)
 - Added Multi-Root Workspaces support (Enable in feature settings)
-- Add auto-retry with exponential backof for failed API requests
+- Add auto-retry with exponential backoff for failed API requests
 
 ## [3.32.8]
 
