@@ -501,6 +501,46 @@ describe("FileBrowserContent", () => {
 		expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([3, 10]);
 	});
 
+	it("keeps the display switch out of a surrounding form submission", async () => {
+		await render(
+			<form>
+				<input name="title" defaultValue="Notes" />
+				<FileBrowserContent
+					headerLabel="Notes"
+					content="# Notes"
+					preview={<p>Preview</p>}
+				/>
+				<button type="submit">Save</button>
+			</form>,
+		);
+		const form = container.querySelector("form");
+		if (!form) throw new Error("Expected a form");
+		const radios = [
+			...container.querySelectorAll<HTMLInputElement>(
+				'[data-slot="segmented-control-input"]',
+			),
+		];
+		expect(radios.map((radio) => radio.value).sort()).toEqual([
+			"preview",
+			"source",
+		]);
+		for (const radio of radios) {
+			expect(radio.name).toMatch(/^cline-segmented-/);
+			expect(radio.form).toBeNull();
+		}
+		const submitted = vi.fn((event: Event) => {
+			event.preventDefault();
+		});
+		form.addEventListener("submit", submitted);
+		await click('button[type="submit"]');
+		expect(submitted).toHaveBeenCalledOnce();
+		expect([...new FormData(form).keys()]).toEqual(["title"]);
+		expect(new FormData(form).get("title")).toBe("Notes");
+		await click('[data-slot="segmented-control-input"][value="source"]');
+		expect(container.querySelector("pre")?.textContent).toBe("# Notes");
+		expect([...new FormData(form).keys()]).toEqual(["title"]);
+	});
+
 	it("renders source verbatim and lets loading and host states override all content", async () => {
 		const source = '<script>alert("test")</script>\n  indented';
 		await render(<FileBrowserContent path="check.ts" content={source} />);

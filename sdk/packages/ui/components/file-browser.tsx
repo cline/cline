@@ -285,6 +285,9 @@ export const FileBrowserContent = forwardRef<
 								aria-label={
 									headerLabel ? `${headerLabel} display` : "File display"
 								}
+								// Display state only. An empty form owner keeps the generated
+								// radio name out of a surrounding form submission.
+								form=""
 								iconOnly
 								onValueChange={setMode}
 								options={[
