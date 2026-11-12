@@ -36,9 +36,14 @@ export function useComposioConnections() {
 		null,
 	);
 	const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingActionsRef = useRef(
+		new Map<ComposioToolkitSlug, Promise<void>>(),
+	);
 
 	const runAction = useCallback(
 		(toolkit: ComposioToolkitSlug, action: () => Promise<unknown>) => {
+			const existing = pendingActionsRef.current.get(toolkit);
+			if (existing) return existing;
 			const run = async () => {
 				// Connector mutations return complete status snapshots. Serialize them so
 				// an older response cannot replace a newer mutation's shared snapshot.
@@ -56,7 +61,13 @@ export function useComposioConnections() {
 				}
 			};
 			const pending = actionQueueRef.current.then(run, run);
+			pendingActionsRef.current.set(toolkit, pending);
 			actionQueueRef.current = pending;
+			void pending.then(() => {
+				if (pendingActionsRef.current.get(toolkit) === pending) {
+					pendingActionsRef.current.delete(toolkit);
+				}
+			});
 			return pending;
 		},
 		[],
