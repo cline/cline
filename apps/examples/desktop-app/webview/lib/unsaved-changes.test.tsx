@@ -15,6 +15,8 @@ let dirty: boolean;
 let confirmLeaveFromShell: (proceed: () => void) => void;
 let confirmLeaveFromPage: (proceed: () => void) => void;
 let guard: ReturnType<typeof useUnsavedChangesGuard>;
+let dirtyEditors: boolean[] = [];
+let editorGuards: Array<ReturnType<typeof useUnsavedChangesGuard>> = [];
 
 function Editor() {
 	guard = useUnsavedChangesGuard(() => dirty);
@@ -32,11 +34,34 @@ function Shell({ editing }: { editing: boolean }) {
 	);
 }
 
+function MultipleEditor({ index }: { index: number }) {
+	const editorGuard = useUnsavedChangesGuard(() => dirtyEditors[index]);
+	editorGuards[index] = editorGuard;
+	return (
+		<output data-editor={index}>
+			{editorGuard.isConfirming ? "confirming" : "idle"}
+		</output>
+	);
+}
+
+function MultipleEditorsShell() {
+	const { registry, confirmLeave } = useUnsavedChangesRegistry();
+	confirmLeaveFromShell = confirmLeave;
+	return (
+		<UnsavedChangesProvider registry={registry}>
+			<MultipleEditor index={0} />
+			<MultipleEditor index={1} />
+		</UnsavedChangesProvider>
+	);
+}
+
 const status = () => container.querySelector("output")?.textContent;
 
 beforeEach(async () => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	dirty = false;
+	dirtyEditors = [];
+	editorGuards = [];
 	container = document.createElement("div");
 	document.body.append(container);
 	root = createRoot(container);
@@ -85,6 +110,37 @@ it("asks once when a confirmed leave navigates through the shell", async () => {
 	// The draft is still dirty, but the reader already agreed to drop it.
 	expect(navigate).toHaveBeenCalledOnce();
 	expect(status()).toBe("idle");
+});
+
+it("keeps one pending navigation intent while the dialog is open", async () => {
+	dirty = true;
+	const first = vi.fn();
+	const competing = vi.fn();
+	await act(async () => {
+		confirmLeaveFromShell(first);
+		confirmLeaveFromShell(competing);
+	});
+
+	await act(async () => guard.confirm());
+	expect(first).toHaveBeenCalledOnce();
+	expect(competing).not.toHaveBeenCalled();
+});
+
+it("confirms every dirty editor before navigating", async () => {
+	dirtyEditors = [true, true];
+	await act(async () => root.render(<MultipleEditorsShell />));
+	const proceed = vi.fn();
+
+	await act(async () => confirmLeaveFromShell(proceed));
+	expect(editorGuards[0].isConfirming).toBe(true);
+	expect(editorGuards[1].isConfirming).toBe(false);
+
+	await act(async () => editorGuards[0].confirm());
+	expect(proceed).not.toHaveBeenCalled();
+	expect(editorGuards[1].isConfirming).toBe(true);
+
+	await act(async () => editorGuards[1].confirm());
+	expect(proceed).toHaveBeenCalledOnce();
 });
 
 it("stops guarding once the editor is gone", async () => {

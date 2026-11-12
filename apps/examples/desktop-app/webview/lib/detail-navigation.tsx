@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 
 /**
  * How the app shell keeps a page's open detail in Back/Forward history. The
@@ -10,7 +10,7 @@ export type DetailNavigationHost = {
 	detail: object | undefined;
 	open: (detail: object) => void;
 	/** Swap the open detail without adding a history step. */
-	replace: (detail: object) => void;
+	replace: (detail: object, replacement: object) => void;
 	/** Return to the list. `forget` also drops the detail from history, e.g. once its item is deleted. */
 	close: (detail: object, options?: { forget?: boolean }) => void;
 };
@@ -28,16 +28,38 @@ export const DetailNavigationProvider = DetailNavigationContext.Provider;
 export function useDetailNavigation<T extends object>() {
 	const host = useContext(DetailNavigationContext);
 	const [localDetail, setLocalDetail] = useState<T | null>(null);
+	const localDetailRef = useRef(localDetail);
+	localDetailRef.current = localDetail;
 	return useMemo(() => {
 		if (!host) {
+			const expectedDetail = localDetail;
 			return {
 				detail: localDetail,
-				open: (detail: T) => setLocalDetail(detail),
-				replace: (detail: T) => setLocalDetail(detail),
-				close: (_options?: { forget?: boolean }) => setLocalDetail(null),
+				open: (detail: T) => {
+					localDetailRef.current = detail;
+					setLocalDetail(detail);
+				},
+				replace: (detail: T) => {
+					if (localDetailRef.current !== expectedDetail) return;
+					localDetailRef.current = detail;
+					setLocalDetail((current) =>
+						current === expectedDetail ? detail : current,
+					);
+				},
+				close: (_options?: { forget?: boolean }) => {
+					if (localDetailRef.current !== expectedDetail) return;
+					localDetailRef.current = null;
+					setLocalDetail((current) =>
+						current === expectedDetail ? null : current,
+					);
+				},
 				/** Leave the detail for somewhere else on the page. */
 				leaveFor: (navigate: () => void) => {
-					setLocalDetail(null);
+					if (localDetailRef.current !== expectedDetail) return;
+					localDetailRef.current = null;
+					setLocalDetail((current) =>
+						current === expectedDetail ? null : current,
+					);
 					navigate();
 				},
 			};
@@ -46,7 +68,9 @@ export function useDetailNavigation<T extends object>() {
 		return {
 			detail,
 			open: (next: T) => host.open(next),
-			replace: (next: T) => host.replace(next),
+			replace: (next: T) => {
+				if (detail) host.replace(detail, next);
+			},
 			close: (options?: { forget?: boolean }) => {
 				if (detail) host.close(detail, options);
 			},

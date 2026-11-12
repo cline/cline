@@ -78,7 +78,7 @@ beforeEach(() => {
 	onSave.mockClear();
 	onNameChange.mockClear();
 	container = document.createElement("div");
-	container.setAttribute("data-radix-scroll-area-viewport", "");
+	container.setAttribute("data-slot", "scroll-area-viewport");
 	container.style.setProperty("--item-details-scroll-header-height", "17px");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -108,16 +108,16 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 });
 
-function actions(location: "inline" | "sticky") {
+function actions() {
 	const element = container.querySelector<HTMLElement>(
-		`[data-item-header-actions="${location}"]`,
+		'[data-item-header-actions="inline"]',
 	);
-	if (!element) throw new Error(`Missing ${location} actions`);
+	if (!element) throw new Error("Missing header actions");
 	return element;
 }
 
-function action(location: "inline" | "sticky", index: number) {
-	const button = actions(location).querySelectorAll("button")[index];
+function action(index: number) {
+	const button = actions().querySelectorAll("button")[index];
 	if (!button) throw new Error(`Missing action ${index}`);
 	return button;
 }
@@ -132,7 +132,7 @@ async function scroll(sticky: boolean) {
 }
 
 describe("ItemDetails header actions", () => {
-	it("keeps both page headers draggable while preserving editable fields and selectable body content", async () => {
+	it("keeps page headers draggable while preserving editable fields and selectable body content", async () => {
 		await render();
 		const header = container.querySelector("header");
 		const compact = container.querySelector("[data-item-scroll-header]");
@@ -149,14 +149,8 @@ describe("ItemDetails header actions", () => {
 		expect(bodyField?.closest("[data-tauri-drag-region]")).toBeNull();
 		// Native deep dragging skips interactive elements unless explicitly opted in.
 		expect(name.hasAttribute("data-tauri-drag-region")).toBe(false);
-		for (const location of ["inline", "sticky"] as const) {
-			expect(action(location, 0).hasAttribute("data-tauri-drag-region")).toBe(
-				false,
-			);
-			expect(action(location, 1).hasAttribute("data-tauri-drag-region")).toBe(
-				false,
-			);
-		}
+		expect(action(0).hasAttribute("data-tauri-drag-region")).toBe(false);
+		expect(action(1).hasAttribute("data-tauri-drag-region")).toBe(false);
 		name.focus();
 		await act(async () => {
 			Object.getOwnPropertyDescriptor(
@@ -173,43 +167,25 @@ describe("ItemDetails header actions", () => {
 		expect(name.value).toBe("Weekly review");
 	});
 
-	it("exposes only the active actions while keeping the compact title decorative", async () => {
+	it("mounts one action tree and keeps the compact title decorative", async () => {
 		await render();
-		expect(actions("inline").hasAttribute("inert")).toBe(false);
-		expect(actions("inline").closest('[aria-hidden="true"]')).toBeNull();
-		expect(actions("sticky").hasAttribute("inert")).toBe(true);
-		expect(actions("sticky").closest('[aria-hidden="true"]')).not.toBeNull();
+		const actionTree = actions();
+		expect(
+			container.querySelectorAll("[data-item-header-actions]"),
+		).toHaveLength(1);
+		expect(actionTree.closest('[aria-hidden="true"]')).toBeNull();
 
 		await scroll(true);
-		expect(actions("inline").hasAttribute("inert")).toBe(true);
-		expect(actions("inline").getAttribute("aria-hidden")).toBe("true");
-		expect(actions("sticky").hasAttribute("inert")).toBe(false);
-		expect(actions("sticky").closest('[aria-hidden="true"]')).toBeNull();
+		expect(actions()).toBe(actionTree);
+		expect(
+			container.querySelectorAll("[data-item-header-actions]"),
+		).toHaveLength(1);
 		const compact = container.querySelector("[data-item-scroll-header]");
-		expect(compact?.firstElementChild?.getAttribute("aria-hidden")).toBe(
-			"true",
-		);
+		expect(compact?.closest('[aria-hidden="true"]')).not.toBeNull();
 		expect(container.querySelectorAll("h1")).toHaveLength(1);
-		expect(action("sticky", 1).closest("form")).not.toBeNull();
 
 		await scroll(false);
-		expect(actions("inline").hasAttribute("inert")).toBe(false);
-		expect(actions("sticky").hasAttribute("inert")).toBe(true);
-	});
-
-	it("keeps focus on the corresponding action in either scroll direction without scrolling", async () => {
-		await render();
-		const inlineSave = action("inline", 1);
-		const stickySave = action("sticky", 1);
-		const inlineFocus = vi.spyOn(inlineSave, "focus");
-		const stickyFocus = vi.spyOn(stickySave, "focus");
-		inlineSave.focus();
-		await scroll(true);
-		expect(document.activeElement).toBe(stickySave);
-		expect(stickyFocus).toHaveBeenCalledWith({ preventScroll: true });
-		await scroll(false);
-		expect(document.activeElement).toBe(inlineSave);
-		expect(inlineFocus).toHaveBeenLastCalledWith({ preventScroll: true });
+		expect(actions()).toBe(actionTree);
 	});
 
 	it("does not move focus out of a field when the compact header appears", async () => {
@@ -222,23 +198,19 @@ describe("ItemDetails header actions", () => {
 		expect(document.activeElement).toBe(field);
 	});
 
-	it("preserves actions, native form submission, and disabled/loading state in both positions", async () => {
+	it("preserves actions, native form submission, and disabled/loading state", async () => {
 		await render();
-		await act(async () => action("inline", 0).click());
+		await act(async () => action(0).click());
 		expect(onRun).toHaveBeenCalledTimes(1);
 		await scroll(true);
-		await act(async () => action("sticky", 0).click());
-		expect(onRun).toHaveBeenCalledTimes(2);
-		await act(async () => action("sticky", 1).click());
+		await act(async () => action(1).click());
 		expect(onSave).toHaveBeenCalledTimes(1);
 		await render({ busy: true });
-		for (const location of ["inline", "sticky"] as const) {
-			expect(action(location, 0).disabled).toBe(true);
-			expect(action(location, 1).disabled).toBe(true);
-			expect(action(location, 1).textContent).toBe("Saving…");
-			expect(action(location, 1).getAttribute("aria-busy")).toBe("true");
-		}
-		await act(async () => action("sticky", 1).click());
+		expect(action(0).disabled).toBe(true);
+		expect(action(1).disabled).toBe(true);
+		expect(action(1).textContent).toBe("Saving…");
+		expect(action(1).getAttribute("aria-busy")).toBe("true");
+		await act(async () => action(1).click());
 		expect(onSave).toHaveBeenCalledTimes(1);
 	});
 

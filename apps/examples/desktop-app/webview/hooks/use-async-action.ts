@@ -1,15 +1,32 @@
-import { useCallback, useRef, useState } from "react";
-import { useIsMounted } from "./use-is-mounted";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Runs one async action at a time. A call made while another is in flight is
- * ignored, `pending` is true meanwhile, and an outcome that arrives after the
- * component has gone is dropped.
+ * ignored and `pending` is true meanwhile. Outcomes that arrive while React
+ * Activity hides the component are delivered when it becomes visible again;
+ * outcomes after a permanent unmount are dropped.
  */
 export function useAsyncAction() {
 	const [pending, setPending] = useState(false);
 	const inFlight = useRef(false);
-	const mounted = useIsMounted();
+	const active = useRef(true);
+	const deferredOutcome = useRef<(() => void) | null>(null);
+
+	useEffect(() => {
+		active.current = true;
+		const outcome = deferredOutcome.current;
+		deferredOutcome.current = null;
+		outcome?.();
+		return () => {
+			active.current = false;
+		};
+	}, []);
+
+	const report = useCallback((outcome: () => void) => {
+		if (active.current) outcome();
+		else deferredOutcome.current = outcome;
+	}, []);
+
 	const run = useCallback(
 		async <Result>(
 			action: () => Promise<Result>,
@@ -24,17 +41,21 @@ export function useAsyncAction() {
 			if (inFlight.current) return;
 			inFlight.current = true;
 			setPending(true);
+			let outcome: () => void;
 			try {
 				const result = await action();
-				if (mounted.current) onSuccess?.(result);
+				outcome = () => onSuccess?.(result);
 			} catch (cause) {
-				if (mounted.current) onError?.(cause);
+				outcome = () => onError?.(cause);
 			} finally {
 				inFlight.current = false;
-				if (mounted.current) setPending(false);
+				// Hidden Activity content still owns this state. React safely ignores
+				// the update after a permanent unmount.
+				setPending(false);
 			}
+			report(outcome);
 		},
-		[mounted],
+		[report],
 	);
 	return { pending, run };
 }

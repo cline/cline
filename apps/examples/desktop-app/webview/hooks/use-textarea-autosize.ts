@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 
 function supportsFieldSizing(): boolean {
 	return (
@@ -13,12 +13,26 @@ function supportsFieldSizing(): boolean {
  */
 export function useTextareaAutosize(
 	ref: RefObject<HTMLTextAreaElement | null>,
-	value: string,
+	_value: string,
 ) {
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the value is what changes the content height.
+	const subscription = useRef<{
+		textarea: HTMLTextAreaElement;
+		resize: () => void;
+		observer?: ResizeObserver;
+	} | null>(null);
+
 	useLayoutEffect(() => {
 		const textarea = ref.current;
-		if (!textarea || supportsFieldSizing()) return;
+		if (!textarea || supportsFieldSizing()) {
+			subscription.current?.observer?.disconnect();
+			subscription.current = null;
+			return;
+		}
+		if (subscription.current?.textarea === textarea) {
+			subscription.current.resize();
+			return;
+		}
+		subscription.current?.observer?.disconnect();
 		const resize = () => {
 			// Hidden fields report no scroll height; the observer resizes on reveal.
 			if (textarea.scrollHeight === 0) return;
@@ -27,7 +41,10 @@ export function useTextareaAutosize(
 			textarea.style.height = `${textarea.scrollHeight + borders}px`;
 		};
 		resize();
-		if (typeof ResizeObserver === "undefined") return;
+		if (typeof ResizeObserver === "undefined") {
+			subscription.current = { textarea, resize };
+			return;
+		}
 		// Width changes rewrap the text, and a revealed field gains a size.
 		let width = textarea.offsetWidth;
 		const observer = new ResizeObserver(() => {
@@ -36,6 +53,14 @@ export function useTextareaAutosize(
 			resize();
 		});
 		observer.observe(textarea);
-		return () => observer.disconnect();
-	}, [ref, value]);
+		subscription.current = { textarea, resize, observer };
+	});
+
+	useLayoutEffect(
+		() => () => {
+			subscription.current?.observer?.disconnect();
+			subscription.current = null;
+		},
+		[],
+	);
 }

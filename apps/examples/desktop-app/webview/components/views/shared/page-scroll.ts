@@ -1,5 +1,5 @@
-/** Radix marks the element that actually scrolls inside a ScrollArea. */
-const SCROLL_VIEWPORT_SELECTOR = "[data-radix-scroll-area-viewport]";
+/** The viewport marker owned by our ScrollArea wrapper. */
+const SCROLL_VIEWPORT_SELECTOR = '[data-slot="scroll-area-viewport"]';
 
 /** The scrolling ancestor of a page element, so callers need not know how pages scroll. */
 export function findScrollViewport(
@@ -18,7 +18,7 @@ export function queryScrollViewports(
 }
 
 /** Measures the page, then returns the change that follows from it, if any. */
-export type ScrollMeasurement = () => (() => void) | undefined;
+type ScrollMeasurement = () => (() => void) | undefined;
 
 type ScrollFollowers = {
 	measurements: Set<ScrollMeasurement>;

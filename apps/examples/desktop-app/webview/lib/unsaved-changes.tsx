@@ -23,10 +23,17 @@ const UnsavedChangesContext = createContext<UnsavedChangesRegistry | null>(
 	null,
 );
 
-function confirmWith(registry: UnsavedChangesRegistry, proceed: () => void) {
+function confirmWith(
+	registry: UnsavedChangesRegistry,
+	proceed: () => void,
+	confirmed = new Set<LeaveGuard>(),
+) {
 	for (const guard of registry) {
-		if (guard.hasChanges()) {
-			guard.requestLeave(proceed);
+		if (!confirmed.has(guard) && guard.hasChanges()) {
+			guard.requestLeave(() => {
+				confirmed.add(guard);
+				confirmWith(registry, proceed, confirmed);
+			});
 			return;
 		}
 	}
@@ -82,9 +89,9 @@ export function useUnsavedChangesGuard(hasChanges: () => boolean) {
 	hasChangesRef.current = hasChanges;
 	// Set while a confirmed leave runs, so nested checks do not ask twice.
 	const leaving = useRef(false);
-	// One click can ask twice (a page-level navigation, then the editor's own
-	// close), so every request made while the dialog is open waits together.
-	const pendingLeaves = useRef<Array<() => void>>([]);
+	// One confirmation represents one navigation intent. Ignore repeated Back
+	// presses or competing destinations while its dialog is already open.
+	const pendingLeave = useRef<(() => void) | null>(null);
 	const [isConfirming, setIsConfirming] = useState(false);
 
 	const leave = useCallback((proceed: () => void) => {
@@ -97,23 +104,24 @@ export function useUnsavedChangesGuard(hasChanges: () => boolean) {
 	}, []);
 	const requestLeave = useCallback(
 		(proceed: () => void) => {
+			if (pendingLeave.current) return;
 			if (leaving.current || !hasChangesRef.current()) {
 				leave(proceed);
 				return;
 			}
-			pendingLeaves.current.push(proceed);
+			pendingLeave.current = proceed;
 			setIsConfirming(true);
 		},
 		[leave],
 	);
 	const confirm = useCallback(() => {
-		const leaves = pendingLeaves.current;
-		pendingLeaves.current = [];
+		const proceed = pendingLeave.current;
+		pendingLeave.current = null;
 		setIsConfirming(false);
-		for (const proceed of leaves) leave(proceed);
+		if (proceed) leave(proceed);
 	}, [leave]);
 	const cancel = useCallback(() => {
-		pendingLeaves.current = [];
+		pendingLeave.current = null;
 		setIsConfirming(false);
 	}, []);
 

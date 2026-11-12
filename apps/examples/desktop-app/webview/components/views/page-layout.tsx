@@ -3,6 +3,7 @@ import {
 	type ComponentType,
 	type ReactNode,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -25,7 +26,7 @@ export function PageShell({
 	);
 }
 
-type PageFrameProps = {
+type PageFrameBaseProps = {
 	children: ReactNode;
 	className?: string;
 	contentClassName?: string;
@@ -33,13 +34,17 @@ type PageFrameProps = {
 	header?: Omit<PageHeaderProps, "compact">;
 	/** Fade scrolling content beneath the pinned page header. */
 	headerFade?: boolean;
-	navigation?: ReactNode;
-	navigationLabel?: string;
 	/** Content mode bounds children so they can own their scroll panes. */
 	scrollMode?: "page" | "content";
 	/** Reserve the native title bar's space until the page scrolls. */
 	windowTitleBar?: boolean;
 };
+
+type PageFrameProps = PageFrameBaseProps &
+	(
+		| { navigation?: undefined; navigationLabel?: never }
+		| { navigation: ReactNode; navigationLabel: string }
+	);
 
 export function PageFrame({
 	children,
@@ -61,7 +66,7 @@ export function PageFrame({
 	const scrollPage = scrollMode === "page";
 	useScrollHeaderFade(headerRef, headerFade && hasHeader && scrollPage);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (!hasHeader) return;
 		const root = scrollRef.current;
 		const headerElement = headerRef.current;
@@ -210,7 +215,7 @@ export function PageFrame({
 			{titleBar}
 			<div
 				className={cn(
-					"px-18 pt-4 pb-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5",
+					"px-18 py-10 max-[1200px]:px-8 max-[720px]:px-4 max-[720px]:py-5",
 					className,
 				)}
 			>
@@ -256,10 +261,11 @@ export function PageHeader({
 					{Icon ? <Icon className="size-8 shrink-0 text-primary" /> : null}
 					<h1
 						className={cn(
-							"min-w-0 truncate font-cline-ui-medium text-foreground",
-							compact !== undefined &&
-								"transition-[font-size,line-height] duration-150 motion-reduce:transition-none",
-							compact ? "text-lg" : "text-2xl",
+							"min-w-0 truncate text-foreground",
+							compact === undefined
+								? "text-3xl font-semibold"
+								: "font-cline-ui-medium transition-[font-size,line-height] duration-150 motion-reduce:transition-none",
+							compact !== undefined && (compact ? "text-lg" : "text-2xl"),
 						)}
 					>
 						{title}
@@ -267,7 +273,12 @@ export function PageHeader({
 					{meta}
 				</div>
 				{description ? (
-					<p className="mt-3 max-w-2xl text-muted-foreground text-sm">
+					<p
+						className={cn(
+							"mt-3 max-w-2xl text-muted-foreground",
+							compact === undefined ? "text-base" : "text-sm",
+						)}
+					>
 						{description}
 					</p>
 				) : null}
