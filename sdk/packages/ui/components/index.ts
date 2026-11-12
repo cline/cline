@@ -166,6 +166,12 @@ export {
 } from "./item-card.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
+	PillSelector,
+	PillSelectorItem,
+	type PillSelectorItemProps,
+	type PillSelectorProps,
+} from "./pill-selector.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
@@ -173,8 +179,20 @@ export {
 } from "./search-combobox.js";
 export { SectionHeading, type SectionHeadingProps } from "./section-heading.js";
 export {
+	SegmentedControl,
+	type SegmentedControlOption,
+	type SegmentedControlProps,
+	type SegmentedControlSize,
+} from "./segmented-control.js";
+export {
 	SessionStatus,
 	type SessionStatusProps,
 	type SessionStatusTone,
 } from "./session-status.js";
 export { Switch, type SwitchProps } from "./switch.js";
+export {
+	Tooltip,
+	type TooltipProps,
+	TooltipProvider,
+	type TooltipProviderProps,
+} from "./tooltip.js";

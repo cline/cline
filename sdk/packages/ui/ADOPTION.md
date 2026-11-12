@@ -220,8 +220,8 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
-`Dialog` and `AlertDialog` portal to `document.body` by default. For scoped themes,
-pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
+`Dialog`, `AlertDialog`, and `Tooltip` portal to `document.body` by default. For
+scoped themes, pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
 that clip overflow or constrain fixed positioning. Use a callback ref stored
 in state to pass the mounted element.
 
@@ -1102,3 +1102,83 @@ The host owns saving state, errors, retries, and completion. `confirmTone` accep
 Button tones and defaults to `neutral`; `cancelLabel` defaults to “Cancel”. Pass
 `portalContainer` for scoped themes. Existing consumers retain immediate
 confirmation closure and Escape dismissal by default.
+
+## Tooltips
+
+`Tooltip` takes a plain-text `content` description and one focusable child that
+forwards its ref and event props, such as `Button`, `IconButton`, or a native link.
+The trigger keeps its existing `aria-describedby`, event handlers, and ref. Keep
+an accessible name on the trigger; tooltip text is supplemental. Native disabled
+buttons cannot receive keyboard focus.
+
+```tsx
+<Tooltip content="Create a conversation">
+  <Button>New conversation</Button>
+</Tooltip>
+```
+
+Hover and keyboard focus open the tooltip; Escape, blur, and trigger clicks dismiss
+it. Hover opens immediately by default. Set `delayDuration` in milliseconds for a
+hover delay; keyboard focus stays immediate. Wrap a group in `TooltipProvider` to
+share `delayDuration` and `skipDelayDuration` (the interval during which neighboring
+tooltips open without waiting). A Tooltip's `delayDuration` overrides its provider.
+
+Use `side` (default `top`), `align` (default `center`), and `sideOffset` (default 6)
+for placement. Import theme tokens and `@cline/ui/components.css`, and install
+compatible React and React DOM versions (18.3 or 19). Pass `portalContainer` inside
+`.cline-ui-theme` when using scoped tokens.
+
+## Selection controls
+
+Import these controls from `@cline/ui` with theme tokens and `@cline/ui/components.css`.
+Supply an accessible group name and unique, non-empty option values.
+
+### Pill selector
+
+`PillSelector` and `PillSelectorItem` provide single selection with horizontal
+scrolling. Left/Right and Home/End move focus; Space/Enter selects. Clicking the
+selected item emits `""`; ignore that value to require a selection:
+
+```tsx
+<PillSelector aria-label="Categories" value={category}
+  onValueChange={(value) => { if (value) setCategory(value); }}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+</PillSelector>
+```
+
+Use `defaultValue` for uncontrolled state. Groups and items support `disabled`;
+`dir` controls RTL behavior. Sizes are `sm` (2rem) and `md` (default, 2.25rem)
+at default spacing. The host owns filtering; this control does not submit a form value.
+
+`overflow="scroll"` (the default) keeps one horizontally scrolling row.
+Use `overflow="wrap"` to fit categories across multiple lines; focus outlines
+remain visible without horizontal scrolling. In wrapped mode, Up/Down and
+Left/Right move focus through enabled items in DOM order, including across line
+breaks. Horizontal arrows respect `dir`, and Home/End still reach the first/last
+item. This is ordered navigation, not spatial grid navigation. Selection still
+requires Space/Enter or a click. Focused items scroll into view in an enclosing
+scroll region; an item `onFocus` handler can call `preventDefault()` to take over.
+
+```tsx
+<PillSelector aria-label="Installed categories" overflow="wrap"
+  value={category} onValueChange={(value) => setCategory(value || "all")}>
+  <PillSelectorItem value="all">All</PillSelectorItem>
+  <PillSelectorItem value="skills">Skills</PillSelectorItem>
+  <PillSelectorItem value="plugins">Plugins</PillSelectorItem>
+</PillSelector>
+```
+
+### Segmented control
+
+`SegmentedControl` accepts `options` with `value` and readable `label` fields.
+Use `value`/`onValueChange` for controlled selection or `defaultValue` for internal
+state. Native radios support arrow-key selection, `name`, `required`, and `form`;
+uncontrolled groups follow form resets without emitting a user change.
+
+Options accept `icon`, `disabled`, and `tooltip`. `iconOnly` hides labels visually;
+provide an icon for every option. Group `disabled` disables all options, and `dir`
+controls layout. Sizes `xs`, `sm`, `md` (default), and `lg` match the
+[Button heights and corner radii](#buttons). Selection motion respects reduced motion.
+Pass `tooltipPortalContainer` inside `.cline-ui-theme` for scoped tooltips;
+an enclosing `TooltipProvider` shares hover timing.
