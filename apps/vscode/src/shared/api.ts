@@ -230,7 +230,7 @@ export interface LiteLLMModelInfo extends ModelInfo {
 
 // Requesty
 // https://requesty.ai/models
-export const requestyDefaultModelId = "anthropic/claude-3-7-sonnet-latest"
+export const requestyDefaultModelId = "anthropic/claude-sonnet-4-6"
 export const requestyDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
