@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	Button, IconButton, Badge,
-	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider,
+	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -84,11 +84,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider]) {
+for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "item-card", "section-heading", "pill-selector", "segmented-control", "tooltip"]) {
+for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "file-browser", "item-card", "section-heading", "pill-selector", "segmented-control", "tooltip"]) {
  const path = "./components/" + name + ".css";
  if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
   throw new Error("packed component stylesheet is missing: " + name);
@@ -242,7 +242,7 @@ async function verifyDeclarations(root: string): Promise<void> {
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, FileBrowser, FileBrowserContent, ItemCard, SectionHeading, PillSelector, PillSelectorItem, SegmentedControl, Tooltip, TooltipProvider, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -256,6 +256,7 @@ createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload",
 createElement(DetailList, { ref: createRef<HTMLDListElement>() }, createElement(DetailListItem, { title: "Path", description: "/project" }));
 createElement(Dialog, { open: false, onOpenChange() {}, title: "Details" });
 createElement(EmptyState, { title: "No files", description: "Add a file." });
+createElement(FileBrowser, { files: [{ path: "README.md" }], onSelect() {}, ref: createRef<HTMLElement>() }, createElement(FileBrowserContent, { path: "README.md", content: "Hello", ref: createRef<HTMLDivElement>() }));
 createElement(ItemCard, { title: "Skill", description: "A reusable skill" });
 createElement(SectionHeading, { title: "Skills", count: 2 });
 createElement(PillSelector, { "aria-label": "Categories", defaultValue: "skills", ref: createRef<HTMLDivElement>() }, createElement(PillSelectorItem, { value: "skills", ref: createRef<HTMLButtonElement>() }, "Skills"));
