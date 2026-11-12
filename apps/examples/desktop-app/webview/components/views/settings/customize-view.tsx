@@ -11,7 +11,7 @@ import { PageFrame, PageHeader } from "../page-layout";
 import { ComposioConnectorsView } from "./composio-connectors-view";
 import {
 	CustomizationSectionView,
-	invalidateExtensionInventoryCache,
+	subscribeToExtensionInventoryInvalidation,
 } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
@@ -108,20 +108,21 @@ export function CustomizeView({
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshCounts]);
 
-	useEffect(
-		() =>
-			desktopClient.subscribe("settings.changed", () => {
-				invalidateExtensionInventoryCache();
-				void refreshCounts();
-			}),
-		[refreshCounts],
-	);
+	useEffect(() => {
+		let cancelled = false;
+		const unsubscribe = subscribeToExtensionInventoryInvalidation(() => {
+			// Account listeners invalidate their shared clients synchronously.
+			queueMicrotask(() => {
+				if (!cancelled) void refreshCounts();
+			});
+		});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, [refreshCounts]);
 
 	const handleInventoryChanged = useCallback(() => {
-		void refreshCounts();
-	}, [refreshCounts]);
-	const handleConnectorInventoryChanged = useCallback(() => {
-		invalidateExtensionInventoryCache();
 		void refreshCounts();
 	}, [refreshCounts]);
 
@@ -200,11 +201,7 @@ export function CustomizeView({
 					onInventoryChanged={handleInventoryChanged}
 				/>
 			) : tab === "integrations" ? (
-				<ComposioConnectorsView
-					appendOnScroll
-					onChanged={handleConnectorInventoryChanged}
-					variant="installed"
-				/>
+				<ComposioConnectorsView appendOnScroll variant="installed" />
 			) : tab === "plugins" ? (
 				<CustomizationSectionView
 					catalogPrimitive="plugin"

@@ -48,13 +48,18 @@ const EMPTY_STATUS_SNAPSHOT: ComposioStatusSnapshot = {
 };
 let statusSnapshot = EMPTY_STATUS_SNAPSHOT;
 const statusListeners = new Set<() => void>();
+const inventoryChangeListeners = new Set<() => void>();
+let inventorySignature: string | null = null;
 let statusPoll: ReturnType<typeof setInterval> | undefined;
 
 function updateStatusPolling() {
 	const pending = statusSnapshot.status?.integrations.some(
 		(integration) => integration.status === "pending",
 	);
-	if (statusListeners.size === 0 || !pending) {
+	if (
+		(statusListeners.size === 0 && inventoryChangeListeners.size === 0) ||
+		!pending
+	) {
 		clearInterval(statusPoll);
 		statusPoll = undefined;
 	} else if (statusPoll === undefined) {
@@ -78,10 +83,33 @@ function publishStatus(next: ComposioStatusSnapshot) {
 	for (const listener of statusListeners) listener();
 }
 
-function commitStatus(status: ComposioStatusResponse) {
+function getInventorySignature(status: ComposioStatusResponse) {
+	return JSON.stringify([
+		status.configured,
+		status.integrations
+			.filter((integration) => integration.status === "connected")
+			.map((integration) => integration.toolkit)
+			.sort(),
+	]);
+}
+
+function publishInventoryChange() {
+	for (const listener of inventoryChangeListeners) listener();
+}
+
+function commitStatus(
+	status: ComposioStatusResponse,
+	options?: { mutation?: boolean },
+) {
+	const nextInventorySignature = getInventorySignature(status);
+	const connectionsChanged =
+		inventorySignature !== null &&
+		inventorySignature !== nextInventorySignature;
+	inventorySignature = nextInventorySignature;
 	statusCache = { value: status, fetchedAt: Date.now() };
 	publishAvailability(status.configured);
 	publishStatus({ status, loading: false, error: null });
+	if (options?.mutation || connectionsChanged) publishInventoryChange();
 }
 
 export const getComposioStatusSnapshot = () => statusSnapshot;
@@ -100,11 +128,26 @@ export function subscribeComposioStatus(listener: () => void) {
 	};
 }
 
+/**
+ * Observe changes that can alter the extension inventory. Unlike a UI status
+ * subscription, this keeps pending OAuth polling alive after its initiating
+ * control unmounts.
+ */
+export function subscribeComposioInventoryChanges(listener: () => void) {
+	inventoryChangeListeners.add(listener);
+	void fetchComposioStatus().catch(() => {});
+	updateStatusPolling();
+	return () => {
+		inventoryChangeListeners.delete(listener);
+		updateStatusPolling();
+	};
+}
+
 // Availability is UI state, not authorization. Retain it across page mounts;
 // the sidecar still checks account access for every connector operation.
 let availability: boolean | null = null;
 let availabilityGeneration = 0;
-let unsubscribeSettings: (() => void) | null = null;
+let unsubscribeInvalidations: (() => void) | null = null;
 const availabilityListeners = new Set<() => void>();
 
 /** Retain expired snapshots for rendering while the next read refreshes them. */
@@ -120,16 +163,20 @@ function invalidateComposioCache() {
 	statusRequest = null;
 	catalogRequest = null;
 	statusMutation = null;
+	inventorySignature = null;
 	publishAvailability(null);
 	publishStatus(EMPTY_STATUS_SNAPSHOT);
-	if (statusListeners.size > 0) void fetchComposioStatus().catch(() => {});
+	if (statusListeners.size > 0 || inventoryChangeListeners.size > 0) {
+		void fetchComposioStatus().catch(() => {});
+	}
 }
 
 export function resetComposioCacheForTesting() {
-	unsubscribeSettings?.();
-	unsubscribeSettings = null;
+	unsubscribeInvalidations?.();
+	unsubscribeInvalidations = null;
 	availabilityListeners.clear();
 	statusListeners.clear();
+	inventoryChangeListeners.clear();
 	invalidateComposioCache();
 }
 
@@ -139,14 +186,22 @@ function publishAvailability(next: boolean | null) {
 	for (const listener of availabilityListeners) listener();
 }
 
-function observeAvailabilitySettings() {
-	if (unsubscribeSettings) return;
-	// Keep observing while pages are unmounted so signing out elsewhere also
-	// invalidates the cached value. This subscription lives with the client.
-	unsubscribeSettings = desktopClient.subscribe(
+function observeAccountChanges() {
+	if (unsubscribeInvalidations) return;
+	// Keep observing while pages are unmounted so account, organization, and
+	// settings changes cannot leave connector data from the previous session.
+	const unsubscribeSettings = desktopClient.subscribe(
 		"settings.changed",
 		invalidateComposioCache,
 	);
+	const unsubscribeCloudSessions = desktopClient.subscribe(
+		"cloud_sessions_changed",
+		invalidateComposioCache,
+	);
+	unsubscribeInvalidations = () => {
+		unsubscribeSettings();
+		unsubscribeCloudSessions();
+	};
 }
 
 export function getComposioAvailability(): boolean | null {
@@ -154,7 +209,7 @@ export function getComposioAvailability(): boolean | null {
 }
 
 export function subscribeComposioAvailability(listener: () => void) {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	availabilityListeners.add(listener);
 	return () => {
 		availabilityListeners.delete(listener);
@@ -188,7 +243,7 @@ function resolveCurrentStatus(
 export function fetchComposioStatus(options?: {
 	refresh?: boolean;
 }): Promise<ComposioStatusResponse> {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	if (statusMutation) return resolveCurrentStatus();
 	const pendingConnection = statusCache?.value.integrations.some(
 		(entry) => entry.status === "pending",
@@ -266,7 +321,7 @@ function resolveCurrentCatalog(
 }
 
 export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	if (catalogRequest) return catalogRequest;
 	if (catalogCache && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS)
 		return Promise.resolve(catalogCache.value);
@@ -309,7 +364,7 @@ function runStatusMutation<T>(
 	load: () => Promise<T>,
 	readStatus: (result: T) => ComposioStatusResponse,
 ): Promise<T> {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	statusRevision++;
 	statusRequest = null;
 	publishStatus({ ...statusSnapshot, loading: false });
@@ -322,7 +377,7 @@ function runStatusMutation<T>(
 				mutation.generation === availabilityGeneration &&
 				mutation.revision === statusRevision
 			) {
-				commitStatus(readStatus(result));
+				commitStatus(readStatus(result), { mutation: true });
 			}
 			return result;
 		})

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { subscribeComposioInventoryChanges } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
@@ -296,12 +297,31 @@ let extensionHookStatsCache: {
 } | null = null;
 
 const extensionInventoryInvalidationListeners = new Set<() => void>();
+let unsubscribeExtensionInventoryInvalidations: (() => void) | null = null;
+
+function observeExtensionInventoryInvalidations() {
+	if (unsubscribeExtensionInventoryInvalidations) return;
+	const unsubscribeSettings = desktopClient.subscribe(
+		"settings.changed",
+		invalidateExtensionInventoryCache,
+	);
+	const unsubscribeCloudSessions = desktopClient.subscribe(
+		"cloud_sessions_changed",
+		invalidateExtensionInventoryCache,
+	);
+	const unsubscribeComposio = subscribeComposioInventoryChanges(
+		invalidateExtensionInventoryCache,
+	);
+	unsubscribeExtensionInventoryInvalidations = () => {
+		unsubscribeSettings();
+		unsubscribeCloudSessions();
+		unsubscribeComposio();
+	};
+}
 
 /**
  * Drops the module-level inventory cache and notifies mounted inventory views
- * so they refetch immediately. Used by the Marketplace page after
- * installs/uninstalls that happen outside these views — including ones that
- * complete after the user has already navigated back to the Plugins hub.
+ * so they refetch immediately after settings, account, or connector changes.
  */
 export function invalidateExtensionInventoryCache() {
 	extensionListsCache = null;
@@ -315,6 +335,9 @@ export function subscribeToExtensionInventoryInvalidation(
 	listener: () => void,
 ): () => void {
 	extensionInventoryInvalidationListeners.add(listener);
+	// Keep these client-level subscriptions after the last view unmounts so
+	// external changes cannot leave a populated inventory cache stale.
+	observeExtensionInventoryInvalidations();
 	return () => {
 		extensionInventoryInvalidationListeners.delete(listener);
 	};

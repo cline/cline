@@ -19,6 +19,14 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 
+function emitDesktopEvent(name: string) {
+	const callback = mocks.subscribe.mock.calls.find(
+		([eventName]) => eventName === name,
+	)?.[1] as (() => void) | undefined;
+	expect(callback).toBeTypeOf("function");
+	callback?.();
+}
+
 function status(
 	connection: "connected" | "not_connected" | "pending" = "connected",
 ): ComposioStatusResponse {
@@ -45,7 +53,11 @@ describe("connector availability cache", () => {
 		unsubscribe();
 		api.subscribeComposioAvailability(vi.fn());
 		expect(api.getComposioAvailability()).toBe(true);
-		expect(mocks.subscribe).toHaveBeenCalledTimes(1);
+		expect(mocks.subscribe).toHaveBeenCalledTimes(2);
+		expect(mocks.subscribe).toHaveBeenCalledWith(
+			"cloud_sessions_changed",
+			expect.any(Function),
+		);
 		mocks.invoke.mockRejectedValueOnce(new Error("offline"));
 		await expect(api.fetchComposioStatus({ refresh: true })).rejects.toThrow(
 			"offline",
@@ -56,7 +68,7 @@ describe("connector availability cache", () => {
 		expect(api.getComposioAvailability()).toBe(false);
 	});
 
-	it("invalidates while unmounted and ignores pre-change requests", async () => {
+	it("invalidates on account changes while unmounted and ignores pre-change requests", async () => {
 		const api = await import("./composio");
 		const unsubscribe = api.subscribeComposioAvailability(vi.fn());
 		mocks.invoke.mockResolvedValueOnce({ configured: true, integrations: [] });
@@ -68,7 +80,7 @@ describe("connector availability cache", () => {
 			.mockReturnValueOnce(oldAccount.promise)
 			.mockReturnValueOnce(currentAccount.promise);
 		const stale = api.fetchComposioStatus({ refresh: true });
-		mocks.subscribe.mock.calls[0][1]();
+		emitDesktopEvent("cloud_sessions_changed");
 		expect(api.getComposioAvailability()).toBeNull();
 		oldAccount.resolve(status());
 		await Promise.resolve();
@@ -167,6 +179,25 @@ describe("shared connector data cache", () => {
 		).toBe("connected");
 	});
 
+	it("publishes mutations and later OAuth completion to persistent inventory subscribers", async () => {
+		const api = await import("./composio");
+		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
+		const onInventoryChanged = vi.fn();
+		const unsubscribe =
+			api.subscribeComposioInventoryChanges(onInventoryChanged);
+		await api.fetchComposioStatus();
+		expect(onInventoryChanged).not.toHaveBeenCalled();
+
+		mocks.invoke.mockResolvedValueOnce({ status: status("pending") });
+		await api.connectComposioIntegration("gmail");
+		expect(onInventoryChanged).toHaveBeenCalledTimes(1);
+
+		mocks.invoke.mockResolvedValueOnce(status());
+		await api.fetchComposioStatus();
+		expect(onInventoryChanged).toHaveBeenCalledTimes(2);
+		unsubscribe();
+	});
+
 	it("shares catalog reads and invalidates status and catalog caches on settings changes", async () => {
 		const api = await import("./composio");
 		const catalog = { configured: true, toolkits: [] };
@@ -180,7 +211,7 @@ describe("shared connector data cache", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(1);
 		mocks.invoke.mockResolvedValueOnce(status());
 		await api.fetchComposioStatus();
-		mocks.subscribe.mock.calls[0][1]();
+		emitDesktopEvent("settings.changed");
 		expect(api.getComposioStatusSnapshot().status).toBeNull();
 		const current = { configured: false, toolkits: [] };
 		mocks.invoke.mockResolvedValueOnce(current);
@@ -198,7 +229,7 @@ describe("shared connector data cache", () => {
 		const next = deferred<typeof catalog>();
 		mocks.invoke.mockReturnValueOnce(next.promise);
 		const read = api.fetchComposioToolkitCatalog();
-		mocks.subscribe.mock.calls[0][1]();
+		emitDesktopEvent("settings.changed");
 		const current = {
 			configured: false,
 			toolkits: [
@@ -252,7 +283,7 @@ describe("shared connector data cache", () => {
 		const mutation = deferred<ComposioStatusResponse>();
 		mocks.invoke.mockReturnValueOnce(mutation.promise);
 		const change = api.disconnectComposioIntegration("gmail");
-		mocks.subscribe.mock.calls[0][1]();
+		emitDesktopEvent("settings.changed");
 		mutation.resolve(status("not_connected"));
 		await change;
 		expect(api.getComposioStatusSnapshot().status).toBeNull();
