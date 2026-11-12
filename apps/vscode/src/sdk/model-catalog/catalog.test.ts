@@ -393,6 +393,23 @@ describe("ProviderCatalog Phase 3.3 error path", () => {
 		expect(result.fetchedAt).toEqual(expect.any(Number))
 	})
 
+	it("enables failOnError for private-catalog providers when credentials are present", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockRejectedValue(new Error("Baseten model refresh failed: HTTP 401"))
+		const providerId = parseProviderId("baseten")
+		const config: EffectiveProviderConfig = { providerId, apiKey: "bad-key" }
+		const result = await createProviderCatalog(makeReader(config)).resolveModels(providerId)
+
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"baseten",
+			expect.objectContaining({ loadLatestOnInit: false, failOnError: true }),
+			expect.objectContaining({ apiKey: "bad-key" }),
+		)
+		expect(result.ok).toBe(false)
+		if (result.ok) throw new Error("expected error")
+		expect(result.error).toEqual({ kind: "unknown", message: "Baseten model refresh failed: HTTP 401" })
+	})
+
 	it("shape validation failure produces a shape error arm", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.resolveProviderConfig.mockResolvedValue({

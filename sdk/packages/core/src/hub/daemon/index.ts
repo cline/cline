@@ -303,7 +303,8 @@ export async function hubHasLiveSessions(
 			activity.activeSessionCount > 0 ||
 			(activity.activePluginRequests ?? 0) > 0 ||
 			(activity.activeCloudCommands ?? 0) > 0 ||
-			(activity.activeProviderMutations ?? 0) > 0
+			(activity.activeProviderMutations ?? 0) > 0 ||
+			(activity.activeMcpRequests ?? 0) > 0
 		);
 	} catch {
 		return false;
@@ -990,7 +991,8 @@ export async function upgradeManagedHub(
 			observedBackgroundRequests =
 				(activity.activePluginRequests ?? 0) +
 				(activity.activeCloudCommands ?? 0) +
-				(activity.activeProviderMutations ?? 0);
+				(activity.activeProviderMutations ?? 0) +
+				(activity.activeMcpRequests ?? 0);
 			if (observedSessionCount === 0 && observedBackgroundRequests === 0) {
 				break;
 			}

@@ -534,6 +534,84 @@ describe("runAgent", () => {
 		);
 	});
 
+	it("applies --timeout to a first turn that runs inside start()", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		// The local backend only returns from start() once the first turn
+		// ends, so the turn here ends only when the run is aborted.
+		let finishTurn: (() => void) | undefined;
+		const turnFinished = new Promise<void>((resolve) => {
+			finishTurn = resolve;
+		});
+		sessionManagerMocks.abort.mockImplementation(async () => {
+			finishTurn?.();
+		});
+		sessionManagerMocks.start.mockImplementation(
+			async (input: { config: { sessionId: string } }) => {
+				await turnFinished;
+				return {
+					sessionId: input.config.sessionId,
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest: { session_id: input.config.sessionId },
+					result: {
+						text: "aborted",
+						usage: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: undefined,
+						},
+						messages: [],
+						toolCalls: [],
+						iterations: 0,
+						finishReason: "aborted",
+						model: { id: "gemini", provider: "openrouter", info: {} },
+						startedAt,
+						endedAt,
+						durationMs: 1000,
+					},
+				};
+			},
+		);
+
+		const { runAgent } = await import("./run-agent");
+
+		await runAgent("test prompt", {
+			cwd: process.cwd(),
+			enableAgentTeams: false,
+			enableSpawnAgent: false,
+			enableTools: [],
+			execution: {
+				maxConsecutiveMistakes: 3,
+			},
+			logger: undefined,
+			mode: "yolo",
+			modelId: "google/gemini-3-flash-preview",
+			outputMode: "text",
+			providerId: "openrouter",
+			systemPrompt: "system",
+			thinking: false,
+			timeoutSeconds: 0.05,
+			toolPolicies: { "*": { autoApprove: true } },
+			verbose: false,
+			workspaceRoot: process.cwd(),
+		} as never);
+
+		const startInput = sessionManagerMocks.start.mock.calls[0]?.[0] as {
+			config: { sessionId: string };
+		};
+		expect(sessionManagerMocks.abort).toHaveBeenCalledWith(
+			startInput.config.sessionId,
+			expect.any(Error),
+		);
+		expect(outputMocks.writeErr).toHaveBeenCalledWith(
+			"run timed out after 0.05s",
+		);
+		expect(process.exitCode).toBe(1);
+	});
+
 	it("sets a failing exit code when session startup throws", async () => {
 		sessionManagerMocks.start.mockRejectedValue(new Error("Missing API key"));
 		const logger = {

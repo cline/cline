@@ -85,12 +85,14 @@ describe("providerSettingsRegistry", () => {
 
 		for (const [providerId, providerName, signupUrl] of migratedProviders) {
 			expect(hasCustomProviderSettings(providerId)).toBe(false)
-			expect(getGenericProviderSettings(providerId, listing({ id: providerId, name: providerName }))).toEqual({
+			const expected = {
 				allowsCustomIds: false,
 				providerId,
 				providerName,
 				...(signupUrl ? { signupUrl } : {}),
-			})
+			}
+			expect(getGenericProviderSettings(providerId, listing({ id: providerId, name: providerName }))).toEqual(expected)
+			expect(getFallbackGenericProviderSettings(providerId)).toEqual(expected)
 		}
 	})
 

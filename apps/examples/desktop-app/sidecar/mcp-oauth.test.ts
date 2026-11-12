@@ -1,95 +1,63 @@
-import type {
-	AuthorizeMcpServerOAuthOptions,
-	AuthorizeMcpServerOAuthResult,
-} from "@cline/core";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	cancelMcpOAuthAuthorization,
-	cancelMcpOAuthAuthorizationForReason,
 	cancelMcpOAuthAuthorizationsForOwner,
-	McpOAuthAuthorizationCancelledError,
-	runCancellableMcpOAuthAuthorization,
-	shouldRestoreEnabledStateAfterOAuthCancellation,
+	runMcpOAuthAuthorization,
 } from "./mcp-oauth";
+import type { SidecarContext } from "./types";
 
-function waitForAbort(
-	options: AuthorizeMcpServerOAuthOptions,
-): Promise<AuthorizeMcpServerOAuthResult> {
-	return new Promise((_, reject) => {
-		if (options.signal?.aborted) {
-			reject(new Error("aborted"));
-			return;
-		}
-		options.signal?.addEventListener(
-			"abort",
-			() => reject(new Error("aborted")),
-			{ once: true },
-		);
-	});
-}
-
-describe("desktop MCP OAuth authorization", () => {
-	it("starts browser authorization only through the explicit runner", async () => {
-		const authorize = vi.fn(
-			async (
-				options: AuthorizeMcpServerOAuthOptions,
-			): Promise<AuthorizeMcpServerOAuthResult> => ({
-				serverName: options.serverName,
-				authorized: true,
-				message: "authorized",
-			}),
-		);
-
-		await expect(
-			runCancellableMcpOAuthAuthorization({ serverName: "github" }, undefined, {
-				authorize,
-			}),
-		).resolves.toMatchObject({ authorized: true });
-		expect(authorize).toHaveBeenCalledOnce();
-		expect(authorize.mock.calls[0]?.[0].signal).toBeInstanceOf(AbortSignal);
-	});
-
-	it("cancels a pending callback when the server is turned off", async () => {
-		const pending = runCancellableMcpOAuthAuthorization(
-			{ serverName: "github" },
-			undefined,
-			{ authorize: waitForAbort },
-		);
-
-		expect(
-			cancelMcpOAuthAuthorizationForReason("github", "server-disabled"),
-		).toBe(true);
-		await expect(pending).rejects.toMatchObject({
-			name: "McpOAuthAuthorizationCancelledError",
-			reason: "server-disabled",
+const { authorize } = vi.hoisted(() => ({ authorize: vi.fn() }));
+vi.mock("@cline/core", async (original) => ({
+	...(await original<typeof import("@cline/core")>()),
+	createHubMcpApi: () => ({ authorize }),
+}));
+vi.mock("./context", () => ({ ensureSharedHubClient: async () => ({}) }));
+beforeEach(() => {
+	authorize.mockReset();
+});
+describe("Desktop MCP OAuth UI adapter", () => {
+	it("forwards browser interaction without touching configuration", async () => {
+		authorize.mockImplementation(async (name, options) => {
+			await options.openUrl("https://example.test/auth");
+			return { servers: [{ name }] };
 		});
-		expect(cancelMcpOAuthAuthorization("github")).toBe(false);
-	});
-
-	it("restores a previously enabled server only for an explicit user cancel", () => {
-		expect(shouldRestoreEnabledStateAfterOAuthCancellation(false, "user")).toBe(
-			true,
-		);
+		const open = vi.fn().mockResolvedValue(undefined);
 		expect(
-			shouldRestoreEnabledStateAfterOAuthCancellation(false, "server-disabled"),
-		).toBe(false);
-		expect(shouldRestoreEnabledStateAfterOAuthCancellation(true, "user")).toBe(
-			false,
-		);
+			await runMcpOAuthAuthorization({} as SidecarContext, "remote", {}, open),
+		).toEqual({ servers: [{ name: "remote" }] });
+		expect(open).toHaveBeenCalledWith("https://example.test/auth");
 	});
-
-	it("cancels an abandoned flow when its webview connection closes", async () => {
-		const owner = {};
-		const pending = runCancellableMcpOAuthAuthorization(
-			{ serverName: "linear" },
+	it("cancels only UI interactions owned by the initiating webview", async () => {
+		const owner = {},
+			other = {};
+		const signals: AbortSignal[] = [];
+		authorize.mockImplementation(async (_name, options) => {
+			signals.push(options.signal);
+			return new Promise((resolve) =>
+				options.signal.addEventListener("abort", () =>
+					resolve({ servers: [] }),
+				),
+			);
+		});
+		const first = runMcpOAuthAuthorization(
+			{} as SidecarContext,
+			"remote",
 			owner,
-			{ authorize: waitForAbort },
+			vi.fn(),
 		);
-
-		expect(cancelMcpOAuthAuthorizationsForOwner({})).toBe(0);
+		const second = runMcpOAuthAuthorization(
+			{} as SidecarContext,
+			"remote",
+			other,
+			vi.fn(),
+		);
+		await vi.waitFor(() => expect(signals).toHaveLength(2));
 		expect(cancelMcpOAuthAuthorizationsForOwner(owner)).toBe(1);
-		await expect(pending).rejects.toBeInstanceOf(
-			McpOAuthAuthorizationCancelledError,
-		);
+		expect(signals[0].aborted).toBe(true);
+		expect(signals[0].reason).toBe("disconnected");
+		expect(signals[1].aborted).toBe(false);
+		expect(cancelMcpOAuthAuthorization("remote", other)).toBe(true);
+		expect(signals[1].reason).toBe("user");
+		await Promise.all([first, second]);
 	});
 });

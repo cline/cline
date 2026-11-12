@@ -130,6 +130,18 @@ export function resolveSessionListTitle(options: {
 	return `Session ${options.sessionId.slice(-6)}`;
 }
 
+export function recordActivity(
+	state: CloudSessionState,
+	timestamp: number | undefined,
+): void {
+	if (timestamp === undefined || !Number.isFinite(timestamp) || timestamp <= 0)
+		return;
+	state.lastActivityAt = Math.max(
+		state.lastActivityAt ?? state.startedAt,
+		timestamp,
+	);
+}
+
 /** Mutates only controller-owned state. Hosts receive frozen copies afterwards. */
 export function reduceCloudEvent(
 	state: CloudSessionState,
@@ -308,6 +320,7 @@ export function reduceCloudEvent(
 			state.status = status;
 			state.busy = status === "running";
 			if (event.event === "run.started") {
+				recordActivity(state, event.timestamp);
 				// Queue/steer acknowledgements are not a new assistant turn.
 				if (!alreadyRunning) streams.delete(sessionId);
 				state.endedAt = undefined;
@@ -334,6 +347,7 @@ export function reduceCloudEvent(
 							? "aborted"
 							: "completed";
 			state.busy = false;
+			recordActivity(state, event.timestamp);
 			state.endedAt = Date.now();
 			streams.delete(sessionId);
 			return;

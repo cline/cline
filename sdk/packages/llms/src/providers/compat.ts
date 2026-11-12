@@ -413,11 +413,13 @@ function buildGatewayRequest(
 		reasoning:
 			config.thinking !== undefined ||
 			config.reasoningEffort ||
-			config.thinkingBudgetTokens !== undefined
+			config.thinkingBudgetTokens !== undefined ||
+			config.preferThinkingOff
 				? {
 						enabled: config.thinking,
 						effort: config.reasoningEffort,
 						budgetTokens: config.thinkingBudgetTokens,
+						...(config.preferThinkingOff ? { preferOff: true } : {}),
 					}
 				: undefined,
 		signal,

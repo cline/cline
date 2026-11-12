@@ -30,6 +30,7 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import { McpManagementService } from "../../services/mcp-management";
 import type { PluginCommandsRuntimeService } from "../../services/plugin-command-api";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { ensureAgentSchedulesWorkspace } from "../../services/workspace/agent-schedules-workspace";
@@ -91,6 +92,7 @@ import {
 	handleSessionMcpAppsReadResource,
 	handleSessionMcpAppsResolveTool,
 } from "./handlers/mcp-apps-handlers";
+import { handleMcpManagementCommand } from "./handlers/mcp-management-handlers";
 import { handleProviderCommand } from "./handlers/provider-handlers";
 import {
 	handleRunAbort,
@@ -351,6 +353,8 @@ export class HubServerTransport implements NativeHubTransport {
 	private runExecutor?: HubRunExecutor;
 	private draining = false;
 	private readonly pendingPluginCommands = new Set<Promise<unknown>>();
+	private readonly mcpManagement = new McpManagementService();
+	private readonly pendingMcpRequests = new Set<Promise<unknown>>();
 	private readonly pendingProviderMutations = new Set<Promise<unknown>>();
 	private readonly plugins: PluginRegistry = getProcessPluginRegistry();
 	private unsubscribePluginStatus?: () => void;
@@ -815,9 +819,11 @@ export class HubServerTransport implements NativeHubTransport {
 
 	async stop(): Promise<void> {
 		this.draining = true;
+		await this.mcpManagement.dispose();
 		await Promise.allSettled([
 			...this.pendingPluginCommands,
 			...this.pendingProviderMutations,
+			...this.pendingMcpRequests,
 		]);
 		this.unsubscribePluginStatus?.();
 		this.unsubscribePluginStatus = undefined;
@@ -855,12 +861,44 @@ export class HubServerTransport implements NativeHubTransport {
 		this.runExecutor = undefined;
 	}
 
+	private readonly oauthConnectionOwners = new WeakMap<
+		HubConnectionAuthority,
+		string
+	>();
+	private oauthOwner(
+		authority: HubConnectionAuthority | null | undefined,
+		clientId: string | undefined,
+	) {
+		if (!authority) return `in-process:${clientId ?? "default"}`;
+		let owner = this.oauthConnectionOwners.get(authority);
+		if (!owner) {
+			owner = createSessionId("oauth_owner_");
+			this.oauthConnectionOwners.set(authority, owner);
+		}
+		return owner;
+	}
+
 	async handleCommand(
 		envelope: HubCommandEnvelope,
 		authority?: HubConnectionAuthority | null,
 		connection?: HubConnectionContext,
 	): Promise<HubReplyEnvelope> {
 		try {
+			if (envelope.command === "client.unregister" && authority !== undefined) {
+				if (!authority)
+					return errorReply(
+						envelope,
+						"client_not_registered",
+						"Register before unregistering a client",
+					);
+				if (envelope.clientId?.trim() !== authority.clientId)
+					return errorReply(
+						envelope,
+						"client_authority_mismatch",
+						"Command clientId does not belong to this connection",
+					);
+			}
+
 			if (
 				authority === null &&
 				(envelope.command === "cloud.command" ||
@@ -871,22 +909,27 @@ export class HubServerTransport implements NativeHubTransport {
 					"client_not_registered",
 					"Register before accessing cloud sessions",
 				);
-			if (authority === null && envelope.command.startsWith("providers.")) {
+			if (
+				authority === null &&
+				(envelope.command.startsWith("providers.") ||
+					envelope.command.startsWith("mcp."))
+			) {
 				return errorReply(
 					envelope,
 					"client_not_registered",
-					"Register before accessing provider settings",
+					"Register before accessing machine settings",
 				);
 			}
 			if (
-				envelope.command.startsWith("providers.") &&
+				(envelope.command.startsWith("providers.") ||
+					envelope.command.startsWith("mcp.")) &&
 				authority !== undefined &&
 				authority?.tokenAuthenticated !== true
 			) {
 				return errorReply(
 					envelope,
 					"authentication_required",
-					"Provider management requires a token-authenticated Hub connection",
+					"Machine management requires a token-authenticated Hub connection",
 				);
 			}
 
@@ -915,6 +958,7 @@ export class HubServerTransport implements NativeHubTransport {
 			const reply = await this.dispatchCommand(
 				envelope,
 				effectiveAuthority,
+				this.oauthOwner(authority, clientId),
 				sessionAuthority,
 			);
 			this.captureFailedReply(envelope, reply);
@@ -1005,10 +1049,11 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority: HubConnectionAuthority | undefined,
+		oauthOwner: string,
 		// Unlike `authority`, keeps `null` (unregistered remote connection)
 		// distinct from `undefined` (trusted in-process caller).
-		connectionAuthority?: HubConnectionAuthority | null,
+		connectionAuthority: HubConnectionAuthority | null | undefined,
 	): Promise<HubReplyEnvelope> {
 		if (this.draining && isDrainRefusedCommand(envelope.command)) {
 			return drainingReply(envelope);
@@ -1067,6 +1112,19 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			}
 		}
+		if (envelope.command.startsWith("mcp.")) {
+			const request = handleMcpManagementCommand(
+				envelope,
+				this.mcpManagement,
+				oauthOwner,
+			);
+			this.pendingMcpRequests.add(request);
+			try {
+				return await request;
+			} finally {
+				this.pendingMcpRequests.delete(request);
+			}
+		}
 		const sessionAuthorityDenial = await this.authorizeConnectionForSession(
 			envelope,
 			connectionAuthority,
@@ -1101,6 +1159,7 @@ export class HubServerTransport implements NativeHubTransport {
 				return reply;
 			}
 			case "client.unregister": {
+				this.mcpManagement.oauth.cancelOwner(oauthOwner);
 				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
@@ -1152,6 +1211,9 @@ export class HubServerTransport implements NativeHubTransport {
 						...reply.payload,
 						activePluginRequests: this.pendingPluginCommands.size,
 						activeProviderMutations: this.pendingProviderMutations.size,
+						activeMcpRequests:
+							this.pendingMcpRequests.size +
+							this.mcpManagement.oauth.activeCount,
 						activeCloudCommands: this.cloud.activeCommands,
 					},
 				};
@@ -1498,6 +1560,8 @@ export class HubServerTransport implements NativeHubTransport {
 			activeCloudCommands: this.cloud.activeCommands,
 			activePluginRequests: this.pendingPluginCommands.size,
 			activeProviderMutations: this.pendingProviderMutations.size,
+			activeMcpRequests:
+				this.pendingMcpRequests.size + this.mcpManagement.oauth.activeCount,
 			pendingRuns: this.runQueue?.countPending() ?? 0,
 			eventLog: this.eventLog
 				? { lastSequence: this.eventLog.lastSequence() }
@@ -1508,6 +1572,8 @@ export class HubServerTransport implements NativeHubTransport {
 				this.cloud.activeCommands === 0 &&
 				this.pendingPluginCommands.size === 0 &&
 				this.pendingProviderMutations.size === 0 &&
+				this.pendingMcpRequests.size === 0 &&
+				this.mcpManagement.oauth.activeCount === 0 &&
 				(this.runQueue?.countPending() ?? 0) === 0,
 		};
 	}

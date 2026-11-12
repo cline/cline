@@ -158,6 +158,8 @@ export function createOriginBoundMcpHeadersFetch(input: {
 }
 
 export interface CreateMcpOAuthProviderContextOptions {
+	signal?: AbortSignal;
+	expectedTransport?: McpServerRegistration["transport"];
 	settingsPath?: string;
 	serverName: string;
 	redirectUrl: string;
@@ -291,10 +293,17 @@ export function createMcpOAuthProviderContext(
 				{
 					filePath: options.settingsPath,
 					expectedOAuthClient,
+					signal: options.signal,
+					expectedTransport: options.expectedTransport,
 				},
 			);
 		} catch (error) {
-			if (options.settingsPath || error instanceof McpOAuthClientChangedError) {
+			if (
+				options.signal?.aborted ||
+				options.expectedTransport ||
+				options.settingsPath ||
+				error instanceof McpOAuthClientChangedError
+			) {
 				throw error;
 			}
 			// Programmatically supplied registrations may not have a settings file.
@@ -649,6 +658,21 @@ export async function authorizeMcpServerOAuth(
 		registration.timeoutSeconds,
 	);
 
+	const flowSignal = options.signal;
+	const flowFetch: FetchLike | undefined = flowSignal
+		? (input, init) => {
+				options.signal?.throwIfAborted();
+				const requestSignal =
+					init?.signal ?? (input instanceof Request ? input.signal : undefined);
+				return (options.fetch ?? globalThis.fetch)(input, {
+					...init,
+					signal: AbortSignal.any([
+						flowSignal,
+						...(requestSignal ? [requestSignal] : []),
+					]),
+				});
+			}
+		: options.fetch;
 	const callbackServer = await startLocalOAuthServer({
 		host: options.callbackHost,
 		ports: options.callbackPorts?.length
@@ -672,6 +696,8 @@ export async function authorizeMcpServerOAuth(
 	const oauthContext = createMcpOAuthProviderContext({
 		settingsPath,
 		serverName,
+		signal: options.signal,
+		expectedTransport: registration.transport,
 		redirectUrl: callbackServer.callbackUrl,
 		clientInformation: createMcpOAuthClientInformation(
 			registration.oauthClient,
@@ -680,15 +706,15 @@ export async function authorizeMcpServerOAuth(
 			await options.openUrl?.(url);
 		},
 	});
-	await oauthContext.resetInteractiveState();
 
 	const client = buildClient(options);
 	let retryClient: Client | undefined;
 	try {
+		await oauthContext.resetInteractiveState();
 		const transport = createMcpSdkTransport({
 			registration,
 			oauthProvider: oauthContext.provider,
-			fetch: options.fetch,
+			fetch: flowFetch,
 		});
 		try {
 			await client.connect(transport, {
@@ -752,7 +778,7 @@ export async function authorizeMcpServerOAuth(
 			const retryTransport = createMcpSdkTransport({
 				registration,
 				oauthProvider: oauthContext.provider,
-				fetch: options.fetch,
+				fetch: flowFetch,
 			});
 			await retryClient.connect(retryTransport, {
 				timeout: requestTimeoutMs,
