@@ -25,7 +25,7 @@ import {
 	setClineDir,
 	setHomeDir,
 } from "@cline/shared/storage";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
