@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { subscribeComposioInventoryChanges } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
@@ -271,6 +272,18 @@ function normalizeInstructionListsResponse(
 const EXTENSION_LISTS_CACHE_TTL_MS = 60_000;
 const EXTENSION_HOOK_STATS_CACHE_TTL_MS = 30_000;
 
+let extensionInventoryMutationQueue = Promise.resolve();
+function enqueueExtensionInventoryMutation<T>(
+	mutation: () => Promise<T>,
+): Promise<T> {
+	const result = extensionInventoryMutationQueue.then(mutation);
+	extensionInventoryMutationQueue = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	return result;
+}
+
 let extensionListsCache:
 	| (UserInstructionListsResponse & {
 			fetchedAt: number;
@@ -284,12 +297,31 @@ let extensionHookStatsCache: {
 } | null = null;
 
 const extensionInventoryInvalidationListeners = new Set<() => void>();
+let unsubscribeExtensionInventoryInvalidations: (() => void) | null = null;
+
+function observeExtensionInventoryInvalidations() {
+	if (unsubscribeExtensionInventoryInvalidations) return;
+	const unsubscribeSettings = desktopClient.subscribe(
+		"settings.changed",
+		invalidateExtensionInventoryCache,
+	);
+	const unsubscribeCloudSessions = desktopClient.subscribe(
+		"cloud_sessions_changed",
+		invalidateExtensionInventoryCache,
+	);
+	const unsubscribeComposio = subscribeComposioInventoryChanges(
+		invalidateExtensionInventoryCache,
+	);
+	unsubscribeExtensionInventoryInvalidations = () => {
+		unsubscribeSettings();
+		unsubscribeCloudSessions();
+		unsubscribeComposio();
+	};
+}
 
 /**
  * Drops the module-level inventory cache and notifies mounted inventory views
- * so they refetch immediately. Used by the Marketplace page after
- * installs/uninstalls that happen outside these views — including ones that
- * complete after the user has already navigated back to the Plugins hub.
+ * so they refetch immediately after settings, account, or connector changes.
  */
 export function invalidateExtensionInventoryCache() {
 	extensionListsCache = null;
@@ -303,6 +335,9 @@ export function subscribeToExtensionInventoryInvalidation(
 	listener: () => void,
 ): () => void {
 	extensionInventoryInvalidationListeners.add(listener);
+	// Keep these client-level subscriptions after the last view unmounts so
+	// external changes cannot leave a populated inventory cache stale.
+	observeExtensionInventoryInvalidations();
 	return () => {
 		extensionInventoryInvalidationListeners.delete(listener);
 	};
@@ -608,10 +643,29 @@ export function CustomizationSectionView({
 		[],
 	);
 
+	const mutateExtensionInventory = useCallback(
+		(
+			command:
+				| "set_tool_disabled"
+				| "set_plugin_disabled"
+				| "set_skill_disabled",
+			args: Record<string, unknown>,
+		) =>
+			enqueueExtensionInventoryMutation(async () => {
+				setErrorMessage(null);
+				const response =
+					await desktopClient.invoke<UserInstructionListsResponse>(
+						command,
+						args,
+					);
+				applyResponse(response);
+			}),
+		[applyResponse],
+	);
+
 	const setToolEnabled = useCallback(
 		async (tool: ToolItem) => {
 			setTogglingToolIds((current) => new Set(current).add(tool.id));
-			setErrorMessage(null);
 			try {
 				const names = [tool.name, ...(tool.headlessToolNames ?? [])].filter(
 					Boolean,
@@ -619,12 +673,10 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_tool_disabled",
-						{ names, disabled: tool.enabled },
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_tool_disabled", {
+					names,
+					disabled: tool.enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -636,7 +688,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setAllToolsEnabled = useCallback(
@@ -653,7 +705,6 @@ export function CustomizationSectionView({
 				}
 				return next;
 			});
-			setErrorMessage(null);
 			try {
 				const names = targets.flatMap((tool) =>
 					[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
@@ -661,12 +712,10 @@ export function CustomizationSectionView({
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_tool_disabled",
-						{ names, disabled: !enabled },
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_tool_disabled", {
+					names,
+					disabled: !enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -680,23 +729,17 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setPluginEnabled = useCallback(
 		async (plugin: PluginItem) => {
 			setTogglingPluginPaths((current) => new Set(current).add(plugin.path));
-			setErrorMessage(null);
 			try {
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_plugin_disabled",
-						{
-							path: plugin.path,
-							disabled: plugin.enabled,
-						},
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_plugin_disabled", {
+					path: plugin.path,
+					disabled: plugin.enabled,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -708,23 +751,17 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const setSkillEnabled = useCallback(
 		async (skill: CommandItem) => {
 			setTogglingSkillPaths((current) => new Set(current).add(skill.path));
-			setErrorMessage(null);
 			try {
-				const response =
-					await desktopClient.invoke<UserInstructionListsResponse>(
-						"set_skill_disabled",
-						{
-							path: skill.path,
-							disabled: skill.enabled !== false,
-						},
-					);
-				applyResponse(response);
+				await mutateExtensionInventory("set_skill_disabled", {
+					path: skill.path,
+					disabled: skill.enabled !== false,
+				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
@@ -736,7 +773,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[mutateExtensionInventory],
 	);
 
 	const uninstallLocalPrimitive = useCallback(

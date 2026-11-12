@@ -11,7 +11,14 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/composio", () => ({
 	fetchComposioToolkitCatalog: mocks.catalog,
-	fetchComposioStatus: async () => ({ configured: mocks.configured }),
+}));
+vi.mock("@/lib/use-composio-status", () => ({
+	useComposioStatus: () => ({
+		status: { configured: mocks.configured, integrations: [] },
+		loading: false,
+		error: null,
+		refresh: vi.fn(),
+	}),
 }));
 vi.mock("@/lib/use-composio-connections", () => ({
 	useComposioConnections: () => ({
@@ -27,7 +34,6 @@ vi.mock("@/lib/marketplace", () => ({
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: {
 		invoke: async () => ({ installedKeys: [] }),
-		subscribe: () => () => {},
 	},
 	openExternalUrl: vi.fn(),
 }));

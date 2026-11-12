@@ -1,35 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	cancelComposioConnect,
 	connectComposioIntegration,
 	disconnectComposioIntegration,
-	fetchComposioStatus,
 } from "./composio";
 import type {
 	ComposioStatusResponse,
 	ComposioToolkitSlug,
 } from "./composio-types";
-
-const CONNECT_POLL_INTERVAL_MS = 3_000;
+import { useComposioStatus } from "./use-composio-status";
 
 /**
  * Shared state machine for Composio connections, used by both the Customize >
  * Connectors tab and the Marketplace connector browser.
  *
- * The OAuth flow finishes in the external browser, which cannot navigate the
- * app back, so while a connection is pending this hook polls the sidecar
- * until the connection lands — the same pattern as the GitHub App install
- * step in onboarding.
+ * Status, errors, and pending OAuth polling belong to the shared status store;
+ * action feedback remains scoped to the control that started the request.
  */
-export function useComposioConnections({
-	onChanged,
-}: {
-	onChanged?: () => void;
-} = {}) {
-	const [status, setStatus] = useState<ComposioStatusResponse | null>(null);
-	const [loadError, setLoadError] = useState<string | null>(null);
+export function useComposioConnections() {
+	const {
+		status,
+		loading: refreshing,
+		error: loadError,
+		refresh,
+	} = useComposioStatus();
 	// Scoped to the toolkit the failed action targeted, so one connector's
 	// failure is never rendered as another connector's error.
 	const [actionError, setActionError] = useState<{
@@ -39,128 +35,63 @@ export function useComposioConnections({
 	const [busyToolkit, setBusyToolkit] = useState<ComposioToolkitSlug | null>(
 		null,
 	);
-
-	const onChangedRef = useRef(onChanged);
-	useEffect(() => {
-		onChangedRef.current = onChanged;
-	}, [onChanged]);
-
-	// Bumped by every status write so a slow refresh that started before a
-	// connect/disconnect cannot land afterwards and resurrect the old state.
-	const statusVersionRef = useRef(0);
-	const applyStatus = useCallback((next: ComposioStatusResponse) => {
-		statusVersionRef.current += 1;
-		setStatus(next);
-		onChangedRef.current?.();
-	}, []);
-
-	const [refreshing, setRefreshing] = useState(false);
-	// Reconciles against Composio (connections can be revoked from the
-	// Composio dashboard without this app knowing). Runs on mount and from
-	// the tab's refresh button.
-	const refresh = useCallback(async () => {
-		const version = statusVersionRef.current;
-		setRefreshing(true);
-		try {
-			const next = await fetchComposioStatus({ refresh: true });
-			if (statusVersionRef.current !== version) return;
-			applyStatus(next);
-			setLoadError(null);
-		} catch (error) {
-			setLoadError(error instanceof Error ? error.message : String(error));
-		} finally {
-			setRefreshing(false);
-		}
-	}, [applyStatus]);
-
-	useEffect(() => {
-		void refresh();
-	}, [refresh]);
-
-	const hasPending = useMemo(
-		() =>
-			status?.integrations.some(
-				(integration) => integration.status === "pending",
-			) ?? false,
-		[status],
+	const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingActionsRef = useRef(
+		new Map<ComposioToolkitSlug, Promise<void>>(),
 	);
 
-	useEffect(() => {
-		if (!hasPending) {
-			return;
-		}
-		let cancelled = false;
-		let inFlight = false;
-		const interval = setInterval(() => {
-			if (inFlight) {
-				return;
-			}
-			inFlight = true;
-			void fetchComposioStatus()
-				.then((next) => {
-					if (!cancelled) {
-						applyStatus(next);
-					}
-				})
-				.catch(() => {
-					// Transient failures keep polling; the user can cancel.
-				})
-				.finally(() => {
-					inFlight = false;
-				});
-		}, CONNECT_POLL_INTERVAL_MS);
-		return () => {
-			cancelled = true;
-			clearInterval(interval);
-		};
-	}, [hasPending, applyStatus]);
+	const runAction = useCallback(
+		(toolkit: ComposioToolkitSlug, action: () => Promise<unknown>) => {
+			const existing = pendingActionsRef.current.get(toolkit);
+			if (existing) return existing;
+			const run = async () => {
+				// Connector mutations return complete status snapshots. Serialize them so
+				// an older response cannot replace a newer mutation's shared snapshot.
+				setBusyToolkit(toolkit);
+				setActionError(null);
+				try {
+					await action();
+				} catch (error) {
+					setActionError({
+						toolkit,
+						message: error instanceof Error ? error.message : String(error),
+					});
+				} finally {
+					setBusyToolkit(null);
+				}
+			};
+			const pending = actionQueueRef.current.then(run, run);
+			pendingActionsRef.current.set(toolkit, pending);
+			actionQueueRef.current = pending;
+			void pending.then(() => {
+				if (pendingActionsRef.current.get(toolkit) === pending) {
+					pendingActionsRef.current.delete(toolkit);
+				}
+			});
+			return pending;
+		},
+		[],
+	);
 
 	const connect = useCallback(
-		async (toolkit: ComposioToolkitSlug) => {
-			setBusyToolkit(toolkit);
-			setActionError(null);
-			try {
-				const result = await connectComposioIntegration(toolkit);
-				applyStatus(result.status);
-			} catch (error) {
-				setActionError({
-					toolkit,
-					message: error instanceof Error ? error.message : String(error),
-				});
-			} finally {
-				setBusyToolkit(null);
-			}
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => connectComposioIntegration(toolkit));
 		},
-		[applyStatus],
+		[runAction],
 	);
 
 	const cancelConnect = useCallback(
-		async (toolkit: ComposioToolkitSlug) => {
-			try {
-				applyStatus(await cancelComposioConnect(toolkit));
-			} catch {
-				// Cancel is best-effort; the poll loop will settle the state.
-			}
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => cancelComposioConnect(toolkit));
 		},
-		[applyStatus],
+		[runAction],
 	);
 
 	const disconnect = useCallback(
-		async (toolkit: ComposioToolkitSlug) => {
-			setBusyToolkit(toolkit);
-			setActionError(null);
-			try {
-				applyStatus(await disconnectComposioIntegration(toolkit));
-			} catch (error) {
-				setActionError({
-					toolkit,
-					message: error instanceof Error ? error.message : String(error),
-				});
-			} finally {
-				setBusyToolkit(null);
-			}
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => disconnectComposioIntegration(toolkit));
 		},
-		[applyStatus],
+		[runAction],
 	);
 
 	const statusBySlug = useMemo(() => {
