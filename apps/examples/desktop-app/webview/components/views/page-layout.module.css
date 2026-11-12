@@ -1,0 +1,34 @@
+.shell {
+	container: page / inline-size;
+}
+
+/* Follow the available page width, including when the app sidebar is resized. */
+.shell [data-page-header],
+.shell [data-page-body] {
+	padding-inline: clamp(
+		calc(var(--spacing) * 4),
+		5cqi,
+		calc(var(--spacing) * 18)
+	);
+}
+
+/* Keep actions beside the title whenever their combined width fits. */
+.shell [data-page-header] > section {
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	row-gap: calc(var(--spacing) * 3);
+}
+
+@container page (width < 32rem) {
+	.shell [data-page-header] > section {
+		flex-direction: column;
+		align-items: stretch;
+		gap: calc(var(--spacing) * 3);
+	}
+
+	.shell [data-page-header-actions],
+	.shell search {
+		width: 100%;
+	}
+}

@@ -1,0 +1,42 @@
+.frame {
+	container: detail-page / inline-size;
+	padding-top: 1.25rem;
+}
+
+.layout {
+	display: flex;
+	min-width: 0;
+	max-width: 100rem;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.navigation {
+	display: flex;
+	flex-shrink: 0;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.75rem;
+}
+
+.content {
+	width: 100%;
+	min-width: 0;
+	container: detail-content / inline-size;
+	padding-bottom: 2.5rem;
+}
+
+@container detail-page (min-width: 56rem) {
+	.layout {
+		flex-direction: row;
+		gap: clamp(1.5rem, 4cqi, 4rem);
+	}
+
+	.navigation {
+		position: sticky;
+		top: 1rem;
+		width: clamp(8rem, 12cqi, 12rem);
+		min-width: max-content;
+		align-self: flex-start;
+	}
+}
