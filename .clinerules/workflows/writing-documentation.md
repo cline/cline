@@ -109,7 +109,7 @@ Provide actual workflow files, real code snippets, and concrete implementations 
 
 ### Keep It Scannable But Not Fragmented
 
-Write in prose that flows naturally when read completely, but structure it so users can quickly find specific information when they're troubleshooting. Avoid dense walls of text, but also avoid over-formatting with excessive bullet points and bold headers. There should be a nice visual heirarchy of balance between all elements, so you can quickly scan the page and find what you're looking for.
+Write in prose that flows naturally when read completely, but structure it so users can quickly find specific information when they're troubleshooting. Avoid dense walls of text, but also avoid over-formatting with excessive bullet points and bold headers. There should be a nice visual hierarchy of balance between all elements, so you can quickly scan the page and find what you're looking for.
 
 ## Language and Tone Guidelines
 
