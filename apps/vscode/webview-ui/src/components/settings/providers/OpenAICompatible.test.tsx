@@ -488,6 +488,8 @@ describe("OpenAICompatibleProvider", () => {
 		["Context Window Size", "contextWindow", "64000", 64_000],
 		["Max Output Tokens", "maxTokens", "4096", 4_096],
 		["Output Price / 1M tokens", "outputPrice", "2.5", 2.5],
+		["Cache Reads Price / 1M tokens", "cacheReadsPrice", "0.25", 0.25],
+		["Cache Writes Price / 1M tokens", "cacheWritesPrice", "1.0", 1.0],
 	] as const)("maps %s only to the %s override", async (label, key, input, expected) => {
 		renderProvider()
 		await act(async () => {})
