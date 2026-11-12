@@ -159,6 +159,9 @@ export function parseTimestamp(value?: string): number {
 }
 
 export function sessionActivityTimestamp(session: SessionHistoryItem): number {
+	if (session.origin === "cloud") {
+		return parseTimestamp(session.lastActivityAt ?? session.startedAt);
+	}
 	const lastActivityAt = parseTimestamp(session.lastActivityAt);
 	const endedAt = parseTimestamp(session.endedAt);
 	const startedAt = parseTimestamp(session.startedAt);
@@ -315,7 +318,9 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		codebase: basenamePath(workspacePath),
 		workspacePath,
 		time: formatRelativeTime(
-			session.lastActivityAt || session.endedAt || session.startedAt,
+			session.origin === "cloud"
+				? (session.lastActivityAt ?? session.startedAt)
+				: session.lastActivityAt || session.endedAt || session.startedAt,
 		),
 		provider: session.provider || "",
 		model: session.model || "",

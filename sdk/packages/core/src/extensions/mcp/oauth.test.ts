@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
@@ -56,6 +56,61 @@ describe("mcp oauth", () => {
 		);
 		return filePath;
 	}
+
+	it("rejects a cancelled token save even when cancellation happens while waiting for the settings lock", async () => {
+		const settingsPath = await createSettingsFile({ clientId: "client" });
+		const signal = new AbortController();
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://localhost/callback",
+			clientInformation: { client_id: "client" },
+			signal: signal.signal,
+		});
+		const lock = `${settingsPath}.lock`;
+		await mkdir(lock);
+		await writeFile(join(lock, "owner.external"), "external");
+		const saving = context.provider.saveTokens({
+			access_token: "late-token",
+			token_type: "bearer",
+		});
+		const rejected = expect(saving).rejects.toThrow();
+		signal.abort();
+		await rm(lock, { recursive: true, force: true });
+		await rejected;
+		expect(
+			JSON.parse(await readFile(settingsPath, "utf8")).mcpServers.linear.oauth
+				?.tokens,
+		).toBeUndefined();
+	});
+	it("rejects token saves from a context whose endpoint was replaced", async () => {
+		const settingsPath = await createSettingsFile({ clientId: "client" });
+		const context = createMcpOAuthProviderContext({
+			settingsPath,
+			serverName: "linear",
+			redirectUrl: "http://localhost/callback",
+			clientInformation: { client_id: "client" },
+			expectedTransport: {
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
+			},
+		});
+		await updateMcpSettingsFile(settingsPath, (settings) => {
+			(
+				settings.mcpServers as Record<string, { transport: { url: string } }>
+			).linear.transport.url = "https://other.test/mcp";
+		});
+		await expect(
+			context.provider.saveTokens({
+				access_token: "late-token",
+				token_type: "bearer",
+			}),
+		).rejects.toThrow("transport changed");
+		expect(
+			JSON.parse(await readFile(settingsPath, "utf8")).mcpServers.linear.oauth
+				?.tokens,
+		).toBeUndefined();
+	});
 
 	it("tracks the most recent generated OAuth state", async () => {
 		const settingsPath = await createSettingsFile();

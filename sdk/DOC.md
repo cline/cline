@@ -441,6 +441,56 @@ settings path, allowing hosts to update account and cloud views. Provider API
 calls do not automatically resend dispatched requests after a connection loss.
 OAuth login and audio transcription remain separate APIs.
 
+### Hub MCP management
+
+`createHubMcpApi(client)` uses an existing registered, token-authenticated local
+Hub connection. Desktop Settings and Marketplace use it for machine-wide MCP
+settings even while a remote environment is selected.
+
+```ts
+const mcp = createHubMcpApi(client);
+await mcp.upsert({ name: "local", transportType: "stdio", command: "node", args: ["server.js"] });
+const config = await mcp.list();
+await mcp.setDisabled("local", true);
+const inspection = await mcp.inspect("local"); // explicit connect + tool discovery, then disconnect
+await mcp.delete("local");
+```
+
+`ensureSettings()` creates the settings file without rewriting an existing file;
+`install(args)` accepts marketplace MCP install arguments using the existing
+parser and registers the transport without opening a connection. Callers cannot choose a settings path. Invalid requests fail before
+writing. Deletion and rename-source lookup use the exact stored key, including
+whitespace and reserved names, so malformed entries remain removable or repairable.
+New names still follow creation-name validation. Catalog responses include invalid entries with configuration errors and
+OAuth readiness, without OAuth token state. Static environment/header values are
+available only to authenticated clients for editing.
+
+Remote enable and changed-endpoint Settings saves passively probe existing credentials;
+failed probes leave the server disabled and never open a browser.
+URL connection deadlines cover transport startup and initialization, closing the
+in-flight transport on timeout so a stalled SSE endpoint cannot hold the shared
+queue or shutdown open. Same-endpoint edits retain OAuth credentials and metadata; endpoint changes discard those
+credentials. MCP requests are not replayed after dispatch. Mutations and probes
+are serialized, accepted work keeps the Hub busy, draining rejects new work, and
+shutdown waits for accepted operations. Lock acquisition yields the event loop,
+and Desktop mutation calls wait for completion of queued work. Inspection opens a temporary client and
+always disconnects it.
+
+`mcp.authorize(name, { openUrl, signal })` starts an interactive OAuth attempt in
+the Hub. Only the initiating client can poll its browser URLs or cancel it. The
+API returns the refreshed catalog after completion or cancellation; it never
+returns OAuth credentials. Desktop owns browser opening and cancels its viewer
+interaction when the webview closes. CLI entry points are unchanged.
+
+`mcp.oauth.start/next/cancel` are authenticated, owner-scoped commands. The Hub
+keeps interaction URLs out of broadcasts and the durable event log. User cancel
+restores a previously enabled server; disable/delete/edit/reinstall, superseding
+login, disconnect, expiry and shutdown prevent that restoration. New attempts
+wait for superseded callback listeners to retire. Settings mutations cancel
+attempts before entering the management queue, and token persistence checks the
+abort signal and original endpoint under the settings lock. Pending OAuth work
+participates in drain/replacement checks; shutdown aborts it and waits for cleanup.
+
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,

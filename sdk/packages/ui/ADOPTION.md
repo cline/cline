@@ -260,6 +260,90 @@ For native controls that should follow the selected theme:
 }
 ```
 
+## Buttons
+
+Import `Button` and `IconButton` from `@cline/ui` after loading the theme and
+`@cline/ui/components.css`. Use `primary` for main actions, `secondary` for
+supporting actions, and `ghost` for low-emphasis actions. Existing `fill` and
+`surface` variants remain aliases for `primary` and `secondary`.
+
+Both controls support `accent`, `neutral`, and `destructive` tones and
+`xs`, `sm`, `md`, and `lg` sizes. `Button` defaults to primary/accent/md;
+`IconButton` defaults to ghost/neutral/sm.
+
+Both controls use the same height and corner radius for each size:
+
+| Size | Height with `--spacing: 0.25rem` | Corner radius |
+| --- | --- | --- |
+| `xs` | `1.75rem` | `--radius-md` |
+| `sm` | `2rem` | `--radius-md` |
+| `md` | `2.25rem` | `--radius-lg` |
+| `lg` | `2.5rem` | `--radius-lg` |
+
+Heights use 7, 8, 9, and 10 spacing units respectively. Icon buttons use the
+same dimension for width, keeping them square.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+import { Plus, X } from "lucide-react";
+
+<Button leadingIcon={Plus}>New session</Button>
+<Button tone="neutral" variant="secondary">More options</Button>
+<IconButton icon={X} aria-label="Close" />
+```
+
+Pass SVG components through `leadingIcon`, `trailingIcon`, or `icon`; the button
+handles sizing, spacing, and decorative accessibility. Custom icons must forward
+SVG props, including `className`. `IconButton` requires an accessible label.
+Existing icon children remain supported.
+
+Use `iconTone="muted"` to give managed icons a quieter color while leaving the
+label unchanged; the default `"inherit"` follows the button's text color.
+Prefer inherited color on solid buttons where the foreground supplies contrast.
+
+Set `loading` to replace the leading icon (or the `IconButton` icon) with a
+spinner and expose `aria-busy`. `Button` keeps its label unless `loadingLabel`
+is supplied. `loadingIcon` accepts an alternative SVG component, such as
+`RefreshCw`; the control owns rotation and respects reduced motion.
+Loading does not disable activation: set `disabled={loading}` for an action
+that must wait, or leave it enabled when clicking should cancel the operation.
+The host owns async work, errors, and the loading state.
+
+```tsx
+<Button loading={saving} loadingLabel="Saving…" disabled={saving}>
+  Save
+</Button>
+<Button loading={refreshing} loadingLabel="Cancel refresh"
+  onClick={refreshing ? cancelRefresh : refresh}>
+  Refresh
+</Button>
+```
+
+Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
+the child's native type behavior is preserved, so set `type="button"` explicitly
+when needed. Custom composed children must forward props, refs, and children;
+place Radix slot triggers outside the control.
+
+When a `Button` label or icon changes (for example, from “Save” to a loading
+spinner and “Saving…”), its width transitions over 180 ms. Fixed and full-width
+buttons retain their sizing. Reduced-motion preferences disable the transition.
+The host continues to own loading state, labels, and disabled behavior.
+
+Use `className` to override component styles and `pressScale={false}` to disable
+press feedback. See the button stories for more examples.
+
+## Badges
+
+`Badge` renders a span by default. Choose a neutral, accent, info, success,
+warning, or error tone; a soft or ghost variant; and an `sm`, `xs`, or `xxs` size.
+Use `interactive` for a native button with disabled behavior and a button ref.
+`BadgeProps` describes the span; `InteractiveBadgeProps` describes the button.
+
+```tsx
+<Badge tone="success">Connected</Badge>
+<Badge interactive tone="error" onClick={retry}>Retry</Badge>
+```
+
 ## Switch
 
 Import `Switch` from `@cline/ui` after setting up the theme and
@@ -300,13 +384,25 @@ Uncontrolled switches follow native form reset behavior; controlled switches
 must be reset by their owner. Disabled switches, including those in disabled
 fieldsets, are excluded from form submission.
 
-The switch scales with the root font size and reserves a minimum 24px hit area
-on each axis by default.
+Use `pending={saving}` for a temporary lock that retains the current checked or
+unchecked appearance and sets `aria-busy`. Pending still disables the native
+input, including within a disabled fieldset, so it cannot toggle and is omitted
+from form submission. Explicit `disabled` takes precedence over pending's visual
+treatment; reserve it for unavailable controls instead of repeating the saving
+condition in both props.
 
-Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
-`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
-remain white. The switch supports light/dark themes, system colors in
-forced-colors mode, and reduced motion.
+```tsx
+<Switch checked={enabled} pending={saving} disabled={!canEdit}
+  onCheckedChange={setEnabled} aria-label="Enable schedule" />
+```
+
+The default `size="md"` preserves the original switch dimensions. Use
+`size="sm"` for a compact switch. Both sizes scale with the root font size and
+reserve a minimum 24px hit area on each axis.
+
+The default `tone="accent"` uses the shared accent colors. Use `tone="neutral"`
+for a checked track that is dark in light mode and light in dark mode. Both tones
+support keyboard focus, forced colors, and reduced motion.
 
 When migrating from the desktop's Radix wrapper, update button refs to
 `HTMLInputElement` and read the native `checked` property in tests instead of

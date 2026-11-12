@@ -411,7 +411,9 @@ describe("ProviderSettingsManager", () => {
 			id: "gpt-oss-120b",
 			contextWindow: 128000,
 			maxInputTokens: 128000,
-			capabilities: ["streaming", "tools", "images"],
+			// A migrated model has no stored entry, so its list is a partial
+			// overlay that must not deny reasoning.
+			capabilities: ["streaming", "tools", "images", "reasoning"],
 		});
 	});
 

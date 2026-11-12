@@ -425,7 +425,8 @@ message UpdateSettingsRequest {
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
-  optional OnboardingModelGroup onboarding_models = 33;
+  reserved 33; // was onboarding_models (removed; there is a service for recommended models)
+  reserved "onboarding_models";
   optional bool background_edit_enabled = 36;
   optional string oca_reasoning_effort = 37;
   optional bool opt_out_of_remote_config = 39;
@@ -460,20 +461,6 @@ message OnboardingProgressRequest {
   optional string user_type = 7;
   optional int32 destination_step = 8;
   optional string destination_page = 9;
-}
-
-message OnboardingModelGroup {
-  repeated OnboardingModel models = 1;
-}
-
-message OnboardingModel {
-  string id = 1;
-  string name = 2;
-  int32 score = 3;
-  int32 latency = 4;
-  string badge = 5;
-  string group = 6;
-  OpenRouterModelInfo info = 7;
 }
 
 message TrackBannerEventRequest {

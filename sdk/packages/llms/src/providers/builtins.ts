@@ -891,15 +891,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
-		id: "wally",
-		name: "Wally",
-		description: "Fast inference for open-weight models from RunAnywhere",
-		family: "openai-compatible",
-		defaultModelId: "deepseek-v4.1-flash",
-		apiKeyEnv: ["WALLY_API_KEY"],
-		defaults: { baseUrl: "https://inference.runanywhere.ai/v1" },
-	},
-	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
@@ -967,25 +958,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "hicap-pro",
 		apiKeyEnv: ["HICAP_API_KEY"],
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
-	},
-	{
-		// Refines the models.dev-generated `aimlapi` spec (same id), which
-		// mergeBuiltinSpecs folds this onto rather than registering twice.
-		id: "aimlapi",
-		name: "AI/ML API",
-		description:
-			"Aggregator serving several hundred chat models from multiple vendors behind one OpenAI-compatible endpoint and API key",
-		family: "openai-compatible",
-		// Ranks the provider list and places it in the picker's "Popular"
-		// section: first after Cline's own Usage-Billing (1) and ClinePass (2).
-		popular: 3,
-		defaultModelId: "anthropic/claude-sonnet-5",
-		apiKeyEnv: ["AIMLAPI_API_KEY"],
-		modelsProviderId: "aimlapi",
-		// Attribution is NOT a static default header: that would be sent to any
-		// baseUrl the provider is pointed at. It is added per request, only for
-		// api.aimlapi.com, by wrapFetchForAimlapiAttribution.
-		defaults: { baseUrl: "https://api.aimlapi.com/v1" },
 	},
 	{
 		id: "nousResearch",

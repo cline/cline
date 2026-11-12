@@ -10,6 +10,9 @@
 	--cline-ui-switch-off-active-background: var(--neutral-9);
 	--cline-ui-switch-off-border: var(--neutral-a4);
 	--cline-ui-switch-disabled-thumb-background: var(--surface-1);
+	--cline-ui-switch-on-background: var(--primary);
+	--cline-ui-switch-on-hover-background: var(--primary-emphasis);
+	--cline-ui-switch-on-thumb-background: var(--primary-foreground);
 	/* Preserve the geometry at Cline's default 15px root while allowing UI scaling. */
 	--cline-ui-switch-width: 2.2rem;
 	--cline-ui-switch-height: 1.2rem;
@@ -29,6 +32,22 @@
 		var(--cline-ui-switch-padding) -
 		2px
 	);
+}
+
+.cline-ui-switch-sm {
+	--cline-ui-switch-width: 1.8rem;
+	--cline-ui-switch-height: 1rem;
+	--cline-ui-switch-padding: 0.13rem;
+}
+
+.cline-ui-switch-neutral {
+	--cline-ui-switch-on-background: var(--neutral-12);
+	--cline-ui-switch-on-hover-background: color-mix(
+		in srgb,
+		var(--neutral-12) 90%,
+		var(--neutral-1)
+	);
+	--cline-ui-switch-on-thumb-background: var(--neutral-1);
 }
 
 /* Let host utilities override wrapper layout without changing track geometry. */
@@ -104,7 +123,7 @@
 	inset-block-start: var(--cline-ui-switch-padding);
 	height: var(--cline-ui-switch-thumb-size);
 	border-radius: calc(2.2rem / 15);
-	/* Host accent palettes may tint --primary-foreground; the thumb stays neutral. */
+	/* The unchecked track keeps a neutral thumb in both themes. */
 	background: #fff;
 	box-shadow:
 		0 0 0 1px var(--neutral-a3),
@@ -132,10 +151,20 @@
 	cursor: not-allowed;
 }
 
+.cline-ui-switch__input[data-pending="true"] {
+	cursor: wait;
+}
+
 @media (forced-colors: none) {
 	.cline-ui-switch__input:checked + .cline-ui-switch__track {
 		border-color: var(--neutral-a5);
-		background: color-mix(in srgb, var(--primary) 80%, var(--accent-8) 20%);
+		background: var(--cline-ui-switch-on-background);
+	}
+
+	.cline-ui-switch__input:checked
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: var(--cline-ui-switch-on-thumb-background);
 	}
 
 	.cline-ui-switch__input:enabled:hover + .cline-ui-switch__track {
@@ -143,7 +172,7 @@
 	}
 
 	.cline-ui-switch__input:enabled:checked:hover + .cline-ui-switch__track {
-		background: var(--primary-emphasis);
+		background: var(--cline-ui-switch-on-hover-background);
 	}
 
 	.cline-ui-switch__input:enabled:active + .cline-ui-switch__track {
@@ -151,8 +180,16 @@
 	}
 
 	.cline-ui-switch__input:enabled:checked:active + .cline-ui-switch__track {
-		background: var(--primary);
+		background: var(--cline-ui-switch-on-background);
 		opacity: 0.92;
+	}
+
+	:is(.dark .cline-ui-switch-neutral, .cline-ui-switch-neutral.dark)
+		.cline-ui-switch__input:is(:enabled, [data-pending="true"]):checked
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		/* Match the dark thumb to give it the same visual weight on the light track. */
+		box-shadow: 0 0 0 1px var(--neutral-1);
 	}
 
 	.cline-ui-switch__input:focus-visible + .cline-ui-switch__track {
@@ -160,13 +197,14 @@
 		outline-offset: 2px;
 	}
 
-	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
+		+ .cline-ui-switch__track {
 		border-color: transparent;
 		background: var(--surface-hover-darker);
 		box-shadow: none;
 	}
 
-	.cline-ui-switch__input:disabled
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
 		+ .cline-ui-switch__track
 		.cline-ui-switch__thumb {
 		background: var(--cline-ui-switch-disabled-thumb-background);
@@ -208,12 +246,13 @@
 		outline-offset: 2px;
 	}
 
-	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
+		+ .cline-ui-switch__track {
 		border-color: GrayText;
 		background: Canvas;
 	}
 
-	.cline-ui-switch__input:disabled
+	.cline-ui-switch__input:disabled:not([data-pending="true"])
 		+ .cline-ui-switch__track
 		.cline-ui-switch__thumb {
 		background: GrayText;

@@ -287,6 +287,12 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export type {
+	McpServerConfigInput,
+	McpServerConfigView,
+	McpServerInspection,
+	McpServersResponse,
+} from "./mcp-management";
 export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
