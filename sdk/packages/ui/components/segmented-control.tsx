@@ -97,27 +97,51 @@ export const SegmentedControl = forwardRef<
 			// The external form may mount later or be replaced without a render.
 			const root = fieldsetRef.current?.getRootNode();
 			if (!root) return;
+			let active = true;
+			let resetFrame: ReturnType<typeof setTimeout> | undefined;
+			const restoreAfterReset = (event: Event) => {
+				if (!active || event.defaultPrevented) return;
+				const fieldset = fieldsetRef.current;
+				if (!fieldset || event.target !== fieldset.form) return;
+				// The host may have committed a new value in its reset handler.
+				const { controlled, value, defaultValue } = resetStateRef.current;
+				const resetValue = controlled ? value : defaultValue;
+				if (!controlled) setUncontrolledValue(defaultValue);
+				// Native reset restores the original defaultChecked, even for
+				// controlled radios. Keep the DOM aligned when state is unchanged.
+				for (const input of fieldset.querySelectorAll<HTMLInputElement>(
+					'input[type="radio"]',
+				)) {
+					input.checked = input.value === resetValue;
+				}
+			};
 			const handleReset = (event: Event) => {
 				const ownerForm = fieldsetRef.current?.form;
 				if (!ownerForm || event.target !== ownerForm) return;
-				// Wait for the native reset, including a host's preventDefault().
+				// A trusted reset checkpoints microtasks between listeners, so
+				// work queued here can run before onReset and the browser's
+				// defaultChecked restore. Finish that case on a later task.
+				// Scripted form.reset() keeps JavaScript on the stack, and this
+				// microtask then sees the completed event.
 				queueMicrotask(() => {
-					if (event.defaultPrevented) return;
-					// The host may have committed a new value in its reset handler.
-					const { controlled, value, defaultValue } = resetStateRef.current;
-					const resetValue = controlled ? value : defaultValue;
-					if (!controlled) setUncontrolledValue(defaultValue);
-					// Native reset restores the original defaultChecked, even for
-					// controlled radios. Keep the DOM aligned when state is unchanged.
-					for (const input of fieldsetRef.current?.querySelectorAll<HTMLInputElement>(
-						'input[type="radio"]',
-					) ?? []) {
-						input.checked = input.value === resetValue;
+					if (!active) return;
+					if (event.eventPhase !== Event.NONE) {
+						if (resetFrame !== undefined) clearTimeout(resetFrame);
+						resetFrame = setTimeout(() => {
+							resetFrame = undefined;
+							restoreAfterReset(event);
+						}, 0);
+						return;
 					}
+					restoreAfterReset(event);
 				});
 			};
 			root.addEventListener("reset", handleReset, true);
-			return () => root.removeEventListener("reset", handleReset, true);
+			return () => {
+				active = false;
+				root.removeEventListener("reset", handleReset, true);
+				if (resetFrame !== undefined) clearTimeout(resetFrame);
+			};
 		}, []);
 
 		const content = (option: SegmentedControlOption) => (
