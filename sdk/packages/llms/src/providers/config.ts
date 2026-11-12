@@ -306,7 +306,7 @@ export interface ProviderConfig
 		RegionConfig,
 		CloudConfig,
 		ProviderOptions {
-	/** Client type - determines which handler to use - OpenAI-Compatible deafult */
+	/** Client type - determines which handler to use - OpenAI-Compatible default */
 	clientType?: ProviderClient;
 
 	/** Provider ID */
