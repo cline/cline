@@ -32,6 +32,7 @@ import {
 	findLatestSummaryIndex,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
+	resolveProviderMaxInputTokens,
 } from "./compaction-shared";
 
 export interface ContextPipelinePrepareTurnInput {
@@ -322,10 +323,14 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const modelMaxInputTokens = resolveEffectiveMaxInputTokens({
-			maxInputTokens: context.model.info?.maxInputTokens,
-			contextWindow: context.model.info?.contextWindow,
-		});
+		const modelMaxInputTokens =
+			resolveEffectiveMaxInputTokens({
+				maxInputTokens: context.model.info?.maxInputTokens,
+				contextWindow: context.model.info?.contextWindow,
+			}) ??
+			(config.providerConfig
+				? resolveProviderMaxInputTokens(config.providerConfig)
+				: undefined);
 		// An unknown model limit is not evidence that the request is full.
 		// Custom models can have any context window; using a guessed limit here
 		// can trigger compaction even on a new session's system prompt/tools.
