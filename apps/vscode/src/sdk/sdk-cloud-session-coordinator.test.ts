@@ -846,13 +846,39 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(checkClinePassSubscription).toHaveBeenCalledTimes(2)
 		expect(options.postStateToWebview).toHaveBeenCalledTimes(2)
 
-		// The user subscribed in the browser: the notice clears and the default follows.
+		// The user subscribed in the browser and came straight back: a forced
+		// refresh ignores the recent answer, and the notice clears and the default follows.
 		subscribed = true
-		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 240_000)
-		await coordinator.refreshClinePassSubscription()
+		await coordinator.refreshClinePassSubscription({ force: true })
+		expect(checkClinePassSubscription).toHaveBeenCalledTimes(3)
 		expect(coordinator.clinePassSubscribed()).toBe(true)
 		expect(coordinator.nextCloudModelId()).toBe("cline-pass/first")
 		expect(options.postStateToWebview).toHaveBeenCalledTimes(3)
+		await coordinator.dispose()
+	})
+
+	it("runs a forced plan refresh after a check already in flight, not instead of it", async () => {
+		const answers: Array<ReturnType<typeof deferred<boolean | undefined>>> = []
+		const checkClinePassSubscription = vi.fn(() => {
+			const answer = deferred<boolean | undefined>()
+			answers.push(answer)
+			return answer.promise
+		})
+		const { coordinator } = makeCoordinator({
+			getAccountScope: () => "user-1:",
+			loadCloudModels: async () => [],
+			checkClinePassSubscription,
+		})
+
+		coordinator.nextCloudModelId()
+		expect(checkClinePassSubscription).toHaveBeenCalledTimes(1)
+		// The first check was sent before the subscription landed; its answer is stale.
+		const forced = coordinator.refreshClinePassSubscription({ force: true })
+		answers[0].resolve(false)
+		await vi.waitFor(() => expect(checkClinePassSubscription).toHaveBeenCalledTimes(2))
+		answers[1].resolve(true)
+		await forced
+		expect(coordinator.clinePassSubscribed()).toBe(true)
 		await coordinator.dispose()
 	})
 

@@ -608,13 +608,11 @@ export function OnboardingClinePassSubscriptionScreen(props: {
 							/>
 						)}
 
-						{props.status === "error" &&
-							props.error &&
-							props.error !== "no plan found for user" && (
-								<text fg="red" selectable flexShrink={0}>
-									{props.error}
-								</text>
-							)}
+						{props.status === "error" && props.error && (
+							<text fg="red" selectable flexShrink={0}>
+								{props.error}
+							</text>
+						)}
 
 						{!isSubscribed && props.planFeatures.length > 0 && (
 							<box flexDirection="column" marginTop={1} flexShrink={0}>
