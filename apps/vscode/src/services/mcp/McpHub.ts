@@ -1,4 +1,5 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import type { AgentMode } from "@cline/shared"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
 import { StateManager } from "@core/storage/StateManager"
@@ -1678,6 +1679,7 @@ export class McpHub {
 		toolArguments: Record<string, unknown> | undefined,
 		ulid: string,
 		signal?: AbortSignal,
+		mode?: AgentMode,
 	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
@@ -1702,14 +1704,18 @@ export class McpHub {
 		// effect on the next request.
 		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
 
-		this.telemetryService.captureMcpToolCall(
-			ulid,
-			serverName,
-			toolName,
-			"started",
-			undefined,
-			toolArguments ? Object.keys(toolArguments) : undefined,
-		)
+		const mark = (status: "started" | "success" | "error", errorMessage?: string) =>
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				status,
+				errorMessage,
+				toolArguments ? Object.keys(toolArguments) : undefined,
+				undefined,
+				mode,
+			)
+		mark("started")
 
 		try {
 			const result = await connection.client.request(
@@ -1727,28 +1733,14 @@ export class McpHub {
 				},
 			)
 
-			this.telemetryService.captureMcpToolCall(
-				ulid,
-				serverName,
-				toolName,
-				"success",
-				undefined,
-				toolArguments ? Object.keys(toolArguments) : undefined,
-			)
+			mark("success")
 
 			return {
 				...result,
 				content: result.content ?? [],
 			}
 		} catch (error) {
-			this.telemetryService.captureMcpToolCall(
-				ulid,
-				serverName,
-				toolName,
-				"error",
-				error instanceof Error ? error.message : String(error),
-				toolArguments ? Object.keys(toolArguments) : undefined,
-			)
+			mark("error", error instanceof Error ? error.message : String(error))
 			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
 	}
@@ -2066,8 +2058,8 @@ export class McpHub {
 	 *
 	 * The fingerprint is a sorted, deterministic representation of every value
 	 * captured by createMcpTools: server name, tool name, description, input
-	 * schema, and timeout. A change to any captured value must rebuild the active
-	 * session even when the set of tool names is unchanged.
+	 * schema, annotations, and timeout. A change to any captured value must
+	 * rebuild the active session even when the set of tool names is unchanged.
 	 */
 	computeToolFingerprint(): string {
 		const entries: string[] = []
@@ -2083,6 +2075,7 @@ export class McpHub {
 						tool.name,
 						tool.description ?? null,
 						tool.inputSchema ?? {},
+						tool.annotations ?? null,
 						timeoutMs,
 					]),
 				)
