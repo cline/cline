@@ -451,8 +451,11 @@ function peek(lines: string[], initialIndex: number): PeekResult {
 
 	while (index < lines.length) {
 		const sourceLine = lines[index];
+		// An empty line is a blank context line whose leading space was dropped
+		// (models and whitespace-trimming editors both do this), not the end of
+		// the section.
 		if (
-			!sourceLine ||
+			sourceLine === undefined ||
 			stopMarkers.some((marker) => sourceLine.startsWith(marker.trim()))
 		) {
 			break;
