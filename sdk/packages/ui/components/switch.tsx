@@ -8,17 +8,40 @@ export interface SwitchProps
 		InputHTMLAttributes<HTMLInputElement>,
 		"children" | "type" | "role" | "size" | "aria-checked"
 	> {
+	/** Color of the checked switch. Defaults to accent. */
+	tone?: "accent" | "neutral";
+	/** Visual size of the switch. Defaults to md. */
+	size?: "sm" | "md";
+	/** Temporarily lock the value while preserving its appearance. Explicit disabled wins. */
+	pending?: boolean;
 	onCheckedChange?: (checked: boolean) => void;
 }
 
 /** A native checkbox with switch semantics; className and style apply to the wrapper. */
 export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 	(
-		{ className, style, dir, hidden, onChange, onCheckedChange, ...props },
+		{
+			className,
+			style,
+			dir,
+			hidden,
+			tone = "accent",
+			size = "md",
+			pending = false,
+			disabled,
+			onChange,
+			onCheckedChange,
+			...props
+		},
 		ref,
 	) => (
 		<span
-			className={clsx("cline-ui-switch", className)}
+			className={clsx(
+				"cline-ui-switch",
+				`cline-ui-switch-${tone}`,
+				`cline-ui-switch-${size}`,
+				className,
+			)}
 			data-slot="switch-root"
 			dir={dir}
 			hidden={hidden}
@@ -26,8 +49,11 @@ export const Switch = forwardRef<HTMLInputElement, SwitchProps>(
 		>
 			<input
 				{...props}
+				aria-busy={pending || props["aria-busy"]}
 				className="cline-ui-switch__input"
 				data-slot="switch"
+				data-pending={pending && !disabled ? "true" : undefined}
+				disabled={disabled || pending}
 				dir={dir}
 				onChange={(event) => {
 					const checked = event.currentTarget.checked;

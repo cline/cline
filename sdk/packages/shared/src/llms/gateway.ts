@@ -145,6 +145,15 @@ export interface GatewayProviderMetadata {
 	 * the protocol adapter. `success-data` represents `{ success, data }`.
 	 */
 	responseEnvelope?: "success-data";
+	/**
+	 * The provider works without an API key: local inference servers
+	 * (Ollama, LM Studio, OpenAI-compatible endpoints) and providers that
+	 * authenticate through a cloud credential chain (Vertex ADC, Bedrock
+	 * profiles). Hosts must not demand a key before starting a session; the
+	 * endpoint's own auth error is authoritative. See
+	 * `resolveProviderApiKeyOptional`.
+	 */
+	apiKeyOptional?: boolean;
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
@@ -251,6 +260,13 @@ export interface GatewayStreamRequest {
 		enabled?: boolean;
 		effort?: ReasoningEffort;
 		budgetTokens?: number;
+		/**
+		 * The caller would rather the model did not reason on this request but
+		 * has not been told to disable it. The gateway turns it into a disable
+		 * only for a model whose catalog entry advertises an off option, and
+		 * otherwise lets the other fields stand.
+		 */
+		preferOff?: boolean;
 	};
 	signal?: AbortSignal;
 }

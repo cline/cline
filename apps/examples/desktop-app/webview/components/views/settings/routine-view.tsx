@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -144,13 +145,10 @@ interface RoutineOverviewResponse {
 	lastExecutions: RoutineExecution[];
 }
 
-const ROUTINE_OVERVIEW_CACHE_TTL_MS = 30_000;
+const ROUTINE_OVERVIEW_POLL_INTERVAL_MS = 15_000;
 
-let routineOverviewCache:
-	| (RoutineOverviewResponse & {
-			fetchedAt: number;
-	  })
-	| null = null;
+// Preserve the last snapshot for navigation, but always revalidate on mount.
+let routineOverviewCache: RoutineOverviewResponse | null = null;
 
 async function fetchRoutineOverview(): Promise<RoutineOverviewResponse> {
 	const response = await desktopClient.invoke<RoutineOverviewResponse>(
@@ -171,9 +169,11 @@ interface ProcessContext {
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	// Anthropic's own API expects bare ids, so use the Anthropic-format
+	// equivalent of CLINE_DEFAULT_MODEL_ID rather than the prefixed id.
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.3-codex"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-2.5-pro"],
 };
 
@@ -517,6 +517,8 @@ export function RoutineSchedulesContent({
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const overviewRequestSequence = useRef(0);
+	const overviewRefreshPending = useRef(false);
 	// Sets rather than single ids: several rows can have in-flight actions at
 	// once, and one action finishing must not clear another row's busy state.
 	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
@@ -624,6 +626,7 @@ export function RoutineSchedulesContent({
 
 	useEffect(() => {
 		let cancelled = false;
+		const normalizedProvider = normalizeProviderId(createForm.provider);
 
 		async function loadCatalog() {
 			try {
@@ -634,11 +637,8 @@ export function RoutineSchedulesContent({
 				setProviderModels(payload.providerModels);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					const normalizedCurrentProvider = normalizeProviderId(
-						createForm.provider,
-					);
-					if (normalizedCurrentProvider) {
-						nextProviderIds.add(normalizedCurrentProvider);
+					if (normalizedProvider) {
+						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
 						if (providerId in payload.providerModels) {
@@ -650,26 +650,12 @@ export function RoutineSchedulesContent({
 			} catch {
 				// Keep fallback values if provider catalog is unavailable.
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [createForm.provider]);
-
-	useEffect(() => {
-		const normalizedProvider = normalizeProviderId(createForm.provider);
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			// The catalog is the app's bundled snapshot; replace the selected
+			// provider's list with its live one so retired models drop out.
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
@@ -685,15 +671,15 @@ export function RoutineSchedulesContent({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalog();
 		return () => {
 			cancelled = true;
 		};
-	}, [createForm.provider, providerModels]);
+	}, [createForm.provider]);
 
 	useEffect(() => {
 		if (availableProviders.length === 0) {
@@ -748,28 +734,20 @@ export function RoutineSchedulesContent({
 	]);
 
 	const refreshSchedules = useCallback(
-		async (options?: { force?: boolean; showLoading?: boolean }) => {
-			const now = Date.now();
-			if (
-				!options?.force &&
-				routineOverviewCache &&
-				now - routineOverviewCache.fetchedAt < ROUTINE_OVERVIEW_CACHE_TTL_MS
-			) {
-				setSchedules(routineOverviewCache.schedules);
-				setActiveExecutions(routineOverviewCache.activeExecutions);
-				setUpcomingRuns(routineOverviewCache.upcomingRuns);
-				setLastExecutions(routineOverviewCache.lastExecutions);
-				setErrorMessage(null);
-				setIsLoading(false);
-				return;
-			}
-
+		async (options?: { showLoading?: boolean }) => {
 			if (options?.showLoading !== false) {
 				setIsLoading(true);
 			}
+			const requestId = ++overviewRequestSequence.current;
+			overviewRefreshPending.current = true;
 			setErrorMessage(null);
 			try {
 				const response = await fetchRoutineOverview();
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return response;
 				const schedules = response.schedules;
 				const activeExecutions = response.activeExecutions;
 				const upcomingRuns = response.upcomingRuns;
@@ -783,24 +761,67 @@ export function RoutineSchedulesContent({
 					activeExecutions,
 					upcomingRuns,
 					lastExecutions,
-					fetchedAt: now,
 				};
 				return response;
 			} catch (error) {
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return;
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
 			} finally {
-				setIsLoading(false);
+				if (
+					mountedRef.current &&
+					requestId === overviewRequestSequence.current
+				) {
+					overviewRefreshPending.current = false;
+					setIsLoading(false);
+				}
 			}
 		},
 		[],
 	);
 
 	useEffect(() => {
+		const refresh = () => {
+			void refreshSchedules({ showLoading: false });
+		};
+		const refreshVisible = () => {
+			// Background refreshes must not supersede a slow request on every
+			// poll, otherwise neither its response nor its error can be shown.
+			if (
+				document.visibilityState === "visible" &&
+				!overviewRefreshPending.current
+			) {
+				refresh();
+			}
+		};
 		const timeoutId = window.setTimeout(() => {
-			void refreshSchedules();
+			refresh();
 		}, 0);
-		return () => window.clearTimeout(timeoutId);
+		// Completion events deliver errors promptly, including failures before
+		// session creation. Polling also picks up queued/running transitions
+		// and changes missed during a transport disconnect.
+		const unsubscribers = [
+			"schedule.execution_completed",
+			"schedule.execution_failed",
+		].map((event) => desktopClient.subscribe(event, refresh));
+		const intervalId = window.setInterval(
+			refreshVisible,
+			ROUTINE_OVERVIEW_POLL_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisible);
+		document.addEventListener("visibilitychange", refreshVisible);
+		return () => {
+			overviewRequestSequence.current += 1;
+			window.clearTimeout(timeoutId);
+			window.clearInterval(intervalId);
+			for (const unsubscribe of unsubscribers) unsubscribe();
+			window.removeEventListener("focus", refreshVisible);
+			document.removeEventListener("visibilitychange", refreshVisible);
+		};
 	}, [refreshSchedules]);
 
 	const upsertScheduleEnabled = async (
@@ -821,7 +842,7 @@ export function RoutineSchedulesContent({
 					schedule_id: schedule.scheduleId,
 				});
 			}
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -851,7 +872,7 @@ export function RoutineSchedulesContent({
 					description: `"${schedule.name}" did not queue a run — the schedule may be disabled or deleted.`,
 					variant: "destructive",
 				});
-				await refreshSchedules({ force: true, showLoading: false });
+				await refreshSchedules({ showLoading: false });
 				return;
 			}
 			toast({
@@ -875,7 +896,6 @@ export function RoutineSchedulesContent({
 				Date.now() < deadline
 			) {
 				const overview = await refreshSchedules({
-					force: true,
 					showLoading: false,
 				});
 				const executions = [
@@ -917,7 +937,7 @@ export function RoutineSchedulesContent({
 				schedule_id: scheduleId,
 			});
 			setSchedulePendingDelete(null);
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -1109,7 +1129,7 @@ export function RoutineSchedulesContent({
 				enabled: createForm.enabled,
 				tags: tags ?? [],
 			});
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 			setIsCreateOpen(false);
 			setEditingSchedule(null);
 		} catch (error) {
@@ -1201,6 +1221,7 @@ export function RoutineSchedulesContent({
 						<Button
 							variant="outline"
 							size="sm"
+							aria-label="Refresh schedules"
 							onClick={() => void refreshSchedules()}
 							disabled={isLoading}
 						>
@@ -1425,7 +1446,7 @@ export function RoutineSchedulesContent({
 										</p>
 									)}
 									{lastExecution?.errorMessage && (
-										<p className="text-destructive">
+										<p className="whitespace-pre-wrap break-words text-destructive">
 											<span className="text-muted-foreground/70">
 												Last error:
 											</span>{" "}
@@ -1588,7 +1609,7 @@ export function RoutineSchedulesContent({
 														{execution.status || "Unknown result"}
 													</span>
 													{execution.errorMessage && (
-														<span className="block truncate text-xs text-destructive">
+														<span className="block whitespace-pre-wrap break-words text-xs text-destructive">
 															{execution.errorMessage}
 														</span>
 													)}

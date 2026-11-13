@@ -15,6 +15,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { getModeSpecificFields } from "./utils/providerUtils"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface RequestyModelPickerProps {
@@ -25,7 +26,7 @@ interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
-	const { write } = useProviderConfig("requesty")
+	const { write, reasoningEffort } = useProviderConfig("requesty")
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
@@ -177,10 +178,8 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 	// the live catalog entry — the committed legacy snapshot can be cleared by
 	// provider-config writes, and the safe-default fallback would over-report.
 	const showReasoningEffort = requestyModels[selectedModelId]?.supportsReasoning === true
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({
-			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-		}).catch((err) => console.error("Failed to update Requesty reasoning effort:", err))
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) => console.error("Failed to update Requesty reasoning effort:", err))
 	}
 
 	return (
@@ -260,9 +259,9 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={handleReasoningEffortChange}
+							value={reasoningEffort}
 						/>
 					)}
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />

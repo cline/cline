@@ -10,7 +10,7 @@ const { invoke, openExternalUrl } = vi.hoisted(() => ({
 	openExternalUrl: vi.fn(),
 }));
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
 	openExternalUrl,
 }));
 
@@ -87,6 +87,50 @@ describe("AccountView usage table", () => {
 });
 
 describe("AccountView signed-out state", () => {
+	it("recovers from a failed cancel and restores Sign in without reloading the overview", async () => {
+		let rejectLogin!: (error: Error) => void;
+		let failCancel = true;
+		invoke.mockImplementation(async (command) => {
+			if (command === "run_provider_oauth_login") {
+				return await new Promise((_, reject) => {
+					rejectLogin = reject;
+				});
+			}
+			if (command === "cancel_provider_oauth_login") {
+				if (failCancel) {
+					failCancel = false;
+					throw new Error("Connection unavailable");
+				}
+				rejectLogin(new Error("Sign-in cancelled"));
+				return { cancelled: true };
+			}
+			return { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" };
+		});
+		await act(async () => root.render(<AccountView />));
+		const button = (label: string) => {
+			const found = Array.from(container.querySelectorAll("button")).find(
+				(button) => button.textContent === label,
+			);
+			if (!found) throw new Error(`Missing button: ${label}`);
+			return found;
+		};
+		await act(async () => button("Sign in").click());
+		expect(button("Signing in").disabled).toBe(true);
+		expect(container.textContent).not.toContain("Create account");
+		await act(async () => button("Cancel").click());
+		expect(container.textContent).toContain("Could not cancel sign-in");
+		expect(button("Signing in").disabled).toBe(true);
+		expect(button("Cancel").disabled).toBe(false);
+		await act(async () => button("Cancel").click());
+		expect(container.textContent).not.toContain("Could not cancel sign-in");
+		expect(button("Sign in").disabled).toBe(false);
+		expect(button("Create account").disabled).toBe(false);
+		expect(container.textContent).not.toContain("Sign-in cancelled");
+		expect(
+			invoke.mock.calls.filter(([command]) => command === "cline_account"),
+		).toHaveLength(1);
+	});
+
 	it("renders the sign-in prompt from the typed result and stops fetching account data", async () => {
 		invoke.mockResolvedValue({
 			signedIn: false,
@@ -189,5 +233,55 @@ describe("AccountView signed-out state", () => {
 			expect(container.textContent).toContain("Beatrix");
 		});
 		expect(container.textContent).not.toContain("Sign in to Cline");
+	});
+});
+
+describe("AccountView privacy settings", () => {
+	async function renderSignedIn(dataPrivacyPath?: string) {
+		invoke.mockImplementation(
+			async (_command: string, args?: Record<string, unknown>) => {
+				switch (args?.operation) {
+					case "fetchMe":
+						return {
+							id: "user-1",
+							email: "beatrix@cline.bot",
+							displayName: "Beatrix",
+							createdAt: "2024-01-01T00:00:00Z",
+							updatedAt: "2024-01-01T00:00:00Z",
+							organizations: [],
+							dataPrivacyPath,
+						};
+					case "fetchBalance":
+						return { balance: 5_000_000 };
+					case "fetchUserOrganizations":
+						return [];
+					default:
+						return {};
+				}
+			},
+		);
+		await act(async () => {
+			root.render(<AccountView />);
+		});
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Beatrix");
+		});
+		return container.querySelector<HTMLButtonElement>(
+			'button[title="Privacy settings"]',
+		);
+	}
+
+	it("opens the privacy settings path on the Cline web app", async () => {
+		const button = await renderSignedIn("/dashboard/account?tab=privacy");
+
+		await act(async () => button?.click());
+
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/dashboard/account?tab=privacy",
+		);
+	});
+
+	it("hides the button when the account has no privacy settings path", async () => {
+		expect(await renderSignedIn(undefined)).toBeNull();
 	});
 });

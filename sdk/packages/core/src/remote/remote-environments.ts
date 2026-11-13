@@ -14,7 +14,13 @@ import {
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import {
+	CLINE_HUB_LAUNCHER_CLIENT_ENV,
+	CLINE_HUB_LAUNCHER_TRANSPORT_ENV,
+	CLINE_HUB_LAUNCHER_VERSION_ENV,
+	getClineClientIdentity,
+} from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
 
@@ -166,10 +172,12 @@ interface ManagedConnection {
 }
 
 const PROFILE_FILE_VERSION = 1;
-const DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
-const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+// ConnectTimeout also bounds the banner exchange, so behind a ProxyJump the
+// whole bastion hop has to finish within it.
+const DEFAULT_CONNECT_TIMEOUT_SECONDS = 30;
+const DEFAULT_COMMAND_TIMEOUT_MS = 60_000;
 const DEFAULT_UPLOAD_TIMEOUT_MS = 5 * 60_000;
-const DEFAULT_TUNNEL_TIMEOUT_MS = 10_000;
+const DEFAULT_TUNNEL_TIMEOUT_MS = 40_000;
 const DEFAULT_HUB_SHUTDOWN_TIMEOUT_MS = 2_000;
 const REMOTE_HELPER_DIRECTORY = ".cline/remote";
 const REMOTE_DISCOVERY_DIRECTORY = ".cline/data/remote";
@@ -343,16 +351,10 @@ export class RemoteEnvironmentService {
 				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}-${createHash("sha256").update(profile.id).digest("hex").slice(0, 16)}.json`,
 			);
 			bootstrap = { helper: remoteHelper, discoveryPath };
-			const ensureResult = await this.execRemote(profile, {
-				command: remoteHelper,
-				args: [
-					"--remote-hub-ensure",
-					"--cwd",
-					inspection.home,
-					"--discovery-path",
-					discoveryPath,
-				],
-			});
+			const ensureResult = await this.execRemote(
+				profile,
+				remoteHubEnsureCommand(remoteHelper, inspection.home, discoveryPath),
+			);
 			const hub = parseRemoteHubResult(ensureResult.stdout);
 			const localPort = await this.dependencies.reservePort();
 			const tunnel = this.dependencies.spawnTunnel(
@@ -414,14 +416,10 @@ export class RemoteEnvironmentService {
 			if (bootstrap) {
 				try {
 					// An independent SSH command works even when forwarding never opened.
-					await this.execRemote(profile, {
-						command: bootstrap.helper,
-						args: [
-							"--remote-hub-stop",
-							"--discovery-path",
-							bootstrap.discoveryPath,
-						],
-					});
+					await this.execRemote(
+						profile,
+						remoteHubStopCommand(bootstrap.helper, bootstrap.discoveryPath),
+					);
 				} catch (failure) {
 					cleanupError = failure;
 					await this.persistPendingCleanup({ profile, ...bootstrap });
@@ -537,7 +535,7 @@ export class RemoteEnvironmentService {
 		if (!localHelper || !(await this.dependencies.fileReadable(localHelper))) {
 			throw new Error(
 				`Remote target ${inspection.platform}/${inspection.arch} is unsupported in SSH: ` +
-					"no compatible remote helper binary is available. Build the matching core remote helper and set " +
+					"no compatible Cline CLI binary is available. Build the Cline CLI for that target and set " +
 					"CLINE_REMOTE_HELPER_BINARY; network installers are intentionally not used.",
 			);
 		}
@@ -549,7 +547,7 @@ export class RemoteEnvironmentService {
 		);
 		const remoteHelper = joinRemote(
 			remoteDirectory,
-			`cline-remote-helper-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
+			`cline-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
 		);
 		await this.installHelper(
 			profile,
@@ -586,7 +584,7 @@ export class RemoteEnvironmentService {
 		const uploadCommand = `umask 077; cat > ${shellQuote(temporaryPath)}`;
 		const upload = await this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), uploadCommand],
+			[...this.buildCommandArgs(profile), uploadCommand],
 			{ timeoutMs: this.uploadTimeoutMs, inputFile: localHelper },
 		);
 		if (upload.exitCode !== 0) {
@@ -695,9 +693,21 @@ export class RemoteEnvironmentService {
 		const command = buildRemoteCommand(input.command, input.args, input.cwd);
 		return this.dependencies.runProcess(
 			this.sshPath,
-			[...this.buildSshArgs(profile), this.destination(profile), command],
+			[...this.buildCommandArgs(profile), command],
 			{ timeoutMs: this.commandTimeoutMs },
 		);
+	}
+
+	// Like scp and sftp, one-shot commands skip the LocalForward/RemoteForward
+	// an ssh_config alias declares; binding them would collide with the user's
+	// own sessions to that alias.
+	private buildCommandArgs(profile: RemoteEnvironmentProfile): string[] {
+		return [
+			...this.buildSshArgs(profile),
+			"-o",
+			"ClearAllForwardings=yes",
+			this.destination(profile),
+		];
 	}
 
 	private buildSshArgs(profile: RemoteEnvironmentProfile): string[] {
@@ -726,11 +736,12 @@ export class RemoteEnvironmentService {
 		localPort: number,
 		remotePort: number,
 	): string[] {
+		// ClearAllForwardings would also drop our -L, so the alias forwardings
+		// stay. Without ExitOnForwardFailure a collision on one of them is only a
+		// warning; waitForTunnel still verifies our own forward.
 		return [
 			...this.buildSshArgs(profile),
 			"-N",
-			"-o",
-			"ExitOnForwardFailure=yes",
 			"-o",
 			"ServerAliveInterval=15",
 			"-o",
@@ -866,10 +877,10 @@ export class RemoteEnvironmentService {
 							cleanupProfile,
 							await this.inspectRemote(cleanupProfile),
 						);
-			await this.execRemote(cleanupProfile, {
-				command: helper,
-				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
-			});
+			await this.execRemote(
+				cleanupProfile,
+				remoteHubStopCommand(helper, cleanup.discoveryPath),
+			);
 			await rm(path, { force: true });
 		}
 	}
@@ -985,6 +996,7 @@ function createDefaultDependencies(
 	};
 }
 
+/** File name of the Cline CLI binary built for `target`, as clients bundle it. */
 export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 	const triple =
 		target.platform === "darwin"
@@ -994,7 +1006,78 @@ export function remoteHelperBinaryFilename(target: RemoteHelperTarget): string {
 			: target.arch === "arm64"
 				? "aarch64-unknown-linux-gnu"
 				: "x86_64-unknown-linux-gnu";
-	return `cline-remote-helper-${triple}`;
+	return `cline-${triple}`;
+}
+
+/**
+ * Remote Hubs are CLI-managed: the staged Cline CLI starts (or reuses) a
+ * loopback Hub tracked by a discovery record that this client owns, so the
+ * user's own CLI Hub on that host is never read or stopped. The discovery
+ * path comes last so a stop command can be matched to the ensure it undoes.
+ */
+function remoteHubEnsureCommand(
+	cli: string,
+	cwd: string,
+	discoveryPath: string,
+): RemoteCommandInput {
+	const launcher = getClineClientIdentity();
+	return {
+		command: "env",
+		args: [
+			"CLINE_NO_AUTO_UPDATE=1",
+			// The remote daemon's telemetry records who started it; the staged
+			// CLI would otherwise report itself.
+			`${CLINE_HUB_LAUNCHER_CLIENT_ENV}=${launcher?.name?.trim() || "cline"}`,
+			...(launcher?.version?.trim()
+				? [`${CLINE_HUB_LAUNCHER_VERSION_ENV}=${launcher.version.trim()}`]
+				: []),
+			`${CLINE_HUB_LAUNCHER_TRANSPORT_ENV}=ssh`,
+			cli,
+			"hub",
+			"ensure",
+			"--json",
+			"--allow-port-fallback",
+			"--no-connectors",
+			"--login-shell-path",
+			"--cwd",
+			cwd,
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"0",
+			"--pathname",
+			"/hub",
+			"--discovery-path",
+			discoveryPath,
+		],
+	};
+}
+
+const LEGACY_REMOTE_HELPER_PREFIX = "cline-remote-helper-";
+
+function remoteHubStopCommand(
+	cli: string,
+	discoveryPath: string,
+): RemoteCommandInput {
+	// Cleanup records persisted by earlier releases name the dedicated helper
+	// binary they staged, which only understands its own stop flag.
+	if (basename(cli).startsWith(LEGACY_REMOTE_HELPER_PREFIX)) {
+		return {
+			command: cli,
+			args: ["--remote-hub-stop", "--discovery-path", discoveryPath],
+		};
+	}
+	return {
+		command: "env",
+		args: [
+			"CLINE_NO_AUTO_UPDATE=1",
+			cli,
+			"hub",
+			"stop",
+			"--discovery-path",
+			discoveryPath,
+		],
+	};
 }
 
 export async function runRemoteProcess(
@@ -1050,6 +1133,12 @@ export async function runRemoteProcess(
 			child.stdout?.destroy();
 			child.stderr?.destroy();
 			if (error) reject(error);
+			else if (
+				code === 0 &&
+				options.inputFile &&
+				!child.stdin?.writableFinished
+			)
+				reject(new Error(`${executable} exited before the upload completed`));
 			else
 				resolve({
 					stdout: Buffer.concat(stdout).toString("utf8"),
@@ -1101,7 +1190,9 @@ export async function runRemoteProcess(
 		);
 		if (options.inputFile && child.stdin) {
 			input = createReadStream(options.inputFile);
-			child.stdin.once("error", terminate);
+			// ssh exiting mid-upload surfaces here as EPIPE; its exit code and
+			// stderr explain why, so stop writing and let it close.
+			child.stdin.on("error", stopInput);
 			input.once("error", terminate);
 			input.pipe(child.stdin);
 		}

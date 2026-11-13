@@ -15,6 +15,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { useClineSignIn } from "@/hooks/use-cline-sign-in";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
@@ -28,7 +29,6 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
-import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import type { WorkIn } from "@/lib/work-in-selection";
 import {
@@ -79,6 +79,8 @@ export function WelcomeScreen({
 	workIn,
 	onWorkInChange,
 	onOpenSession,
+	terminalToggle,
+	bottomInset = 0,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -99,8 +101,27 @@ export function WelcomeScreen({
 	workIn?: WorkIn;
 	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
+	/** Rendered at the end of the workspace controls row. */
+	terminalToggle?: ReactNode;
+	/** Height taken from the pane below (the terminal drawer). */
+	bottomInset?: number;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
+	// The welcome column pads the hero from the top of the window, so a drawer
+	// opening underneath pushes the composer below the fold; bring it back.
+	const composerRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const composer = composerRef.current;
+		if (!active || bottomInset <= 0 || !composer) return;
+		// Observing the composer (fires once on observe) covers both the
+		// initial mount and later layout settling, e.g. the setup notice or
+		// workspace controls arriving after the first paint.
+		const observer = new ResizeObserver(() => {
+			composer.scrollIntoView({ block: "end" });
+		});
+		observer.observe(composer);
+		return () => observer.disconnect();
+	}, [active, bottomInset]);
 	const cloudScope = user
 		? JSON.stringify([
 				getClineEnvironmentConfig().appBaseUrl,
@@ -108,8 +129,18 @@ export function WelcomeScreen({
 				activeOrganization?.organizationId ?? null,
 			])
 		: null;
-	const [signingIn, setSigningIn] = useState(false);
-	const [signInError, setSignInError] = useState<string | null>(null);
+	const {
+		signIn,
+		cancelSignIn,
+		signingIn,
+		cancelling,
+		error: signInError,
+	} = useClineSignIn({
+		onSuccess: async () => {
+			invalidateProviderCatalogCache();
+			await refreshAccount();
+		},
+	});
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
@@ -425,25 +456,6 @@ export function WelcomeScreen({
 		repoUrl,
 	]);
 
-	const signIn = async () => {
-		if (signingIn) return;
-		setSigningIn(true);
-		setSignInError(null);
-		try {
-			await desktopClient.invoke(
-				"run_provider_oauth_login",
-				{ provider: "cline" },
-				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
-			);
-			invalidateProviderCatalogCache();
-			await refreshAccount();
-		} catch (error) {
-			setSignInError(error instanceof Error ? error.message : String(error));
-		} finally {
-			setSigningIn(false);
-		}
-	};
-
 	const cloudOnboardingVariant: CloudOnboardingVariant | null = !cloudModeActive
 		? null
 		: !signedIn
@@ -465,7 +477,7 @@ export function WelcomeScreen({
 			welcome={active}
 			body={body}
 			bodyClassName="cline-view-enter"
-			composer={composer}
+			composer={<div ref={composerRef}>{composer}</div>}
 			notice={notice && !showCloudOnboarding ? notice : null}
 			hideWelcomeComposer={showCloudOnboarding}
 			welcomeHeader={
@@ -506,6 +518,9 @@ export function WelcomeScreen({
 								Sign in failed: {signInError}
 							</p>
 						) : null}
+						{terminalToggle ? (
+							<div className="ml-auto shrink-0">{terminalToggle}</div>
+						) : null}
 					</div>
 				</div>
 			}
@@ -513,6 +528,8 @@ export function WelcomeScreen({
 				cloudOnboardingVariant !== null ? (
 					<div className="mt-4 w-full">
 						<CloudOnboardingCard
+							cancelling={cancelling}
+							onCancelSignIn={() => void cancelSignIn()}
 							checking={cloudSetupChecking}
 							onConnect={() =>
 								void (cloudOnboardingVariant === "not_connected"

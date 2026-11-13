@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
-import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import type { CoreSpawnReason } from "@cline/shared"
+import { GENERATED_CLINE_RECOMMENDED_MODELS, getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { CLINE_DEFAULT_MODEL_ID, type CoreSpawnReason } from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
@@ -58,6 +58,10 @@ export function resolveModelsRegistryPath(): string {
 export function ensureCustomProvidersLoadedSync(): void {}
 
 export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
+export {
+	parseRuleConfigFromMarkdown,
+	parseSkillConfigFromMarkdown,
+} from "../../../../sdk/packages/core/src/extensions/config/user-instruction-config-loader"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -70,6 +74,11 @@ export {
 export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
+
+// Offline behavior of the real resolver: first bundled free model, else the Cline default.
+export async function resolveClineDefaultModelId(): Promise<string> {
+	return GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ?? CLINE_DEFAULT_MODEL_ID
+}
 
 export function readCompactionStrategyGlobally(): GlobalCompactionStrategy {
 	try {
@@ -141,6 +150,9 @@ export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/sr
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+// Real rule selection re-exported from SDK source so standalone callers are
+// tested against the same pipeline a session's system prompt uses.
+export { loadRulesForSystemPromptFromRecords } from "../../../../sdk/packages/core/src/runtime/safety/rules"
 export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
 // Real source-of-truth values re-exported so the extension is tested against the
 // same session-source tag and core version the SDK stamps on a session's requests.

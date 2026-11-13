@@ -1,9 +1,23 @@
+import type { MermaidConfig } from "mermaid";
 import type {
 	HighlighterCore,
 	LanguageRegistration,
 	ThemeRegistration,
 } from "shiki/core";
-import type { CodeHighlighterPlugin, ControlsConfig } from "streamdown";
+import type {
+	CodeHighlighterPlugin,
+	ControlsConfig,
+	DiagramPlugin,
+} from "streamdown";
+import {
+	buildMermaidConfig,
+	createDefaultMermaidConfig,
+	createMermaidService,
+	defaultMermaidLoader,
+	type LazyMermaidInstance,
+	type MermaidModuleLoader,
+} from "./mermaid-diagram.js";
+import { readMermaidTheme } from "./mermaid-dom.js";
 
 /**
  * Shared Streamdown configuration for agent chat Markdown, so every product
@@ -35,6 +49,91 @@ export const agentMarkdownControls = {
 	mermaid: false,
 	table: false,
 } satisfies ControlsConfig;
+
+/** Desktop/host opt-in controls for interactive Mermaid diagrams. The default
+ * controls above stay diagram-free so existing consumers don't change unless
+ * they also register a Mermaid DiagramPlugin. */
+export const agentMarkdownControlsWithMermaid = {
+	...agentMarkdownControls,
+	mermaid: {
+		copy: true,
+		download: true,
+		fullscreen: true,
+		panZoom: true,
+	},
+} satisfies ControlsConfig;
+
+export {
+	buildMermaidConfig,
+	buildMermaidThemeVariables,
+	createDefaultMermaidConfig,
+	DIAGRAM_LINK_HREF_ATTRIBUTE,
+	type MermaidColorMode,
+	type MermaidColorResolver,
+	type MermaidModuleLoader,
+	type MermaidThemeOptions,
+	type MermaidThemeTokens,
+	neutralizeDiagramLinks,
+} from "./mermaid-diagram.js";
+
+/** Base-theme defaults from the palette (light); hosts with a DOM resolve the
+ * live design tokens instead, see `resolveThemedMermaidConfig`. */
+export const DEFAULT_MERMAID_CONFIG: MermaidConfig =
+	createDefaultMermaidConfig("light");
+
+/**
+ * Creates a Streamdown Mermaid *diagram plugin* (Streamdown's built-in block
+ * chrome). Hosts that want the owned block (filename header, PNG/MMD
+ * downloads, themed PNGs) register `createMermaidRenderer` from
+ * `@cline/ui/components/mermaid-block` instead.
+ *
+ * The default config is resolved from the live Cline design tokens at render
+ * time (falling back to the palette without a DOM) and re-applied when the
+ * resolved theme changes; configs supplied through `getMermaid(config)` layer
+ * on top, with `securityLevel` always forced to `strict`.
+ */
+export function createLazyMermaidPlugin(
+	loader: MermaidModuleLoader = defaultMermaidLoader,
+): DiagramPlugin {
+	const service = createMermaidService(loader);
+	let overrides: MermaidConfig = {};
+	let cached: { config: MermaidConfig; key: string } | undefined;
+
+	const instance: LazyMermaidInstance = {
+		initialize(nextConfig: MermaidConfig) {
+			overrides = { ...overrides, ...nextConfig };
+			cached = undefined;
+		},
+		render(id: string, source: string) {
+			const theme = readMermaidTheme();
+			// One config object per theme key so the shared service only calls
+			// `initialize` when the theme or the overrides change.
+			if (cached?.key !== theme.key) {
+				cached = {
+					config: {
+						...buildMermaidConfig(theme.tokens, theme.mode, {
+							fontFamily: theme.fontFamily,
+						}),
+						...overrides,
+						securityLevel: "strict",
+					},
+					key: theme.key,
+				};
+			}
+			return service.render(id, source, cached.config);
+		},
+	};
+
+	return {
+		getMermaid(nextConfig?: MermaidConfig) {
+			if (nextConfig) instance.initialize(nextConfig);
+			return instance;
+		},
+		language: "mermaid",
+		name: "mermaid",
+		type: "diagram",
+	};
+}
 
 export const SUPPORTED_MARKDOWN_LANGUAGES = [
 	"bash",

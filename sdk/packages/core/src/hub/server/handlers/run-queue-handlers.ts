@@ -28,11 +28,24 @@ export const HUB_DRAINING_ERROR_CODE = "hub_draining";
 /** Commands refused while the Hub is draining (all of them admit new work). */
 const DRAIN_REFUSED_COMMANDS = new Set<string>([
 	"session.create",
+	"session.resume",
 	"session.restore",
 	"session.fork",
 	"run.start",
 	"session.send_input",
 	"run.enqueue",
+	"plugins.commands.run",
+	"plugins.commands.list",
+	"providers.settings.save",
+	"mcp.servers.upsert",
+	"mcp.oauth.start",
+	"mcp.servers.set_disabled",
+	"mcp.servers.delete",
+	"mcp.settings.ensure",
+	"mcp.servers.install",
+	"mcp.servers.inspect",
+	"providers.add",
+	"providers.models.update",
 ]);
 
 export function isDrainRefusedCommand(command: string): boolean {

@@ -94,7 +94,7 @@ export function buildOrganizationConfigOption(
 		name: "Account",
 		description:
 			"The Cline account usage is billed to — your personal account or an organization",
-		category: "account",
+		category: "_account",
 		currentValue: state.activeOrganizationId ?? PERSONAL_ACCOUNT_VALUE,
 		options: [
 			{ value: PERSONAL_ACCOUNT_VALUE, name: "Personal" },

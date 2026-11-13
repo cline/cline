@@ -11,6 +11,7 @@ import {
 	providerReasoningRouteMatches,
 	resolveModelFamily,
 } from "../model-facts";
+import { isOfficialAnthropicEndpoint } from "../url";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
@@ -127,9 +128,15 @@ const directAnthropicProviderRule: ProviderOptionRule = {
 		"Direct Anthropic enables its recommended server-side refusal fallback.",
 	applies: (input) => input.request.providerId === "anthropic",
 	suppresses: { genericFanout: true },
-	// The Anthropic adapter adds the required beta header. This option is
-	// specific to the Claude API, not Claude models served by other gateways.
-	build: () => ({ anthropic: { fallbacks: "default" } }),
+	// The Anthropic adapter adds the required beta header. `fallbacks` exists
+	// only on the Claude API itself; strict-schema proxies such as Azure AI
+	// Foundry reject it with a 400. The endpoint check lives in `build`, not
+	// `applies`, so custom endpoints keep the fanout suppression and their
+	// request body is otherwise unchanged.
+	build: (input) =>
+		isOfficialAnthropicEndpoint(input.context.config.baseUrl)
+			? { anthropic: { fallbacks: "default" } }
+			: undefined,
 };
 
 const directGoogleProviderRule: ProviderOptionRule = {
@@ -362,13 +369,15 @@ const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
 	description:
-		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets.",
+		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets, and only on models that advertise one; level-only models reject thinkingBudget.",
 	suppresses: { genericThinking: true },
 	applies: (input) =>
 		(input.request.providerId === "google" ||
 			input.request.providerId === "gemini" ||
 			input.request.providerId === "vertex") &&
-		typeof input.request.reasoning?.budgetTokens === "number",
+		typeof input.request.reasoning?.budgetTokens === "number" &&
+		getModelReasoningControls(input.context.model.reasoningOptions)?.budget !==
+			undefined,
 	build: (input) => {
 		const providerOptionsName =
 			input.request.providerId === "vertex" ? "vertex" : "google";

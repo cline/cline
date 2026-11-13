@@ -30,7 +30,6 @@ import {
 	fetchConnectableToolkits,
 	initiateConnection,
 	listConnections,
-	listToolkitTools,
 	waitForConnectionActive,
 } from "./cline-connectors-api";
 
@@ -295,68 +294,59 @@ describe("connector router contract", () => {
 		);
 	});
 
-	it("loads all 47 schemas across pages and preserves input_parameters and version", async () => {
-		const tools = Array.from({ length: 47 }, (_, i) => ({
-			slug: `GOOGLECALENDAR_TOOL_${i}`,
-			version: "v1",
-			input_parameters: {
-				type: "object",
-				properties: { to: { type: "string" } },
-				required: ["to"],
-			},
+	it("loads all connections across pages, including empty intermediate pages", async () => {
+		const connections = Array.from({ length: 47 }, (_, i) => ({
+			...account,
+			id: `account_${i}`,
 		}));
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(page(tools.slice(0, 20), "next/+="))
+			.mockResolvedValueOnce(page(connections.slice(0, 20), "next/+="))
 			.mockResolvedValueOnce(page([], "last"))
-			.mockResolvedValueOnce(page(tools.slice(20)));
+			.mockResolvedValueOnce(page(connections.slice(20)));
 		global.fetch = fetchMock as unknown as typeof fetch;
-		expect(await listToolkitTools("googlecalendar")).toEqual(tools);
+		expect(await listConnections()).toEqual(connections);
 		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200",
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=next%2F%2B%3D",
-			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/googlecalendar/tools?limit=200&cursor=last",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200&cursor=next%2F%2B%3D",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200&cursor=last",
 		]);
 	});
 
-	it("rejects a failed tool page instead of returning partial schemas", async () => {
+	it("rejects a failed connection page instead of returning partial connections", async () => {
 		global.fetch = vi
 			.fn()
-			.mockResolvedValueOnce(page([{ slug: "GMAIL_SEND_EMAIL" }], "next"))
+			.mockResolvedValueOnce(page([account], "next"))
 			.mockResolvedValueOnce(
-				Response.json({ error: "Tools unavailable" }, { status: 502 }),
+				Response.json({ error: "Connections unavailable" }, { status: 502 }),
 			) as unknown as typeof fetch;
-		await expect(listToolkitTools("gmail")).rejects.toThrow(
-			"Tools unavailable",
-		);
+		await expect(listConnections()).rejects.toThrow("Connections unavailable");
 	});
 
-	it("rejects a malformed later tool page", async () => {
+	it("rejects a malformed later connection page", async () => {
 		global.fetch = vi
 			.fn()
-			.mockResolvedValueOnce(page([{ slug: "GMAIL_SEND_EMAIL" }], "next"))
+			.mockResolvedValueOnce(page([account], "next"))
 			.mockResolvedValueOnce(
 				Response.json({ success: true, data: { items: [] } }),
 			) as unknown as typeof fetch;
-		await expect(listToolkitTools("gmail")).rejects.toThrow(
-			/Invalid connectors page/,
-		);
+		await expect(listConnections()).rejects.toThrow(/Invalid connectors page/);
 	});
 
-	it("rejects cyclic tool pagination", async () => {
+	it("rejects cyclic connection pagination", async () => {
 		global.fetch = vi.fn(async () =>
-			page([{ slug: "GMAIL_SEND_EMAIL" }], "same"),
+			page([account], "same"),
 		) as unknown as typeof fetch;
-		await expect(listToolkitTools("gmail")).rejects.toThrow(/repeated cursor/);
+		await expect(listConnections()).rejects.toThrow(/repeated cursor/);
 		expect(global.fetch).toHaveBeenCalledTimes(2);
 	});
 
-	it("does not combine tool pages from different accounts", async () => {
+	it("does not combine connection pages from different accounts", async () => {
 		global.fetch = vi.fn(async () => {
 			identity.accountId = "account-b";
-			return page([{ slug: "GMAIL_SEND_EMAIL" }], "next");
+			return page([account], "next");
 		}) as unknown as typeof fetch;
-		await expect(listToolkitTools("gmail")).rejects.toMatchObject({
+		await expect(listConnections()).rejects.toMatchObject({
 			status: 401,
 		});
 		expect(global.fetch).toHaveBeenCalledOnce();

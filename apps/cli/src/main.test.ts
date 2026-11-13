@@ -406,6 +406,29 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
 
+	it("does not capture an activation event for hub commands", async () => {
+		// The desktop app and the SSH remote flow run `cline hub ensure` on
+		// every launch/connect; those must not count as CLI activations.
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard", "--no-open"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledTimes(1);
+		expect(telemetryMocks.captureCliExtensionActivated).not.toHaveBeenCalled();
+	});
+
+	it("captures an activation event for regular commands", async () => {
+		process.argv = ["bun", "src/index.ts", "history", "--json"];
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(telemetryMocks.captureCliExtensionActivated).toHaveBeenCalledTimes(
+			1,
+		);
+	});
+
 	it.each([
 		"connect",
 		"mcp",
@@ -1428,17 +1451,28 @@ describe("runCli lightweight command dispatch", () => {
 		expect(process.exitCode).toBe(0);
 	});
 
-	it("runs dashboard before loading runtime modules", async () => {
+	it.each([
+		["hub", "dashboard"],
+		["dashboard"],
+	])("runs %s dashboard before loading runtime modules", async (...command) => {
 		process.argv = [
 			"bun",
 			"src/index.ts",
-			"dashboard",
+			...command,
 			"--config",
 			"/tmp/cline-config",
+			"--cwd",
+			"/tmp/workspace",
 			"--data-dir",
 			".cline-dashboard-data",
+			"--host",
+			"127.0.0.1",
 			"--port",
 			"9090",
+			"--public-url",
+			"https://dashboard.example",
+			"--room-secret",
+			"test-invite-secret",
 			"--no-open",
 		];
 
@@ -1448,8 +1482,12 @@ describe("runCli lightweight command dispatch", () => {
 		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
 			expect.objectContaining({
 				configDir: "/tmp/cline-config",
+				cwd: "/tmp/workspace",
 				dataDir: ".cline-dashboard-data",
+				host: "127.0.0.1",
 				port: "9090",
+				publicUrl: "https://dashboard.example",
+				roomSecret: "test-invite-secret",
 				openBrowser: false,
 				io: expect.any(Object),
 			}),
@@ -1457,6 +1495,27 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 		expect(process.exitCode).toBe(0);
+	});
+
+	it("opens the hub dashboard in a browser by default", async () => {
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard"];
+		const { runCli } = await import("./main");
+		await runCli();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
+			expect.objectContaining({ cwd: process.cwd(), openBrowser: true }),
+		);
+		expect(process.exitCode).toBe(0);
+	});
+
+	it("preserves the hub dashboard failure exit code", async () => {
+		dashboardMocks.runDashboardCommand.mockResolvedValue(1);
+		process.argv = ["bun", "src/index.ts", "hub", "dashboard", "--no-open"];
+		const { runCli } = await import("./main");
+		await runCli();
+		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledTimes(1);
+		expect(process.exitCode).toBe(1);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
 	it("prints an install hint when kanban is missing", async () => {

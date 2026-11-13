@@ -47,7 +47,11 @@ import { Logger } from "@shared/services/Logger"
 import * as path from "path"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
-import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
+import {
+	CLINE_FREE_PROMOTION_ENDED_ERROR_CODE,
+	isClineFreePromotionEndedMessage,
+	MODEL_NOT_FOUND_GUIDANCE,
+} from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
 import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
@@ -121,6 +125,8 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	/** Streaming text so far, for sources whose deltas carry no `accumulated` */
+	private streamingText = ""
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -220,10 +226,21 @@ export class MessageTranslatorState {
 		return this.streamingTextTs
 	}
 
+	/**
+	 * The text streamed so far after this chunk. A local session reports the
+	 * running total as `accumulated`; a Hub-hosted (cloud) session forwards
+	 * only the chunk, so the total is built here.
+	 */
+	appendStreamingText(chunk: string, accumulated: string | undefined): string {
+		this.streamingText = accumulated ?? this.streamingText + chunk
+		return this.streamingText
+	}
+
 	/** Clear streaming text (content ended) */
 	clearStreamingText(): number {
 		const ts = this.streamingTextTs ?? this.nextTs()
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		return ts
 	}
 
@@ -245,6 +262,9 @@ export class MessageTranslatorState {
 	clearStreamingReasoning(): number {
 		const ts = this.streamingReasoningTs ?? this.nextTs()
 		this.streamingReasoningTs = undefined
+		// Empty the buffer so a follow-up request in the same iteration (auto
+		// continuation after an "unknown" end, no reset in between) starts its
+		// reasoning rows fresh instead of appending to the previous text.
 		this.streamingReasoningText = ""
 		return ts
 	}
@@ -458,11 +478,6 @@ export class MessageTranslatorState {
 		return this.spawnAgentEntries.size > 0
 	}
 
-	/** Whether any registered spawn_agent call has not finished yet. */
-	hasRunningSpawnAgents(): boolean {
-		return this.getSpawnAgentItems().some((entry) => entry.status === "running" || entry.status === "pending")
-	}
-
 	/** Get all spawn_agent entries as an ordered array */
 	getSpawnAgentItems(): SubagentStatusItem[] {
 		return Array.from(this.spawnAgentEntries.values()).sort((a, b) => a.index - b.index)
@@ -527,7 +542,9 @@ export class MessageTranslatorState {
 	 */
 	reset(): void {
 		this.streamingTextTs = undefined
+		this.streamingText = ""
 		this.streamingReasoningTs = undefined
+		this.streamingReasoningText = ""
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
@@ -1301,6 +1318,33 @@ function finalizeDanglingCompaction(
 	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
 }
 
+/**
+ * Renders a turn failure: an api_req_started carrying the error, so the
+ * request row shows it via ErrorRow instead of a spinner, then
+ * ask:"api_req_failed" as the last message, so the webview offers recovery
+ * (Retry, Buy Credits, Sign In). The error text is reshaped into the
+ * ClineError JSON that ErrorRow parses to pick a special card, e.g. the
+ * Cline provider's 402 `insufficient_credits` body.
+ */
+function pushTurnErrorRows(
+	messages: ClineMessage[],
+	state: MessageTranslatorState,
+	error: { message?: string; status?: number; code?: string },
+	errorClass?: ProviderErrorClass,
+): void {
+	const errorPayload = reshapeErrorForWebview(error, state.activeProviderId(), state.activeModelId(), errorClass)
+	messages.push(
+		{
+			ts: state.nextTs(),
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ streamingFailedMessage: errorPayload } satisfies ClineApiReqInfo),
+			partial: false,
+		},
+		{ ts: state.nextTs(), type: "ask", ask: "api_req_failed", text: errorPayload, partial: false },
+	)
+}
+
 function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
 	const messages: ClineMessage[] = []
 
@@ -1308,18 +1352,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_start": {
 			switch (event.contentType) {
 				case "text": {
-					// The SDK emits MULTIPLE content_start events for streaming text.
-					// Each has `text` (the delta) and `accumulated` (full text so far).
-					// We use `accumulated` so the webview can update the message in-place
-					// with the growing text, giving smooth streaming. Using `text` (delta)
-					// would cause a "flip book" effect where each update replaces the
-					// previous content with just the new chunk.
+					// The SDK emits MULTIPLE content_start events for streaming text,
+					// each carrying a chunk. The row must show the full text so far so
+					// the webview updates it in place; showing only the chunk gives a
+					// "flip book" effect where each update replaces the previous one.
 					const ts = state.getStreamingTextTs()
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.accumulated ?? event.text ?? "",
+						text: state.appendStreamingText(event.text ?? "", event.accumulated),
 						partial: true,
 					})
 					break
@@ -1929,9 +1971,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			finalizeDanglingCompaction(state, messages, "cancelled")
 
 			// A turn can terminate with done(reason:"error") without a separate
-			// "error" event — record the error outcome here too so turn end still
-			// resolves to the "error" phase (Retry / Start New Task).
-			if (event.reason === "error") {
+			// "error" event: a Hub-hosted (cloud) session forwards only the run's
+			// terminal result, whose text is the failure message. Record the
+			// error outcome so turn end resolves to the "error" phase (Retry /
+			// Start New Task), and render the failure unless an "error" event
+			// already did.
+			if (event.reason === "error" && !state.wasErrorSeen() && !state.isSuppressedToolApprovalDenial(event.text)) {
+				state.clearTurnFinalText()
+				state.setErrorSeen()
+				pushTurnErrorRows(messages, state, { message: event.text || undefined })
+			} else if (event.reason === "error") {
 				state.setErrorSeen()
 			}
 
@@ -1988,46 +2037,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// (footer shows Retry / Start New Task) instead of awaiting_followup.
 			state.setErrorSeen()
 
-			// Serialize the error message for the webview's ErrorRow to parse.
-			// The webview uses ClineError.parse() on the `api_req_failed` text to
-			// detect special error types (insufficient credits, spend limit, auth,
-			// quota exceeded) and render appropriate UI (e.g. "Add Credits" button).
-			//
-			// The error object from the SDK is a standard JS Error. Its `message`
-			// may contain JSON from the API (e.g. Cline provider's 402 response with
-			// `code: "insufficient_credits"`). We try to reshape it into the
-			// ClineError-serialized format the webview expects so that ErrorRow
-			// can render the correct UI (Buy Credits button, etc.).
-			const errorPayload = reshapeErrorForWebview(
-				event.error,
-				state.activeProviderId(),
-				state.activeModelId(),
-				event.errorClass,
-			)
-
-			// Emit an api_req_started with streamingFailedMessage so the
-			// RequestStartRow renders the error via ErrorRow. This replaces
-			// the spinner on the last API request row.
-			messages.push({
-				ts: state.nextTs(),
-				type: "say",
-				say: "api_req_started",
-				text: JSON.stringify({
-					streamingFailedMessage: errorPayload,
-				} satisfies ClineApiReqInfo),
-				partial: false,
-			})
-
-			// Emit ask:"api_req_failed" as the LAST message so the webview
-			// shows error recovery UI (Retry button, Add Credits button,
-			// Sign In button, etc.) instead of a stuck "Thinking..." spinner.
-			messages.push({
-				ts: state.nextTs(),
-				type: "ask",
-				ask: "api_req_failed",
-				text: errorPayload,
-				partial: false,
-			})
+			pushTurnErrorRows(messages, state, event.error, event.errorClass)
 			break
 		}
 
@@ -2075,22 +2085,13 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
-			// Sub-agent events should NOT produce ClineMessages in the main chat.
-			// The sub-agent's work is represented by the parent's spawn_agent tool
-			// events (content_start/update/end), which we translate into the rich
-			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
-			// text output, iteration, and usage event floods the main chat.
+			// Worker progress belongs to the parent's delegation tool. Worker text,
+			// tool calls, and completion must not become parent chat/turn events.
 			const agentEvent = event.payload.event
-			const isToolLifecycleEvent =
-				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
-			const isSpawnAgentToolEvent =
-				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
-
-			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
-			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
-			// flight we also suppress every non-spawn_agent event. This preserves the
-			// parent spawn_agent status updates while hiding sub-agent internals.
-			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
+			// Core stamps identity on every event, including locally adapted events.
+			// Filter by ancestry so every delegation tool is handled consistently
+			// and concurrent work by the parent remains visible.
+			if (agentEvent.parentAgentId) {
 				break
 			}
 
@@ -2656,9 +2657,6 @@ export function historyItemToSessionFields(item: {
 		modelId: item.modelId,
 	}
 }
-
-const MODEL_NOT_FOUND_GUIDANCE =
-	"This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry."
 
 const VERTEX_GLOBAL_REGION_GUIDANCE =
 	'This model does not support the Vertex AI global endpoint. Switch Google Cloud Region from "global" to a specific region (e.g. "us-east5") in API Configuration settings, or choose a different model, then retry.'

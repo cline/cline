@@ -2,8 +2,6 @@ import type { FeatureFlagPayload } from "@/services/feature-flags/providers/IFea
 
 export enum FeatureFlag {
 	WORKTREES = "worktree-exp",
-	// Feature flag for showing the new onboarding flow or old welcome view.
-	ONBOARDING_MODELS = "onboarding_models",
 	// Feature flag for remote banner service
 	REMOTE_BANNERS = "remote-banners",
 	// Feature flag payload (milliseconds) controlling remote banner cache TTL
@@ -18,17 +16,19 @@ export enum FeatureFlag {
 	CLINE_RECOMMENDED_MODELS_UPSTREAM = "cline_recommended_models_upstream",
 	// Use the websocket mode for OpenAI native Responses API format
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
+	// Rollout flag for Cline Cloud sessions (run a task in a hosted sandbox)
+	CLOUD_SESSIONS = "ext-cloud-sessions",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
 	[FeatureFlag.WORKTREES]: false,
-	[FeatureFlag.ONBOARDING_MODELS]: process.env.E2E_TEST === "true" ? { models: {} } : undefined,
 	[FeatureFlag.REMOTE_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_REMOTE_BANNERS_TTL]: 24 * 60 * 60 * 1000,
 	[FeatureFlag.REMOTE_WELCOME_BANNERS]: process.env.E2E_TEST === "true" || process.env.IS_DEV === "true",
 	[FeatureFlag.EXTENSION_CLINE_MODELS_ENDPOINT]: false,
 	[FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
+	[FeatureFlag.CLOUD_SESSIONS]: false,
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

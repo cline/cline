@@ -1,0 +1,118 @@
+@layer components {
+	.cline-message-scroller {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.cline-message-scroller-viewport {
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
+	}
+
+	.cline-message-scroller-viewport[data-pending-scroll] {
+		visibility: hidden;
+	}
+
+	.cline-message-scroller-content {
+		display: flex;
+		flex-direction: column;
+		height: max-content;
+		min-height: 100%;
+		gap: 1.5rem;
+	}
+
+	.cline-message-scroller-item {
+		min-width: 0;
+		flex-shrink: 0;
+	}
+
+	.cline-message-scroller-button {
+		position: absolute;
+		inset-inline-start: 50%;
+		bottom: 1rem;
+		z-index: 10;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		transform: translateX(-50%);
+		border: 1px solid var(--border);
+		border-radius: 9999px;
+		background: var(--background);
+		color: var(--foreground);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+		cursor: pointer;
+		opacity: 0.8;
+		transition:
+			opacity 200ms,
+			translate 200ms;
+	}
+
+	.cline-message-scroller-button:hover {
+		background: var(--popover);
+		opacity: 1;
+	}
+
+	.cline-message-scroller-button:focus-visible {
+		opacity: 1;
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	.cline-message-scroller-button[data-active="false"] {
+		pointer-events: none;
+		opacity: 0;
+		translate: 0 100%;
+	}
+
+	.cline-message-scroller-button[data-direction="start"] {
+		top: 1rem;
+		bottom: auto;
+	}
+
+	.cline-message-scroller-button[data-direction="start"][data-active="false"] {
+		translate: 0 -100%;
+	}
+
+	.cline-message-scroller-button svg {
+		width: 1rem;
+		height: 1rem;
+	}
+
+	.cline-message-scroller-button[data-direction="start"] svg {
+		rotate: 180deg;
+	}
+
+	.cline-message-scroller-button:dir(rtl) {
+		transform: translateX(50%);
+	}
+
+	.cline-message-scroller-button-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.cline-message-scroller-button {
+			transition: none;
+		}
+	}
+}

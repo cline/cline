@@ -4,7 +4,8 @@ import {
 	CLINE_ENVIRONMENTS,
 	type GatewayProviderContext,
 } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "../catalog/cline-recommended.generated";
 import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
@@ -63,8 +64,40 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
-	it("exposes its canonical default model ID", () => {
-		expect(findClineSpec().defaultModelId).toBe(CLINE_DEFAULT_MODEL_ID);
+	it("defaults to the first free model, falling back to the canonical id", () => {
+		expect(findClineSpec().defaultModelId).toBe(
+			GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
+				CLINE_DEFAULT_MODEL_ID,
+		);
+	});
+
+	// Drive each branch explicitly with a mocked generated list.
+	async function clineDefaultWithRecommended(
+		free: { id: string }[],
+	): Promise<string | undefined> {
+		vi.resetModules();
+		vi.doMock("../catalog/cline-recommended.generated", () => ({
+			GENERATED_CLINE_RECOMMENDED_MODELS: { recommended: [], free },
+		}));
+		try {
+			const { BUILTIN_SPECS: specs } = await import("./builtins");
+			return specs.find((s) => s.id === "cline")?.defaultModelId;
+		} finally {
+			vi.doUnmock("../catalog/cline-recommended.generated");
+			vi.resetModules();
+		}
+	}
+
+	it("tracks the first free model when it differs from the fallback", async () => {
+		await expect(
+			clineDefaultWithRecommended([{ id: "vendor/free-first" }]),
+		).resolves.toBe("vendor/free-first");
+	});
+
+	it("falls back to the canonical id when the free list is empty", async () => {
+		await expect(clineDefaultWithRecommended([])).resolves.toBe(
+			CLINE_DEFAULT_MODEL_ID,
+		);
 	});
 
 	it("prefers Vercel-style Z.ai model ids over equivalent OpenRouter ids", async () => {

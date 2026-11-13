@@ -8,8 +8,15 @@ import type { CloudSessionRecord, CreateCloudSessionInput } from "./api";
 export type JsonRecord = Record<string, unknown>;
 export type CloudCreationOptions = Pick<
 	CreateCloudSessionInput,
-	"autoApproveTools" | "thinking" | "reasoningEffort"
+	| "autoApproveTools"
+	| "thinking"
+	| "reasoningEffort"
+	| "mode"
+	| "workspaceRelativePath"
 >;
+export type CloudSendLifecycle = {
+	beforeDispatch?: () => void;
+};
 export type CloudHandoffSeed = {
 	sourceSessionId: string;
 	messages: MessageWithMetadata[];
@@ -46,6 +53,10 @@ export type CloudSessionState = {
 	promptsInQueue: CloudQueuedPrompt[];
 	busy: boolean;
 	startedAt: number;
+	/** Accepted recency from Hub activity and newer API activity while disconnected. */
+	lastActivityAt?: number;
+	/** API activity already observed when this viewer's connection ended. */
+	apiActivityAtDisposal?: number;
 	endedAt?: number;
 	status: string;
 	prompt?: string;

@@ -9,6 +9,7 @@ import type {
 	HubScheduleRuntimeHandlers,
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
+import type { ConnectorsRequest } from "../../extensions/composio/composio-meta-tools";
 import type { VerifySubmitExecutor } from "../../extensions/tools";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
@@ -68,6 +69,7 @@ export interface CreateLocalHubScheduleRuntimeHandlersOptions
 	 * scheduled session executed inside this hub process.
 	 */
 	fetch?: typeof fetch;
+	connectorsRequest?: ConnectorsRequest;
 	telemetry?: ITelemetryService;
 }
 
@@ -83,6 +85,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 			},
 		},
 		fetch: options.fetch,
+		connectorsRequest: options.connectorsRequest,
 		telemetry: options.telemetry,
 	});
 

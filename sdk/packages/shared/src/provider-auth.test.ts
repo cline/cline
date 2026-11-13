@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { resolveProviderLocalCli } from "./provider-auth";
+import {
+	resolveProviderApiKeyOptional,
+	resolveProviderLocalCli,
+} from "./provider-auth";
+
+describe("resolveProviderApiKeyOptional", () => {
+	it("reads an explicit optional-key declaration", () => {
+		expect(
+			resolveProviderApiKeyOptional({ metadata: { apiKeyOptional: true } }),
+		).toBe(true);
+	});
+	it.each([
+		undefined,
+		{},
+		{ metadata: {} },
+		{ metadata: { apiKeyOptional: false } },
+		{ metadata: { apiKeyOptional: "true" } },
+	])("defaults to requiring a key: %j", (provider) => {
+		expect(resolveProviderApiKeyOptional(provider)).toBe(false);
+	});
+});
 
 describe("resolveProviderLocalCli", () => {
 	it("extracts custom CLI metadata without a registry", () => {

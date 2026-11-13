@@ -58,7 +58,7 @@ jobs:
         run: bun run test:dmg-background
 
   windows-installer:
-    name: Test x86 installer against x64 sidecars
+    name: Test x86 installer against x64 app executables
     runs-on: windows-latest
     timeout-minutes: 10
     defaults:
@@ -78,7 +78,7 @@ jobs:
           no-cache: true
 
       # Use the same NSIS distribution as the locked Tauri CLI. No workspace
-      # install or full desktop build: the test compiles a disposable sidecar.
+      # install or full desktop build: the test compiles a disposable fixture executable.
       # The test asserts makensis reports NSIS_VERSION and that bun.lock still
       # resolves TAURI_CLI_VERSION, so changing this download or bumping the
       # CLI without updating windows-installer.test.ts fails the job.
@@ -86,12 +86,12 @@ jobs:
         shell: pwsh
         run: |
           $zip = Join-Path $env:RUNNER_TEMP 'nsis.zip'
-          Invoke-WebRequest 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip' -OutFile $zip
-          if ((Get-FileHash $zip -Algorithm SHA1).Hash -ne 'EF7FF767E5CBD9EDD22ADD3A32C9B8F4500BB10D') {
+          Invoke-WebRequest 'https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip' -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA1).Hash -ne 'DB14F8AF2EA346B786C6AE19343F61AAF5E09B8E') {
             throw 'NSIS distribution checksum mismatch'
           }
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          "MAKENSIS_PATH=$env:RUNNER_TEMP/nsis-3.11/makensis.exe" >> $env:GITHUB_ENV
+          "MAKENSIS_PATH=$env:RUNNER_TEMP/nsis-3.13/makensis.exe" >> $env:GITHUB_ENV
 
       - name: Test install and uninstall process cleanup
         run: bun run test:windows-installer

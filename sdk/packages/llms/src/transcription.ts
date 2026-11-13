@@ -476,6 +476,11 @@ export async function transcribeAudio(
 		),
 		maxRetries: request.maxRetries,
 	});
+	// The AI SDK accepts an empty transcript for silent audio; treat it as a
+	// failed transcription, as the ElevenLabs path does.
+	if (!result.text.trim()) {
+		throw new Error("Transcription returned no text");
+	}
 
 	return {
 		text: result.text,

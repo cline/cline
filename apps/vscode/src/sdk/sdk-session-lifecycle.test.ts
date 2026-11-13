@@ -41,6 +41,68 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
+	it("does not start a host when the caller is superseded", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-stale" } })
+		const lifecycle = makeLifecycle()
+
+		await expect(lifecycle.startNewSession({} as StartInput, sdkHost as never, () => false)).rejects.toMatchObject({
+			name: "SessionStartSupersededError",
+		})
+
+		expect(sdkHost.start).not.toHaveBeenCalled()
+		expect(lifecycle.getActiveSession()).toBeUndefined()
+	})
+
+	it("records the mode the active session was built for", async () => {
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+
+		await lifecycle.startNewSession({
+			config: { providerId: "anthropic", modelId: "claude-sonnet-4", mode: "plan" },
+		} as StartInput)
+
+		expect(lifecycle.getActiveSession()?.mode).toBe("plan")
+	})
+
+	it("waits for tracked session starts, including ones that fail", async () => {
+		const lifecycle = makeLifecycle()
+		let finishStart!: () => void
+		const start = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((resolve) => {
+					finishStart = resolve
+				}),
+		)
+		let waited = false
+		const waiting = lifecycle.waitForSessionStarts().then(() => {
+			waited = true
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(waited).toBe(false)
+
+		finishStart()
+		await start
+		await waiting
+		expect(waited).toBe(true)
+
+		// A waiter already in place when a start fails is released, not rejected:
+		// a mode toggle waiting on a failed new-task start must still go ahead.
+		let failStart!: (error: Error) => void
+		const failing = lifecycle.trackSessionStart(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					failStart = reject
+				}),
+		)
+		const waitingOnFailure = lifecycle.waitForSessionStarts()
+		failStart(new Error("start failed"))
+		await expect(failing).rejects.toThrow("start failed")
+		await expect(waitingOnFailure).resolves.toBeUndefined()
+		await expect(lifecycle.waitForSessionStarts()).resolves.toBeUndefined()
+	})
+
 	it("stores the provider and model config used to start the active session", async () => {
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
@@ -200,6 +262,49 @@ describe("SdkSessionLifecycle", () => {
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
+	})
+
+	it("waits for the active session's turn send to settle, even when it is aborted", async () => {
+		let rejectSend: (error: Error) => void = () => {}
+		const sdkHost = makeSdkHost({
+			send: vi.fn(
+				() =>
+					new Promise<void>((_, reject) => {
+						rejectSend = reject
+					}),
+			),
+		})
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+		const session = lifecycle.getActiveSession() as NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
+
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "first")
+		let settled = false
+		const wait = lifecycle.waitForTurnSend(session).then((result) => {
+			settled = true
+			return result
+		})
+		await new Promise((resolve) => setTimeout(resolve, 0))
+		expect(settled).toBe(false)
+
+		const abortError = new Error("aborted")
+		abortError.name = "AbortError"
+		rejectSend(abortError)
+		await expect(wait).resolves.toBe(true)
+		expect(settled).toBe(true)
+	})
+
+	it("reports a turn send that is still in flight after the timeout", async () => {
+		const sdkHost = makeSdkHost({ send: vi.fn(() => new Promise<void>(() => {})) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle()
+		await lifecycle.startNewSession({} as StartInput)
+		const session = lifecycle.getActiveSession() as NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
+
+		lifecycle.fireAndForgetSend(sdkHost as unknown as SendHost, "session-123", "first")
+
+		await expect(lifecycle.waitForTurnSend(session, 10)).resolves.toBe(false)
 	})
 
 	it("treats an emptied prompt queue on an idle session as becoming idle", async () => {

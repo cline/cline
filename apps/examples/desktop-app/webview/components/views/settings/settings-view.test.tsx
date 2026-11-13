@@ -40,9 +40,11 @@ beforeEach(() => {
 	document.documentElement.style.removeProperty("font-size");
 	delete document.documentElement.dataset.clineFontSize;
 	invoke.mockReset();
-	invoke.mockResolvedValue({
-		telemetryOptOut: false,
-		autoUpdateEnabled: true,
+	invoke.mockImplementation(async (command: string) => {
+		if (command === "get_hub_status") {
+			return { url: "ws://127.0.0.1:1234", clients: [], events: [] };
+		}
+		return { telemetryOptOut: false, autoUpdateEnabled: true };
 	});
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -110,54 +112,5 @@ describe("SettingsView font size", () => {
 		expect(container.textContent).toContain("20px");
 		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("20");
 		expect(increaseButton?.disabled).toBe(true);
-	});
-});
-
-describe("SettingsView cloud sessions rollout", () => {
-	it.each([
-		{
-			caseName: "the rollout explicitly enables it",
-			featureFlags: { cloudAgents: false, cloudAgentsAvailable: true },
-			visible: true,
-		},
-		{
-			caseName: "feature flags are unavailable",
-			featureFlags: new Error("feature flags unavailable"),
-			visible: false,
-		},
-	])("shows the preview setting only when $caseName", async ({
-		featureFlags,
-		visible,
-	}) => {
-		invoke.mockImplementation(async (command: string) => {
-			if (command === "get_feature_flags") {
-				if (featureFlags instanceof Error) throw featureFlags;
-				return featureFlags;
-			}
-			if (command === "get_desktop_settings") {
-				return { cloudSessionsEnabled: false };
-			}
-			return {
-				telemetryOptOut: false,
-				autoUpdateEnabled: true,
-			};
-		});
-
-		await act(async () => {
-			root.render(
-				<SettingsView
-					onExportDiagnostics={vi.fn()}
-					onNavigateSection={vi.fn()}
-					section="General"
-				/>,
-			);
-		});
-		await vi.waitFor(() =>
-			expect(
-				container.querySelector(
-					'[role="switch"][aria-label="Cloud sessions"]',
-				) !== null,
-			).toBe(visible),
-		);
 	});
 });

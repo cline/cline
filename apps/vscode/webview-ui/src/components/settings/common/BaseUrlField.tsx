@@ -8,6 +8,8 @@ import { useDebouncedInput } from "../utils/useDebouncedInput"
 interface BaseUrlFieldProps {
 	initialValue: string | undefined
 	onChange: (value: string) => void
+	onFocus?: () => void
+	onBlur?: () => void
 	/** Clears the persisted value. Reject to restore the authoritative enabled state. */
 	onClear?: () => Promise<void>
 	defaultValue?: string
@@ -23,6 +25,8 @@ interface BaseUrlFieldProps {
 export const BaseUrlField = ({
 	initialValue,
 	onChange,
+	onFocus,
+	onBlur,
 	onClear,
 	label = "Use custom base URL",
 	placeholder = "Default: https://api.example.com",
@@ -90,6 +94,8 @@ export const BaseUrlField = ({
 			{isEnabled && (
 				<VSCodeTextField
 					disabled={disabled}
+					onBlur={() => onBlur?.()}
+					onFocus={() => onFocus?.()}
 					onInput={(e: any) => setLocalValue(e.target.value)}
 					placeholder={placeholder}
 					style={{ width: "100%", marginTop: 3 }}

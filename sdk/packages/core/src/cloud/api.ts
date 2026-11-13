@@ -4,6 +4,12 @@ import {
 	decodeJwtPayload,
 	type MessageWithMetadata,
 } from "@cline/shared";
+import {
+	ArtifactDownloadSchema,
+	artifactDownloadPath,
+	type CloudArtifactDownload,
+} from "../artifacts/cloud/download-url";
+
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -63,7 +69,7 @@ export type CreateCloudSessionInput = {
 	branch?: string;
 	autoApproveTools?: boolean;
 	thinking?: boolean;
-	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
 	mode?: AgentMode;
 	workspaceRelativePath?: string;
 	/** Null explicitly selects Personal; controllers resolve an omitted scope. */
@@ -118,6 +124,17 @@ export class CloudSessionError extends Error {
 			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
 		);
 		this.name = "CloudSessionError";
+	}
+}
+
+export class CloudCreationUnconfirmedError extends CloudSessionError {
+	constructor(cause: unknown) {
+		super(
+			"request_failed",
+			"Cloud session creation had an ambiguous result. Check your cloud session list or dashboard before starting another task.",
+		);
+		this.name = "CloudCreationUnconfirmedError";
+		this.cause = cause;
 	}
 }
 
@@ -788,6 +805,8 @@ export class CloudSessionApi {
 						);
 				}
 
+				if (!input.handoff && !definitelyRejected && candidates.length !== 1)
+					throw new CloudCreationUnconfirmedError(error);
 				if (candidates.length > 1) {
 					throw new CloudSessionError(
 						"request_failed",
@@ -969,6 +988,16 @@ export class CloudSessionApi {
 				body: JSON.stringify({ title }),
 			},
 		);
+	}
+
+	async getArtifactDownloadUrl(
+		sessionId: string,
+		artifactId: string,
+	): Promise<CloudArtifactDownload> {
+		const result = await this.request<unknown>(
+			artifactDownloadPath(sessionId, artifactId),
+		);
+		return ArtifactDownloadSchema.parse(result);
 	}
 
 	/** Raw archived snapshot; null distinguishes a missing archive from []. */

@@ -760,6 +760,7 @@ export function CustomizationSectionView({
 						name: target.name,
 						path: target.path,
 					},
+					{ timeoutMs: target.type === "mcp" ? null : undefined },
 				);
 				setLocalActionMessages((current) => {
 					const next = new Map(current);

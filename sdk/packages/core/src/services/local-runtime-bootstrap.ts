@@ -9,6 +9,7 @@ import type {
 	ExtensionContext,
 	ITelemetryService,
 	RuntimeConfigExtensionKind,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 	WorkspaceInfo,
@@ -22,6 +23,7 @@ import {
 	type AgentPluginPackageDiagnostic,
 	loadAgentPluginPackages,
 } from "../extensions/agent-plugin";
+import type { ConnectorsRequest } from "../extensions/composio/composio-meta-tools";
 import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
@@ -285,7 +287,10 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	 * AI gateway providers can use a custom HTTP implementation.
 	 */
 	defaultFetch?: typeof fetch;
+	connectorsRequest?: ConnectorsRequest;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
+	/** A plugin this session uses became degraded or failed after start. */
+	onPluginIssue?: (issue: SessionPluginIssue) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSubAgentLifecycleCallbacks?: (config: CoreSessionConfig) => {
 		onSubAgentEvent?: (event: AgentEvent) => void;
@@ -314,6 +319,9 @@ export interface LocalRuntimeBootstrap {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	pluginSandboxShutdown?: () => Promise<void>;
+	/** Plugins the session asked for but does not have (failed or disabled). */
+	pluginIssues: SessionPluginIssue[];
+	pluginCommandError?: string;
 	runtimeBuilderInput: RuntimeBuilderInput;
 }
 
@@ -330,7 +338,9 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultCapabilities,
 		defaultToolPolicies,
 		defaultFetch,
+		connectorsRequest,
 		onPluginEvent,
+		onPluginIssue,
 		onTeamEvent,
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
@@ -444,9 +454,11 @@ export async function prepareLocalRuntimeBootstrap(
 			});
 	const baseHooks = mergeAgentHooks([localConfig?.hooks, auditHooks]);
 
+	let pluginCommandError: string | undefined;
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
+	const pluginIssues: SessionPluginIssue[] = [];
 	if (hasConfigExtension(configExtensions, "plugins")) {
 		try {
 			loadedPlugins = await resolveAndLoadAgentPlugins({
@@ -463,17 +475,43 @@ export async function prepareLocalRuntimeBootstrap(
 				logger: extensionContext.logger,
 				telemetry: extensionContext.telemetry,
 				automation: extensionContext.automation,
+				policy: input.plugins,
+				hookErrorMode: input.config.hookErrorMode,
+				onIssue: onPluginIssue,
 			});
+			pluginIssues.push(...(loadedPlugins.issues ?? []));
+			pluginCommandError = loadedPlugins.failures.length
+				? loadedPlugins.failures.map((f) => f.message).join("; ")
+				: undefined;
 			logPluginDiagnostics(
 				loadedPlugins.failures,
 				loadedPlugins.warnings,
-				localConfig?.logger,
+				localConfig?.logger ?? extensionContext.logger,
 			);
 		} catch (error) {
+			// The registry reports per-plugin failures itself; reaching this
+			// means discovery as a whole broke. Surface it like a plugin issue
+			// so the client can show it instead of silently dropping plugins.
 			const message = error instanceof Error ? error.message : String(error);
-			localConfig?.logger?.log?.(
-				`plugin loading failed; continuing without plugins (${message})`,
+			(localConfig?.logger ?? extensionContext.logger)?.log(
+				`Plugin loading failed; the session has no plugins: ${message}`,
+				{ severity: "error", sessionId },
 			);
+			pluginCommandError = message;
+			pluginIssues.push({
+				name: "plugins",
+				pluginPath: workspacePath,
+				state: "failed",
+				reason: "error",
+				lastError: {
+					phase: "discover",
+					message,
+					stack: error instanceof Error ? error.stack : undefined,
+					pluginPath: workspacePath,
+					timestamp: Date.now(),
+					sessionId,
+				},
+			});
 		}
 	}
 
@@ -500,11 +538,11 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	// Composio connector tools register in-process from persisted connection
-	// state rather than through a drop-in plugin: compiled hosts (the packaged
-	// desktop app) cannot spawn the plugin sandbox, and every host with the
-	// state file should serve the same tools.
+	// Composio registers only search/connect/execute meta tools in-process,
+	// independently of persisted desktop connections. Compiled hosts cannot
+	// spawn the drop-in plugin sandbox.
 	const composioToolsExtension = await createComposioToolsExtension({
+		request: connectorsRequest,
 		logger: localConfig?.logger,
 	});
 	const builtInExtensionList = [
@@ -594,6 +632,8 @@ export async function prepareLocalRuntimeBootstrap(
 		toolPolicies,
 		requestToolApproval,
 		pluginSandboxShutdown: loadedPlugins?.shutdown,
+		pluginIssues,
+		pluginCommandError,
 		runtimeBuilderInput: {
 			config,
 			hooks,

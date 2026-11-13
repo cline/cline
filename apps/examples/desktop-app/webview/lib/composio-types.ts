@@ -32,7 +32,6 @@ export type ComposioIntegrationSummary = {
 	status: ComposioIntegrationStatus;
 	connectedAccountId?: string;
 	connectedAt?: string;
-	toolNames?: string[];
 	/** Why the most recent connection attempt failed, if it did. */
 	error?: string;
 };

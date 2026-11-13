@@ -25,7 +25,8 @@ The skill should guide the user through one release preparation flow, then offer
   - Local publish helper: `bun release cli`.
 - npm dist-tags and git tags are separate. `--tag latest` and `--tag nightly` are npm registry channels. `cli-vX.Y.Z` is a git tag for source history and GitHub releases.
 - The GitHub main release workflow runs from `main`, requires an existing `cli-vX.Y.Z` tag, checks out that tag, and publishes from it.
-- The GitHub nightly workflow publishes to npm with the `nightly` dist-tag and does not create a tag.
+- The GitHub nightly workflow publishes to npm with the `nightly` dist-tag and does not create a tag. It is manual dispatch only; there is no cron.
+- Every CI publish (CLI main and nightly, SDK) waits for a reviewer to approve the run in the `PublishNPM` GitHub environment, and the npm trusted publishers require that environment. The run sits in `waiting` until approved; that is not a hang. Hand the user the run URL so they can click "Review deployments"; never approve it via the API.
 - The local release helper requires a clean checkout and `cli-vX.Y.Z` to point at `HEAD` locally and on `origin` before publishing.
 - Local GitHub release creation requires `gh` to be authenticated with release permissions for the repo.
 - Always ask before pushing commits or tags.
@@ -94,7 +95,7 @@ gh workflow run sdk-publish.yml -f channel=latest -f confirm_publish=publish
 gh run list --workflow=sdk-publish.yml --limit=1 --json databaseId,url,status,createdAt --jq '.[0]'
 ```
 
-The workflow runs the SDK tests, publishes `@cline/shared`, `@cline/llms`, `@cline/agents`, `@cline/core`, and `@cline/sdk` to npm with the `latest` dist-tag in dependency order, and pushes `sdk/<pkg>/v<version>` git tags.
+The workflow runs the SDK tests, publishes `@cline/shared`, `@cline/llms`, `@cline/agents`, `@cline/core`, `@cline/sdk`, and `@cline/ui` to npm with the `latest` dist-tag in dependency order, and pushes `sdk/<pkg>/v<version>` git tags.
 
 7. Wait for the SDK workflow to succeed before starting the CLI release.
 

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import nodePath, { dirname } from "node:path";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -22,6 +22,31 @@ import {
 	parseU64Value,
 	stringifyMessageContent,
 } from "./common";
+
+/** The directory the runtime resolved this session's `@` mentions against. */
+function readMentionBaseDir(sessionId: string): string | undefined {
+	const manifest = readSessionManifest(sessionId);
+	const base = manifest?.workspace_root ?? manifest?.cwd;
+	return typeof base === "string" && base.trim() ? base : undefined;
+}
+
+// Relative to the mention base so the webview can match `@path` text exactly;
+// paths outside it stay absolute and simply never match a relative mention.
+function toMentionRelativePath(
+	filePath: string,
+	mentionBaseDir: string | undefined,
+): string {
+	if (!mentionBaseDir) return filePath;
+	// SSH sessions report paths from the remote host, whose separators can
+	// differ from this machine's.
+	const pathApi = mentionBaseDir.startsWith("/") ? nodePath.posix : nodePath;
+	const relativePath = pathApi.relative(mentionBaseDir, filePath);
+	return !relativePath ||
+		relativePath.startsWith("..") ||
+		pathApi.isAbsolute(relativePath)
+		? filePath
+		: relativePath.split(pathApi.sep).join("/");
+}
 
 type ChatTurnResult = {
 	usage?: {
@@ -338,6 +363,8 @@ export function readSessionMessagesSync(
 	maxMessages = 800,
 	/** Explicit authoritative source for remote sessions; bypasses local disk. */
 	sourceMessages?: unknown[],
+	/** Where a remote session resolved `@` mentions (its workspace root). */
+	remoteMentionBaseDir?: string,
 ): unknown[] {
 	const isRemoteRead = sourceMessages !== undefined;
 	const persisted = isRemoteRead
@@ -369,6 +396,9 @@ export function readSessionMessagesSync(
 		? new Map<number, StoredCheckpointEntry>()
 		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
+	const mentionBaseDir = isRemoteRead
+		? remoteMentionBaseDir
+		: readMentionBaseDir(sessionId);
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
 		const rawMessage = messages[idx];
@@ -423,6 +453,12 @@ export function readSessionMessagesSync(
 			role: normalizeRole(message.role),
 			metadata,
 		});
+		// The runtime stamps model-only context (hook context, continuation
+		// reminders) displayRole "system" without a kind; compaction rows that
+		// should still render always carry a kind.
+		if (role === "system" && typeof metadata?.kind !== "string") {
+			continue;
+		}
 		if (role === "user" && userRunSpan !== 1) {
 			textMeta = {
 				...(textMeta ?? {}),
@@ -475,6 +511,7 @@ export function readSessionMessagesSync(
 
 		const textParts: string[] = [];
 		const images: Array<{ id: string; mediaType: string; data: string }> = [];
+		const attachedFiles: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -656,6 +693,14 @@ export function readSessionMessagesSync(
 				}
 				continue;
 			}
+			if (blockType === "file") {
+				if (role === "user" && typeof record.path === "string") {
+					attachedFiles.push(
+						toMentionRelativePath(record.path, mentionBaseDir),
+					);
+				}
+				continue;
+			}
 			if (blockType === "media" && isGeneratedMedia(record.media)) {
 				flushTextParts();
 				out.push({
@@ -694,6 +739,21 @@ export function readSessionMessagesSync(
 					meta: textMeta,
 				});
 				textMeta = undefined;
+			}
+		}
+		if (attachedFiles.length > 0) {
+			// The webview chips `@` mentions in the user's text that resolved to
+			// one of these attachments.
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role && item.content);
+			if (target) {
+				target.meta = {
+					...(target.meta && typeof target.meta === "object"
+						? (target.meta as JsonRecord)
+						: {}),
+					attachedFiles,
+				};
 			}
 		}
 		flushReasoningParts();
@@ -735,6 +795,13 @@ export async function readSessionMessages(
 	sessionId: string,
 	maxMessages = 800,
 	sourceMessages?: unknown[],
+	remoteMentionBaseDir?: string,
 ): Promise<unknown[]> {
-	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
+	return readSessionMessagesSync(
+		ctx,
+		sessionId,
+		maxMessages,
+		sourceMessages,
+		remoteMentionBaseDir,
+	);
 }

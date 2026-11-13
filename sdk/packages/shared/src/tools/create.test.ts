@@ -53,12 +53,16 @@ describe("createTool", () => {
 			timeoutMs: 1_000,
 			retryable: false,
 			maxRetries: 0,
+			policyDependencies: ["delegate_tool"],
+			successContext: "Continue working.",
 			execute: async () => ({ ok: true }),
 		});
 
 		expect(tool.timeoutMs).toBe(1_000);
 		expect(tool.retryable).toBe(false);
 		expect(tool.maxRetries).toBe(0);
+		expect(tool.policyDependencies).toEqual(["delegate_tool"]);
+		expect(tool.successContext).toBe("Continue working.");
 	});
 
 	it("strips the $schema meta-key emitted by Zod v4's toJSONSchema", () => {

@@ -1,166 +1,182 @@
-import { statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import {
 	type AgentExtensionCommand,
-	type AgentExtensionCommandResult,
 	type AgentTool,
 	type BasicLogger,
 	createContributionRegistry,
+	type ITelemetryService,
 	type Message,
 } from "@cline/shared";
 import {
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 } from "../extensions/plugin/plugin-config-loader";
+import { fingerprintPluginSources } from "../extensions/plugin/plugin-module-import";
+import { PluginRegistry } from "../extensions/plugin/plugin-registry";
+import {
+	executePluginCommand,
+	listPluginCommands,
+	type PluginCommandCatalog,
+	type PluginCommandResult,
+	type PluginCommandTarget,
+} from "./plugin-command-api";
 
-export interface PluginSlashCommand {
-	/** Normalized token: lowercase, no leading slash. */
-	name: string;
-	description?: string;
-}
+// A failed load may be transient (sandbox startup timeout, I/O hiccup), so it
+// is retried on a later request instead of waiting for a source change.
+const FAILED_LOAD_RETRY_MS = 30_000;
+// The Hub is long-lived and shared across workspaces; release plugin workers
+// for workspaces that stop asking for commands.
+const IDLE_EVICTION_MS = 10 * 60_000;
 
-export interface PluginCommandResult {
-	reply?: string;
-	submitPrompt?: string;
-}
-
-/**
- * Executes plugin-registered slash commands (`api.registerCommand`) for one
- * workspace. Plugins are loaded on first use and kept alive so repeated
- * commands answer instantly; the loaded set is refreshed when plugin module
- * paths or mtimes change (installs, updates, toggles).
- */
-export interface PluginCommandService {
-	listCommands(): Promise<PluginSlashCommand[]>;
-	/** Runs `/name input`. Resolves undefined when no plugin declares `name`. */
-	run(name: string, input: string): Promise<PluginCommandResult | undefined>;
-	shutdown(): Promise<void>;
-}
-
-type LoadedHost = {
-	key: string;
+type Entry = {
+	workspacePath: string;
+	key?: string;
+	catalog: PluginCommandCatalog;
 	commands: AgentExtensionCommand[];
-	shutdown?: () => Promise<void>;
-	/** Set when this entry records a failed load; retried after a short delay. */
 	failedAt?: number;
+	shutdown?: () => Promise<void>;
+	/** Serializes loads, execution, and disposal so a handler cannot lose its sandbox. */
+	tail: Promise<unknown>;
+	idleTimer?: ReturnType<typeof setTimeout>;
 };
 
-// A failed load may be transient (sandbox startup timeout, I/O hiccup), so
-// remember it only briefly instead of until the plugin set changes.
-const FAILED_LOAD_RETRY_MS = 30_000;
+/** Runtime-owned workspace catalogs. Session execution uses the session registry instead. */
+export class PluginCommandManager {
+	private readonly entries = new Map<string, Entry>();
+	private disposed = false;
+	constructor(
+		private readonly options: {
+			logger?: BasicLogger;
+			telemetry?: ITelemetryService;
+			load?: typeof resolveAndLoadAgentPlugins;
+		} = {},
+	) {}
 
-export function normalizePluginCommandName(name: string): string {
-	return name.trim().replace(/^\/+/, "").toLowerCase();
-}
-
-function normalizePluginCommandResult(
-	result: AgentExtensionCommandResult | undefined,
-): PluginCommandResult {
-	const { reply, submitPrompt }: PluginCommandResult =
-		typeof result === "string" ? { reply: result } : (result ?? {});
-	return {
-		reply: reply?.trim() || undefined,
-		submitPrompt: submitPrompt?.trim() || undefined,
-	};
-}
-
-async function loadHost(
-	options: { cwd: string; workspacePath?: string },
-	key: string,
-): Promise<LoadedHost> {
-	const loaded = await resolveAndLoadAgentPlugins(options);
-	try {
-		const registry = createContributionRegistry<
-			(typeof loaded.extensions)[number],
-			AgentTool,
-			Message[]
-		>({ extensions: loaded.extensions });
-		await registry.initialize();
-		return {
-			key,
-			commands: registry
-				.getRegistrySnapshot()
-				.commands.filter((command) => typeof command.handler === "function"),
-			shutdown: loaded.shutdown,
-		};
-	} catch (error) {
-		await loaded.shutdown?.().catch(() => {});
-		throw error;
+	async list(target: PluginCommandTarget): Promise<PluginCommandCatalog> {
+		return this.withEntry(target, (entry) => structuredClone(entry.catalog));
 	}
-}
 
-export function createPluginCommandService(options: {
-	cwd: string;
-	workspacePath?: string;
-	logger?: BasicLogger;
-}): PluginCommandService {
-	const loadOptions = {
-		cwd: options.cwd,
-		workspacePath: options.workspacePath ?? options.cwd,
-	};
-	let current: Promise<LoadedHost | undefined> = Promise.resolve(undefined);
+	async run(
+		input: PluginCommandTarget & { prompt: string },
+	): Promise<PluginCommandResult | undefined> {
+		return this.withEntry(input, (entry) =>
+			executePluginCommand(entry.commands, input.prompt, {
+				telemetry: this.options.telemetry,
+			}),
+		);
+	}
 
-	const ensureHost = (): Promise<LoadedHost | undefined> => {
-		const pluginPaths = resolveAgentPluginPaths(loadOptions);
-		const key = pluginPaths
-			.map((path) => {
-				try {
-					return `${path}:${statSync(path).mtimeMs}`;
-				} catch {
-					return path;
-				}
-			})
-			.join("\n");
-		// Chain onto the previous host promise so concurrent callers serialize:
-		// a stale host is shut down and replaced exactly once.
-		current = current
-			.catch(() => undefined)
-			.then(async (host) => {
-				if (
-					host?.key === key &&
-					(host.failedAt === undefined ||
-						Date.now() - host.failedAt < FAILED_LOAD_RETRY_MS)
-				) {
-					return host;
-				}
-				await host?.shutdown?.().catch(() => {});
-				if (pluginPaths.length === 0) return undefined;
-				try {
-					return await loadHost(loadOptions, key);
-				} catch (error) {
-					// A broken plugin must not block slash commands (the prompt may
-					// be a skill or workflow). Remember the failure so a broken
-					// plugin does not cost a sandbox spawn on every prompt.
-					options.logger?.error?.(
-						"plugin command loading failed; continuing without plugin commands",
-						{ error },
-					);
-					return { key, commands: [], failedAt: Date.now() };
-				}
+	async dispose(): Promise<void> {
+		this.disposed = true;
+		const entries = [...this.entries.values()];
+		this.entries.clear();
+		await Promise.all(entries.map((entry) => this.release(entry)));
+	}
+
+	private withEntry<T>(
+		target: PluginCommandTarget,
+		operation: (entry: Entry) => T | Promise<T>,
+	): Promise<T> {
+		if (this.disposed) throw new Error("Plugin command manager is disposed");
+		const workspacePath = resolve(target.workspacePath);
+		let entry = this.entries.get(workspacePath);
+		if (!entry) {
+			entry = {
+				workspacePath,
+				catalog: { workspacePath, status: "ready", commands: [] },
+				commands: [],
+				tail: Promise.resolve(),
+			};
+			this.entries.set(workspacePath, entry);
+		}
+		const current = entry;
+		clearTimeout(current.idleTimer);
+		current.idleTimer = setTimeout(() => {
+			if (this.entries.get(workspacePath) !== current) return;
+			this.entries.delete(workspacePath);
+			void this.release(current);
+		}, IDLE_EVICTION_MS);
+		current.idleTimer.unref?.();
+		const result = current.tail.then(async () => {
+			await this.refresh(current);
+			return operation(current);
+		});
+		current.tail = result.catch(() => {});
+		return result;
+	}
+
+	private async release(entry: Entry): Promise<void> {
+		clearTimeout(entry.idleTimer);
+		await entry.tail;
+		const shutdown = entry.shutdown;
+		entry.shutdown = undefined;
+		await shutdown?.().catch(() => {});
+	}
+
+	/** Fingerprint discoverable entries and their import graphs. The entry list
+	 * already excludes plugins disabled in settings, so other settings do not
+	 * participate. Runtime output beside a plugin is not source either. */
+	private fingerprint(workspacePath: string): string {
+		const hash = createHash("sha256");
+		try {
+			const paths = resolveAgentPluginPaths({
+				cwd: workspacePath,
+				workspacePath,
 			});
-		return current;
-	};
+			hash.update(JSON.stringify(paths));
+			for (const path of paths) hash.update(fingerprintPluginSources(path));
+		} catch (error) {
+			hash.update(`discovery:${String(error)}`);
+		}
+		return hash.digest("hex");
+	}
 
-	return {
-		async listCommands() {
-			const host = await ensureHost();
-			return (host?.commands ?? []).map((command) => ({
-				name: normalizePluginCommandName(command.name),
-				description: command.description,
-			}));
-		},
-		async run(name, input) {
-			const normalized = normalizePluginCommandName(name);
-			const command = (await ensureHost())?.commands.find(
-				(candidate) =>
-					normalizePluginCommandName(candidate.name) === normalized,
-			);
-			if (!command?.handler) return undefined;
-			return normalizePluginCommandResult(await command.handler(input.trim()));
-		},
-		async shutdown() {
-			const host = await current.catch(() => undefined);
-			current = Promise.resolve(undefined);
-			await host?.shutdown?.().catch(() => {});
-		},
-	};
+	private async refresh(entry: Entry): Promise<void> {
+		const key = this.fingerprint(entry.workspacePath);
+		if (
+			key === entry.key &&
+			(entry.failedAt === undefined ||
+				Date.now() - entry.failedAt < FAILED_LOAD_RETRY_MS)
+		)
+			return;
+		await entry.shutdown?.().catch(() => {});
+		entry.key = key;
+		entry.shutdown = undefined;
+		entry.commands = [];
+		entry.failedAt = undefined;
+		let error: string | undefined;
+		try {
+			// A registry of its own: a catalog import failure must not block the
+			// shared process registry's copies in live sessions, and a fresh one
+			// per load lets the retry re-import a plugin the last load blocked.
+			const loaded = await (this.options.load ?? resolveAndLoadAgentPlugins)({
+				cwd: entry.workspacePath,
+				workspacePath: entry.workspacePath,
+				registry: new PluginRegistry({ logger: this.options.logger }),
+			});
+			entry.shutdown = loaded.shutdown;
+			const registry = createContributionRegistry<
+				(typeof loaded.extensions)[number],
+				AgentTool,
+				Message[]
+			>({ extensions: loaded.extensions });
+			await registry.initialize();
+			entry.commands = registry.getRegistrySnapshot().commands;
+			if (loaded.failures.length)
+				error = loaded.failures.map((failure) => failure.message).join("; ");
+		} catch (cause) {
+			error = cause instanceof Error ? cause.message : String(cause);
+			this.options.logger?.error?.("Plugin command discovery failed", {
+				error: cause,
+			});
+		}
+		if (error) entry.failedAt = Date.now();
+		entry.catalog = {
+			workspacePath: entry.workspacePath,
+			status: error ? "error" : "ready",
+			error,
+			commands: listPluginCommands(entry.commands),
+		};
+	}
 }

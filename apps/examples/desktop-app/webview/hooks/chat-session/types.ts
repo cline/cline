@@ -109,6 +109,8 @@ export type ChatApiResult = {
 		totalCost?: number;
 	};
 	iterations?: number;
+	/** The sidecar rebuilt the session after Cline Hub restarted mid-turn. */
+	hubInterrupted?: boolean;
 	finishReason?:
 		| "completed"
 		| "max_iterations"
@@ -135,6 +137,8 @@ export type ChatSessionCommandResponse = {
 	queued?: boolean;
 	/** A plugin slash command ran in the sidecar and no turn was started. */
 	commandHandled?: boolean;
+	/** One line per plugin the started session could not load. */
+	pluginWarnings?: string[];
 	recoveredAfterDisconnect?: boolean;
 	status?: string;
 	promptsInQueue?: PromptInQueue[];

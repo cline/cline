@@ -11,6 +11,7 @@ import { ModelAutocomplete } from "../common/ModelAutocomplete"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const LITELLM_PROVIDER_ID = "litellm"
@@ -34,7 +35,7 @@ interface LiteLlmProviderProps {
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
 	const { remoteConfigSettings } = useExtensionState()
 	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(LITELLM_PROVIDER_ID)
-	const { config, write, commitSelection } = useProviderConfig(LITELLM_PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(LITELLM_PROVIDER_ID)
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(
 		LITELLM_PROVIDER_ID,
 		currentMode,
@@ -128,13 +129,13 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					{selectedModelInfo?.supportsReasoning && (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-								}).catch((err) => console.error("Failed to update LiteLLM reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update LiteLLM reasoning effort:", err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 
