@@ -30,7 +30,13 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
-	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
+	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget, currentCloudTask } = useExtensionState()
+	const cloudTaskRef = useRef({ sessionId: currentCloudTask?.sessionId })
+	if (cloudTaskRef.current.sessionId !== currentCloudTask?.sessionId) {
+		cloudTaskRef.current = { sessionId: currentCloudTask?.sessionId }
+	}
+	const latestTurnRef = useRef({ turnState, messages })
+	latestTurnRef.current = { turnState, messages }
 	const {
 		setInputValue,
 		activeQuote,
@@ -96,6 +102,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	// Handle sending a message
 	const handleSendMessage = useCallback(
 		async (text: string, images: string[], files: string[]) => {
+			const submittedCloudTask = cloudTaskRef.current
 			const recoveryDraft = recoverySeq === undefined ? undefined : chatState.getDraftSnapshot()
 			const submittedText = recoveryDraft?.text ?? text
 			const submittedImages = recoveryDraft?.images ?? images
@@ -153,14 +160,26 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					setSelectedImages([])
 					setSelectedFiles([])
 					setEnableButtons(false)
+					return chatState.getDraftSnapshot().revision
 				}
-				const restorePendingMessageState = () => {
-					setInputValue(text)
-					setActiveQuote(activeQuote)
-					setSendingDisabled(sendingDisabled)
-					setSelectedImages(images)
-					setSelectedFiles(files)
-					setEnableButtons(enableButtons)
+				const restorePendingMessageState = (clearedRevision: number, responseId: number) => {
+					if (submittedCloudTask.sessionId && cloudTaskRef.current !== submittedCloudTask) return
+					if (chatState.getDraftSnapshot().revision === clearedRevision) {
+						setInputValue(text)
+						setActiveQuote(activeQuote)
+						setSelectedImages(images)
+						setSelectedFiles(files)
+					}
+					if (pendingResponseIdRef.current === responseId) {
+						const current = latestTurnRef.current
+						// Preparation can advance the phase before its RPC rejects.
+						const buttons =
+							submittedCloudTask.sessionId && current.turnState
+								? buttonsForPhase(current.turnState, getTurnStateMessage(current.messages, current.turnState))
+								: undefined
+						setSendingDisabled(buttons?.sendingDisabled ?? sendingDisabled)
+						setEnableButtons(buttons?.enableButtons ?? enableButtons)
+					}
 				}
 				const beginPendingResponse = (pendingMessage?: ClineMessage) => {
 					const id = ++pendingResponseIdRef.current
@@ -199,7 +218,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					options: { showPendingMessage?: boolean } = {},
 				) => {
 					trackPromptSubmitted(true)
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					const { id, optimisticMessage } = beginPendingResponse(
 						options.showPendingMessage
 							? {
@@ -217,7 +236,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.askResponse(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 				}
@@ -280,7 +299,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								}
 							: {}),
 					})
-					clearSentMessageState()
+					const clearedRevision = clearSentMessageState()
 					trackPromptSubmitted(false)
 					const { id, optimisticMessage } = beginPendingResponse({
 						ts: Date.now(),
@@ -295,7 +314,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						await TaskServiceClient.newTask(request)
 					} catch (error) {
 						rollbackPendingResponse(id, optimisticMessage)
-						restorePendingMessageState()
+						restorePendingMessageState(clearedRevision, id)
 						throw error
 					}
 					messageSent = true
@@ -376,7 +395,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					//      waiting for the user) or "streaming" (interrupt with feedback). The SDK
 					//      does not emit a trailing ask:"completion_result", so clineAsk is
 					//      undefined even when the user can keep talking; turnState is the source
-					//      of truth.
+					//      of truth. Idle or cancelled cloud tasks can resubmit their restored draft.
 					//   2. Legacy fallback (no turnState): the task looks actively running from the
 					//      message tail.
 					const lastMessage = messages[messages.length - 1]
@@ -385,7 +404,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					const turnAllowsFollowup =
 						turnState?.phase === "completed" ||
 						turnState?.phase === "awaiting_followup" ||
-						turnState?.phase === "streaming"
+						turnState?.phase === "streaming" ||
+						(!!submittedCloudTask.sessionId && (turnState?.phase === "idle" || turnState?.phase === "resumable"))
 
 					if (turnAllowsFollowup || isTaskRunning) {
 						// Continue the conversation / interrupt with feedback.

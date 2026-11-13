@@ -612,6 +612,15 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
+			getCloudFollowupSignal: () => this.cloud.getFollowupSignal(),
+			onFollowUpStarted: () => {
+				this.turnStateTracker.set("streaming")
+				this.messageTranslatorState.clearTurnOutcome()
+				void this.postStateToWebview().catch((error) =>
+					Logger.error("[SdkController] Failed to post follow-up state:", error),
+				)
+			},
+			beginCloudFollowup: (task) => (isCloudSessionId(task.taskId) ? this.cloud.beginFollowup(task) : undefined),
 			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
@@ -665,6 +674,7 @@ export class Controller {
 			createHistoryItemFromSession,
 			clearTask: async () => {
 				this.pendingStartRetry = undefined
+				this.cloud.cancelPendingFollowup()
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -720,6 +730,8 @@ export class Controller {
 			isSignedIn: () => !!this.authService.getInfo().user?.uid,
 			isEnabled: () => isCloudSessionsFeatureEnabled(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			getPreparingFollowupTask: () => this.followups.getPreparingCloudTask(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -1563,6 +1575,7 @@ export class Controller {
 			this.pendingStartRetry = undefined
 			return startCloudTask()
 		}
+		this.cloud.cancelPendingFollowup()
 		await this.waitForInitialRemoteConfig()
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
@@ -1594,6 +1607,7 @@ export class Controller {
 		// Fence first: mark resumable and invalidate provisioning before any abort await,
 		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
+		if (this.task && isCloudSessionId(this.task.taskId)) this.cloud.cancelPendingFollowup()
 		if (this.cloud.cancelPendingStartFor(this.task)) {
 			// The sandbox never started and its record is being deleted, so there is
 			// nothing to resume: return to the home view instead of offering Resume Task.
@@ -1601,6 +1615,9 @@ export class Controller {
 			return
 		}
 		await this.taskControl.cancelTask()
+		if (this.task && isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
+			await this.postStateToWebview()
+		}
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -1656,6 +1673,7 @@ export class Controller {
 
 	async clearTask(): Promise<void> {
 		this.pendingStartRetry = undefined
+		this.cloud.cancelPendingFollowup()
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		// A cloud task still provisioning has no SDK session for taskControl to end;
@@ -1714,30 +1732,35 @@ export class Controller {
 			}
 		}
 
-		if (this.task && this.cloud.isCloudSessionId(this.task.taskId) && !this.sessions.getActiveSession()) {
-			// No sandbox to send to: still provisioning (only reachable through the
-			// extension API, the composer is disabled), expired, or unconfirmed. Refusing the
-			// response is itself a turn outcome: the footer holds its Retry claim
-			// until the turn phase advances, so set the phase even though it does
-			// not change.
-			const provisioning = this.cloud.getCurrentTaskInfo()?.status === "provisioning"
+		if (
+			this.task &&
+			this.cloud.isCloudSessionId(this.task.taskId) &&
+			!this.sessions.getActiveSession() &&
+			!this.cloud.canPrepareFollowup(this.task.taskId)
+		) {
+			// Refusal must advance the turn state to release the footer's Retry claim,
+			// even when the task already shows an error.
+			const messages = this.task.messageStateHandler.getClineMessages()
+			const provisioning =
+				this.cloud.getCurrentTaskInfo()?.status === "provisioning" || messages.at(-1)?.say === "cloud_provisioning"
 			const anchorTs = this.turnStateTracker.get().anchorTs
-			const anchor = this.task.messageStateHandler.getClineMessages().find((message) => message.ts === anchorTs)
+			const anchor = messages.find((message) => message.ts === anchorTs)
 			const anchoredError =
 				anchor?.type === "ask" && anchor.ask === "api_req_failed" ? ClineError.parse(anchor.text) : undefined
 			const guidance =
 				anchoredError?._error.code === CLOUD_CREATION_UNCONFIRMED_ERROR_CODE ? anchoredError.message : undefined
+			const message =
+				guidance ??
+				(provisioning
+					? "The cloud sandbox is still starting. Send your message again once it is running."
+					: "This cloud session is no longer running. Start a new cloud task to continue.")
 			this.messages.appendAndEmit(
 				[
 					{
 						ts: Math.max(Date.now(), (anchorTs ?? 0) + 1),
 						type: "say",
 						say: "error",
-						text:
-							guidance ??
-							(provisioning
-								? "The cloud sandbox is still starting. Send your message again once it is running."
-								: "This cloud session is no longer running. Start a new cloud task to continue."),
+						text: message,
 						partial: false,
 					},
 				],
@@ -1746,26 +1769,11 @@ export class Controller {
 			if (guidance) this.turnStateTracker.set("error", anchorTs)
 			else this.turnStateTracker.set("error")
 			await this.postStateToWebview()
-			return
+			throw new Error(message)
 		}
 
 		const turnStateBefore = this.turnStateTracker.get()
 
-		// Answering an ask / continuing after completion / resuming a cancelled task all kick off a
-		// new agent turn — move the authoritative phase to "streaming" so the footer shows
-		// Thinking + Cancel (and not the stale resumable/completed/awaiting_followup buttons or the
-		// scroll-arrow default). Mirrors initTask(). The webview gates turnState by seq, and the
-		// session-event coordinator will set the terminal phase (completed/awaiting_followup/error)
-		// when this turn ends.
-		this.turnStateTracker.set("streaming")
-		// Clear the previous turn's completion signal so this new turn's phase is computed fresh.
-		this.messageTranslatorState.clearTurnOutcome()
-		// The webview only learns the phase through a full state post. Without one here it would
-		// keep the stale terminal phase (and hide the thinking indicator) until the first session
-		// event of the new turn posts state — a visible delay after every follow-up/approval.
-		this.postStateToWebview().catch((error) => {
-			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
-		})
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
 	}
 
@@ -2205,6 +2213,7 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		this.cloud.cancelPendingFollowup()
 		const historyItem = this.cloud.isCloudSessionId(taskId)
 			? await this.cloud.openCloudTask(taskId)
 			: await this.taskControl.showTaskWithId(taskId)

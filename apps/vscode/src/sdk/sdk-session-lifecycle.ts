@@ -510,7 +510,8 @@ export class SdkSessionLifecycle {
 		images?: string[],
 		files?: string[],
 		delivery?: "queue" | "steer",
-	): void {
+		options?: Parameters<SdkSessionHost["send"]>[1],
+	): ReturnType<SdkSessionHost["send"]> {
 		// Captured by object identity, not sessionId: rebuilds (mode change) reuse
 		// the same sessionId for the replacement session, so only reference
 		// equality can tell this send's session apart from a successor. If the
@@ -538,13 +539,16 @@ export class SdkSessionLifecycle {
 		const notice = this.options.consumeModeSwitchNotice?.(sessionId)
 		const noticedPrompt = notice ? `${formatModeSwitchNotice(notice.from, notice.to)}\n${prompt}` : prompt
 		this.options.onSendStart?.(sessionId)
-		const send = sdkHost.send({
-			sessionId,
-			prompt: noticedPrompt,
-			userImages: images,
-			userFiles: files,
-			delivery,
-		})
+		const send = sdkHost.send(
+			{
+				sessionId,
+				prompt: noticedPrompt,
+				userImages: images,
+				userFiles: files,
+				delivery,
+			},
+			options,
+		)
 		if (sessionAtSend && delivery !== "queue" && delivery !== "steer") {
 			this.turnSends.set(
 				sessionAtSend,
@@ -577,6 +581,7 @@ export class SdkSessionLifecycle {
 			this.setRunning(false)
 			await this.options.onSendError(error, sessionId)
 		})
+		return send
 	}
 }
 
