@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
+import { jsonlLines } from "./jsonl-reader";
 import { claudeCodeProjectsDir } from "./paths";
 
 import {
@@ -48,6 +49,20 @@ function parseLine(line: string): ClaudeCodeLine | undefined {
 		return isRecord(parsed) ? (parsed as ClaudeCodeLine) : undefined;
 	} catch {
 		return undefined;
+	}
+}
+
+/**
+ * Parsed view of a transcript. Streaming avoids materialising the raw file (a
+ * session log can be hundreds of megabytes) while still yielding the parsed
+ * lines the thread reconstruction needs.
+ */
+function* parseClaudeLines(
+	file: string,
+): Generator<ClaudeCodeLine, void, undefined> {
+	for (const rawLine of jsonlLines(file)) {
+		const line = parseLine(rawLine);
+		if (line) yield line;
 	}
 }
 
@@ -191,7 +206,7 @@ function convertBlocks(
  * passes through non-conversation lines too (attachment, system, meta), so
  * every uuid-bearing line participates in the walk; emission filters later.
  */
-function reconstructThread(lines: ClaudeCodeLine[]): ClaudeCodeLine[] {
+function reconstructThread(lines: Iterable<ClaudeCodeLine>): ClaudeCodeLine[] {
 	const byUuid = new Map<string, ClaudeCodeLine>();
 	let leaf: ClaudeCodeLine | undefined;
 	for (const line of lines) {
@@ -270,7 +285,6 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 	}
 
 	private summarizeFile(file: string): ImportableSessionSummary | undefined {
-		const raw = readFileSync(file, "utf8");
 		let messageCount = 0;
 		let assistantCount = 0;
 		let title: string | undefined;
@@ -279,7 +293,7 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 		let cwd = "";
 		let firstTs: number | undefined;
 		let lastTs: number | undefined;
-		for (const rawLine of raw.split("\n")) {
+		for (const rawLine of jsonlLines(file)) {
 			const line = parseLine(rawLine);
 			if (!line) continue;
 			if (line.type === "ai-title" && typeof line.aiTitle === "string") {
@@ -331,13 +345,7 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 		if (!file) {
 			throw new Error(`Claude Code session ${sourceId} not found`);
 		}
-		const raw = readFileSync(file, "utf8");
-		const lines = raw
-			.split("\n")
-			.map(parseLine)
-			.filter((line): line is ClaudeCodeLine => line !== undefined);
-
-		const thread = reconstructThread(lines);
+		const thread = reconstructThread(parseClaudeLines(file));
 		const toolNames = new Map<string, string>();
 		const messages: LlmsProviders.MessageWithMetadata[] = [];
 		let cwd = "";
