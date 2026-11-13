@@ -200,7 +200,9 @@ async function insertInFile(
 	const content = await fs.readFile(filePath, encoding);
 	const eol = detectLineEnding(content);
 	const lines = content.split(/\r\n|\n/);
-	const maxBoundaryLine = lines.length + 1;
+	// A trailing newline terminates the last line; it does not start a new one.
+	const lineCount = content.endsWith("\n") ? lines.length - 1 : lines.length;
+	const maxBoundaryLine = lineCount + 1;
 
 	if (insertLineOneBased < 1 || insertLineOneBased > maxBoundaryLine) {
 		throw new Error(
