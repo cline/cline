@@ -120,13 +120,14 @@ const SESSION_CONFIG: Experimental_RealtimeSessionConfig = {
 			type: "function",
 			name: "show_preview",
 			description:
-				"Show a web page, such as a session's dev server, in the browser panel beside the chat that is on screen.",
+				"Show a web page, such as a session's dev server, or an HTML file on this machine, in the browser panel beside the chat that is on screen.",
 			parameters: {
 				type: "object",
 				properties: {
 					url: {
 						type: "string",
-						description: "For example http://localhost:5173.",
+						description:
+							"For example http://localhost:5173 or file:///path/to/index.html.",
 					},
 				},
 				required: ["url"],
@@ -381,7 +382,11 @@ export function VoiceManager({
 					);
 					const url = normalizeBrowserUrl(String(args.url ?? ""));
 					const chat = getVoiceManagerActiveChat();
-					if (!url) return { ok: false, error: "That is not a web address." };
+					if (!url)
+						return {
+							ok: false,
+							error: "That is not a web address or a file path.",
+						};
 					if (!chat?.sessionId) {
 						return {
 							ok: false,
