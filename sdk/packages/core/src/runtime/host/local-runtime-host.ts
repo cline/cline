@@ -493,6 +493,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			config: {
 				...input.config,
 				apiKey: resolved.apiKey,
+				authMetadata: resolved.authMetadata,
 			},
 		};
 	}
@@ -931,6 +932,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
 			apiKey: providerConfig.apiKey,
+			authMetadata: configWithProvider.authMetadata,
 			baseUrl: providerConfig.baseUrl,
 			headers: providerConfig.headers,
 			onAuthError,
@@ -2816,14 +2818,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw error;
 		}
 		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
-		session.config.apiKey = resolved.apiKey;
-		session.agent.updateConnection({ apiKey: resolved.apiKey });
-		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
+		const connection = {
 			apiKey: resolved.apiKey,
-		});
-		session.runtime.teamRuntime?.updateTeammateConnections({
-			apiKey: resolved.apiKey,
-		});
+			authMetadata: resolved.authMetadata,
+		};
+		session.config.apiKey = connection.apiKey;
+		session.config.authMetadata = connection.authMetadata;
+		session.agent.updateConnection(connection);
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults(
+			connection,
+		);
+		session.runtime.teamRuntime?.updateTeammateConnections(connection);
 	}
 
 	// ── Utility methods ─────────────────────────────────────────────────
