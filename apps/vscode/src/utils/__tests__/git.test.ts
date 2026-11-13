@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
-import { exec } from "node:child_process"
+import { exec, execFile } from "node:child_process"
+import { existsSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 import "should"
-import { getGitDiff } from "../git"
+import { getGitDiff, searchCommits } from "../git"
 
 const execAsync = promisify(exec)
 
@@ -102,5 +103,54 @@ describe("getGitDiff", () => {
 		}
 		;(error !== undefined).should.be.true()
 		error!.message.should.equal("No changes in workspace for commit message")
+	})
+})
+
+describe("searchCommits", () => {
+	let repoDir: string
+
+	const execFileAsync = promisify(execFile)
+
+	async function git(args: string[]): Promise<void> {
+		await execFileAsync("git", args, { cwd: repoDir })
+	}
+
+	beforeEach(async () => {
+		repoDir = await mkdtemp(path.join(tmpdir(), "cline-search-commits-"))
+		await git(["init"])
+		await git(["config", "user.email", "test@example.com"])
+		await git(["config", "user.name", "Test"])
+	})
+
+	afterEach(async () => {
+		await rm(repoDir, { recursive: true, force: true })
+	})
+
+	it("matches the quotes the user typed instead of dropping them", async () => {
+		// The query is one argv entry, so the quotes stay part of the pattern. A term
+		// that only appears without quotes must not be returned.
+		await writeFile(path.join(repoDir, "first.txt"), "first\n")
+		await git(["add", "first.txt"])
+		await git(["commit", "-m", "feat: handle quoted arguments"])
+		await writeFile(path.join(repoDir, "second.txt"), "second\n")
+		await git(["add", "second.txt"])
+		await git(["commit", "-m", 'feat: handle "quoted" arguments'])
+
+		const commits = await searchCommits('"quoted"', repoDir)
+
+		commits.length.should.equal(1)
+		commits[0].subject.should.equal('feat: handle "quoted" arguments')
+	})
+
+	it("does not run the query as shell syntax", async () => {
+		// A query made of shell syntax must be searched for, never executed.
+		const marker = path.join(repoDir, "INJECTED")
+		await writeFile(path.join(repoDir, "commit.txt"), "commit\n")
+		await git(["add", "commit.txt"])
+		await git(["commit", "-m", "feat: initial"])
+
+		await searchCommits(`zzz" | echo pwned > ${marker} | echo "`, repoDir)
+
+		existsSync(marker).should.be.false()
 	})
 })
