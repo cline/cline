@@ -513,8 +513,8 @@ Cline implements a dual-mode system that separates planning from execution:
 
 The Plan/Act mode system consists of:
 
-1. **Mode State**: Stored in `chatSettings.mode` in the Controller's state
-2. **Mode Switching**: Handled by `togglePlanActModeWithChatSettings` in the Controller
+1. **Mode State**: Stored in the `mode` global setting (`src/shared/storage/state-keys.ts`)
+2. **Mode Switching**: Handled by `togglePlanActMode` in the Controller (`src/sdk/SdkController.ts`, which delegates to `src/sdk/sdk-mode-coordinator.ts`)
 3. **Mode-specific Models**: Optional configuration to use different models for each mode
 4. **Mode-specific Prompting**: Different system prompts for planning vs. execution
 
