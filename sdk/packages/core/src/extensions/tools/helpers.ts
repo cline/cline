@@ -5,6 +5,7 @@ import {
 	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
 	RunCommandsInputUnionSchema,
+	StructuredCommandEntrySchema,
 	type StructuredCommandInput,
 } from "./schemas";
 
@@ -139,7 +140,10 @@ export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
 	const commands = collectRunCommands(
-		validateWithZod(RunCommandsInputUnionSchema, input),
+		validateWithZod(
+			RunCommandsInputUnionSchema,
+			unwrapStringifiedCommandList(input),
+		),
 	);
 	// An empty list is well-formed but never a real request: nothing would
 	// run and the call would still report success. Fail it so the model sees
@@ -151,6 +155,58 @@ export function normalizeRunCommandsInput(
 		);
 	}
 	return commands;
+}
+
+/**
+ * Some models send the whole `commands` list as a JSON string instead of a
+ * real array. Wrapping that text in an array hands the literal `["dir"]` to
+ * the shell, where PowerShell reads the leading `[` as a type literal and
+ * fails with `Missing type name after '['`. Unwrap the text only when it
+ * parses to an array of command entries; a shell snippet that merely starts
+ * with `[` (`[int]"42" + 1`) is left exactly as it came in.
+ */
+function parseStringifiedCommandList(value: unknown): unknown {
+	if (typeof value !== "string" || !value.trimStart().startsWith("[")) {
+		return value;
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(value);
+	} catch {
+		return value;
+	}
+
+	if (!Array.isArray(parsed)) {
+		return value;
+	}
+
+	if (parsed.length === 0) {
+		return parsed;
+	}
+
+	const isCommandList = parsed.every(
+		(entry) => StructuredCommandEntrySchema.safeParse(entry).success,
+	);
+	return isCommandList ? parsed : value;
+}
+
+function unwrapStringifiedCommandList(input: unknown): unknown {
+	if (typeof input === "string") {
+		return parseStringifiedCommandList(input);
+	}
+
+	if (input === null || typeof input !== "object" || Array.isArray(input)) {
+		return input;
+	}
+
+	if (!("commands" in input)) {
+		return input;
+	}
+
+	const { commands } = input as { commands: unknown };
+	const parsed = parseStringifiedCommandList(commands);
+	return parsed === commands ? input : { ...input, commands: parsed };
 }
 
 function collectRunCommands(
