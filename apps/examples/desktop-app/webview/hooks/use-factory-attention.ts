@@ -1,6 +1,10 @@
 "use client";
 
-import type { FactoryRunState } from "@cline/shared";
+import type {
+	FactoryDependencyState,
+	FactoryPartsSummary,
+	FactoryRunState,
+} from "@cline/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AskQuestionRequestItem } from "@/hooks/chat-session/types";
 import { desktopClient } from "@/lib/desktop-client";
@@ -23,6 +27,10 @@ export type FactoryAttention = {
 	needsAttention: boolean;
 	/** Factory filed this card for a pattern reviewers found in several cards. */
 	ruleCard?: boolean;
+	/** A split's parent: its parts' progress. */
+	parts?: FactoryPartsSummary;
+	/** A split's part that cannot start yet: what it waits for. */
+	dependency?: FactoryDependencyState;
 	outcome?: Pick<
 		FactoryRunState,
 		| "phase"
@@ -85,7 +93,10 @@ export function useFactoryAttention() {
 			"ask_question_requested",
 			"ask_question_answered",
 			"ask_question_cancelled",
+			// A part created or deleted changes its parent's numbers.
+			"task.created",
 			"task.updated",
+			"task.deleted",
 			"task.run.started",
 			"task.run.completed",
 			"task.run.failed",

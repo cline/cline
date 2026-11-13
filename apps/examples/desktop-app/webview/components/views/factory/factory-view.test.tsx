@@ -2426,6 +2426,73 @@ describe("Factory work-at-once limit", () => {
 		);
 	});
 
+	it("lists a split's parent beside running work without a slot and keeps a waiting part's reason in the queue", async () => {
+		const part = (title: string, taskId: string) => ({
+			title,
+			brief: `${title}.`,
+			paths: [`src/${taskId}`],
+			dependsOn: [],
+			taskId,
+		});
+		mocks.tasks = [
+			task({
+				taskId: "parent",
+				factoryNumber: 40,
+				title: "Export and link activity",
+				status: "completed",
+				factorySplit: {
+					splitId: "split-1",
+					revision: 3,
+					approvedAt: "2026-01-01T00:00:00Z",
+					goal: "Export and link activity",
+					createdAt: "2026-01-01T00:00:01Z",
+					parts: [
+						part("Add CSV export", "p1"),
+						{ ...part("Link the export", "p2"), dependsOn: [0] },
+					],
+				},
+			}),
+			task({
+				taskId: "p1",
+				factoryNumber: 41,
+				title: "Add CSV export",
+				status: "in_progress",
+				factoryParentTaskId: "parent",
+			}),
+			task({
+				taskId: "p2",
+				factoryNumber: 42,
+				title: "Link the export",
+				status: "pending_approval",
+				factoryQueued: "design",
+				factoryQueuedAt: "2026-01-01T00:00:02Z",
+				factoryParentTaskId: "parent",
+				factoryBlockedBy: { taskIds: ["p1"], met: {} },
+			}),
+		];
+		withLimits(async () => ({ supported: true, concurrency: 1 }));
+		await render();
+		const working = container.querySelector('[data-factory-list="working"]');
+		const parent = working?.querySelector('[data-factory-card="parent"]');
+		expect(parent?.getAttribute("data-factory-row")).toBe("working");
+		expect(parent?.textContent).toContain("0 of 2 parts delivered");
+		// The parent runs nothing: one card holds the one slot.
+		expect(
+			container.querySelector('[data-factory-group="working"] h2')
+				?.parentElement?.textContent,
+		).toBe("Working1of 1· 1 queued");
+		const waiting = working?.querySelector('[data-factory-card="p2"]');
+		expect(waiting?.getAttribute("data-factory-row")).toBe("waiting");
+		expect(waiting?.textContent).toContain("Waiting for F41 to merge");
+		expect(waiting?.textContent).not.toContain("Waiting for a free slot");
+		await act(async () =>
+			(
+				waiting?.querySelector('[data-factory-parent="parent"]') as HTMLElement
+			).click(),
+		);
+		expect(sessionStorage.getItem("factory.selectedTask")).toBe("parent");
+	});
+
 	it("shows one waiting line when queued work is held back by the limit", async () => {
 		const base = task();
 		const handsOff = base.factory && {

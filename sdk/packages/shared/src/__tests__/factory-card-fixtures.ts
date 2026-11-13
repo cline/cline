@@ -14,6 +14,7 @@ import {
 	factoryTaskConfigSchema,
 } from "../factory";
 import type { FactoryCardState } from "../factory-card-state";
+import type { FactoryDependencyState } from "../factory-split";
 import {
 	type AgendaTaskRecord,
 	type AgendaTaskRunRecord,
@@ -689,6 +690,184 @@ export const FACTORY_CARD_FIXTURES: readonly FactoryCardFixture[] = [
 		name: "hands-off card not started",
 		task: task({ factory: handsOff }),
 		card: { kind: "not_started", waitingOn: "nobody", stage: "waiting" },
+	},
+];
+
+/**
+ * A split's cards, with the link facts a host reads beside the card: a
+ * parent's parts (each part's short id and state; no state: deleted) and a
+ * waiting part's dependency state. Hosts fold `parts` with
+ * `factoryPartsSummary` and pass both to `factoryCardState`.
+ */
+export interface FactorySplitCardFixture extends FactoryCardFixture {
+	parts?: {
+		id: string;
+		state?: Pick<
+			FactoryCardState,
+			| "kind"
+			| "waitingOn"
+			| "reasonCode"
+			| "stage"
+			| "deliverable"
+			| "waitingFor"
+		>;
+	}[];
+	dependency?: FactoryDependencyState;
+}
+
+const SPLIT_RECORD = {
+	splitId: "split_1",
+	revision: 2,
+	approvedAt: AT,
+	createdAt: AT,
+	goal: "Export the activity view and tidy the footer",
+	parts: [
+		{
+			title: "Add CSV export",
+			brief: "Export the activity view as CSV.",
+			paths: ["src/export"],
+			dependsOn: [],
+			taskId: "task_part_1",
+		},
+		{
+			title: "Link the export from reports",
+			brief: "Link the CSV export from the reports page.",
+			paths: ["src/reports"],
+			dependsOn: [0],
+			taskId: "task_part_2",
+		},
+	],
+};
+const deliveredPart = {
+	kind: "delivered",
+	waitingOn: "nobody",
+	reasonCode: "draft_pr_ready",
+	stage: "delivered",
+	deliverable: { kind: "draft_pr", url: PR },
+} as const;
+const cancelledPart = {
+	kind: "closed",
+	waitingOn: "nobody",
+	reasonCode: "cancelled",
+	stage: "waiting",
+} as const;
+const waitingPart: Pick<
+	FactoryCardState,
+	"kind" | "waitingOn" | "reasonCode" | "stage" | "waitingFor"
+> = {
+	kind: "queued",
+	waitingOn: "card",
+	reasonCode: "waiting_on_card",
+	stage: "waiting",
+	waitingFor: ["F41"],
+};
+
+export const FACTORY_SPLIT_CARD_FIXTURES: readonly FactorySplitCardFixture[] = [
+	{
+		name: "breakdown to approve",
+		task: task({
+			factory: handsOff,
+			factoryDesignProgress: design("complete", {
+				split: {
+					rationale: "Two separate changes",
+					goal: SPLIT_RECORD.goal,
+					parts: SPLIT_RECORD.parts.map(({ taskId: _taskId, ...part }) => part),
+				},
+			}),
+		}),
+		card: {
+			kind: "awaiting_approval",
+			waitingOn: "person",
+			reasonCode: "split_approval",
+			stage: "scope",
+		},
+	},
+	{
+		name: "parent tracking its parts",
+		task: task({
+			status: "completed",
+			completedAt: LATER,
+			factorySplit: SPLIT_RECORD,
+		}),
+		parts: [
+			{ id: "F41", state: deliveredPart },
+			{ id: "F42", state: waitingPart },
+		],
+		card: {
+			kind: "tracking",
+			waitingOn: "nobody",
+			reasonCode: "tracking",
+			stage: "build",
+		},
+	},
+	{
+		name: "parent with every part settled",
+		task: task({
+			status: "completed",
+			completedAt: LATER,
+			factorySplit: SPLIT_RECORD,
+		}),
+		parts: [
+			{ id: "F41", state: deliveredPart },
+			{ id: "F42", state: cancelledPart },
+		],
+		card: {
+			kind: "delivered",
+			waitingOn: "nobody",
+			reasonCode: "parts_delivered",
+			stage: "delivered",
+		},
+	},
+	{
+		name: "parent whose parts were all cancelled",
+		task: task({
+			status: "completed",
+			completedAt: LATER,
+			factorySplit: { ...SPLIT_RECORD, cancelledAt: LATER },
+		}),
+		parts: [
+			{ id: "F41", state: cancelledPart },
+			{ id: "F42", state: cancelledPart },
+		],
+		card: {
+			kind: "closed",
+			waitingOn: "nobody",
+			reasonCode: "parts_closed",
+			stage: "build",
+		},
+	},
+	{
+		name: "part waiting for an earlier merge",
+		task: task({
+			factory: handsOff,
+			factoryParentTaskId: "task_parent",
+			factoryBlockedBy: { taskIds: ["task_part_1"], met: {} },
+			factoryQueued: "design",
+			factoryQueuedAt: AT,
+		}),
+		dependency: { state: "waiting", on: ["F41"] },
+		card: { kind: "queued", waitingOn: "card", stage: "waiting" },
+	},
+	{
+		name: "part whose earlier part closed unmerged",
+		task: task({
+			factory: handsOff,
+			factoryParentTaskId: "task_parent",
+			factoryBlockedBy: { taskIds: ["task_part_1"], met: {} },
+			factoryQueued: "design",
+			factoryQueuedAt: AT,
+		}),
+		dependency: {
+			state: "unavailable",
+			on: ["F41"],
+			reason: "F41 was closed without merging",
+		},
+		card: {
+			kind: "queued",
+			waitingOn: "person",
+			reasonCode: "dependency_unavailable",
+			stage: "waiting",
+		},
 	},
 ];
 

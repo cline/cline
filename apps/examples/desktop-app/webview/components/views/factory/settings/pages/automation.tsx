@@ -249,7 +249,8 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 				/>
 			</SettingRow>
 			<GroupHeading>{A.newWorkGroup}</GroupHeading>
-			<DuplicateCheckRow shell={shell} />
+			<NewWorkSwitchRow shell={shell} setting="duplicateCheck" />
+			<NewWorkSwitchRow shell={shell} setting="splitLargeWork" />
 			<GroupHeading>{A.notificationsGroup}</GroupHeading>
 			<SettingRow
 				id="notifications"
@@ -268,48 +269,65 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 	);
 }
 
+/** The new-work switches the Hub owns, read and set through the limits commands. */
+const NEW_WORK_SWITCHES = {
+	duplicateCheck: {
+		title: A.duplicateCheck,
+		description: A.duplicateCheckHint,
+		unavailable: A.duplicateCheckUnavailable,
+	},
+	splitLargeWork: {
+		title: A.splitLargeWork,
+		description: A.splitLargeWorkHint,
+		unavailable: A.splitLargeWorkUnavailable,
+	},
+} as const;
+
 /**
- * Check for duplicates when work is filed: the Hub's `duplicateCheck`, read
- * and set through the limits commands (on unless turned off). A Hub that
- * omits the field cannot change it.
+ * One of the Hub's new-work switches (on unless turned off): checking new
+ * work for duplicates, and splitting large work into parts. A Hub that omits
+ * the field cannot change it.
  */
-function DuplicateCheckRow({ shell }: { shell: SettingsShell }) {
+function NewWorkSwitchRow({
+	shell,
+	setting,
+}: {
+	shell: SettingsShell;
+	setting: keyof typeof NEW_WORK_SWITCHES;
+}) {
+	const copy = NEW_WORK_SWITCHES[setting];
 	const saves = useRowSaves(shell.saved);
 	// The value this page last saved; the shell's limits keep the value read.
 	const [saved, setSaved] = useState<boolean>();
 	const { limits, loading } = shell.limits;
-	const reported = limits?.supported ? limits.duplicateCheck : undefined;
+	const reported = limits?.supported ? limits[setting] : undefined;
 	if (!loading && typeof reported !== "boolean")
-		return (
-			<UnavailableNote reason="hub">
-				{A.duplicateCheckUnavailable}
-			</UnavailableNote>
-		);
+		return <UnavailableNote reason="hub">{copy.unavailable}</UnavailableNote>;
 	const checked = saved ?? reported !== false;
 	return (
 		<SettingRow
-			id="duplicateCheck"
-			title={A.duplicateCheck}
-			description={A.duplicateCheckHint}
-			error={saves.errorFor("duplicateCheck")}
+			id={setting}
+			title={copy.title}
+			description={copy.description}
+			error={saves.errorFor(setting)}
 		>
 			<Switch
 				checked={checked}
-				disabled={loading || shell.readOnly || saves.busy === "duplicateCheck"}
-				data-setting-control="duplicateCheck"
-				{...rowLabels("duplicateCheck")}
-				onCheckedChange={async (duplicateCheck) => {
+				disabled={loading || shell.readOnly || saves.busy === setting}
+				data-setting-control={setting}
+				{...rowLabels(setting)}
+				onCheckedChange={async (value) => {
 					const previous = saved;
-					setSaved(duplicateCheck);
-					const result = await saves.save("duplicateCheck", () =>
-						shell.client.setLimits({ duplicateCheck }),
+					setSaved(value);
+					const result = await saves.save(setting, () =>
+						shell.client.setLimits({ [setting]: value }),
 					);
 					if (!result.ok) {
 						setSaved(previous);
 						return;
 					}
 					const reply = result.value.supported
-						? result.value.duplicateCheck
+						? result.value[setting]
 						: undefined;
 					if (reply !== undefined) setSaved(reply);
 				}}
@@ -352,6 +370,11 @@ export const settingsPage: SettingsPageDefinition = {
 			row: "duplicateCheck",
 			title: A.duplicateCheck,
 			description: A.duplicateCheckHint,
+		},
+		{
+			row: "splitLargeWork",
+			title: A.splitLargeWork,
+			description: A.splitLargeWorkHint,
 		},
 		{
 			row: "notifications",

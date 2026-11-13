@@ -28,6 +28,7 @@ import type {
 	FactoryStagesListing,
 	FactoryStageTrustRecord,
 } from "./factory-stages";
+import type { FactoryStatusLinks } from "./factory-tool";
 
 /**
  * What filing a Factory card returned. `existing`: no card was created and
@@ -161,6 +162,49 @@ export interface AgendaTaskManagerApi {
 	getFactoryDuplicateCheck?(): boolean;
 	/** Turns the duplicate check on or off; off means no check at all. */
 	setFactoryDuplicateCheck?(enabled: boolean): boolean;
+	/** Whether scoping may offer to split large work into parts. */
+	getFactorySplitLargeWork?(): boolean;
+	/** Turns the breakdown offer on or off. */
+	setFactorySplitLargeWork?(enabled: boolean): boolean;
+	/** How often a breakdown was offered, proposed, approved and kept whole instead. */
+	getFactorySplitCounts?(): Record<
+		"offered" | "proposed" | "approved" | "kept_whole",
+		number
+	>;
+	/**
+	 * A person approves a card's proposed breakdown: the card becomes a
+	 * completed parent and each kept part a card of its own. `omit` leaves
+	 * parts out. People only (actor kind `user`); Hub clients trusted across
+	 * workspaces only.
+	 */
+	approveFactorySplit?(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+		omit?: readonly number[],
+	): Promise<{ task: AgendaTaskRecord; parts: AgendaTaskRecord[] }>;
+	/** "Keep as one card": scope the request again without a breakdown. */
+	keepFactoryCardWhole?(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+	): Promise<AgendaTaskRecord>;
+	/** "Cancel remaining parts" of a parent; delivered parts stay. People only. */
+	cancelFactoryParts?(
+		taskId: string,
+		actor: AgendaTaskActor,
+	): Promise<{ task: AgendaTaskRecord; cancelled: AgendaTaskRecord[] }>;
+	/**
+	 * A card's split links: a part's parent (short id), a parent's kept parts
+	 * with their states, and a waiting part's dependency state. Reads only.
+	 */
+	getFactoryCardLinks?(taskId: string): FactoryStatusLinks;
+	/** "Start anyway": a waiting part stops waiting for earlier merges. People only. */
+	startFactoryPartAnyway?(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+	): Promise<AgendaTaskRecord>;
 	/** Factory session cost recorded since local midnight across all cards, in USD. */
 	getFactorySpentTodayUsd?(): Promise<number>;
 	/** Queue order and the cards being worked, for status reports. */

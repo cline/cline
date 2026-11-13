@@ -85,6 +85,7 @@ import {
 	FACTORY_PROOF,
 	FACTORY_RECOVERY,
 	FACTORY_ROLE_LABEL,
+	FACTORY_SPLIT,
 	FACTORY_UNREADABLE,
 	factoryApprovalReasonText,
 	factoryReviewRequest,
@@ -93,6 +94,7 @@ import {
 	factoryFeedbackRowState,
 	requestFactoryDiscussion,
 } from "@/lib/factory-feedback";
+import type { FactoryLimits } from "@/lib/factory-limits";
 import { cn } from "@/lib/utils";
 import {
 	defaultFactoryPanelTab,
@@ -130,6 +132,11 @@ import {
 } from "./factory-live";
 import { FactoryAgentLanes } from "./factory-live-transcript";
 import { FactoryProof } from "./factory-proof";
+import {
+	FactoryBreakdownApproval,
+	FactoryPartsPanel,
+	type FactorySplitContext,
+} from "./factory-split";
 import {
 	FactoryFindingList,
 	FactoryTaskHeader,
@@ -191,12 +198,18 @@ export function FeatureDetail({
 	questions,
 	onAnswer,
 	unreadable,
+	split,
+	limits,
 }: {
 	/**
 	 * Why Factory's status for this card could not be read (validation
 	 * output): the board says only that; Details keeps the reason.
 	 */
 	unreadable?: string;
+	/** A split's parent or part: its links, parent, parts and earlier parts. */
+	split?: FactorySplitContext;
+	/** The Hub's limits the board read: a breakdown's spend against today's. */
+	limits?: FactoryLimits;
 	drafts: Map<string, FactoryDraft>;
 	task: AgendaTaskRecord;
 	onRefresh: () => Promise<void>;
@@ -409,6 +422,25 @@ export function FeatureDetail({
 	const currentDesign =
 		designProgress?.revision === task.revision ? designProgress : undefined;
 	const handsOff = isFactoryHandsOff(task.factory);
+	// A proposed breakdown is approved or kept whole on its own block, never
+	// through plan approval.
+	const breakdown =
+		!task.archivedAt &&
+		task.factory &&
+		task.status === "pending_approval" &&
+		currentDesign?.phase === "complete" &&
+		currentDesign.split
+			? { config: task.factory, split: currentDesign.split }
+			: undefined;
+	// The parts the person unchecked, for the breakdown of this revision.
+	const [omitted, setOmitted] = useState<{
+		revision: number;
+		parts: number[];
+	}>();
+	const omit = omitted?.revision === task.revision ? omitted.parts : [];
+	// A part whose earlier part will never merge: Start anyway, or cancel it.
+	const unmerged =
+		!task.archivedAt && split?.links.dependency?.state === "unavailable";
 	const liveSessions = factoryLiveSessions(
 		task,
 		matchesTask ? activeFactorySessions(state?.attempts) : [],
@@ -646,7 +678,18 @@ export function FeatureDetail({
 		});
 	}
 	const cancellable =
-		!task.archivedAt && (task.status === "in_progress" || designActive);
+		!task.archivedAt &&
+		(task.status === "in_progress" || designActive || unmerged);
+	/** The person's decisions on a split, from this card only. */
+	function splitCommand(command: string, input: Record<string, unknown> = {}) {
+		void perform(async () => {
+			await desktopClient.invoke(command, {
+				taskId: task.taskId,
+				allWorkspaces: true,
+				...input,
+			});
+		});
+	}
 	// Core decides at delivery whether the result needs the user's review;
 	// runs from before that keep the old rule (manual work only).
 	const canStamp = Boolean(
@@ -775,10 +818,12 @@ export function FeatureDetail({
 			? state.humanReview
 			: undefined;
 	const hasVerifier = factoryHasVerifier(task, matchesTask ? state : undefined);
+	// A part waiting for an earlier part's merge waits for that, not a slot.
 	const waitingForSlot =
 		!liveSessions.length &&
 		task.factoryQueued !== undefined &&
 		!held &&
+		!split?.links.dependency &&
 		!task.archivedAt;
 	const showSaveBrief =
 		editable &&
@@ -790,10 +835,12 @@ export function FeatureDetail({
 		!autoProgress &&
 		!stopped &&
 		!awaitingStart &&
+		!breakdown &&
 		questions.length === 0;
 	// Accept lives in the header; the footer keeps saving, approval and PR
 	// follow-up.
-	const footerVisible = canFollowUp || showSaveBrief || showApprove;
+	const footerVisible =
+		canFollowUp || showSaveBrief || showApprove || Boolean(breakdown);
 	// Accept merges "Mark as reviewed" with "Looks good": on a result core
 	// asked the user to review, or one stopped with its draft PR open.
 	const acceptable =
@@ -876,6 +923,15 @@ export function FeatureDetail({
 			autoProgress={autoProgress}
 			onBack={() => navigate(onClose)}
 			onOpenCard={(taskId) => navigate(() => onOpenTask(taskId))}
+			split={split}
+			onStartAnyway={
+				unmerged
+					? () =>
+							splitCommand("task.factory.part.start", {
+								expectedRevision: task.revision,
+							})
+					: undefined
+			}
 			onArchive={toggleArchive}
 			onStop={
 				cancellable
@@ -1957,6 +2013,32 @@ export function FeatureDetail({
 						{editingPlan ? FACTORY_RECOVERY.savePlan : "Save brief"}
 					</Button>
 				) : null}
+				{breakdown ? (
+					<>
+						<Button
+							variant="outline"
+							disabled={busy}
+							onClick={() =>
+								splitCommand("task.factory.split.keep", {
+									expectedRevision: task.revision,
+								})
+							}
+						>
+							{FACTORY_SPLIT.keep}
+						</Button>
+						<Button
+							disabled={busy}
+							onClick={() =>
+								splitCommand("task.factory.split.approve", {
+									expectedRevision: task.revision,
+									...(omit.length ? { omit } : {}),
+								})
+							}
+						>
+							{FACTORY_SPLIT.approve}
+						</Button>
+					</>
+				) : null}
 				{showApprove ? (
 					<Button
 						aria-describedby={
@@ -2075,6 +2157,31 @@ export function FeatureDetail({
 			{failureBlock}
 			{questionBlock}
 			{conclusionBlock}
+			{breakdown ? (
+				<FactoryBreakdownApproval
+					config={breakdown.config}
+					split={breakdown.split}
+					limits={limits}
+					busy={busy}
+					omit={omit}
+					onOmitChange={(parts) =>
+						setOmitted({ revision: task.revision, parts })
+					}
+				/>
+			) : null}
+			{split?.parts ? (
+				<FactoryPartsPanel
+					rows={split.parts}
+					summary={split.links.parts}
+					busy={busy}
+					onOpenCard={(taskId) => navigate(() => onOpenTask(taskId))}
+					onCancelRemaining={
+						task.archivedAt
+							? undefined
+							: () => splitCommand("task.factory.parts.cancel")
+					}
+				/>
+			) : null}
 			{deliveredBlock}
 		</>
 	);

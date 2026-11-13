@@ -841,6 +841,14 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 	 * scoping; nothing waits on them.
 	 */
 	relatedTo: z.array(z.string().trim().min(1).max(200)).max(3).optional(),
+	/** `never`: the person chose "Keep as one card"; scoping never offers a breakdown. */
+	split: z.literal("never").optional(),
+	/**
+	 * Whether scoping may conclude that no build is needed, set on a split's
+	 * parts from their parent (parts carry no intake). Unset: derived from the
+	 * card's intake source, imported issue or designer agent.
+	 */
+	triage: z.boolean().optional(),
 	/**
 	 * The duplicate check's judge session for this filing, recorded so the
 	 * daily spend counts it. `none`: no readable verdict. `durationMs`: the
@@ -1765,7 +1773,10 @@ export function factoryAcceptanceConfigurationFindings(
 export type FactoryPlanApprovalInput = Pick<
 	AgendaTaskRecord,
 	"revision" | "instructions" | "factoryDesignProgress" | "factoryDesignReview"
-> & { factory: FactoryTaskConfig };
+> &
+	Partial<Pick<AgendaTaskRecord, "factorySplit">> & {
+		factory: FactoryTaskConfig;
+	};
 
 /**
  * Why the saved plan cannot be approved for its current revision, or null.
@@ -1782,6 +1793,10 @@ export function factoryPlanApprovalBlocker(
 			: undefined;
 	if (design?.conclusion)
 		return `The designer concluded no build is needed (${design.conclusion.outcome.replaceAll("_", " ")}). Dismiss the card, or revise the brief to design it anyway.`;
+	if (task.factorySplit)
+		return "This card was split into parts; its parts are approved and run instead.";
+	if (design?.split)
+		return `Scoping split this request into ${design.split.parts.length} parts. Approve the breakdown in Factory, or keep it as one card.`;
 	if (
 		factory.reviewMode === "adaptive" &&
 		(design?.phase !== "complete" || !design.reviewSelection)
@@ -2279,13 +2294,15 @@ export const factoryRunStateSchema = z.object({
 	 * What became of the draft PR, recorded by PR follow-up from the first
 	 * snapshot that is no longer open (`at` is when Factory saw it).
 	 * `headChanged`: the PR's last head is not the commit Factory last pushed,
-	 * so someone else pushed to it.
+	 * so someone else pushed to it. `baseBranch`: the branch it targeted then
+	 * (absent on outcomes recorded before it was kept).
 	 */
 	pullRequestOutcome: z
 		.object({
 			state: z.enum(["merged", "closed"]),
 			headChanged: z.boolean(),
 			at: z.string(),
+			baseBranch: z.string().optional(),
 		})
 		.optional(),
 });

@@ -87,3 +87,38 @@ describe("Automation: Check for duplicates when work is filed", () => {
 		await page.unmount();
 	});
 });
+
+describe("Automation: Split large work into parts", () => {
+	it("reads the Hub's value and saves a change through the limits command", async () => {
+		const { limits } = fakeShell();
+		const page = await renderSettingsPage(settingsPage, {
+			client: {
+				setLimits: async () => ({
+					supported: true,
+					concurrency: 2,
+					splitLargeWork: false,
+				}),
+			},
+			shell: {
+				limits: {
+					...limits,
+					limits: { supported: true, concurrency: 2, splitLargeWork: true },
+				} as SettingsShell["limits"],
+			},
+		});
+		const control = page.container.querySelector<HTMLInputElement>(
+			'[data-setting="splitLargeWork"] [role="switch"]',
+		);
+		expect(page.row("splitLargeWork")?.textContent).toContain(
+			"Split large work into parts",
+		);
+		expect(control?.checked).toBe(true);
+		await click(control);
+		expect(page.shell.client.setLimits).toHaveBeenCalledWith({
+			splitLargeWork: false,
+		});
+		expect(control?.checked).toBe(false);
+		expect(deadRows(page.container)).toEqual([]);
+		await page.unmount();
+	});
+});

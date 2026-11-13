@@ -53,6 +53,10 @@ export type HubCapabilityName =
 	| "task.factory.design"
 	| "task.factory.watch"
 	| "task.factory.priority"
+	| "task.factory.split.approve"
+	| "task.factory.split.keep"
+	| "task.factory.parts.cancel"
+	| "task.factory.part.start"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"
@@ -112,6 +116,10 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.design",
 	"task.factory.watch",
 	"task.factory.priority",
+	"task.factory.split.approve",
+	"task.factory.split.keep",
+	"task.factory.parts.cancel",
+	"task.factory.part.start",
 	"task.factory.replay",
 	"task.factory.defaults.get",
 	"task.factory.defaults.set",
@@ -612,6 +620,21 @@ export interface HubTaskFactoryLimits {
 	 * that already covers it (on unless turned off). Older Hubs omit it.
 	 */
 	duplicateCheck?: boolean;
+	/**
+	 * Scoping may split large work into parts that a person approves (on
+	 * unless turned off). Older Hubs omit it.
+	 */
+	splitLargeWork?: boolean;
+	/**
+	 * How often scoping offered a breakdown, proposed one, a person approved
+	 * one, and kept a proposed breakdown as one card. Older Hubs omit it.
+	 */
+	splitCounts?: {
+		offered: number;
+		proposed: number;
+		approved: number;
+		kept_whole: number;
+	};
 }
 
 /**
@@ -624,6 +647,7 @@ export type HubTaskFactoryLimitsUpdate = {
 	paused?: boolean;
 	dailyCostUsd?: number | null;
 	duplicateCheck?: boolean;
+	splitLargeWork?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -916,6 +940,26 @@ export interface HubCommandInputMap {
 	"task.factory.priority": HubTaskIdInput & {
 		priority: FactoryPriority | null;
 	};
+	/**
+	 * A person approves the card's proposed breakdown (its design progress
+	 * `split`): the card becomes a completed parent and each kept part its own
+	 * card. `omit`: zero-based parts to leave out. Needs a client trusted
+	 * across workspaces; nothing approves a breakdown automatically.
+	 */
+	"task.factory.split.approve": HubTaskRevisionInput & { omit?: number[] };
+	/** "Keep as one card": scope the request again, never offering a breakdown. */
+	"task.factory.split.keep": HubTaskRevisionInput;
+	/**
+	 * "Cancel remaining parts" of a parent: each part not yet delivered is
+	 * cancelled; delivered parts and their PRs stay. Needs a client trusted
+	 * across workspaces.
+	 */
+	"task.factory.parts.cancel": HubTaskIdInput;
+	/**
+	 * "Start anyway": a part waiting for earlier parts' merges starts now.
+	 * Needs a client trusted across workspaces.
+	 */
+	"task.factory.part.start": HubTaskRevisionInput;
 	"task.factory.replay": FactoryReplayRequest & { allWorkspaces?: boolean };
 	"task.factory.defaults.get": Record<string, never>;
 	"task.factory.defaults.set": HubTaskFactoryDefaultsSetInput;
@@ -991,6 +1035,16 @@ export interface HubCommandOutputMap {
 	"task.factory.design": { sessionId: string };
 	"task.factory.watch": { task: AgendaTaskRecord };
 	"task.factory.priority": { task: AgendaTaskRecord };
+	"task.factory.split.approve": {
+		task: AgendaTaskRecord;
+		parts: AgendaTaskRecord[];
+	};
+	"task.factory.split.keep": { task: AgendaTaskRecord };
+	"task.factory.parts.cancel": {
+		task: AgendaTaskRecord;
+		cancelled: AgendaTaskRecord[];
+	};
+	"task.factory.part.start": { task: AgendaTaskRecord };
 	"task.factory.replay": { tasks: AgendaTaskRecord[] };
 	"task.factory.defaults.get": { workflow?: FactoryWorkflowRecipe };
 	"task.factory.defaults.set": { workflow?: FactoryWorkflowRecipe };
@@ -1103,6 +1157,10 @@ export type HubCommandName =
 	| "task.factory.design"
 	| "task.factory.watch"
 	| "task.factory.priority"
+	| "task.factory.split.approve"
+	| "task.factory.split.keep"
+	| "task.factory.parts.cancel"
+	| "task.factory.part.start"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"

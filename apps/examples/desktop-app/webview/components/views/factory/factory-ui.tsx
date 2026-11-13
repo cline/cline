@@ -16,6 +16,7 @@ import {
 	CheckCircle2,
 	ClipboardCheck,
 	GitPullRequest,
+	ListTree,
 	MessageCircleQuestion,
 	Sparkles,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import type {
 } from "@/hooks/use-factory-attention";
 import {
 	currentFactoryConclusion,
+	type FactoryCardLinks,
 	type FactoryStationState,
 	factoryAutoRetryLabel,
 	factoryCardInput,
@@ -50,6 +52,7 @@ import {
 	FACTORY_READY,
 	FACTORY_ROW_ACTION,
 	FACTORY_RULE_CARD,
+	FACTORY_SPLIT,
 	FACTORY_UNREADABLE,
 	factoryFeedbackLabel,
 	factoryPhaseLabel,
@@ -339,6 +342,8 @@ export const FACTORY_AGENDA_FILTERS = {
 	allWorkspaces: true,
 	includeArchived: true,
 	limit: 200,
+	// A split's parent, parts and earlier parts, even beyond the limit.
+	factoryLinks: true,
 } as const;
 
 /**
@@ -399,6 +404,11 @@ export type FactoryActivity = {
 	unreadable?: string;
 	/** Where the card is on the line, from `factoryStation`. */
 	station: FactoryStationState;
+	/**
+	 * A split's card: a parent, which only tracks its parts, or a part that
+	 * waits for earlier parts and, when one will never merge, why.
+	 */
+	split?: { parent?: true; waiting?: true; unmerged?: string };
 };
 
 /** How each decision or result looks: its colour, icon and row verb. */
@@ -438,6 +448,18 @@ export function factoryDecisionStyle(label: string): {
 				tone: "accent",
 				icon: ClipboardCheck,
 				action: FACTORY_ROW_ACTION.approvePlan,
+			};
+		case FACTORY_DECISION.breakdown:
+			return {
+				tone: "accent",
+				icon: ListTree,
+				action: FACTORY_ROW_ACTION.review,
+			};
+		case FACTORY_DECISION.unmerged:
+			return {
+				tone: "attention",
+				icon: AlertTriangle,
+				action: FACTORY_ROW_ACTION.open,
 			};
 		case FACTORY_READY.needsReview:
 			return {
@@ -500,6 +522,8 @@ export function factoryUrgency(label: string): number {
 			return 1;
 		case FACTORY_DECISION.plan:
 		case FACTORY_DECISION.noBuild:
+		case FACTORY_DECISION.breakdown:
+		case FACTORY_DECISION.unmerged:
 			return 2;
 		case FACTORY_DECISION.rule:
 			return 4;
@@ -535,17 +559,42 @@ export function factoryActivity(
 			unreadable,
 			station: factoryStation(task, undefined, options),
 		};
+	const links = factoryAttentionLinks(attention);
+	const card = factoryCardState(
+		factoryCardInput(task, attention?.outcome, links),
+	);
+	const split = task.factorySplit
+		? { parent: true as const }
+		: card.waitingFor
+			? {
+					waiting: true as const,
+					...(links.dependency?.state === "unavailable"
+						? { unmerged: links.dependency.reason }
+						: {}),
+				}
+			: undefined;
 	return {
-		...factoryActivityState(task, attention),
-		station: factoryStation(task, attention?.outcome, options),
+		...factoryActivityState(task, attention, card),
+		station: factoryStation(task, attention?.outcome, { ...options, links }),
+		...(split ? { split } : {}),
+	};
+}
+
+/** The split link facts the sidecar sent with a card's attention. */
+export function factoryAttentionLinks(
+	attention: Pick<FactoryAttention, "parts" | "dependency"> | undefined,
+): FactoryCardLinks {
+	return {
+		...(attention?.parts ? { parts: attention.parts } : {}),
+		...(attention?.dependency ? { dependency: attention.dependency } : {}),
 	};
 }
 
 function factoryActivityState(
 	task: AgendaTaskRecord,
 	attention: FactoryAttention | undefined,
+	card: FactoryCardState,
 ): Omit<FactoryActivity, "station"> {
-	const card = factoryCardState(factoryCardInput(task, attention?.outcome));
 	const { column, label } = factoryPlacement(task, attention, card);
 	const outcome = attention?.outcome;
 	// Feedback is optional: a rating, when given, only colours the label;
@@ -652,6 +701,30 @@ function factoryPlacement(
 	// A note never asks anything of the person; a rule proposed from it does.
 	if (card.reasonCode === "rule_proposed")
 		return { column: "Needs you", label: FACTORY_DECISION.rule };
+	// A split: the breakdown and a part that cannot start need the person; a
+	// part waiting for a merge keeps its place in the queue; a parent tracks
+	// beside running work until every part settles.
+	switch (card.reasonCode) {
+		case "split_approval":
+			return { column: "Needs you", label: FACTORY_DECISION.breakdown };
+		case "dependency_unavailable":
+			return { column: "Needs you", label: FACTORY_DECISION.unmerged };
+		case "waiting_on_card":
+			return {
+				column: "Queued",
+				label: card.reasonText ?? FACTORY_ACTIVITY.waitingToStart,
+			};
+		case "tracking":
+			return { column: "Working", label: FACTORY_SPLIT.progress(card.parts) };
+		case "parts_delivered":
+			return { column: "Done", label: FACTORY_SPLIT.progress(card.parts) };
+		// Every part closed undelivered: it leaves the board as closed cards do.
+		case "parts_closed":
+			return {
+				column: "Done",
+				label: card.reasonText ?? FACTORY_SPLIT.progress(card.parts),
+			};
+	}
 	const design =
 		task.factoryDesignProgress?.revision === task.revision
 			? task.factoryDesignProgress

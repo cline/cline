@@ -473,6 +473,8 @@ export class HubServerTransport implements NativeHubTransport {
 			resolveFactoryDailyCostUsd: () => factoryDefaults.getDailyCostUsd(),
 			// And whether new filings are checked for duplicates.
 			resolveFactoryDuplicateCheck: () => factoryDefaults.getDuplicateCheck(),
+			// And whether scoping may split large work into parts.
+			resolveFactorySplitLargeWork: () => factoryDefaults.getSplitLargeWork(),
 			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,

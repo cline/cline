@@ -324,6 +324,38 @@ describe("desktop notifications", () => {
 			stop();
 		});
 
+		it("asks for a breakdown's approval, not a plan's", async () => {
+			const { watchDesktopNotifications } = await importFresh();
+			const stop = watchDesktopNotifications();
+			const split = {
+				rationale: "Separate changes",
+				goal: "Search and export",
+				parts: [
+					{ title: "Search", brief: "Search.", paths: ["src/search"] },
+					{ title: "Export", brief: "Export.", paths: ["src/export"] },
+				],
+			};
+			emit("task.updated", {
+				task: factoryTask({
+					status: "pending_approval",
+					revision: 2,
+					factoryDesignProgress: {
+						...progress(2, "complete"),
+						split: {
+							...split,
+							parts: split.parts.map((part) => ({ ...part, dependsOn: [] })),
+						},
+					},
+				}),
+			});
+			await vi.waitFor(() => expect(notifications()).toHaveLength(1));
+			expect(notifications()[0]).toMatchObject({
+				title: "Breakdown ready for your approval",
+				body: "Search notes: approve the breakdown, or keep it as one card.",
+			});
+			stop();
+		});
+
 		it("asks for approval, not a failure decision, when automatic approval is waiting", async () => {
 			const { watchDesktopNotifications } = await importFresh();
 			const stop = watchDesktopNotifications();

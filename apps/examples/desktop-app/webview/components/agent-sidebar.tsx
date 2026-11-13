@@ -1403,7 +1403,10 @@ export function factorySidebarStatus(board: FactoryBoardData): {
 	);
 	return {
 		needsYou: activities.filter(factoryInNeedsYouColumn).length,
-		working: activities.some((activity) => activity.column === "Working"),
+		// A split's parent only tracks its parts; nothing runs on it.
+		working: activities.some(
+			(activity) => activity.column === "Working" && !activity.split?.parent,
+		),
 	};
 }
 

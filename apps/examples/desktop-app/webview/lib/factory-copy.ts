@@ -1,11 +1,12 @@
 import type {
+	FactoryPartsSummary,
 	FactoryPriority,
 	FactoryPriorityState,
 	FactoryReviewSize,
 	FactoryRunRoute,
 	FactoryRunState,
 } from "@cline/shared";
-import { FACTORY_PRIORITY_LABEL } from "@cline/shared/browser";
+import { FACTORY_PRIORITY_LABEL, factoryCardList } from "@cline/shared/browser";
 
 /**
  * Plain-language Factory copy, defined once. Engine terms (implementer,
@@ -80,6 +81,10 @@ export const FACTORY_DECISION = {
 	followup: "Resume draft PR follow-up",
 	plan: "Approve plan",
 	noBuild: "Confirm: no build needed",
+	/** Scoping split the request into parts; the person approves the breakdown. */
+	breakdown: "Approve breakdown",
+	/** An earlier part will never merge, so this part cannot start on its own. */
+	unmerged: "Start anyway or cancel",
 } as const;
 
 /** What is ready for the user to look at. */
@@ -1204,4 +1209,64 @@ export const FACTORY_DUPLICATES = {
 	/** Sent for File anyway: the manager files it again with the check skipped. */
 	fileAnywayPrompt:
 		"This is different work. File it anyway (allow_duplicate: true).",
+} as const;
+
+/** Large work split into a parent card and its part cards. */
+export const FACTORY_SPLIT = {
+	/** A parent's progress: "2 of 5 parts delivered"; plainer before it loads. */
+	progress: (
+		parts: Pick<FactoryPartsSummary, "delivered" | "total"> | undefined,
+	) =>
+		parts
+			? `${parts.delivered} of ${parts.total} ${parts.total === 1 ? "part" : "parts"} delivered`
+			: "Tracking its parts",
+	partOf: (id: string) => `Part of ${id}`,
+	openParent: (id: string) => `Open ${id}, the card this part came from`,
+	// Approving a breakdown
+	approvalTitle: (count: number) => `Split into ${count} parts`,
+	approvalHeadline: "Breakdown ready for your approval",
+	approvalNext:
+		"Each part becomes its own card. Approve the breakdown, or keep the request as one card.",
+	why: "Why split",
+	approve: "Approve breakdown",
+	keep: "Keep as one card",
+	include: (number: number, title: string) =>
+		`Include part ${number}: ${title}`,
+	leftOut: "Left out",
+	startsAfter: (numbers: readonly number[]) =>
+		`Starts after you merge ${factoryCardList(numbers.map((number) => `part ${number}`))}'s pull ${numbers.length === 1 ? "request" : "requests"}.`,
+	// A parent
+	parentHeadline: (count: number) => `Split into ${count} parts`,
+	parentDone: "Every part is delivered or closed",
+	parentClosed: "Every part closed before it was delivered",
+	parentNext: "Its parts do the work; nothing runs on this card.",
+	partsTitle: "Parts",
+	archived: "Archived",
+	/** A kept part with no card: before its card exists, or after. */
+	creating: "Being created",
+	notCreated: "Not created",
+	removed: "Removed",
+	cancelRemaining: "Cancel remaining parts",
+	cancelRemainingTitle: (count: number) =>
+		`Cancel ${count} remaining ${count === 1 ? "part" : "parts"}?`,
+	cancelRemainingDescription:
+		"Parts that have not delivered stop and close. Delivered parts and their pull requests stay as they are. You cannot undo this.",
+	cancelRemainingConfirm: "Cancel parts",
+	keepParts: "Keep parts",
+	// A part that waits for an earlier part
+	waitingNext: (ids: readonly string[]) =>
+		`Starts on its own after you merge ${factoryCardList(ids)}'s pull ${ids.length === 1 ? "request" : "requests"}.`,
+	openPullRequest: (id: string) => `Open ${id}'s PR`,
+	openPr: "Open PR",
+	unmergedNext: "Start this part anyway, or cancel it.",
+	startAnyway: "Start anyway",
+	cancelPart: "Cancel this part…",
+	cancelPartTitle: "Cancel this part?",
+	cancelPartDescription:
+		"It closes without starting. The other parts are not affected.",
+	cancelPartConfirm: "Cancel part",
+	keepPart: "Keep part",
+	// Notifications
+	notificationTitle: "Breakdown ready for your approval",
+	notificationBody: "approve the breakdown, or keep it as one card.",
 } as const;

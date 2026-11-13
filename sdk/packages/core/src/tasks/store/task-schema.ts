@@ -122,6 +122,13 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 		["agenda_tasks", "factory_priority_json", "TEXT"],
 		// Repeats matched to the card, written only by recordFactoryDuplicateReport.
 		["agenda_tasks", "factory_duplicate_reports_json", "TEXT"],
+		// A split's part: its parent, written at creation and cleared when the
+		// parent is deleted.
+		["agenda_tasks", "factory_parent_task_id", "TEXT"],
+		// A split's parent: the approved breakdown (applyFactorySplit).
+		["agenda_tasks", "factory_split_json", "TEXT"],
+		// A part waiting for earlier parts' merges (setFactoryBlockedBy).
+		["agenda_tasks", "factory_blocked_by_json", "TEXT"],
 	]) {
 		const present = () =>
 			db
@@ -168,6 +175,8 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 			"ALTER TABLE agenda_tasks ADD COLUMN factory_design_review_json TEXT",
 		);
 	}
+	db.exec(`CREATE INDEX IF NOT EXISTS agenda_tasks_factory_parent_idx
+		ON agenda_tasks(factory_parent_task_id) WHERE factory_parent_task_id IS NOT NULL`);
 	db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS agenda_tasks_factory_number_idx
 		ON agenda_tasks(factory_number) WHERE factory_number IS NOT NULL`);
 	db.exec(`CREATE INDEX IF NOT EXISTS agenda_tasks_factory_unnumbered_idx

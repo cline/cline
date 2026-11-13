@@ -22,6 +22,7 @@ import {
 	GitBranch,
 	GitPullRequest,
 	HelpCircle,
+	ListTree,
 	Loader2,
 	MessageSquare,
 	Pause,
@@ -89,6 +90,7 @@ import {
 	FACTORY_OPEN_FINDINGS,
 	FACTORY_READY,
 	FACTORY_RECOVERY,
+	FACTORY_SPLIT,
 	FACTORY_TERMS,
 	FACTORY_UNREADABLE,
 	factoryFeedbackLabel,
@@ -144,6 +146,7 @@ import {
 	formatFactoryDuration,
 } from "./factory-live";
 import { FactorySettingsPage } from "./factory-settings";
+import { FactoryParentLink, factorySplitContext } from "./factory-split";
 import {
 	factoryScopingStopped,
 	factoryScopingStopReason,
@@ -158,6 +161,7 @@ import {
 	FactoryRuleBadge,
 	type FactoryTone,
 	factoryActivity,
+	factoryAttentionLinks,
 	factoryCurrentAttention,
 	factoryDecisionStyle,
 	factoryNeedsYou,
@@ -538,6 +542,7 @@ function FactoryPage({
 }: Omit<FactoryViewProps, "board"> & { board: FactoryBoardData }) {
 	const { agenda, attention } = board;
 	const tasks = agenda.tasks.filter((task) => task.factory);
+	const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
 	const limits = useFactoryLimits();
 	const [view, setView] = useState<FactoryDestination>(savedDestination);
 	useEffect(() => {
@@ -691,10 +696,13 @@ function FactoryPage({
 	const unreadableTasks = unavailable.filter(
 		(task) => activityOf(task).unreadable !== undefined,
 	);
+	// Furthest along first; a split's parent, which runs nothing, after them.
 	const workingNow = inColumn("Working").sort(
 		(a, b) =>
+			Number(Boolean(activityOf(a).split?.parent)) -
+				Number(Boolean(activityOf(b).split?.parent)) ||
 			FACTORY_STATIONS.indexOf(activityOf(b).station.station) -
-			FACTORY_STATIONS.indexOf(activityOf(a).station.station),
+				FACTORY_STATIONS.indexOf(activityOf(a).station.station),
 	);
 	// A card whose status is not loaded yet waits with the queue, unless it
 	// was already delivered.
@@ -712,7 +720,10 @@ function FactoryPage({
 			: compareFactoryPriority(a, b) ||
 				Number(!a.factoryQueuedAt) - Number(!b.factoryQueuedAt),
 	);
-	const running = workingNow.length;
+	// A split's parent tracks its parts beside running work; it holds no slot.
+	const running = workingNow.filter(
+		(task) => !activityOf(task).split?.parent,
+	).length;
 	const slotsFull = factorySlotsFull(running, limits.limits);
 	// Who is working on each card right now: scoping and plan checks from the
 	// card, build, test and review from the board's active sessions. One
@@ -767,6 +778,7 @@ function FactoryPage({
 		const activity = activityOf(task);
 		if (
 			activity.column === "Queued" &&
+			!activity.split?.waiting &&
 			slotsFull &&
 			factoryWaitingForSlot([task]) > 0
 		)
@@ -1046,7 +1058,7 @@ function FactoryPage({
 				label,
 				detail: activity.station.stopped
 					? stoppedAt(task)
-					: activity.column === "Working"
+					: activity.column === "Working" && !activity.split?.parent
 						? factoryWorkingDetail(
 								FACTORY_LINE.stations[activity.station.station],
 								activity.station.stage ??
@@ -1056,7 +1068,7 @@ function FactoryPage({
 							)
 						: label,
 				tone: activity.tone,
-				working: activity.column === "Working",
+				working: activity.column === "Working" && !activity.split?.parent,
 			};
 		};
 		const railRow = (task: AgendaTaskRecord) => {
@@ -1230,6 +1242,27 @@ function FactoryPage({
 										}
 										onAnswer={attention.answer}
 										unreadable={activityOf(selected).unreadable}
+										limits={limits.limits}
+										split={factorySplitContext(selected, {
+											tasks: tasksById,
+											links: factoryAttentionLinks(
+												currentAttention.get(selected.taskId),
+											),
+											card: (other) => ({
+												activity:
+													activities.get(other.taskId) ??
+													factoryActivity(
+														other,
+														currentAttention.get(other.taskId),
+														{ now },
+													),
+												pullRequestUrl: factoryOutcomeDetails(
+													outcomes.get(other.taskId),
+												).pullRequestUrl,
+												pullRequestOutcome: outcomes.get(other.taskId)
+													?.pullRequestOutcome,
+											}),
+										})}
 									/>
 								</FactoryCardBoundary>
 							) : agenda.isLoading ? (
@@ -1401,6 +1434,12 @@ function FactoryPage({
 	/** What a decision asks, in one line. */
 	const decisionDetail = (task: AgendaTaskRecord) => {
 		const activity = activityOf(task);
+		if (activity.split?.unmerged) return activity.split.unmerged;
+		const breakdown =
+			task.factoryDesignProgress?.revision === task.revision
+				? task.factoryDesignProgress.split
+				: undefined;
+		if (breakdown) return FACTORY_SPLIT.approvalTitle(breakdown.parts.length);
 		const outcome = outcomes.get(task.taskId);
 		const openFindings = factoryOpenFindings(task, outcome);
 		const review = factoryOutcomeDetails(outcome).humanReview;
@@ -1533,6 +1572,9 @@ function FactoryPage({
 		const id = factoryShortId(task);
 		const name = [id, task.title].filter(Boolean).join(" ");
 		const state = activity.station.stopped ? stoppedAt(task) : rowLabel(task);
+		const parent = task.factoryParentTaskId
+			? tasksById.get(task.factoryParentTaskId)
+			: undefined;
 		// Grouped by stage, the column names the stage: no stepper on the card.
 		const stepper = stages && boardView.grouping !== "stage";
 		return (
@@ -1581,6 +1623,19 @@ function FactoryPage({
 						>
 							{id}
 						</span>
+					) : null}
+					{parent ? (
+						// Above the card's button, as the priority icon is.
+						<FactoryParentLink
+							compact
+							parent={{
+								taskId: parent.taskId,
+								shortId: factoryShortId(parent),
+								title: parent.title,
+							}}
+							onOpen={(taskId) => selectTask(taskId, group)}
+							className="relative z-10 shrink-0"
+						/>
 					) : null}
 					{showProject && activity.unreadable === undefined ? (
 						<span
@@ -1712,6 +1767,12 @@ function FactoryPage({
 
 	const workingRow = (task: AgendaTaskRecord) => {
 		const activity = activityOf(task);
+		// A parent only tracks its parts: one quiet line, no stepper or timer.
+		if (activity.split?.parent)
+			return boardCard(task, "working", {
+				icon: <ListTree className="size-3" />,
+				detail: activity.label,
+			});
 		const live =
 			activity.station.stage || activity.station.checks
 				? null
@@ -1780,6 +1841,12 @@ function FactoryPage({
 
 	const deliveredRow = (task: AgendaTaskRecord) => {
 		const activity = activityOf(task);
+		if (activity.split?.parent)
+			return boardCard(task, "delivered", {
+				icon: <ListTree className={cn("size-3", toneText("success"))} />,
+				detail: activity.label,
+				end: formatRelativeTime(task.updatedAt),
+			});
 		const outcome = outcomes.get(task.taskId);
 		const url =
 			factoryOutcomeDetails(outcome).pullRequestUrl ??
@@ -1955,8 +2022,13 @@ function FactoryPage({
 						? "neutral"
 						: (column.tone ?? "neutral")
 				}
-				// Working counts what runs; its queue is counted after the limit.
-				count={items.length + (working ? 0 : queued)}
+				// Working counts what runs (not a split's parent); its queue is
+				// counted after the limit.
+				count={
+					working
+						? items.filter((task) => !activityOf(task).split?.parent).length
+						: items.length + queued
+				}
 				pill={isStatus && column.id === "needsYou" && items.length > 0}
 				countTitle={
 					column.id === "delivered"

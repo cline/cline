@@ -3,6 +3,7 @@ import type {
 	AgendaTaskRunStatus,
 	FactoryCardRunStateFacts,
 	FactoryCardStage,
+	FactoryCardState,
 	FactoryCardStateInput,
 	FactoryCardTaskFacts,
 	FactoryDesignConclusion,
@@ -61,7 +62,8 @@ type FactoryAttentionState = NonNullable<FactoryAttentionRun["factory"]>;
  */
 export type FactoryAttentionReason<Question> =
 	| { kind: "question"; question: Question }
-	| { kind: "rule" | "stopped" | "paused" }
+	/** `breakdown`: scoping split the request into parts for the person to approve. */
+	| { kind: "rule" | "stopped" | "paused" | "breakdown" }
 	/** `blocker` is set when an automatic approval was refused and why. */
 	| { kind: "plan"; blocker?: string }
 	| { kind: "triage"; outcome: FactoryDesignConclusion["outcome"] }
@@ -254,21 +256,62 @@ export function factoryOpenFindings(
 	};
 }
 
+/** The task fields attention reads, as task events and task reads carry them. */
+type FactoryAttentionTask<Question> = FactoryPlanApprovalInput & {
+	status: string;
+	archivedAt?: string;
+	error?: string;
+	updatedAt?: string;
+	currentRunId?: string;
+	lastRunId?: string;
+	factoryQueued?: AgendaTaskRecord["factoryQueued"];
+	factoryQuestions?: Question[];
+};
+
+/**
+ * A split's link facts the host computed from the cards it holds: a parent's
+ * parts' progress and a waiting part's dependency state (the sidecar's
+ * attention sweep; `factoryCardState` reads both).
+ */
+export type FactoryCardLinks = Pick<
+	FactoryCardStateInput,
+	"parts" | "dependency"
+>;
+
+/** Where the card stands, from what attention reads. */
+export function factoryAttentionCard(
+	task: FactoryAttentionTask<unknown>,
+	state: FactoryAttentionState | undefined,
+	runs?: readonly FactoryRetryRun[],
+	links?: FactoryCardLinks,
+): FactoryCardState {
+	const current = runs?.find(
+		(run) => run.runId === (task.currentRunId ?? task.lastRunId),
+	);
+	return factoryCardState({
+		// Task events and task reads carry the stored record.
+		task: task as FactoryCardTaskFacts,
+		planApprovable: factoryPlanReady(task),
+		...(state
+			? {
+					lastRun: {
+						status: (current?.status ?? "running") as AgendaTaskRunStatus,
+						createdAt: current?.createdAt,
+						factory: state as FactoryCardRunStateFacts,
+					},
+				}
+			: {}),
+		...links,
+	});
+}
+
 export function factoryAttentionReasons<
 	Question extends { status: string; revision: number },
 >(
-	task: FactoryPlanApprovalInput & {
-		status: string;
-		archivedAt?: string;
-		error?: string;
-		updatedAt?: string;
-		currentRunId?: string;
-		lastRunId?: string;
-		factoryQueued?: AgendaTaskRecord["factoryQueued"];
-		factoryQuestions?: Question[];
-	},
+	task: FactoryAttentionTask<Question>,
 	state: FactoryAttentionState | undefined,
 	runs?: readonly FactoryRetryRun[],
+	links?: FactoryCardLinks,
 ): FactoryAttentionReason<Question>[] {
 	if (
 		task.archivedAt ||
@@ -289,26 +332,12 @@ export function factoryAttentionReasons<
 		);
 	// Where the card stands and whether it waits on the person come from
 	// factoryCardState; the reasons below only add what each surface shows.
-	const current = runs?.find(
-		(run) => run.runId === (task.currentRunId ?? task.lastRunId),
-	);
-	const card = factoryCardState({
-		// Task events and task reads carry the stored record.
-		task: task as FactoryCardTaskFacts,
-		planApprovable: factoryPlanReady(task),
-		...(state
-			? {
-					lastRun: {
-						status: (current?.status ?? "running") as AgendaTaskRunStatus,
-						createdAt: current?.createdAt,
-						factory: state as FactoryCardRunStateFacts,
-					},
-				}
-			: {}),
-	});
+	const card = factoryAttentionCard(task, state, runs, links);
 	const openFindings = factoryOpenFindings(task, state);
 	// A note on a delivery is not a decision; a rule proposed from it is.
 	if (card.reasonCode === "rule_proposed") reasons.push({ kind: "rule" });
+	else if (card.reasonCode === "split_approval")
+		reasons.push({ kind: "breakdown" });
 	else if (openFindings) {
 		// The draft PR is ready for a person until they mark it reviewed.
 		if (card.waitingOn === "person")
@@ -354,7 +383,11 @@ export function factoryAttentionReasons<
 	// plan is not offered for approval beside it.
 	const conclusion = currentFactoryConclusion(task);
 	if (conclusion) reasons.push({ kind: "triage", outcome: conclusion.outcome });
-	else if (card.kind === "awaiting_approval" && card.waitingOn === "person") {
+	else if (
+		card.kind === "awaiting_approval" &&
+		card.waitingOn === "person" &&
+		card.reasonCode !== "split_approval"
+	) {
 		// Why it cannot be approved as it is, when it cannot.
 		const blocker =
 			factoryAutoApprovalBlocker(task) ?? factoryPlanApprovalBlocker(task);
@@ -707,6 +740,7 @@ type FactoryStationTask = FactoryCardTaskFacts &
 export function factoryCardInput(
 	task: FactoryCardTaskFacts & Partial<Pick<AgendaTaskRecord, "instructions">>,
 	outcome: FactoryStationOutcome | undefined,
+	links?: FactoryCardLinks,
 ): FactoryCardStateInput {
 	const design =
 		task.factoryDesignProgress?.revision === task.revision
@@ -741,6 +775,7 @@ export function factoryCardInput(
 		...(hasPlanApprovalInput(task)
 			? { planApprovable: factoryPlanReady(task) }
 			: {}),
+		...links,
 	};
 }
 
@@ -773,10 +808,10 @@ function sameLocalDay(iso: string | undefined, now: Date): boolean {
 export function factoryStation(
 	task: FactoryStationTask,
 	outcome: FactoryStationOutcome | undefined,
-	{ now = new Date() }: { now?: Date } = {},
+	{ now = new Date(), links }: { now?: Date; links?: FactoryCardLinks } = {},
 ): FactoryStationState {
 	const card = factoryCardState(
-		factoryCardInput({ ...task, archivedAt: undefined }, outcome),
+		factoryCardInput({ ...task, archivedAt: undefined }, outcome, links),
 	);
 	// The automatic retry builds again. Only the card's runs tell it from a
 	// stop or an unqueued card (factoryAutoRetrying); the sidecar says so.

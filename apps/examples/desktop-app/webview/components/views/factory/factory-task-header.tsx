@@ -26,6 +26,7 @@ import {
 	FolderGit2,
 	GitPullRequest,
 	HelpCircle,
+	ListTree,
 	Loader2,
 	MoreHorizontal,
 	PauseCircle,
@@ -91,6 +92,7 @@ import {
 	FACTORY_RECOVERY,
 	FACTORY_RULE_CARD,
 	FACTORY_SCOPE_ROUTE,
+	FACTORY_SPLIT,
 	FACTORY_STAGES,
 	factoryPullRequestActionLabel,
 	factoryReviewRequest,
@@ -106,6 +108,7 @@ import {
 	FactoryLiveLine,
 	type FactoryLiveSession,
 } from "./factory-live";
+import { FactoryParentLink, type FactorySplitContext } from "./factory-split";
 import {
 	FactoryIdChip,
 	FactoryPriorityGlyph,
@@ -372,6 +375,14 @@ type Summary = {
 	question?: boolean;
 	/** A rule Factory proposed from the person's note waits for them. */
 	rule?: boolean;
+	/** A split's parent: its parts do the work. */
+	parent?: boolean;
+	/** Scoping split the request; the breakdown waits for the person. */
+	breakdown?: boolean;
+	/** A part waiting for earlier parts' pull requests to be merged. */
+	waitingPart?: boolean;
+	/** A part whose earlier part will never merge: Start anyway, or cancel. */
+	startAnyway?: boolean;
 };
 
 /**
@@ -443,6 +454,8 @@ function summarize(
 	card: FactoryCardState,
 	/** Scoping asked the person a question and waits for the answer. */
 	waitingForAnswer = false,
+	/** Why an earlier part of a split will never merge. */
+	unmergedReason?: string,
 ): Summary {
 	if (task.archivedAt)
 		return {
@@ -458,6 +471,58 @@ function summarize(
 			headline: task.status === "cancelled" ? "Cancelled" : "Expired",
 			stage: undefined,
 		};
+	switch (card.reasonCode) {
+		// A parent's page lists its parts instead of the stage line.
+		case "tracking":
+		case "parts_delivered":
+			return {
+				tone: card.reasonCode === "tracking" ? "neutral" : "success",
+				icon: ListTree,
+				headline:
+					card.reasonCode === "tracking"
+						? FACTORY_SPLIT.parentHeadline(
+								task.factorySplit?.parts.filter((item) => !item.omitted)
+									.length ?? 0,
+							)
+						: FACTORY_SPLIT.parentDone,
+				stage: undefined,
+				parent: true,
+			};
+		case "parts_closed":
+			return {
+				tone: "neutral",
+				icon: CircleSlash,
+				// The parts list below gives the numbers.
+				headline: FACTORY_SPLIT.parentClosed,
+				stage: undefined,
+				parent: true,
+			};
+		case "split_approval":
+			return {
+				tone: "accent",
+				icon: ListTree,
+				headline: FACTORY_SPLIT.approvalHeadline,
+				stage: "approve",
+				breakdown: true,
+			};
+		case "waiting_on_card":
+			return {
+				tone: "neutral",
+				icon: Clock,
+				headline: card.reasonText ?? FACTORY_ACTIVITY.waitingToStart,
+				stage: "scope",
+				waitingPart: true,
+			};
+		case "dependency_unavailable":
+			return {
+				tone: "attention",
+				icon: AlertTriangle,
+				// The engine's reason alone: the next line says what to do.
+				headline: unmergedReason ?? "",
+				stage: "scope",
+				startAnyway: true,
+			};
+	}
 	const executionStage: FactoryStageKey = state
 		? factoryExecutionStage(state, task.error)
 		: "build";
@@ -724,10 +789,13 @@ function nextActionSentence({
 	accept,
 	delivery,
 	approvalReason,
+	waitingFor,
 }: {
 	task: AgendaTaskRecord;
 	state: FactoryRunState | undefined;
 	summary: Summary;
+	/** The earlier parts a waiting part needs merged, by short id. */
+	waitingFor?: string[];
 	executionTask: boolean;
 	runs: readonly FactoryRetryRun[] | undefined;
 	openFindings: number | undefined;
@@ -743,6 +811,11 @@ function nextActionSentence({
 	if (task.archivedAt) return "Restore this task to continue.";
 	if (task.status === "cancelled" || task.status === "expired")
 		return "This task is closed. Create a new task for further changes.";
+	if (summary.parent) return FACTORY_SPLIT.parentNext;
+	if (summary.breakdown) return FACTORY_SPLIT.approvalNext;
+	if (summary.waitingPart && waitingFor?.length)
+		return FACTORY_SPLIT.waitingNext(waitingFor);
+	if (summary.startAnyway) return FACTORY_SPLIT.unmergedNext;
 	if (state?.humanApproval) return FACTORY_CARD_ACTION.reviewed;
 	if (openFindings !== undefined)
 		return FACTORY_OPEN_FINDINGS.next(openFindings);
@@ -897,6 +970,8 @@ export function FactoryTaskHeader({
 	waitingForAnswer = false,
 	onReviewRule,
 	onOpenCard,
+	split,
+	onStartAnyway,
 }: {
 	/**
 	 * The card page shows the header in two places: the title row (id,
@@ -970,6 +1045,10 @@ export function FactoryTaskHeader({
 	onReviewRule?: () => void;
 	/** Opens another card (a related card's link). */
 	onOpenCard?: (taskId: string) => void;
+	/** A split's parent or part: its links, parent and earlier parts. */
+	split?: FactorySplitContext;
+	/** A part whose earlier part will never merge starts now. */
+	onStartAnyway?: () => void;
 }) {
 	const [deleting, setDeleting] = useState(false);
 	const [confirming, setConfirming] = useState<"stop" | "archive" | null>(null);
@@ -995,6 +1074,8 @@ export function FactoryTaskHeader({
 				activeSessions: activeFactorySessions(runState.attempts),
 			}
 		: undefined;
+	const links = split?.links;
+	const card = factoryCardState(factoryCardInput(task, stationOutcome, links));
 	const summary = summarize(
 		task,
 		runState,
@@ -1008,14 +1089,17 @@ export function FactoryTaskHeader({
 			: failure?.planFault
 				? "retry"
 				: undefined,
-		factoryCardState(factoryCardInput(task, stationOutcome)),
+		card,
 		waitingForAnswer,
+		links?.dependency?.state === "unavailable"
+			? links.dependency.reason
+			: undefined,
 	);
 	// Where the card is on the line, in the home's vocabulary and component.
 	const stations =
 		summary.stage === undefined
 			? undefined
-			: factoryCardStations(factoryStation(task, stationOutcome));
+			: factoryCardStations(factoryStation(task, stationOutcome, { links }));
 	const nextAction = nextActionSentence({
 		task,
 		state,
@@ -1029,6 +1113,7 @@ export function FactoryTaskHeader({
 		accept,
 		delivery,
 		approvalReason,
+		waitingFor: card.waitingFor,
 	});
 	const source = task.factory?.sourceIssue;
 	const liveSessions = live?.sessions ?? [];
@@ -1096,6 +1181,9 @@ export function FactoryTaskHeader({
 							</span>
 							<span className="sr-only">{task.workspaceRoot}</span>
 						</span>
+						{split?.parent ? (
+							<FactoryParentLink parent={split.parent} onOpen={onOpenCard} />
+						) : null}
 						<FactoryPriorityControl task={task} />
 						{source ? (
 							<Button
@@ -1148,7 +1236,9 @@ export function FactoryTaskHeader({
 						) : null}
 						{onStop ? (
 							<DropdownMenuItem onSelect={() => setConfirming("stop")}>
-								Stop this work…
+								{summary.startAnyway
+									? FACTORY_SPLIT.cancelPart
+									: "Stop this work…"}
 							</DropdownMenuItem>
 						) : null}
 						<DropdownMenuItem
@@ -1184,21 +1274,32 @@ export function FactoryTaskHeader({
 						<AlertDialogTitle>
 							{confirming === "archive"
 								? "Stop this work and archive it?"
-								: "Stop this work?"}
+								: summary.startAnyway
+									? FACTORY_SPLIT.cancelPartTitle
+									: "Stop this work?"}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
-							The running agents stop now. Changes made so far stay on the
-							feature branch, and you can start again later.
+							{summary.startAnyway && confirming === "stop"
+								? FACTORY_SPLIT.cancelPartDescription
+								: "The running agents stop now. Changes made so far stay on the feature branch, and you can start again later."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Keep working</AlertDialogCancel>
+						<AlertDialogCancel>
+							{summary.startAnyway && confirming === "stop"
+								? FACTORY_SPLIT.keepPart
+								: "Keep working"}
+						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() =>
 								confirming === "archive" ? onArchive() : onStop?.()
 							}
 						>
-							{confirming === "archive" ? "Stop and archive" : "Stop work"}
+							{confirming === "archive"
+								? "Stop and archive"
+								: summary.startAnyway
+									? FACTORY_SPLIT.cancelPartConfirm
+									: "Stop work"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -1268,6 +1369,28 @@ export function FactoryTaskHeader({
 						{nextLine ? (
 							<p className="text-sm text-muted-foreground">{nextLine}</p>
 						) : null}
+						{summary.waitingPart || summary.startAnyway
+							? split?.waitingOn?.flatMap((other) =>
+									other.pullRequestUrl ? (
+										<Button
+											key={other.taskId}
+											variant="link"
+											className="mr-3 h-auto p-0 text-sm has-[>svg]:px-0"
+											onClick={() =>
+												other.pullRequestUrl &&
+												void openExternalUrl(other.pullRequestUrl)
+											}
+										>
+											{FACTORY_SPLIT.openPullRequest(
+												other.shortId ?? other.title,
+											)}
+											<ArrowUpRight className="ml-1 size-3" />
+										</Button>
+									) : (
+										[]
+									),
+								)
+							: null}
 						{openFindings && summary.warning && !findingsShownElsewhere ? (
 							<FactoryFindingList findings={openFindings.findings} />
 						) : null}
@@ -1298,6 +1421,7 @@ export function FactoryTaskHeader({
 							pullRequestLabel={factoryPullRequestActionLabel(state)}
 							delivery={delivery}
 							onReviewRule={summary.rule ? onReviewRule : undefined}
+							onStartAnyway={summary.startAnyway ? onStartAnyway : undefined}
 						/>
 					</div>
 				</div>
@@ -1435,6 +1559,7 @@ function CardActions({
 	pullRequestLabel,
 	delivery,
 	onReviewRule,
+	onStartAnyway,
 }: {
 	busy: boolean;
 	summary: Summary;
@@ -1449,6 +1574,7 @@ function CardActions({
 	pullRequestLabel: string;
 	delivery?: { onViewChanges?: () => void };
 	onReviewRule?: () => void;
+	onStartAnyway?: () => void;
 }) {
 	const openPr = (primary: boolean) =>
 		pullRequestUrl ? (
@@ -1512,7 +1638,13 @@ function CardActions({
 		);
 		const pr = openPr(false);
 		if (pr) secondary.push(<span key="pr">{pr}</span>);
-	} else if (summary.notStarted && onStart)
+	} else if (onStartAnyway)
+		primary = (
+			<Button size="sm" disabled={busy} onClick={onStartAnyway}>
+				{FACTORY_SPLIT.startAnyway}
+			</Button>
+		);
+	else if (summary.notStarted && onStart)
 		primary = (
 			<Button size="sm" disabled={busy} onClick={onStart}>
 				{startLabel}

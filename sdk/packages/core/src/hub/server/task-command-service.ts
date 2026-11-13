@@ -74,6 +74,10 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.factory.design",
 	"task.factory.watch",
 	"task.factory.priority",
+	"task.factory.split.approve",
+	"task.factory.split.keep",
+	"task.factory.parts.cancel",
+	"task.factory.part.start",
 	"task.factory.replay",
 	"task.factory.defaults.get",
 	"task.factory.defaults.set",
@@ -153,9 +157,11 @@ export class HubAgendaTaskCommandService {
 						allWorkspaces && typeof payload.workspaceRoot === "string"
 							? resolve(payload.workspaceRoot)
 							: authorizedWorkspace;
+					// Only approving a breakdown creates a part.
 					const {
 						allowDuplicate: rawAllowDuplicate,
 						allWorkspaces: _allWorkspaces,
+						factoryParentTaskId: _parent,
 						...fields
 					} = payload;
 					const allowDuplicate = z
@@ -437,6 +443,73 @@ export class HubAgendaTaskCommandService {
 						),
 					});
 				}
+				// Approving a breakdown, cancelling a parent's remaining parts and
+				// starting a waiting part anyway are a person's decisions in the
+				// app: trusted local clients only, and no tool reaches them.
+				case "task.factory.split.approve": {
+					if (authority?.crossWorkspace !== true)
+						throw new Error(
+							"Approving a breakdown requires an authenticated local client",
+						);
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.approveFactorySplit)
+						throw new Error("Splitting Factory work is unavailable");
+					const omit = z
+						.array(z.number().int().nonnegative())
+						.max(20)
+						.optional()
+						.parse(payload.omit);
+					return okReply(
+						envelope,
+						await this.tasks.approveFactorySplit(
+							taskIdOf(payload),
+							requiredRevision(payload),
+							actor,
+							omit,
+						),
+					);
+				}
+				case "task.factory.split.keep": {
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.keepFactoryCardWhole)
+						throw new Error("Splitting Factory work is unavailable");
+					return okReply(envelope, {
+						task: await this.tasks.keepFactoryCardWhole(
+							taskIdOf(payload),
+							requiredRevision(payload),
+							actor,
+						),
+					});
+				}
+				case "task.factory.parts.cancel": {
+					if (authority?.crossWorkspace !== true)
+						throw new Error(
+							"Cancelling a card's parts requires an authenticated local client",
+						);
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.cancelFactoryParts)
+						throw new Error("Splitting Factory work is unavailable");
+					return okReply(
+						envelope,
+						await this.tasks.cancelFactoryParts(taskIdOf(payload), actor),
+					);
+				}
+				case "task.factory.part.start": {
+					if (authority?.crossWorkspace !== true)
+						throw new Error(
+							"Starting a waiting part requires an authenticated local client",
+						);
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.startFactoryPartAnyway)
+						throw new Error("Splitting Factory work is unavailable");
+					return okReply(envelope, {
+						task: await this.tasks.startFactoryPartAnyway(
+							taskIdOf(payload),
+							requiredRevision(payload),
+							actor,
+						),
+					});
+				}
 				case "task.factory.start": {
 					const entries = z
 						.array(
@@ -517,6 +590,7 @@ export class HubAgendaTaskCommandService {
 						paused,
 						...(await this.factorySpending()),
 						duplicateCheck: await this.factoryDuplicateCheck(),
+						...(await this.factorySplitSettings()),
 					});
 				}
 				case "task.factory.limits.set": {
@@ -537,14 +611,26 @@ export class HubAgendaTaskCommandService {
 						.boolean()
 						.optional()
 						.parse(payload.duplicateCheck);
+					const requestedSplit = z
+						.boolean()
+						.optional()
+						.parse(payload.splitLargeWork);
 					const requestedConcurrency =
 						payload.concurrency !== undefined ||
 						(requestedPause === undefined &&
 							requestedDaily === undefined &&
-							requestedDuplicateCheck === undefined)
+							requestedDuplicateCheck === undefined &&
+							requestedSplit === undefined)
 							? parseFactoryConcurrency(payload.concurrency)
 							: undefined;
 					const store = this.requireFactoryDefaults();
+					if (requestedSplit !== undefined) {
+						if (!store.setSplitLargeWork)
+							throw new Error("The Factory split setting is unavailable");
+						this.tasks.setFactorySplitLargeWork?.(
+							await store.setSplitLargeWork(requestedSplit),
+						);
+					}
 					if (requestedDuplicateCheck !== undefined) {
 						if (!store.setDuplicateCheck)
 							throw new Error(
@@ -582,6 +668,7 @@ export class HubAgendaTaskCommandService {
 						paused,
 						...(await this.factorySpending()),
 						duplicateCheck: await this.factoryDuplicateCheck(),
+						...(await this.factorySplitSettings()),
 					});
 				}
 				case "task.factory.stages.get": {
@@ -655,6 +742,23 @@ export class HubAgendaTaskCommandService {
 				error instanceof Error ? error.message : String(error),
 			);
 		}
+	}
+
+	/** Whether scoping may split large work (on unless turned off), and how it went. */
+	private async factorySplitSettings(): Promise<{
+		splitLargeWork: boolean;
+		splitCounts?: ReturnType<
+			NonNullable<AgendaTaskManagerApi["getFactorySplitCounts"]>
+		>;
+	}> {
+		const splitCounts = this.tasks.getFactorySplitCounts?.();
+		return {
+			splitLargeWork:
+				this.tasks.getFactorySplitLargeWork?.() ??
+				(await this.requireFactoryDefaults().getSplitLargeWork?.()) ??
+				true,
+			...(splitCounts ? { splitCounts } : {}),
+		};
 	}
 
 	/** Whether new filings are checked for duplicates (on unless turned off). */

@@ -14,6 +14,11 @@ import {
 	factoryWatchesPullRequest,
 	isFactoryHandsOff,
 } from "./factory";
+import {
+	type FactoryDependencyState,
+	type FactoryPartsSummary,
+	factoryCardList,
+} from "./factory-split";
 import type { AgendaTaskRecord, AgendaTaskRunStatus } from "./tasks";
 
 /**
@@ -40,6 +45,8 @@ export const FACTORY_CARD_KINDS = [
 	"closed",
 	"not_started",
 	"archived",
+	/** A split's parent: its parts do the work; it only tracks them. */
+	"tracking",
 ] as const;
 export type FactoryCardKind = (typeof FACTORY_CARD_KINDS)[number];
 
@@ -49,9 +56,15 @@ export type FactoryCardKind = (typeof FACTORY_CARD_KINDS)[number];
  * plan that cannot be approved; not a decision Factory asks for), or the
  * person's decision. `person` is the desktop's
  * "Needs you": an unrated delivery or an open draft PR without a required
- * stamp never is, because feedback is optional.
+ * stamp never is, because feedback is optional. `card`: a split's part
+ * waits for an earlier part's pull request to be merged.
  */
-export type FactoryCardWaitingOn = "nobody" | "slot" | "start" | "person";
+export type FactoryCardWaitingOn =
+	| "nobody"
+	| "slot"
+	| "start"
+	| "person"
+	| "card";
 
 /**
  * Why a card is where it is. Error-text prefixes recorded on the task (and
@@ -78,6 +91,18 @@ export const FACTORY_CARD_REASON_CODES = [
 	"plan_held",
 	/** The designer concluded nothing needs building; a person confirms it. */
 	"conclusion",
+	/** Scoping split the request into parts; a person approves the breakdown. */
+	"split_approval",
+	/** A split's parent while some part is still open. */
+	"tracking",
+	/** A split's parent once every part is delivered or closed, at least one delivered. */
+	"parts_delivered",
+	/** A split's parent once every part is closed and none was delivered. */
+	"parts_closed",
+	/** A part waits for an earlier part's pull request to be merged. */
+	"waiting_on_card",
+	/** An earlier part will never merge; the person starts this one anyway or cancels it. */
+	"dependency_unavailable",
 	/** A delivered result needs a person's stamp. */
 	"review_required",
 	/** A draft PR is open, without a required stamp; Factory does nothing more. */
@@ -164,6 +189,10 @@ export interface FactoryCardState {
 		/** What became of the draft PR once it closed. */
 		outcome?: "merged" | "closed";
 	};
+	/** A split's parent: its parts' progress, when the host passed it. */
+	parts?: FactoryPartsSummary;
+	/** A waiting part: the earlier parts it waits for, by short id. */
+	waitingFor?: string[];
 }
 
 /** The task fields the derivation reads; an `AgendaTaskRecord` fits. */
@@ -180,6 +209,7 @@ export type FactoryCardTaskFacts = Pick<
 			| "factoryQueued"
 			| "workspaceRoot"
 			| "lastRunId"
+			| "factorySplit"
 		>
 	> & {
 		factory?: Partial<
@@ -204,6 +234,7 @@ export type FactoryCardTaskFacts = Pick<
 			revision: number;
 			phase: "designing" | "reviewing" | "complete";
 			conclusion?: { outcome: string; rationale?: string };
+			split?: { parts: readonly unknown[] };
 		};
 		factoryQuestions?: readonly {
 			status: string;
@@ -276,6 +307,16 @@ export interface FactoryCardStateInput {
 	 * to revise it rather than for a decision.
 	 */
 	planApprovable?: boolean;
+	/**
+	 * A split's parent: `factoryPartsSummary` of its parts' states. Without
+	 * it a parent reads as tracking, with no numbers.
+	 */
+	parts?: FactoryPartsSummary;
+	/**
+	 * A split's part that waits for earlier parts: `factoryDependencyState`
+	 * of its links. Absent or `ready`: it starts like any card.
+	 */
+	dependency?: FactoryDependencyState;
 }
 
 const REASON_TEXT_CHARS = 200;
@@ -342,7 +383,12 @@ type Fields = Pick<FactoryCardState, "kind" | "waitingOn" | "reasonCode"> &
 	Partial<
 		Pick<
 			FactoryCardState,
-			"reasonText" | "planHold" | "activeStage" | "deliverable"
+			| "reasonText"
+			| "planHold"
+			| "activeStage"
+			| "deliverable"
+			| "parts"
+			| "waitingFor"
 		>
 	>;
 
@@ -362,7 +408,12 @@ export function factoryCardState(
 	const state = deriveFactoryCardState(input);
 	if (!input.task.archivedAt) return state;
 	// Archived cards keep their stage; nothing waits on them.
-	const { reasonText: _text, planHold: _hold, ...rest } = state;
+	const {
+		reasonText: _text,
+		planHold: _hold,
+		waitingFor: _waiting,
+		...rest
+	} = state;
 	return {
 		...rest,
 		kind: "archived",
@@ -376,6 +427,8 @@ function deriveFactoryCardState({
 	lastRun,
 	live = {},
 	planApprovable,
+	parts,
+	dependency,
 }: FactoryCardStateInput): FactoryCardState {
 	const run =
 		lastRun &&
@@ -448,6 +501,8 @@ function deriveFactoryCardState({
 			planHold,
 			activeStage: stage,
 			deliverable: output,
+			parts: progress,
+			waitingFor,
 		} = fields;
 		return {
 			kind: fields.kind,
@@ -461,6 +516,8 @@ function deriveFactoryCardState({
 			...(stage ? { activeStage: stage } : {}),
 			...(state?.audit?.finding ? { flagged: true as const } : {}),
 			...(output ? { deliverable: output } : {}),
+			...(progress ? { parts: progress } : {}),
+			...(waitingFor?.length ? { waitingFor } : {}),
 		};
 	};
 
@@ -597,6 +654,45 @@ function deriveFactoryCardState({
 			{ stage: autoRetry ? "build" : "waiting" },
 		);
 	};
+
+	// A split's parent never builds: its parts do. Settled once every part
+	// exists (or the rest were cancelled) and is delivered or closed; nothing
+	// waits on it either way.
+	if (task.factorySplit) {
+		const settled =
+			parts?.open === 0 &&
+			Boolean(task.factorySplit.createdAt || task.factorySplit.cancelledAt);
+		if (!parts || !settled)
+			return make(
+				{
+					kind: "tracking",
+					waitingOn: "nobody",
+					reasonCode: "tracking",
+					parts,
+				},
+				{ stage: "build" },
+			);
+		return parts.delivered
+			? make(
+					{
+						kind: "delivered",
+						waitingOn: "nobody",
+						reasonCode: "parts_delivered",
+						parts,
+					},
+					{ stage: "delivered" },
+				)
+			: make(
+					{
+						kind: "closed",
+						waitingOn: "nobody",
+						reasonCode: "parts_closed",
+						reasonText: `0 of ${parts.total} delivered, ${parts.closed} closed`,
+						parts,
+					},
+					{ stage: "build" },
+				);
+	}
 
 	// Closed cards: where they were, not stopped.
 	if (task.status === "cancelled" || task.status === "expired")
@@ -764,12 +860,45 @@ function deriveFactoryCardState({
 			{ stage: "scope" },
 		);
 
+	// A breakdown waits for a person, never for automatic approval.
+	if (design?.phase === "complete" && design.split)
+		return make(
+			{
+				kind: "awaiting_approval",
+				waitingOn: "person",
+				reasonCode: "split_approval",
+				reasonText: `Split into ${design.split.parts.length} parts`,
+			},
+			{ stage: "scope" },
+		);
+
 	if (task.status === "approved") return queued ? waitInQueue() : notStarted();
 
 	// pending_approval
 	if (task.factory?.hold && !design)
 		return make(
 			{ kind: "held", waitingOn: "start", reasonCode: "held" },
+			{ stage: "waiting" },
+		);
+	// A part that waits for earlier parts' merges has not started scoping;
+	// it keeps its place in the queue and holds no slot.
+	if (!design && !working && dependency && dependency.state !== "ready")
+		return make(
+			dependency.state === "waiting"
+				? {
+						kind: "queued",
+						waitingOn: "card",
+						reasonCode: "waiting_on_card",
+						reasonText: `Waiting for ${factoryCardList(dependency.on)} to merge`,
+						waitingFor: dependency.on,
+					}
+				: {
+						kind: "queued",
+						waitingOn: "person",
+						reasonCode: "dependency_unavailable",
+						reasonText: `${dependency.reason}. Start anyway or cancel.`,
+						waitingFor: dependency.on,
+					},
 			{ stage: "waiting" },
 		);
 	if (question)
@@ -860,6 +989,8 @@ export function factoryNeedsYouUrgency(
 			return 1;
 		case "awaiting_approval":
 		case "concluded":
+		// A part whose earlier part will never merge: start it anyway or cancel.
+		case "queued":
 			return 2;
 		default:
 			return card.reasonCode === "rule_proposed" ? 4 : 3;

@@ -172,6 +172,7 @@ async function render(
 	value: AgendaTaskRecord,
 	questions: ComponentProps<typeof FeatureDetail>["questions"] = [],
 	unreadable?: string,
+	extra: Pick<ComponentProps<typeof FeatureDetail>, "split" | "limits"> = {},
 ) {
 	await act(async () =>
 		root.render(
@@ -185,6 +186,7 @@ async function render(
 				questions={questions}
 				onAnswer={vi.fn(async () => {})}
 				unreadable={unreadable}
+				{...extra}
 			/>,
 		),
 	);
@@ -3522,6 +3524,262 @@ describe("feedback analysis on a delivered card", () => {
 			expect(field).toBeInstanceOf(HTMLTextAreaElement);
 			expect((field as HTMLTextAreaElement).value).toBe(note);
 			expect(rowButtons()).toContain("Something's off…");
+		});
+	});
+});
+
+describe("a split", () => {
+	const breakdown = {
+		...task,
+		status: "pending_approval" as const,
+		factory: task.factory && {
+			...task.factory,
+			publishPullRequest: true,
+			maxCostUsd: 5,
+		},
+		factoryDesignProgress: factoryDesignProgressSchema.parse({
+			revision: 1,
+			repairRound: 0,
+			phase: "complete",
+			agents: { designer: {}, planReviewers: [], reviewers: [{}] },
+			designerSessionId: "designer",
+			reviewerSessions: [],
+			reviews: [],
+			findings: [],
+			split: {
+				rationale: "Export, linking and the footer change separately.",
+				goal: "Export and link activity",
+				parts: [
+					{
+						title: "Add CSV export",
+						brief: "Export as CSV.",
+						paths: ["src/export"],
+					},
+					{
+						title: "Link the export",
+						brief: "Link it from reports.",
+						paths: ["src/reports"],
+						dependsOn: [0],
+					},
+					{
+						title: "Tidy the footer",
+						brief: "Tidy it.",
+						paths: ["src/footer"],
+					},
+				],
+			},
+		}),
+	};
+	const limits = {
+		supported: true as const,
+		concurrency: 1,
+		dailyCostUsd: 50,
+		spentTodayUsd: 42,
+	};
+	const commandsSent = (command: string) =>
+		(mocks.invoke.mock.calls as unknown[][]).filter(
+			([name]) => name === command,
+		);
+
+	it("offers one Approve breakdown and one Keep as one card, with the engine's facts for the kept parts, and approves them", async () => {
+		mocks.invoke.mockResolvedValue({});
+		await render(breakdown, [], undefined, { limits });
+		const block = document.querySelector("[data-factory-breakdown]");
+		expect(block?.textContent).toContain(
+			"Creates 3 cards, each opening its own draft PR (3 draft PRs).",
+		);
+		// The order is said once, on the part that waits.
+		expect(block?.textContent?.match(/starts after/gi)).toHaveLength(1);
+		expect(block?.textContent).toContain(
+			"Starts after you merge part 1's pull request.",
+		);
+		const labels = [...document.querySelectorAll("button")].map((item) =>
+			item.textContent?.trim(),
+		);
+		expect(
+			labels.filter((label) => label === "Approve breakdown"),
+		).toHaveLength(1);
+		expect(labels.filter((label) => label === "Keep as one card")).toHaveLength(
+			1,
+		);
+		expect(labels).not.toContain("Approve and run");
+		await act(async () =>
+			(
+				document.querySelector(
+					'[aria-label="Include part 3: Tidy the footer"]',
+				) as HTMLElement
+			).click(),
+		);
+		const facts = document.querySelector("[data-factory-breakdown-facts]");
+		expect(facts?.textContent).toContain("(2 draft PRs)");
+		expect(facts?.textContent).toContain(
+			"Spends at most 2 × $5.00 = $10.00 ($8.00 of today's budget left).",
+		);
+		await act(async () => button("Approve breakdown").click());
+		expect(commandsSent("task.factory.split.approve")).toEqual([
+			[
+				"task.factory.split.approve",
+				{
+					taskId: task.taskId,
+					allWorkspaces: true,
+					expectedRevision: task.revision,
+					omit: [2],
+				},
+			],
+		]);
+	});
+
+	it("disables the breakdown's controls while a decision is pending and shows the Hub's refusal of either", async () => {
+		let refuse: (error: Error) => void = () => {};
+		mocks.invoke.mockImplementation(async (command: string) => {
+			if (command === "task.factory.split.approve")
+				return new Promise((_resolve, reject) => {
+					refuse = reject;
+				});
+			if (command === "task.factory.split.keep")
+				throw new Error("This card has no breakdown waiting for a decision.");
+			return {};
+		});
+		await render(breakdown);
+		await act(async () => button("Approve breakdown").click());
+		expect(button("Approve breakdown").hasAttribute("disabled")).toBe(true);
+		expect(button("Keep as one card").hasAttribute("disabled")).toBe(true);
+		await act(async () =>
+			refuse(
+				new Error("Part 2 waits for part 1; keep part 1 or leave both out."),
+			),
+		);
+		expect(document.body.textContent).toContain(
+			"Part 2 waits for part 1; keep part 1 or leave both out.",
+		);
+		expect(button("Approve breakdown").hasAttribute("disabled")).toBe(false);
+		await act(async () => button("Keep as one card").click());
+		expect(document.body.textContent).toContain(
+			"This card has no breakdown waiting for a decision.",
+		);
+	});
+
+	it("lists a parent's parts and cancels the remaining ones only after confirmation", async () => {
+		await render({ ...task, status: "completed" }, [], undefined, {
+			split: {
+				links: {
+					parts: {
+						total: 2,
+						delivered: 1,
+						merged: 0,
+						open: 1,
+						needsYou: 0,
+						stopped: 0,
+						closed: 0,
+					},
+				},
+				parts: [
+					{
+						number: 1,
+						title: "Add CSV export",
+						card: {
+							taskId: "p1",
+							shortId: "F41",
+							title: "Add CSV export",
+							label: "Draft PR ready",
+							tone: "success",
+							pullRequestUrl: "https://github.com/o/r/pull/41",
+						},
+					},
+					{
+						number: 2,
+						title: "Link the export",
+						card: {
+							taskId: "p2",
+							shortId: "F42",
+							title: "Link the export",
+							label: "Waiting for F41 to merge",
+							tone: "neutral",
+						},
+					},
+				],
+			},
+		});
+		const parts = document.querySelector("[data-factory-parts]");
+		expect(parts?.textContent).toContain("Waiting for F41 to merge");
+		await act(async () => button("Open PR").click());
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://github.com/o/r/pull/41",
+		);
+		await act(async () => button("Cancel remaining parts").click());
+		await act(async () => button("Keep parts").click());
+		expect(commandsSent("task.factory.parts.cancel")).toEqual([]);
+		await act(async () => button("Cancel remaining parts").click());
+		await act(async () => button("Cancel parts").click());
+		expect(commandsSent("task.factory.parts.cancel")).toEqual([
+			[
+				"task.factory.parts.cancel",
+				{ taskId: task.taskId, allWorkspaces: true },
+			],
+		]);
+	});
+
+	it("offers Start anyway and cancelling for a part whose earlier part will never merge", async () => {
+		await render(
+			{
+				...task,
+				status: "pending_approval",
+				factoryParentTaskId: "parent",
+				factoryBlockedBy: { taskIds: ["p1"], met: {} },
+			},
+			[],
+			undefined,
+			{
+				split: {
+					links: {
+						dependency: {
+							state: "unavailable",
+							on: ["F41"],
+							reason: "F41 was closed without merging",
+						},
+					},
+					parent: {
+						taskId: "parent",
+						shortId: "F40",
+						title: "Export activity",
+					},
+					waitingOn: [
+						{
+							taskId: "p1",
+							shortId: "F41",
+							title: "Add CSV export",
+							pullRequestUrl: "https://github.com/o/r/pull/41",
+						},
+					],
+				},
+			},
+		);
+		expect(progress()?.querySelector("strong")?.textContent).toBe(
+			"F41 was closed without merging",
+		);
+		await act(async () => button("Open F41's PR").click());
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://github.com/o/r/pull/41",
+		);
+		await act(async () => button("Part of F40").click());
+		expect(onOpenTask).toHaveBeenCalledWith("parent");
+		await act(async () => button("Start anyway").click());
+		expect(commandsSent("task.factory.part.start")).toEqual([
+			[
+				"task.factory.part.start",
+				{
+					taskId: task.taskId,
+					allWorkspaces: true,
+					expectedRevision: task.revision,
+				},
+			],
+		]);
+		await menuItem("Cancel this part…");
+		await act(async () => button("Cancel part").click());
+		expect(mocks.cancelAgendaTask).toHaveBeenCalledWith({
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			allWorkspaces: true,
 		});
 	});
 });

@@ -114,6 +114,10 @@ export interface FactoryDefaultsStore {
 	getDuplicateCheck?(): Promise<boolean>;
 	/** Stores whether new filings are checked for duplicates. */
 	setDuplicateCheck?(enabled: boolean): Promise<boolean>;
+	/** Whether scoping may split large work into parts; true when never set. */
+	getSplitLargeWork?(): Promise<boolean>;
+	/** Stores whether scoping may split large work into parts. */
+	setSplitLargeWork?(enabled: boolean): Promise<boolean>;
 }
 
 /**
@@ -144,6 +148,8 @@ interface StoredFactoryDefaults {
 	dailyCostUsd?: number | null;
 	/** The duplicate check is off; absent means on. */
 	duplicateCheck?: false;
+	/** Scoping never offers a breakdown; absent means it may. */
+	splitLargeWork?: false;
 }
 
 type StoredDefaults = Omit<StoredFactoryDefaults, "version">;
@@ -249,6 +255,18 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 		return enabled;
 	}
 
+	async getSplitLargeWork(): Promise<boolean> {
+		await this.writes.catch(() => undefined);
+		return (await this.read()).splitLargeWork !== false;
+	}
+
+	async setSplitLargeWork(enabled: boolean): Promise<boolean> {
+		await this.update(({ splitLargeWork: _split, ...rest }) =>
+			enabled ? rest : { ...rest, splitLargeWork: false },
+		);
+		return enabled;
+	}
+
 	async getPaused(): Promise<boolean> {
 		await this.writes.catch(() => undefined);
 		const { stored, corrupt } = await this.readState();
@@ -311,6 +329,9 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 						: {}),
 					...(parsed.duplicateCheck === false
 						? { duplicateCheck: false as const }
+						: {}),
+					...(parsed.splitLargeWork === false
+						? { splitLargeWork: false as const }
 						: {}),
 				},
 				corrupt: false,

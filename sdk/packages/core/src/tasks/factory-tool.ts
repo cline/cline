@@ -12,6 +12,7 @@ import type {
 	AgentTool,
 	FactoryAttempt,
 	FactoryCardState,
+	FactoryDependencyState,
 	FactoryDesignConclusion,
 	FactoryIntakeContext,
 	FactoryPlanHoldReason,
@@ -19,6 +20,7 @@ import type {
 	FactoryPriorityLevel,
 	FactoryPrioritySetter,
 	FactoryRunState,
+	FactorySplitRecord,
 	FactoryWorkflowRecipe,
 	ITelemetryService,
 } from "@cline/shared";
@@ -37,11 +39,14 @@ import {
 	type FactoryWorkflowConfig,
 	factoryAcceptanceCriteriaSchema,
 	factoryAcceptanceCriterionSchema,
+	factoryCardList,
 	factoryCardState,
 	factoryCheckSchema,
 	factoryFeedbackAnalysisStatus,
 	factoryIntakeContextSchema,
 	factoryNeedsYouUrgency,
+	factoryPartStanding,
+	factoryPartsSummary,
 	factoryPlanApprovalBlocker,
 	factoryPrioritySchema,
 	factoryRepositoryPathSchema,
@@ -113,6 +118,7 @@ Use the \`factory\` tool to hand project work to Factory, including discoveries 
 - Sessions without a person in them, such as scheduled sessions, may file only a limited number of cards per session and per day; when the tool refuses, report that instead of retrying.
 - Submitting the same title and instructions for the same project again, from this or any other session, returns the existing card (\`existing: true\`) instead of a duplicate. For work rediscovered across runs, such as a scheduled routine's findings, pass a stable \`source\` naming the routine and a stable \`idempotency_key\` derived from the work item's identity rather than its wording; a repeat with the same pair returns the stored card without editing, restarting or approving it, including completed and archived cards.
 - Factory checks every filing for an existing card that covers the same work. If the reply has \`duplicateOf\`, no card was created: report that card's short id and state and stop. Pass \`allow_duplicate: true\` only when the user says it is different work.
+- Factory may split a large request into parts after the user approves the breakdown in Factory: the original card (for example F40) then only tracks its parts, each part is its own card, and a part may wait for an earlier part's pull request to be merged. Report a parent as its parts' progress and a waiting part as waiting for that merge, which only the user can do; no tool approves a breakdown, cancels the remaining parts or starts a waiting part anyway.
 - A returned card may carry \`conclusion\`: its designer found no build needed (\`already_fixed\`, \`duplicate\` or \`no_change\`) and the card waits for a person. Do not resubmit that work under a new key; report the rationale instead.
 - When the user asks how Factory work is going, call \`${FACTORY_STATUS_TOOL_NAME}\` (with no card for an overview, or a \`task_id\` such as \`F42\` or a title \`query\`) and report its plain answer, naming cards by their short id (\`factoryId\`); do not guess from \`${FACTORY_LIST_TOOL_NAME}\`.
 - Use \`${FACTORY_STATUS_TOOL_NAME}\` actions only when the user asks: \`hold\` keeps a card from starting, \`start\` starts a queued card and \`retry\` tries a stopped card again; an agent's retries of a card are limited. You may hold a card but not release a hold: only the user starts a held card. Plan approval, review, merging and archiving stay with the user in Factory.
@@ -1082,6 +1088,11 @@ export type FactoryStage =
 	| "Scoping"
 	| "Checking the plan"
 	| "Waiting for plan approval"
+	| "Waiting for breakdown approval"
+	| `Waiting for ${string} to merge`
+	| "Waiting for a decision to start"
+	| "Tracking its parts"
+	| "Parts closed"
 	| "Building"
 	| "Running checks"
 	| `Running stage: ${string}`
@@ -1171,6 +1182,15 @@ export interface FactoryStatusCard {
 	related?: string[];
 	/** Single-card results: how many later filings were matched to this card as repeats. */
 	alsoRequested?: number;
+	/** A split's part: its parent's short id, such as `F40`. */
+	parent?: string;
+	/**
+	 * A split's parent: its parts' progress in one line, such as "2 of 4
+	 * delivered (1 merged); F43 stopped; F44 waits for F42 to merge".
+	 */
+	parts?: string;
+	/** A waiting part: the earlier parts whose pull requests must merge first. */
+	waitingFor?: string[];
 	/** What happens without the user. */
 	next: string;
 }
@@ -1234,6 +1254,7 @@ export interface CreateFactoryStatusToolOptions extends FactoryToolOptions {
 		| "queueFactoryScoping"
 		| "startFactoryQueue"
 		| "setFactoryPriority"
+		| "getFactoryCardLinks"
 	>;
 	/**
 	 * Asks the user, in their app, to confirm a priority change only they may
@@ -1419,6 +1440,8 @@ function describeFactoryNeeds(card: FactoryCardState): string | undefined {
 		case "scoping":
 			return "answer a question";
 		case "awaiting_approval":
+			if (card.reasonCode === "split_approval")
+				return `approve or decline the breakdown (${(card.reasonText ?? "split into parts").toLowerCase()})`;
 			return card.planHold
 				? `approve the plan (${PLAN_HOLD_NEEDS[card.planHold]})`
 				: "approve the plan";
@@ -1432,6 +1455,8 @@ function describeFactoryNeeds(card: FactoryCardState): string | undefined {
 					return "review the draft PR (open findings)";
 				case "rule_proposed":
 					return "review a proposed rule";
+				case "dependency_unavailable":
+					return card.reasonText ?? "start it anyway or cancel it";
 				default:
 					return "review the delivery";
 			}
@@ -1440,6 +1465,8 @@ function describeFactoryNeeds(card: FactoryCardState): string | undefined {
 
 /** A card that waits on someone to start or revise it: not a decision Factory asks for. */
 function describeFactoryWaiting(card: FactoryCardState): string | undefined {
+	if (card.waitingOn === "card")
+		return `waits for ${factoryCardList(card.waitingFor ?? [])} to merge`;
 	if (card.waitingOn !== "start") return undefined;
 	switch (card.kind) {
 		case "held":
@@ -1473,9 +1500,21 @@ function describeFactoryStage(
 	state: FactoryRunState | undefined,
 	scopingReview: boolean,
 ): FactoryStage {
+	switch (card.reasonCode) {
+		case "split_approval":
+			return "Waiting for breakdown approval";
+		case "waiting_on_card":
+			return `Waiting for ${factoryCardList(card.waitingFor ?? [])} to merge`;
+		case "dependency_unavailable":
+			return "Waiting for a decision to start";
+		case "parts_closed":
+			return "Parts closed";
+	}
 	switch (card.kind) {
 		case "archived":
 			return "Archived";
+		case "tracking":
+			return "Tracking its parts";
 		case "held":
 			return "On hold";
 		case "not_started":
@@ -1565,6 +1604,18 @@ function describeFactoryNext(
 			return "Waits for a person to review the draft PR.";
 		case "plan_not_ready":
 			return "Waits until someone revises the plan in Factory; it cannot be approved as written.";
+		case "split_approval":
+			return "Waits for the user to approve the breakdown, or keep it as one card, in Factory; no tool can approve it.";
+		case "tracking":
+			return "Nothing runs on this card; its parts do the work, each as its own card.";
+		case "parts_delivered":
+			return "Nothing; every part is delivered or closed.";
+		case "parts_closed":
+			return "Nothing; every part was closed before it was delivered.";
+		case "waiting_on_card":
+			return `Starts on its own once ${factoryCardList(card.waitingFor ?? [])}'s pull request is merged; Factory never merges.`;
+		case "dependency_unavailable":
+			return "Waits for the user to start it anyway or cancel it in Factory.";
 	}
 	switch (card.kind) {
 		case "archived":
@@ -1618,8 +1669,47 @@ export function describeFactoryCard(
 	runs: AgendaTaskRunRecord[],
 	queue: FactoryQueueState | undefined,
 	now = Date.now(),
+	links: FactoryStatusLinks = {},
 ): FactoryStatusCard {
-	return describeFactoryCardWithUrgency(task, runs, queue, now).card;
+	return describeFactoryCardWithUrgency(task, runs, queue, now, links).card;
+}
+
+/**
+ * What a card's split links add to its status, read by the caller: a part's
+ * parent, a parent's parts (each part's state; undefined when its card was
+ * deleted) and a waiting part's dependency state.
+ */
+export interface FactoryStatusLinks {
+	parent?: string;
+	parts?: { id: string; state?: FactoryCardState }[];
+	dependency?: FactoryDependencyState;
+}
+
+/** A parent's parts in one plain line. */
+function describeFactoryParts(
+	parts: NonNullable<FactoryStatusLinks["parts"]>,
+	record: Pick<FactorySplitRecord, "createdAt" | "cancelledAt"> | undefined,
+): string {
+	const summary = factoryPartsSummary(parts.map((part) => part.state));
+	const missing = record?.createdAt
+		? "was deleted"
+		: record?.cancelledAt
+			? "was not created"
+			: "is being created";
+	const notes = parts.flatMap(({ id, state }) => {
+		if (!state) return [`${id} ${missing}`];
+		if (state.reasonCode === "waiting_on_card")
+			return [
+				`${id} waits for ${factoryCardList(state.waitingFor ?? [])} to merge`,
+			];
+		if (factoryPartStanding(state) !== "open") return [];
+		if (state.kind === "stopped") return [`${id} stopped`];
+		return state.waitingOn === "person" ? [`${id} needs you`] : [];
+	});
+	return [
+		`${summary.delivered} of ${summary.total} delivered${summary.merged ? ` (${summary.merged} merged)` : ""}${summary.closed ? `, ${summary.closed} closed` : ""}`,
+		...notes,
+	].join("; ");
 }
 
 /**
@@ -1631,6 +1721,7 @@ export function describeFactoryCardState(
 	runs: AgendaTaskRunRecord[],
 	queue: FactoryQueueState | undefined,
 	now = Date.now(),
+	links: FactoryStatusLinks = {},
 ): {
 	card: FactoryStatusCard;
 	kind: FactoryCardState["kind"];
@@ -1641,6 +1732,7 @@ export function describeFactoryCardState(
 		runs,
 		queue,
 		now,
+		links,
 	);
 	return { card, kind, ...(pullRequestOutcome ? { pullRequestOutcome } : {}) };
 }
@@ -1652,11 +1744,12 @@ const FACTORY_ATTEMPT_ROLE_NAME: Record<FactoryAttempt["role"], string> = {
 	verifier: "tester",
 };
 
-/** factoryCardState of a card with its current run and the queue. */
-function statusCardState(
+/** factoryCardState of a card with its current run, the queue and its links, as the status tool reads it. */
+export function factoryStatusCardState(
 	task: AgendaTaskRecord,
 	run: AgendaTaskRunRecord | undefined,
 	queue: FactoryQueueState | undefined,
+	links: FactoryStatusLinks = {},
 ): FactoryCardState {
 	const live = queue?.working.includes(task.taskId) ?? false;
 	return factoryCardState({
@@ -1668,6 +1761,10 @@ function statusCardState(
 		},
 		lastRun: run,
 		planApprovable: factoryPlanApprovable(task),
+		...(links.parts
+			? { parts: factoryPartsSummary(links.parts.map((part) => part.state)) }
+			: {}),
+		...(links.dependency ? { dependency: links.dependency } : {}),
 		live: {
 			designLive: live && task.status === "pending_approval",
 			runLive: live && task.status !== "pending_approval",
@@ -1681,6 +1778,7 @@ function describeFactoryCardWithUrgency(
 	runs: AgendaTaskRunRecord[],
 	queue: FactoryQueueState | undefined,
 	now = Date.now(),
+	links: FactoryStatusLinks = {},
 ): {
 	card: FactoryStatusCard;
 	urgency?: number;
@@ -1696,7 +1794,7 @@ function describeFactoryCardWithUrgency(
 	const live = queue?.working.includes(task.taskId) ?? false;
 	const queuedAt =
 		queue?.queued.findIndex((entry) => entry.taskId === task.taskId) ?? -1;
-	const card = statusCardState(task, run, queue);
+	const card = factoryStatusCardState(task, run, queue, links);
 	const question = task.factoryQuestions?.find(
 		(entry) => entry.status === "pending" && entry.revision === task.revision,
 	);
@@ -1822,6 +1920,11 @@ function describeFactoryCardWithUrgency(
 			? { feedback: describeFactoryFeedback(state.audit, now) }
 			: {}),
 		...(stages ? { stages } : {}),
+		...(links.parent ? { parent: links.parent } : {}),
+		...(links.parts
+			? { parts: describeFactoryParts(links.parts, task.factorySplit) }
+			: {}),
+		...(card.waitingFor ? { waitingFor: card.waitingFor } : {}),
 		next: describeFactoryNext(card, task, state, queue?.paused ?? false),
 	};
 	return {
@@ -1849,7 +1952,7 @@ export function createFactoryStatusTool(
 		name: FACTORY_STATUS_TOOL_NAME,
 		description:
 			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 open cards (those needing the user first, then those working, then the rest by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
-			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. It never approves plans, reviews, merges or archives.`,
+			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
 		inputSchema: zodToJsonSchema(FactoryStatusToolInputSchema),
 		retryable: false,
 		maxRetries: 0,
@@ -1883,14 +1986,20 @@ export function createFactoryStatusTool(
 				const queue = manager.getFactoryQueueState?.();
 				const runsOf = (task: AgendaTaskRecord) =>
 					manager.getTaskRuns?.(task.taskId) ?? [];
+				// A card's split links, from the manager's one derivation.
+				const linksOf = (task: AgendaTaskRecord): FactoryStatusLinks =>
+					manager.getFactoryCardLinks?.(task.taskId) ?? {};
 				const describeWithUrgency = (
 					task: AgendaTaskRecord,
 					runs = runsOf(task),
+					links: FactoryStatusLinks = {},
 				) => {
 					const { card, urgency } = describeFactoryCardWithUrgency(
 						task,
 						runs,
 						queue,
+						undefined,
+						links,
 					);
 					return {
 						card:
@@ -1900,8 +2009,23 @@ export function createFactoryStatusTool(
 						urgency,
 					};
 				};
-				const describe = (task: AgendaTaskRecord) =>
-					describeWithUrgency(task).card;
+				/** Links for the cards that have any. */
+				const linksFor = (tasks: AgendaTaskRecord[]) =>
+					new Map(
+						tasks
+							.filter(
+								(task) =>
+									task.factoryParentTaskId ||
+									task.factoryBlockedBy ||
+									task.factorySplit,
+							)
+							.map((task) => [task.taskId, linksOf(task)] as const),
+					);
+				const describe = (
+					task: AgendaTaskRecord,
+					links: Map<string, FactoryStatusLinks>,
+				) =>
+					describeWithUrgency(task, runsOf(task), links.get(task.taskId)).card;
 				// Single cards also name their related cards by short id and say
 				// how often they were requested again.
 				const relatedIds = (tasks: AgendaTaskRecord[]) => [
@@ -1927,6 +2051,7 @@ export function createFactoryStatusTool(
 				const describeOne = (
 					task: AgendaTaskRecord,
 					shortIds: Map<string, string>,
+					links: Map<string, FactoryStatusLinks>,
 				): FactoryStatusCard => {
 					const related = (task.factory?.relatedTo ?? []).flatMap((id) => {
 						const shortId = shortIds.get(id);
@@ -1934,7 +2059,7 @@ export function createFactoryStatusTool(
 					});
 					const repeats = task.factoryDuplicateReports?.count;
 					return {
-						...compactCard(describe(task)),
+						...compactCard(describe(task, links)),
 						...(related.length ? { related } : {}),
 						...(repeats ? { alsoRequested: repeats } : {}),
 					};
@@ -1996,11 +2121,24 @@ export function createFactoryStatusTool(
 					});
 					// Every open card's state counts toward needsYou; only the cards
 					// listed are described in full: what needs the user, then what
-					// is working, then the rest, highest priority first.
+					// is working, then the rest, highest priority first. Only a
+					// waiting part reads more: its earlier parts.
+					const dependencies = new Map(
+						tasks
+							.filter((task) => task.factoryBlockedBy)
+							.map((task) => [task.taskId, linksOf(task).dependency] as const),
+					);
 					const scanned = tasks.map((task) => {
 						const runs = runsOf(task);
-						const state = statusCardState(task, currentRun(task, runs), queue);
-						return { task, runs, state, ...factoryNeedsFields(state) };
+						const dependency = dependencies.get(task.taskId);
+						const links: FactoryStatusLinks = dependency ? { dependency } : {};
+						const state = factoryStatusCardState(
+							task,
+							currentRun(task, runs),
+							queue,
+							links,
+						);
+						return { task, runs, links, state, ...factoryNeedsFields(state) };
 					});
 					const needing = scanned
 						.flatMap(({ fields, urgency, ...entry }) =>
@@ -2020,7 +2158,10 @@ export function createFactoryStatusTool(
 							.sort((a, b) => compareFactoryPriority(a.task, b.task)),
 					]
 						.slice(0, 20)
-						.map(({ task, runs }) => describeWithUrgency(task, runs).card);
+						.map(
+							({ task, runs, links }) =>
+								describeWithUrgency(task, runs, links).card,
+						);
 					return {
 						ok: true,
 						...(workspaceRoot ? { workspaceRoot } : {}),
@@ -2073,11 +2214,12 @@ export function createFactoryStatusTool(
 					const shortIds = ids.length
 						? await relatedShortIds(ids)
 						: new Map<string, string>();
+					const links = linksFor(shown);
 					return {
 						ok: true,
 						...(workspaceRoot ? { workspaceRoot } : {}),
 						...(overview ? { factory: overview } : {}),
-						cards: shown.map((task) => describeOne(task, shortIds)),
+						cards: shown.map((task) => describeOne(task, shortIds, links)),
 						more: matches.length > STATUS_MATCHES,
 					};
 				}
@@ -2099,6 +2241,7 @@ export function createFactoryStatusTool(
 					input.priority,
 					task,
 					queue,
+					task.factoryBlockedBy ? linksOf(task).dependency : undefined,
 					{
 						kind: "agent",
 						id: context.agentId,
@@ -2132,7 +2275,7 @@ export function createFactoryStatusTool(
 				return {
 					ok: true,
 					...(workspaceRoot ? { workspaceRoot } : {}),
-					cards: [describeOne(latest, shortIds)],
+					cards: [describeOne(latest, shortIds, linksFor([latest]))],
 					action: { name: input.action, result },
 				};
 			} catch (error) {
@@ -2157,6 +2300,8 @@ async function runFactoryStatusAction(
 	priority: (typeof FACTORY_PRIORITY_CHOICES)[number] | undefined,
 	task: AgendaTaskRecord,
 	queue: FactoryQueueState | undefined,
+	/** A waiting part's dependency state; only the user starts it anyway. */
+	dependency: FactoryDependencyState | undefined,
 	actor: AgendaTaskActor,
 	/** The user's Factory manager chat, acting on their request. */
 	managerChat = false,
@@ -2222,8 +2367,24 @@ async function runFactoryStatusAction(
 	const afterQueue = queue?.paused
 		? " Factory is paused, so it starts when Factory resumes."
 		: "";
-	const planWaits =
-		"Its plan waits for approval in Factory; this tool cannot approve plans.";
+	if (task.factorySplit)
+		throw new Error(
+			"This card was split into parts and never runs itself; act on its parts instead.",
+		);
+	if (
+		action === "start" &&
+		dependency &&
+		dependency.state !== "ready" &&
+		task.status === "pending_approval"
+	)
+		throw new Error(
+			dependency.state === "waiting"
+				? `This part waits for ${factoryCardList(dependency.on)} to merge and starts on its own then; only the user can start it anyway, in Factory.`
+				: `${dependency.reason}. Only the user can start this part anyway or cancel it, in Factory.`,
+		);
+	const planWaits = design?.split
+		? "Its breakdown waits for the user's approval in Factory; this tool cannot approve it."
+		: "Its plan waits for approval in Factory; this tool cannot approve plans.";
 	const requeue = async () => {
 		if (!manager.startFactoryQueue)
 			throw new Error("Starting Factory work is unavailable");

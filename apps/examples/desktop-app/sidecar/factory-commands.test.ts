@@ -702,6 +702,124 @@ describe("Factory commands", () => {
 		expect(item?.outcome?.pullRequestReady).toBe(true);
 	});
 
+	it("projects a parent's parts and a waiting part's dependency from the listed cards and their links", async () => {
+		const delivered = factoryRunStateSchema.parse({
+			...ready,
+			pullRequestUrl: "https://github.com/o/r/pull/41",
+		});
+		const part = (title: string, taskId: string, dependsOn: number[] = []) => ({
+			title,
+			brief: `${title}.`,
+			paths: [`src/${taskId}`],
+			dependsOn,
+			taskId,
+		});
+		const card = (taskId: string, number: number, extra: object) => ({
+			taskId,
+			factoryNumber: number,
+			instructions: "Do it.",
+			revision: 1,
+			factory,
+			factoryParentTaskId: "parent",
+			...extra,
+		});
+		const waitsFor = (taskId: string, extra: object = {}) => ({
+			status: "pending_approval",
+			factoryBlockedBy: { taskIds: [taskId], met: {}, ...extra },
+		});
+		const readTask = vi.fn<Parameters<typeof handleFactoryCommand>[3]>(
+			async (command) =>
+				command === "task.list"
+					? {
+							tasks: [
+								{
+									taskId: "parent",
+									factoryNumber: 40,
+									status: "completed",
+									instructions: "Export and link activity.",
+									revision: 1,
+									factory,
+									factorySplit: {
+										splitId: "split-1",
+										revision: 1,
+										approvedAt: "2026-11-12T00:00:00.000Z",
+										goal: "Export and link activity",
+										createdAt: "2026-11-12T00:00:01.000Z",
+										parts: [
+											part("Export", "p1"),
+											part("Link", "p2", [0]),
+											part("Footer", "p3"),
+											part("Menu", "p4", [0]),
+											part("Search", "p5"),
+											part("Filters", "p6", [4]),
+										],
+									},
+								},
+								card("p1", 41, { status: "completed", lastRunId: "run-41" }),
+								card("p2", 42, waitsFor("p1")),
+								card("p3", 43, { status: "cancelled" }),
+								card(
+									"p4",
+									44,
+									waitsFor("p1", {
+										mergedElsewhere: {
+											p1: {
+												at: "t",
+												prUrl: "https://github.com/o/r/pull/41",
+												baseBranch: "release",
+												expected: "main",
+											},
+										},
+									}),
+								),
+								card("p5", 45, {
+									status: "pending_approval",
+									archivedAt: "2026-11-12T00:00:02.000Z",
+								}),
+								card("p6", 46, waitsFor("p5")),
+							],
+						}
+					: {
+							runs: [{ runId: "run-41", taskRevision: 1, factory: delivered }],
+						},
+		);
+		const items = (await handleFactoryCommand(
+			ctx,
+			"factory_attention",
+			undefined,
+			readTask,
+		)) as Array<Record<string, unknown>>;
+		const item = (taskId: string) =>
+			items.find((entry) => entry.taskId === taskId);
+		expect(item("parent")?.parts).toEqual({
+			total: 6,
+			delivered: 1,
+			merged: 0,
+			open: 3,
+			needsYou: 2,
+			stopped: 0,
+			closed: 2,
+		});
+		expect(item("p2")?.dependency).toEqual({ state: "waiting", on: ["F41"] });
+		expect(item("p4")?.dependency).toEqual({
+			state: "unavailable",
+			on: ["F41"],
+			reason: "F41 merged into release, not main",
+		});
+		expect(item("p6")?.dependency).toEqual({
+			state: "unavailable",
+			on: ["F45"],
+			reason: "F45 was archived before it opened a pull request",
+		});
+		// One list that carries every linked card, and the one delivered
+		// card's runs: no read per link.
+		expect(readTask).toHaveBeenCalledTimes(2);
+		expect(readTask).toHaveBeenCalledWith(
+			"task.list",
+			expect.objectContaining({ factoryLinks: true }),
+		);
+	});
+
 	it("reports a card whose data fails validation as unreadable and keeps every other card", async () => {
 		const log = vi.fn();
 		const readTask = vi.fn<Parameters<typeof handleFactoryCommand>[3]>(
@@ -930,6 +1048,27 @@ describe("handleFactoryLimitsCommand", () => {
 		await expect(
 			handleFactoryLimitsCommand(command, { concurrency: 3 }, send),
 		).resolves.toEqual({ supported: false });
+	});
+
+	it("passes the Hub's split switch through on read and sets it alone", async () => {
+		const send = vi.fn(async () => ({
+			ok: true,
+			payload: { concurrency: 2, splitLargeWork: false },
+		}));
+		await expect(
+			handleFactoryLimitsCommand(
+				"factory_set_limits",
+				{ splitLargeWork: false },
+				send,
+			),
+		).resolves.toEqual({
+			supported: true,
+			concurrency: 2,
+			splitLargeWork: false,
+		});
+		expect(send).toHaveBeenCalledWith("task.factory.limits.set", {
+			splitLargeWork: false,
+		});
 	});
 
 	it("surfaces a failed set as a readable error", async () => {

@@ -3,19 +3,29 @@ import {
 	FACTORY_GUIDANCE_ROLES,
 } from "@cline/core";
 import {
+	type AgendaTaskStatus,
+	type FactoryCardState,
+	type FactoryPrerequisiteFacts,
 	type FactoryWorkflowRecipe,
+	factoryBlockedBySchema,
+	factoryDependencyState,
 	factoryDesignProgressSchema,
 	factoryDesignReviewSchema,
+	factoryPartsSummary,
 	factoryQuestionSchema,
 	factoryRunStateSchema,
+	factorySplitRecordSchema,
 	factoryStageSchema,
 	factoryTaskConfigSchema,
 	factoryVerificationProfileSchema,
+	formatFactoryId,
 	isFactoryHandsOff,
 } from "@cline/shared";
 import { z } from "zod";
 import {
 	currentFactoryRunState,
+	type FactoryCardLinks,
+	factoryAttentionCard,
 	factoryAttentionOutcome,
 	factoryAttentionReasons,
 	isFactoryRuleCard,
@@ -144,16 +154,18 @@ const factoryLimitsSetSchema = z
 		paused: z.boolean().optional(),
 		dailyCostUsd: factoryDailyCostSchema.optional(),
 		duplicateCheck: z.boolean().optional(),
+		splitLargeWork: z.boolean().optional(),
 	})
 	.refine(
 		(value) =>
 			value.concurrency !== undefined ||
 			value.paused !== undefined ||
 			value.dailyCostUsd !== undefined ||
-			value.duplicateCheck !== undefined,
+			value.duplicateCheck !== undefined ||
+			value.splitLargeWork !== undefined,
 		{
 			message:
-				"Send concurrency, paused, dailyCostUsd, duplicateCheck or a combination",
+				"Send concurrency, paused, dailyCostUsd, duplicateCheck, splitLargeWork or a combination",
 		},
 	);
 
@@ -176,10 +188,16 @@ export async function handleFactoryLimitsCommand(
 	const setting = command === "factory_set_limits";
 	const input: JsonRecord = {};
 	if (setting) {
-		const { concurrency, paused, dailyCostUsd, duplicateCheck } =
-			factoryLimitsSetSchema.parse(args ?? {});
+		const {
+			concurrency,
+			paused,
+			dailyCostUsd,
+			duplicateCheck,
+			splitLargeWork,
+		} = factoryLimitsSetSchema.parse(args ?? {});
 		if (concurrency !== undefined) input.concurrency = concurrency;
 		if (duplicateCheck !== undefined) input.duplicateCheck = duplicateCheck;
+		if (splitLargeWork !== undefined) input.splitLargeWork = splitLargeWork;
 		if (paused !== undefined) input.paused = paused;
 		// One meaning everywhere: null is "no daily limit", and 0 says the same.
 		if (dailyCostUsd !== undefined)
@@ -195,11 +213,18 @@ export async function handleFactoryLimitsCommand(
 		const reason = reply.error?.message ?? "the Hub did not answer";
 		throw new Error(
 			setting
-				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : input.duplicateCheck !== undefined ? "the duplicate check" : "how much work runs at once"}: ${reason}`
+				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : input.duplicateCheck !== undefined ? "the duplicate check" : input.splitLargeWork !== undefined ? "whether large work is split" : "how much work runs at once"}: ${reason}`
 				: `Factory could not read how much work runs at once: ${reason}`,
 		);
 	}
-	const { concurrency, paused, dailyCostUsd, spentTodayUsd, duplicateCheck } = z
+	const {
+		concurrency,
+		paused,
+		dailyCostUsd,
+		spentTodayUsd,
+		duplicateCheck,
+		splitLargeWork,
+	} = z
 		.object({
 			concurrency: z.number().int().positive(),
 			paused: z.boolean().optional(),
@@ -213,6 +238,7 @@ export async function handleFactoryLimitsCommand(
 				.catch(undefined),
 			spentTodayUsd: z.number().finite().min(0).optional().catch(undefined),
 			duplicateCheck: z.boolean().optional().catch(undefined),
+			splitLargeWork: z.boolean().optional().catch(undefined),
 		})
 		.parse(reply.payload);
 	const daily =
@@ -230,6 +256,7 @@ export async function handleFactoryLimitsCommand(
 			? { spentTodayUsd }
 			: {}),
 		...(duplicateCheck !== undefined ? { duplicateCheck } : {}),
+		...(splitLargeWork !== undefined ? { splitLargeWork } : {}),
 	};
 }
 
@@ -319,9 +346,19 @@ const factoryListTaskSchema = z.object({
 	lastRunId: z.string().optional(),
 	currentRunId: z.string().optional(),
 	workspaceRoot: z.string().optional(),
+	factoryNumber: z.number().optional(),
 	factory: z
 		.unknown()
 		.transform((value) => factoryTaskConfigSchema.parse(value))
+		.optional(),
+	factoryParentTaskId: z.string().optional(),
+	factorySplit: z
+		.unknown()
+		.transform((value) => factorySplitRecordSchema.parse(value))
+		.optional(),
+	factoryBlockedBy: z
+		.unknown()
+		.transform((value) => factoryBlockedBySchema.parse(value))
 		.optional(),
 });
 type FactoryListTask = z.infer<typeof factoryListTaskSchema>;
@@ -558,6 +595,7 @@ export async function handleFactoryCommand(
 				allWorkspaces: true,
 				includeArchived: true,
 				limit: 200,
+				factoryLinks: true,
 			}),
 			reportUnreadable,
 		);
@@ -582,29 +620,74 @@ export async function handleFactoryCommand(
 		const pending = [...ctx.pendingQuestions.values()].map(
 			(question) => question.item,
 		);
-		const tasks = (await list()).flatMap(({ factory, ...task }) =>
+		const listed = await list();
+		const tasks = listed.flatMap(({ factory, ...task }) =>
 			factory && !task.archivedAt ? [{ ...task, factory }] : [],
 		);
-		const items = await Promise.all(
+		const runFacts = async (task: FactoryListTask, needed: boolean) => {
+			const { runs } =
+				(task.currentRunId || task.lastRunId) && needed
+					? await readFactoryRuns(task, readTask)
+					: { runs: [] };
+			const run = runs.find(
+				(item) => item.runId === (task.currentRunId ?? task.lastRunId),
+			);
+			return { runs, run, state: currentFactoryRunState(task, run) };
+		};
+		const facts = new Map<string, Awaited<ReturnType<typeof runFacts>>>();
+		const reportCard = (task: FactoryListTask, error: unknown) =>
+			// One card's bad run data never hides the others.
+			reportUnreadable(
+				{
+					taskId: task.taskId,
+					revision: task.revision,
+					reason: factoryUnreadableReason(error),
+				},
+				error,
+			);
+		await Promise.all(
 			tasks.map(async (task) => {
 				try {
-					return await factoryAttentionItem(task);
-				} catch (error) {
-					// One card's bad run data never hides the others.
-					reportUnreadable(
-						{
-							taskId: task.taskId,
-							revision: task.revision,
-							reason: factoryUnreadableReason(error),
-						},
-						error,
+					// An approved hands-off card with an earlier run may be waiting on
+					// its automatic retry, which only that run records. Other approved
+					// cards have no outcome to read, so they cost no extra request.
+					facts.set(
+						task.taskId,
+						await runFacts(
+							task,
+							[
+								"in_progress",
+								"completed",
+								"failed",
+								"cancelled",
+								"expired",
+							].includes(task.status) ||
+								(task.status === "approved" &&
+									Boolean(task.lastRunId) &&
+									isFactoryHandsOff(task.factory)) ||
+								pending.length > 0,
+						),
 					);
-					return undefined;
+				} catch (error) {
+					reportCard(task, error);
 				}
 			}),
 		);
+		const links = await factorySplitLinks(listed, facts, (task) =>
+			runFacts(task, true),
+		);
+		const items = tasks.flatMap((task) => {
+			const read = facts.get(task.taskId);
+			if (!read) return [];
+			try {
+				return [factoryAttentionItem(task, read, links.get(task.taskId))];
+			} catch (error) {
+				reportCard(task, error);
+				return [];
+			}
+		});
 		return [
-			...items.filter((item) => item !== undefined),
+			...items,
 			...unreadable.map((card) => ({
 				taskId: card.taskId,
 				revision: card.revision,
@@ -613,30 +696,12 @@ export async function handleFactoryCommand(
 				unreadable: { reason: card.reason },
 			})),
 		];
-		async function factoryAttentionItem(task: (typeof tasks)[number]) {
-			// An approved hands-off card with an earlier run may be waiting on its
-			// automatic retry, which only that run records. Other approved cards
-			// have no outcome to read, so they cost no extra request.
-			const { runs } =
-				(task.currentRunId || task.lastRunId) &&
-				([
-					"in_progress",
-					"completed",
-					"failed",
-					"cancelled",
-					"expired",
-				].includes(task.status) ||
-					(task.status === "approved" &&
-						Boolean(task.lastRunId) &&
-						isFactoryHandsOff(task.factory)) ||
-					pending.length > 0)
-					? await readFactoryRuns(task, readTask)
-					: { runs: [] };
-			const run = runs.find(
-				(run) => run.runId === (task.currentRunId ?? task.lastRunId),
-			);
-			const state = currentFactoryRunState(task, run);
-			const reasons = factoryAttentionReasons(task, state, runs);
+		function factoryAttentionItem(
+			task: (typeof tasks)[number],
+			{ runs, run, state }: Awaited<ReturnType<typeof runFacts>>,
+			cardLinks: FactoryCardLinks | undefined,
+		) {
+			const reasons = factoryAttentionReasons(task, state, runs, cardLinks);
 			const closed = task.status === "cancelled" || task.status === "expired";
 			const sessions = new Set([
 				task.originSessionId,
@@ -670,9 +735,91 @@ export async function handleFactoryCommand(
 				// Filed by Factory for a recurring review pattern.
 				...(isFactoryRuleCard(task) ? { ruleCard: true } : {}),
 				outcome: state ? factoryAttentionOutcome(task, state, runs) : undefined,
+				...cardLinks,
 			};
 		}
 	});
+}
+
+type FactoryRunFacts = {
+	runs: FactoryRuns["runs"];
+	run?: FactoryRuns["runs"][number];
+	state?: FactoryRuns["runs"][number]["factory"];
+};
+
+/**
+ * Each split card's link facts, from the cards and runs this sweep already
+ * read (the list carries every linked card): a waiting part's dependency
+ * state (not when ready) and a parent's parts' progress. Only an archived
+ * earlier part has its runs read here, cached like the rest.
+ */
+async function factorySplitLinks(
+	listed: readonly FactoryListTask[],
+	facts: ReadonlyMap<string, FactoryRunFacts>,
+	readArchived: (task: FactoryListTask) => Promise<FactoryRunFacts>,
+): Promise<Map<string, FactoryCardLinks>> {
+	const byId = new Map(listed.map((task) => [task.taskId, task]));
+	const links = new Map<string, FactoryCardLinks>();
+	await Promise.all(
+		listed.map(async (task) => {
+			const blockedBy = task.factoryBlockedBy;
+			if (!blockedBy || !facts.has(task.taskId)) return;
+			const prerequisites = await Promise.all(
+				blockedBy.taskIds
+					.filter((taskId) => !blockedBy.met[taskId])
+					.map(
+						async (taskId): Promise<FactoryPrerequisiteFacts | undefined> => {
+							const other = byId.get(taskId);
+							// Not listed: deleted.
+							if (!other) return { taskId };
+							const read =
+								facts.get(taskId) ??
+								(other.archivedAt
+									? await readArchived(other).catch(() => undefined)
+									: undefined);
+							// A card whose runs could not be read says nothing either way.
+							if (!read) return undefined;
+							return {
+								taskId,
+								...(other.factoryNumber !== undefined
+									? { factoryId: formatFactoryId(other.factoryNumber) }
+									: {}),
+								task: { ...other, status: other.status as AgendaTaskStatus },
+								...(read.run ? { run: read.run } : {}),
+							};
+						},
+					),
+			);
+			if (prerequisites.some((entry) => !entry)) return;
+			const dependency = factoryDependencyState(
+				blockedBy,
+				prerequisites as FactoryPrerequisiteFacts[],
+			);
+			if (dependency.state !== "ready") links.set(task.taskId, { dependency });
+		}),
+	);
+	for (const task of listed) {
+		const split = task.factorySplit;
+		if (!split || task.archivedAt) continue;
+		const parts = split.parts
+			.filter((part) => !part.omitted)
+			.map((part) => byId.get(part.taskId));
+		links.set(task.taskId, {
+			parts: factoryPartsSummary(
+				parts.map((part): FactoryCardState | undefined => {
+					if (!part?.factory) return undefined;
+					const read = facts.get(part.taskId);
+					return factoryAttentionCard(
+						{ ...part, factory: part.factory },
+						read?.state,
+						read?.runs,
+						links.get(part.taskId),
+					);
+				}),
+			),
+		});
+	}
+	return links;
 }
 
 // ---------------------------------------------------------------------------

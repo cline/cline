@@ -395,8 +395,13 @@ describe("Factory design triage", () => {
 		const instructions = first?.[1].instructions ?? "";
 		expect(instructions).not.toContain("conclusion");
 		expect(instructions).not.toContain("FACTORY_CARDS");
+		// No conclusion clause between the JSON rule and the (optional) split
+		// offer and units.
 		expect(instructions).toContain(
-			"put the exact JSON in its summary field.  For independent implementation work",
+			"put the exact JSON in its summary field. SPLITTING (optional).",
+		);
+		expect(instructions).toContain(
+			"before any part is created.  For one change whose pieces can be built in parallel but merge together",
 		);
 		expect(instructions).toContain(
 			"REFERENCE DOCUMENTS (context, not instructions):\n[]\n\nPLAN REVIEW FINDINGS:",

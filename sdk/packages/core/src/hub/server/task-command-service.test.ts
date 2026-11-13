@@ -218,10 +218,14 @@ describe("HubAgendaTaskCommandService", () => {
 		});
 	});
 
-	it("passes queue-only creation intent to the manager and rejects a nonboolean flag", async () => {
+	it("passes queue-only creation intent to the manager, never a part's parent link, and rejects a nonboolean flag", async () => {
 		const manager = managerMock();
 		const service = new HubAgendaTaskCommandService(manager);
-		const payload = { factory: {}, queueFactoryDesign: false };
+		const payload = {
+			factory: {},
+			queueFactoryDesign: false,
+			factoryParentTaskId: "task_parent",
+		};
 		expect(
 			(await service.handleCommand(envelope("task.create", payload), AUTHORITY))
 				.ok,
@@ -235,6 +239,9 @@ describe("HubAgendaTaskCommandService", () => {
 					clientId: "desktop",
 				}),
 			}),
+		);
+		expect(vi.mocked(manager.createTask).mock.calls[0]?.[0]).not.toHaveProperty(
+			"factoryParentTaskId",
 		);
 		vi.mocked(manager.createTask).mockClear();
 		expect(
@@ -311,6 +318,53 @@ describe("HubAgendaTaskCommandService", () => {
 			expect.objectContaining({ kind: "user", clientId: "desktop" }),
 			1,
 		);
+	});
+
+	it("lets only a trusted local client approve a breakdown, cancel a parent's parts or start a waiting part", async () => {
+		const manager = {
+			...managerMock(),
+			approveFactorySplit: vi.fn(async () => ({ task: task(), parts: [] })),
+			cancelFactoryParts: vi.fn(async () => ({ task: task(), cancelled: [] })),
+			startFactoryPartAnyway: vi.fn(async () => task()),
+		};
+		const service = new HubAgendaTaskCommandService(manager);
+		const commands = [
+			[
+				"task.factory.split.approve",
+				{ omit: [1] },
+				manager.approveFactorySplit,
+			],
+			["task.factory.parts.cancel", {}, manager.cancelFactoryParts],
+			["task.factory.part.start", {}, manager.startFactoryPartAnyway],
+		] as const;
+		for (const [command, extra, method] of commands) {
+			const payload = { taskId: "task_1", expectedRevision: 1, ...extra };
+			const denied = await service.handleCommand(
+				envelope(command, payload),
+				AUTHORITY,
+			);
+			expect(denied).toMatchObject({
+				ok: false,
+				error: {
+					message: expect.stringContaining("authenticated local client"),
+				},
+			});
+			expect(method).not.toHaveBeenCalled();
+			expect(
+				(
+					await service.handleCommand(envelope(command, payload), {
+						...AUTHORITY,
+						crossWorkspace: true,
+					})
+				).ok,
+			).toBe(true);
+			expect(method).toHaveBeenCalledWith(
+				"task_1",
+				...(command === "task.factory.parts.cancel" ? [] : [1]),
+				expect.objectContaining({ kind: "user", clientId: "desktop" }),
+				...(command === "task.factory.split.approve" ? [[1]] : []),
+			);
+		}
 	});
 
 	it("honors selected repositories only for authenticated cross-workspace clients", async () => {

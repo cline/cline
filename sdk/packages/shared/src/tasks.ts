@@ -16,6 +16,8 @@ import type {
 	FactoryPriorityInput,
 	FactoryPriorityState,
 } from "./factory-priority";
+import type { FactoryBlockedBy, FactorySplitRecord } from "./factory-split";
+import { factoryDesignSplitSchema } from "./factory-split";
 import type { GatewayModelSelection } from "./llms/gateway";
 
 const factoryQuestionFields = {
@@ -115,6 +117,18 @@ const factoryDesignProgressFields = {
 	agentRetries: z.number().int().nonnegative().optional(),
 	/** Set only with phase "complete": the designer found nothing to build at this revision. */
 	conclusion: factoryDesignConclusionSchema.optional(),
+	/**
+	 * Set only with phase "complete": the designer split the request into
+	 * parts; a person approves the breakdown (never automatically).
+	 */
+	split: factoryDesignSplitSchema.optional(),
+	/** Scoping offered a breakdown at this revision (counted once). */
+	splitOffered: z.literal(true).optional(),
+	/**
+	 * Why the offer was withdrawn at this revision: the designer's breakdown
+	 * was invalid, so it was asked for a plan instead.
+	 */
+	splitWithdrawn: z.string().max(2000).optional(),
 	/** How scoping ran when the request came with a plan (see factoryDesignRouteSchema). */
 	route: factoryDesignRouteSchema.optional(),
 	/**
@@ -221,6 +235,16 @@ export interface AgendaTaskRecord {
 	 */
 	factoryDuplicateReports?: FactoryDuplicateReports;
 	/**
+	 * A split's part: the task id of the card it was split from (the
+	 * parent). Set only by the breakdown's approval; deleting the parent
+	 * clears it.
+	 */
+	factoryParentTaskId?: string;
+	/** The approved breakdown, on the parent (whose status is then `completed`). */
+	factorySplit?: FactorySplitRecord;
+	/** A part that waits for earlier parts' pull requests to be merged. */
+	factoryBlockedBy?: FactoryBlockedBy;
+	/**
 	 * The card's short number within its Hub task database, shown as
 	 * `F<n>` (see `formatFactoryId`). Present on Factory cards; assigned at
 	 * creation and never reused.
@@ -295,6 +319,11 @@ export interface AgendaTaskCreateInput {
 	 * to `high`; the Hub records a client's value as the person's.
 	 */
 	factoryPriority?: FactoryPriorityInput;
+	/**
+	 * Engine only: the parent of a split's part. The manager refuses it
+	 * unless the parent's approved breakdown lists this `taskId`.
+	 */
+	factoryParentTaskId?: string;
 	taskId?: string;
 	type: AgendaTaskType;
 	title: string;
@@ -371,6 +400,12 @@ export interface AgendaTaskListInput {
 	/** Only Factory cards, newest first. */
 	factoryOnly?: boolean;
 	limit?: number;
+	/**
+	 * Also return the cards a split links to the listed ones (a parent's
+	 * parts, a part's parent and earlier parts), whatever the filters and
+	 * `limit`, so a host can read every link of what it lists.
+	 */
+	factoryLinks?: boolean;
 }
 
 export type AgendaAutomationMode = "manual" | "auto_start" | "unattended";

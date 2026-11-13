@@ -131,6 +131,8 @@ type Expected = {
 	checks?: true;
 	reasonText?: string;
 	deliverable?: FactoryCardState["deliverable"];
+	parts?: FactoryCardState["parts"];
+	waitingFor?: FactoryCardState["waitingFor"];
 };
 type Case = [label: string, input: FactoryCardStateInput, expected: Expected];
 
@@ -146,6 +148,27 @@ const failed = (
 	}),
 	...(factory ? { lastRun: run(factory, { status: "failed", error }) } : {}),
 });
+
+const SPLIT = {
+	splitId: "s1",
+	revision: 2,
+	approvedAt: "2026-11-11T00:00:00.000Z",
+	createdAt: "2026-11-11T00:00:00.000Z",
+	goal: "Export and rename",
+	parts: [
+		{ title: "A", brief: "A", paths: ["a"], dependsOn: [], taskId: "task_a" },
+		{ title: "B", brief: "B", paths: ["b"], dependsOn: [0], taskId: "task_b" },
+	],
+};
+const NO_PARTS = {
+	total: 0,
+	delivered: 0,
+	merged: 0,
+	open: 0,
+	needsYou: 0,
+	stopped: 0,
+	closed: 0,
+};
 
 const CASES: Case[] = [
 	// held
@@ -1317,6 +1340,116 @@ const CASES: Case[] = [
 			kind: "archived",
 			waitingOn: "nobody",
 			reasonCode: "archived",
+			stage: "waiting",
+		},
+	],
+	// split into parts
+	[
+		"a breakdown waits for a person even under automatic approval",
+		{
+			task: card({
+				factory: handsOff,
+				factoryDesignProgress: design("complete", {
+					split: { parts: [{}, {}, {}] },
+				}),
+			}),
+			planApprovable: false,
+		},
+		{
+			kind: "awaiting_approval",
+			waitingOn: "person",
+			reasonCode: "split_approval",
+			reasonText: "Split into 3 parts",
+			stage: "scope",
+		},
+	],
+	[
+		"a parent with an open part tracks it and waits on nobody",
+		{
+			task: card({ status: "completed", factorySplit: SPLIT }),
+			parts: { ...NO_PARTS, total: 2, delivered: 1, open: 1 },
+		},
+		{
+			kind: "tracking",
+			waitingOn: "nobody",
+			reasonCode: "tracking",
+			stage: "build",
+			parts: { ...NO_PARTS, total: 2, delivered: 1, open: 1 },
+		},
+	],
+	[
+		"a parent without its parts' progress still only tracks",
+		{ task: card({ status: "completed", factorySplit: SPLIT }) },
+		{ kind: "tracking", waitingOn: "nobody", reasonCode: "tracking" },
+	],
+	[
+		"a parent whose parts all settled is delivered, with no deliverable of its own",
+		{
+			task: card({ status: "completed", factorySplit: SPLIT }),
+			parts: { ...NO_PARTS, total: 2, delivered: 1, closed: 1 },
+		},
+		{
+			kind: "delivered",
+			waitingOn: "nobody",
+			reasonCode: "parts_delivered",
+			stage: "delivered",
+		},
+	],
+	[
+		"a parent whose parts were all closed before delivery is closed, not delivered",
+		{
+			task: card({ status: "completed", factorySplit: SPLIT }),
+			parts: { ...NO_PARTS, total: 3, closed: 3 },
+		},
+		{
+			kind: "closed",
+			waitingOn: "nobody",
+			reasonCode: "parts_closed",
+			reasonText: "0 of 3 delivered, 3 closed",
+		},
+	],
+	[
+		"a parent whose parts are still being created tracks, even when none is listed yet",
+		{
+			task: card({
+				status: "completed",
+				factorySplit: { ...SPLIT, createdAt: undefined },
+			}),
+			parts: { ...NO_PARTS, total: 2, delivered: 1, closed: 1 },
+		},
+		{ kind: "tracking", waitingOn: "nobody", reasonCode: "tracking" },
+	],
+	[
+		"a part waiting for an earlier part's merge holds no slot",
+		{
+			task: card({ factory: handsOff, factoryQueued: "design" }),
+			live: { slotsFull: true },
+			dependency: { state: "waiting", on: ["F41"] },
+		},
+		{
+			kind: "queued",
+			waitingOn: "card",
+			reasonCode: "waiting_on_card",
+			reasonText: "Waiting for F41 to merge",
+			waitingFor: ["F41"],
+			stage: "waiting",
+		},
+	],
+	[
+		"a part whose earlier part will never merge needs the person",
+		{
+			task: card({ factory: handsOff, factoryQueued: "design" }),
+			dependency: {
+				state: "unavailable",
+				on: ["F41"],
+				reason: "F41 was closed without merging",
+			},
+		},
+		{
+			kind: "queued",
+			waitingOn: "person",
+			reasonCode: "dependency_unavailable",
+			reasonText: "F41 was closed without merging. Start anyway or cancel.",
 			stage: "waiting",
 		},
 	],

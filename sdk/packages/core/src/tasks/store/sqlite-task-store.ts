@@ -10,12 +10,14 @@ import type {
 	AgendaTaskRunStatus,
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
+	FactoryBlockedBy,
 	FactoryDesignProgress,
 	FactoryDesignReview,
 	FactoryDuplicateReports,
 	FactoryPriorityState,
 	FactoryQuestion,
 	FactoryRunState,
+	FactorySplitRecord,
 	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
@@ -24,6 +26,7 @@ import {
 	FACTORY_DUPLICATE_REPORTS_RECENT,
 	FACTORY_PRIORITY_NONE_RANK,
 	FACTORY_PRIORITY_RANK,
+	factoryBlockedBySchema,
 	factoryCheckResultSchema,
 	factoryDesignProgressSchema,
 	factoryDesignReviewSchema,
@@ -32,6 +35,7 @@ import {
 	factoryQuestionSchema,
 	factoryReviewSchema,
 	factoryRunStateSchema,
+	factorySplitRecordSchema,
 	factoryTaskConfigSchema,
 } from "@cline/shared";
 import {
@@ -165,14 +169,35 @@ function parseFactoryDuplicateReports(
 	return parsed.success ? parsed.data : undefined;
 }
 
+/** Split links that no longer parse read as none rather than hiding the card. */
+function parseFactoryLink<T>(
+	schema: z.ZodType<T>,
+	value: unknown,
+): T | undefined {
+	const parsed = schema.safeParse(parseJson<unknown>(value));
+	return parsed.success ? parsed.data : undefined;
+}
+
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	const queued = row.factory_queue_stage;
+	const factoryParentTaskId = asOptionalString(row.factory_parent_task_id);
+	const factorySplit = parseFactoryLink(
+		factorySplitRecordSchema,
+		row.factory_split_json,
+	);
+	const factoryBlockedBy = parseFactoryLink(
+		factoryBlockedBySchema,
+		row.factory_blocked_by_json,
+	);
 	const factoryNumber = toInteger(row.factory_number);
 	const factoryPriority = parseFactoryPriority(row.factory_priority_json);
 	const factoryDuplicateReports = parseFactoryDuplicateReports(
 		row.factory_duplicate_reports_json,
 	);
 	return {
+		...(factoryParentTaskId ? { factoryParentTaskId } : {}),
+		...(factorySplit ? { factorySplit } : {}),
+		...(factoryBlockedBy ? { factoryBlockedBy } : {}),
 		...(factoryDuplicateReports ? { factoryDuplicateReports } : {}),
 		...(queued === "design" || queued === "run"
 			? {
@@ -393,7 +418,7 @@ export class SqliteAgendaTaskStore {
 	}
 
 	public createTask(
-		input: AgendaTaskCreateInput,
+		input: AgendaTaskCreateInput & { factoryBlockedBy?: FactoryBlockedBy },
 		enqueueDesign = false,
 	): AgendaTaskRecord {
 		const now = nowIso();
@@ -426,10 +451,10 @@ export class SqliteAgendaTaskStore {
 					timeout_seconds, available_at, expires_at, automation_eligible,
 					revision, approved_revision, created_by_json, updated_by_json, origin_session_id,
 					origin_task_id, spec_path, created_at, updated_at, factory_json,
-					factory_priority_json
+					factory_priority_json, factory_parent_task_id, factory_blocked_by_json
 				) VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 				)`,
 				)
 				.run(
@@ -470,6 +495,12 @@ export class SqliteAgendaTaskStore {
 									...input.factoryPriority,
 									at: now,
 								}),
+							)
+						: null,
+					(input.factory && optionalText(input.factoryParentTaskId)) ?? null,
+					input.factory && input.factoryBlockedBy
+						? JSON.stringify(
+								factoryBlockedBySchema.parse(input.factoryBlockedBy),
 							)
 						: null,
 				);
@@ -646,7 +677,42 @@ export class SqliteAgendaTaskStore {
 				LIMIT ?`,
 			)
 			.all(...params, limit);
-		return rows.map(taskRowToRecord);
+		const tasks = rows.map(taskRowToRecord);
+		return input.factoryLinks ? this.withFactoryLinks(tasks) : tasks;
+	}
+
+	/**
+	 * `tasks` and every card a split links to them. Two rounds cover one
+	 * split level: a part brings its parent, whose other parts come next.
+	 */
+	private withFactoryLinks(tasks: AgendaTaskRecord[]): AgendaTaskRecord[] {
+		const seen = new Set(tasks.map((task) => task.taskId));
+		const all = [...tasks];
+		let found = tasks;
+		for (let round = 0; round < 2 && found.length; round++) {
+			const missing = [
+				...new Set(
+					found.flatMap((task) => [
+						...(task.factoryParentTaskId ? [task.factoryParentTaskId] : []),
+						...(task.factorySplit?.parts ?? []).flatMap((part) =>
+							part.omitted ? [] : [part.taskId],
+						),
+						...(task.factoryBlockedBy?.taskIds ?? []),
+					]),
+				),
+			].filter((taskId) => !seen.has(taskId));
+			for (const taskId of missing) seen.add(taskId);
+			found = missing.length
+				? this.db
+						.prepare(
+							`${SELECT_TASKS} WHERE task_id IN (${placeholders(missing.length)})`,
+						)
+						.all(...missing)
+						.map(taskRowToRecord)
+				: [];
+			all.push(...found);
+		}
+		return all;
 	}
 
 	/** Apply user-editable fields, increment revision, and revoke old approval. */
@@ -917,11 +983,155 @@ export class SqliteAgendaTaskStore {
 		return this.getTask(taskId);
 	}
 
+	/** Deletes the task; a split's parts stay, as ordinary cards (unlinked). */
 	public deleteTask(taskId: string): boolean {
-		return (
-			(this.db.prepare("DELETE FROM agenda_tasks WHERE task_id = ?").run(taskId)
-				.changes ?? 0) > 0
-		);
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			this.db
+				.prepare(
+					"UPDATE agenda_tasks SET factory_parent_task_id = NULL WHERE factory_parent_task_id = ?",
+				)
+				.run(taskId);
+			const deleted =
+				(this.db
+					.prepare("DELETE FROM agenda_tasks WHERE task_id = ?")
+					.run(taskId).changes ?? 0) > 0;
+			this.db.exec("COMMIT;");
+			return deleted;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	/**
+	 * Parts that may still wait for earlier merges: linked, not started
+	 * anyway, not archived, and not past approval.
+	 */
+	public listFactoryWaitingParts(): AgendaTaskRecord[] {
+		return this.db
+			.prepare(
+				`${SELECT_TASKS} WHERE factory_blocked_by_json IS NOT NULL
+				AND json_extract(factory_blocked_by_json, '$.startedAnyway') IS NULL
+				AND archived_at IS NULL
+				AND status IN ('pending_approval', 'approved')
+				ORDER BY created_at ASC, task_id ASC`,
+			)
+			.all()
+			.map(taskRowToRecord);
+	}
+
+	/** Parents whose kept parts are not all created yet, nor cancelled. */
+	public listUnfinishedFactorySplits(): AgendaTaskRecord[] {
+		return this.db
+			.prepare(
+				`${SELECT_TASKS} WHERE factory_split_json IS NOT NULL
+				AND json_extract(factory_split_json, '$.createdAt') IS NULL
+				AND json_extract(factory_split_json, '$.cancelledAt') IS NULL`,
+			)
+			.all()
+			.map(taskRowToRecord);
+	}
+
+	/**
+	 * Approves a breakdown in one write: the parent becomes `completed` with
+	 * its split record, which replaces the proposal in its design progress,
+	 * and leaves the queue. Only from a pending card at `revision` with no
+	 * record yet; false when that no longer holds.
+	 */
+	public applyFactorySplit(
+		taskId: string,
+		revision: number,
+		record: FactorySplitRecord,
+		actor: AgendaTaskActor,
+	): boolean {
+		const now = nowIso();
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const changed =
+				this.db
+					.prepare(
+						`UPDATE agenda_tasks SET status = 'completed', completed_at = ?,
+						approved_revision = NULL, error = NULL, updated_by_json = ?, updated_at = ?,
+						factory_split_json = ?,
+						factory_design_progress_json = json_remove(factory_design_progress_json, '$.split')
+						WHERE task_id = ? AND revision = ? AND status = 'pending_approval'
+						AND factory_split_json IS NULL`,
+					)
+					.run(
+						now,
+						JSON.stringify(actor),
+						now,
+						JSON.stringify(factorySplitRecordSchema.parse(record)),
+						taskId,
+						revision,
+					).changes ?? 0;
+			if (changed) this.dequeueFactory(taskId);
+			this.db.exec("COMMIT;");
+			return changed > 0;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	/**
+	 * Rewrites an existing split record (parts created, or the rest
+	 * cancelled). Writes only that column.
+	 */
+	public setFactorySplit(
+		taskId: string,
+		record: FactorySplitRecord,
+	): AgendaTaskRecord | undefined {
+		this.db
+			.prepare(
+				"UPDATE agenda_tasks SET factory_split_json = ? WHERE task_id = ? AND factory_split_json IS NOT NULL",
+			)
+			.run(JSON.stringify(factorySplitRecordSchema.parse(record)), taskId);
+		return this.getTask(taskId);
+	}
+
+	/**
+	 * Writes only a waiting part's links: never the revision, approval,
+	 * status or `updated_at`.
+	 */
+	public setFactoryBlockedBy(
+		taskId: string,
+		blockedBy: FactoryBlockedBy,
+	): AgendaTaskRecord | undefined {
+		this.db
+			.prepare(
+				"UPDATE agenda_tasks SET factory_blocked_by_json = ? WHERE task_id = ?",
+			)
+			.run(JSON.stringify(factoryBlockedBySchema.parse(blockedBy)), taskId);
+		return this.getTask(taskId);
+	}
+
+	/** Adds one to a named Factory count (kept beside the short-id counter). */
+	public countFactoryEvent(name: string): void {
+		this.db
+			.prepare(
+				`INSERT INTO factory_counter (name, last_number) VALUES (?, 1)
+				ON CONFLICT(name) DO UPDATE SET last_number = last_number + 1`,
+			)
+			.run(`count:${name}`);
+	}
+
+	/** Named Factory counts; never-counted names read 0. */
+	public getFactoryCounts<T extends string>(
+		names: readonly T[],
+	): Record<T, number> {
+		const counts = Object.fromEntries(names.map((name) => [name, 0])) as Record<
+			T,
+			number
+		>;
+		for (const name of names) {
+			const row = this.db
+				.prepare("SELECT last_number FROM factory_counter WHERE name = ?")
+				.get(`count:${name}`);
+			counts[name] = toInteger(row?.last_number) ?? 0;
+		}
+		return counts;
 	}
 
 	public createRun(input: CreateAgendaTaskRunInput): AgendaTaskRunRecord {

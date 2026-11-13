@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { FSWatcher } from "node:fs";
 import { existsSync, realpathSync, statSync, watch } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -13,6 +13,9 @@ import type {
 	BasicLogger,
 	FactoryAgent,
 	FactoryAgents,
+	FactoryBlockedBy,
+	FactoryCardState,
+	FactoryDependencyState,
 	FactoryDesignConclusion,
 	FactoryDesignProgress,
 	FactoryDesignRoute,
@@ -23,6 +26,7 @@ import type {
 	FactoryQuestion,
 	FactoryReviewSelection,
 	FactoryRunState,
+	FactorySplitRecord,
 	FactoryTaskConfig,
 	FactoryVerificationProfile,
 	FactoryWorkflowRecipe,
@@ -52,12 +56,16 @@ import {
 	factoryAcceptanceConfigurationFindings,
 	factoryAcceptanceCriteriaSchema,
 	factoryCardCostLimitUsd,
+	factoryCardList,
 	factoryCheckSchema,
 	factoryDailySpendingLimitReason,
+	factoryDependencyState,
 	factoryDesignConclusionSchema,
+	factoryDesignSplitResponseSchema,
 	factoryExecutionInputSchema,
 	factoryFeedbackAnalysisStatus,
 	factoryIndependentReview,
+	factoryPartStanding,
 	factoryPlanApprovalBlocker,
 	factoryRepairRounds,
 	factoryRequiresIndependentReview,
@@ -127,6 +135,7 @@ import {
 	factoryBranchName,
 	factoryCheckConfigurationFindings,
 	prepareFactoryWorkspace,
+	runFactoryCommand,
 } from "./factory-local";
 import {
 	FACTORY_PREPARED_SWEEP_LIMITS,
@@ -143,6 +152,7 @@ import {
 import {
 	FACTORY_OUTCOME_WATCH_MAX_AGE_DAYS,
 	readFactoryPullRequest,
+	readFactoryPullRequestMerge,
 	runFactoryPullRequestFollowup,
 } from "./factory-pull-request";
 import {
@@ -190,13 +200,26 @@ import {
 	setFactoryVerificationSettings,
 } from "./factory-settings";
 import {
+	FACTORY_PART_DIFF_CHARS,
+	FACTORY_SPLIT_COUNTS,
+	type FactorySplitCount,
+	factoryPartConfig,
+	factoryPartContextBlock,
+	factorySplitInstruction,
+	factorySplitPartTaskId,
+} from "./factory-split";
+import {
 	type FactoryStageDecision,
 	type FactoryStageTrustStore,
 	FileFactoryStageTrustStore,
 	listFactoryStages,
 	resolveFactoryStagePlan,
 } from "./factory-stages";
-import { describeFactoryCardState } from "./factory-tool";
+import {
+	describeFactoryCardState,
+	type FactoryStatusLinks,
+	factoryStatusCardState,
+} from "./factory-tool";
 import {
 	createFactoryVerificationProfileSnapshot,
 	type FactoryVerificationProfileFailure,
@@ -301,6 +324,31 @@ const TASK_MANAGER_ACTOR: AgendaTaskActor = {
 	kind: "system",
 	id: "task_manager",
 };
+/** A card's short id (`F41`), or its task id when it has none. */
+const factoryShortId = (task: AgendaTaskRecord) =>
+	task.factoryNumber ? formatFactoryId(task.factoryNumber) : task.taskId;
+const isTaskManagerActor = (actor: AgendaTaskActor | undefined) =>
+	actor?.kind === TASK_MANAGER_ACTOR.kind && actor.id === TASK_MANAGER_ACTOR.id;
+
+/**
+ * Whether scoping may conclude that no build is needed. Triage is for
+ * discovered work (a scheduled or agent intake source, or an imported issue)
+ * or an explicit opt-in (`triage`, or the workflow's designer). Work a person
+ * typed into the desktop composer ("desktop-intake") must produce a plan.
+ */
+function factoryTriage(
+	config: FactoryTaskConfig,
+	agents: Pick<FactoryAgents, "designer"> | undefined,
+): boolean {
+	return (
+		config.triage ??
+		Boolean(
+			(config.intake && config.intake.source !== "desktop-intake") ||
+				config.sourceIssue ||
+				agents?.designer.triage,
+		)
+	);
+}
 const AUTOMATION_ACTOR: AgendaTaskActor = {
 	kind: "automation_policy",
 	id: "global",
@@ -327,6 +375,16 @@ const TERMINAL_RUN_STATUSES = new Set([
 	"interrupted",
 ]);
 const MAINTENANCE_INTERVAL_MS = 30_000;
+/** A waiting part's earlier pull request is read at most this often. */
+const FACTORY_MERGE_CHECK_INTERVAL_MS = 2 * 60_000;
+/** Pull requests read per maintenance pass, at most. */
+const FACTORY_MERGE_CHECKS_PER_PASS = 4;
+/** One merge read's timeout. */
+const FACTORY_MERGE_CHECK_TIMEOUT_MS = 15_000;
+/** Failed reads in a row before a waiting part asks the person. */
+const FACTORY_MERGE_CHECK_FAILURES = 3;
+/** A part's time to start once its turn comes (see isExpired). */
+const FACTORY_PART_EXPIRY_MS = 30 * DAY_MS;
 const DEFAULT_WATCH_DEBOUNCE_MS = 250;
 
 export type AgendaTaskManagerEventName =
@@ -455,6 +513,11 @@ export interface AgendaTaskManagerOptions {
 	 * never set), read at start and with the other stored settings.
 	 */
 	resolveFactoryDuplicateCheck?: () => Promise<boolean | undefined>;
+	/**
+	 * Whether scoping may split large work into parts (persisted; true when
+	 * never set), read at start and with the other stored settings.
+	 */
+	resolveFactorySplitLargeWork?: () => Promise<boolean | undefined>;
 	/** How long a thrown designer turn is polled for its session to stop before one retry. Defaults to 60 polls of 1 s. */
 	factorySettlePolling?: { intervalMs: number; attempts: number };
 	globalSpecsDir?: string;
@@ -1139,6 +1202,23 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	>;
 	/** Whether new filings are checked for duplicates (fileFactoryCard). */
 	private factoryDuplicateCheck = true;
+	/** Whether scoping may offer to split large work into parts. */
+	private factorySplitLargeWork = true;
+	private readonly resolveFactorySplitLargeWork?: () => Promise<
+		boolean | undefined
+	>;
+	/**
+	 * Each unsettled earlier pull request a waiting part waits on, by URL:
+	 * when it was last read and how many reads in a row failed. Entries for
+	 * pull requests no part waits on any more are dropped each pass.
+	 */
+	private readonly factoryMergeChecks = new Map<
+		string,
+		{ at: number; failures: number }
+	>();
+	private factoryMergeCheck?: Promise<void>;
+	/** Stops merge reads in flight on dispose. */
+	private readonly factoryMergeAbort = new AbortController();
 	/** The last filing of each project, settled; the next one waits for it. */
 	private readonly factoryFilings = new Map<string, Promise<void>>();
 	private readonly resolveFactoryDuplicateCheck?: () => Promise<
@@ -1230,6 +1310,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			options.resolveFactoryDefaultsReceived;
 		this.resolveFactoryDailyCostUsd = options.resolveFactoryDailyCostUsd;
 		this.resolveFactoryDuplicateCheck = options.resolveFactoryDuplicateCheck;
+		this.resolveFactorySplitLargeWork = options.resolveFactorySplitLargeWork;
 		this.factoryDataDir = dirname(options.dbPath ?? resolveTasksDbPath());
 		this.factoryStorageDir =
 			options.factoryStorageDir ?? join(this.factoryDataDir, "factory");
@@ -1292,6 +1373,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		);
 		if (duplicateCheck !== undefined)
 			this.factoryDuplicateCheck = duplicateCheck;
+		const splitLargeWork = await this.resolveFactorySplitLargeWork?.().catch(
+			(error: unknown) => {
+				this.logError("factory split setting unavailable", error, {});
+				return undefined;
+			},
+		);
+		if (splitLargeWork !== undefined)
+			this.factorySplitLargeWork = splitLargeWork;
 		this.recoverInterruptedRuns();
 		this.normalizeLegacyFeedbackStops();
 		await this.factoryDailyLimitReached();
@@ -1306,12 +1395,22 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			}
 		}
 		this.expireTasks();
+		// An approval the Hub stopped in the middle of creates its missing parts.
+		for (const parent of this.store.listUnfinishedFactorySplits())
+			await this.createFactoryParts(parent).catch((error: unknown) =>
+				this.logError("factory split parts not created", error, {
+					taskId: parent.taskId,
+				}),
+			);
 		this.maintenanceTimer = setInterval(() => {
 			this.expireTasks();
 			this.queueAutomation();
 			this.renewFactoryClaims();
 			this.recoverInterruptedRuns(true);
 			void this.pumpFactoryQueue();
+			// Spends no model money: runs while paused, at the daily limit and
+			// with every slot busy.
+			void this.checkFactoryMerges();
 			// Re-reads the persisted pause and limits (a corrupt or deleted
 			// defaults file pauses), then keeps the daily-limit state current.
 			void this.refreshFactorySettings()
@@ -1786,12 +1885,13 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 
 	/** Re-reads the persisted pause, working limit and daily limit. */
 	private async refreshFactorySettings(): Promise<void> {
-		const [paused, concurrency, dailyCostUsd, duplicateCheck] =
+		const [paused, concurrency, dailyCostUsd, duplicateCheck, splitLargeWork] =
 			await Promise.all([
 				this.resolveFactoryPaused?.().catch(() => true),
 				this.resolveFactoryConcurrency?.().catch(() => undefined),
 				this.resolveFactoryDailyCostUsd?.().catch(() => undefined),
 				this.resolveFactoryDuplicateCheck?.().catch(() => undefined),
+				this.resolveFactorySplitLargeWork?.().catch(() => undefined),
 			]);
 		if (this.disposed) return;
 		if (paused !== undefined && paused !== this.factoryPaused) {
@@ -1808,6 +1908,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		if (dailyCostUsd !== undefined) this.setFactoryDailyCostUsd(dailyCostUsd);
 		if (duplicateCheck !== undefined)
 			this.setFactoryDuplicateCheck(duplicateCheck);
+		if (splitLargeWork !== undefined)
+			this.setFactorySplitLargeWork(splitLargeWork);
 	}
 
 	getFactoryDuplicateCheck(): boolean {
@@ -1818,6 +1920,21 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	setFactoryDuplicateCheck(enabled: boolean): boolean {
 		this.factoryDuplicateCheck = enabled;
 		return this.factoryDuplicateCheck;
+	}
+
+	getFactorySplitLargeWork(): boolean {
+		return this.factorySplitLargeWork;
+	}
+
+	/** Turns the breakdown offer on or off; approved breakdowns are unaffected. */
+	setFactorySplitLargeWork(enabled: boolean): boolean {
+		this.factorySplitLargeWork = enabled;
+		return this.factorySplitLargeWork;
+	}
+
+	/** How often scoping offered, proposed and the person approved or declined a breakdown. */
+	getFactorySplitCounts(): Record<FactorySplitCount, number> {
+		return this.store.getFactoryCounts(FACTORY_SPLIT_COUNTS);
 	}
 
 	getFactoryDailyCostUsd(): number | null {
@@ -2500,6 +2617,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.questionWaiters.clear();
 		// The pass stops at its next card; work it already started is stopped below.
 		await this.factoryPumpPass;
+		this.factoryMergeAbort.abort(new Error("Hub stopped"));
+		await this.factoryMergeCheck;
 		await Promise.allSettled(
 			[...this.designSessions.keys()].map((taskId) =>
 				this.abortFactoryDesign(taskId, "Hub stopped"),
@@ -2852,7 +2971,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		task: AgendaTaskRecord,
 		queue: ReturnType<AgendaTaskManager["getFactoryQueueState"]>,
 	): FactoryDuplicateCard {
-		// An archived delivery still reads as delivered.
+		// An archived delivery still reads as delivered; a parent reads as its
+		// parts (open work, delivered, or closed).
 		const {
 			card: described,
 			kind,
@@ -2861,6 +2981,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			{ ...task, archivedAt: undefined },
 			this.store.listRuns({ taskId: task.taskId, limit: 1 }),
 			queue,
+			undefined,
+			task.factorySplit ? this.getFactoryCardLinks(task.taskId) : {},
 		);
 		const pullRequest =
 			described.pullRequestUrl || pullRequestOutcome
@@ -3107,6 +3229,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		if (this.store.getTask(taskId)) {
 			throw new Error(`task ${taskId} already exists`);
 		}
+		const factoryBlockedBy = normalizedInput.factoryParentTaskId
+			? this.factoryPartLinks(normalizedInput, taskId)
+			: undefined;
 		const fileStore = this.ensureScope(
 			normalizedInput.scope,
 			normalizedInput.workspaceRoot,
@@ -3123,6 +3248,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				...normalizedInput,
 				taskId,
 				specPath,
+				...(factoryBlockedBy ? { factoryBlockedBy } : {}),
 			},
 			queueDesign,
 		);
@@ -3139,6 +3265,43 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.expireTask(task);
 		this.queueAutomation();
 		return this.requireTask(taskId);
+	}
+
+	/**
+	 * A split's part is created only by the manager's own part creation
+	 * (createFactoryParts), as its parent's approved breakdown lists it (same
+	 * project, one level); returns the earlier parts it waits for, from that
+	 * breakdown alone.
+	 */
+	private factoryPartLinks(
+		input: AgendaTaskCreateInput,
+		taskId: string,
+	): FactoryBlockedBy | undefined {
+		const parent = input.factoryParentTaskId
+			? this.store.getTask(input.factoryParentTaskId)
+			: undefined;
+		const record = parent?.factorySplit;
+		const part = record?.parts.find(
+			(entry) => entry.taskId === taskId && !entry.omitted,
+		);
+		if (
+			!isTaskManagerActor(input.createdBy) ||
+			!parent?.factory ||
+			!record ||
+			!part ||
+			!input.factory ||
+			parent.factoryParentTaskId ||
+			parent.scope !== input.scope ||
+			parent.workspaceRoot !== input.workspaceRoot
+		)
+			throw new Error(
+				"A part is created only by approving its parent's breakdown in Factory",
+			);
+		const taskIds = part.dependsOn.flatMap((index) => {
+			const earlier = record.parts[index];
+			return earlier && !earlier.omitted ? [earlier.taskId] : [];
+		});
+		return taskIds.length ? { taskIds, met: {} } : undefined;
 	}
 
 	async listTasks(
@@ -3616,6 +3779,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.assertUsable();
 		let current = this.requireTask(taskId);
 		this.assertRevision(current, expectedRevision);
+		this.assertNoOpenParts(current);
 		if (current.specPath && existsSync(current.specPath))
 			this.readTaskSpec(current);
 		if (
@@ -4418,6 +4582,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			throw new Error("Only feature tasks have a design interview");
 		if (!["pending_approval", "approved", "failed"].includes(task.status))
 			throw new Error("Design is available before feature execution.");
+		// Before any write: a part waiting for earlier merges is not scoped.
+		const waiting = this.factoryDependencyBlocker(task);
+		if (waiting) throw new Error(waiting);
 		if (!this.runtime.startDesignSession)
 			throw new Error("Feature design is unavailable");
 		const existing = this.designSessions.get(taskId);
@@ -4480,7 +4647,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				// Scoping a plan left at the repair limit again designs it afresh
 				// with its open findings, for one more review.
 				const openFindings =
-					saved?.phase === "complete" && !saved.conclusion
+					saved?.phase === "complete" && !saved.conclusion && !saved.split
 						? saved.findings
 						: [];
 				// Reviewed or complete progress holds the pools with the verifier a
@@ -4688,6 +4855,34 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	}
 
 	/**
+	 * Whether scoping may answer this card with a breakdown: the setting is
+	 * on; a change request that never ran, has no supplied plan, is not a
+	 * rule card, replay or part, was never split and was not kept whole; on
+	 * its first design round, unless an unusable breakdown withdrew the offer.
+	 */
+	private factorySplitOffered(
+		task: AgendaTaskRecord,
+		progress: FactoryDesignProgress,
+	): boolean {
+		const config = task.factory;
+		return Boolean(
+			this.factorySplitLargeWork &&
+				config &&
+				!config.replay &&
+				!config.prepared &&
+				config.split !== "never" &&
+				!progress.route &&
+				!progress.splitWithdrawn &&
+				progress.repairRound === 0 &&
+				!progress.findings.length &&
+				!task.lastRunId &&
+				!task.factoryParentTaskId &&
+				!task.factorySplit &&
+				!isFactoryRuleCard(task),
+		);
+	}
+
+	/**
 	 * Unfinished, unarchived Factory cards in the project for the designer's
 	 * duplicate check. Titles are user- or agent-supplied, so they are
 	 * truncated, JSON-quoted and fenced as untrusted data.
@@ -4705,7 +4900,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						(other) =>
 							other.factory &&
 							!other.archivedAt &&
-							other.taskId !== task.taskId,
+							other.taskId !== task.taskId &&
+							// A part's siblings are not duplicates of it.
+							(!task.factoryParentTaskId ||
+								other.factoryParentTaskId !== task.factoryParentTaskId),
 					)
 					.slice(0, 50)
 			: [];
@@ -4789,14 +4987,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		let baseNote: string | undefined;
 		const profileFailure = this.lastFactoryProfileFailure(task);
 		let findings: string[] = progress.findings;
-		// Triage is for discovered work (a scheduled or agent intake source, or an
-		// imported issue) or an explicit workflow opt-in. Work a person typed into
-		// the desktop composer ("desktop-intake") must produce a plan.
-		const triage = Boolean(
-			(config.intake && config.intake.source !== "desktop-intake") ||
-				config.sourceIssue ||
-				agents.designer.triage,
-		);
+		const triage = factoryTriage(config, agents);
+		// A split's part: its place in the breakdown, read once per session.
+		let partBlock: string | undefined;
 		let transientRetryUsed = false;
 		// Hands-off cards design adaptively unless their workflow fixes the
 		// pool, so the designer always rates impact and size.
@@ -4833,8 +5026,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		try {
 			for (;;) {
 				assertCurrent();
-				// A concluded design waits for the user; it has no plan to review.
-				if (progress.phase === "complete" && progress.conclusion) {
+				// A conclusion or a breakdown waits for the user; neither has a
+				// plan to review.
+				if (
+					progress.phase === "complete" &&
+					(progress.conclusion || progress.split)
+				) {
 					this.store.dequeueFactory(task.taskId);
 					return;
 				}
@@ -5022,6 +5219,23 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					]
 						.filter(Boolean)
 						.join("\n");
+					const splitOffered: boolean =
+						!preparedResult && this.factorySplitOffered(proposal, progress);
+					if (splitOffered && !progress.splitOffered) {
+						progress = { ...progress, splitOffered: true };
+						const offered = this.store.updateTaskState(
+							task.taskId,
+							{ factoryDesignProgress: progress },
+							proposal.revision,
+						);
+						if (!offered) throw new Error("Could not persist the split offer");
+						this.store.countFactoryEvent("offered");
+					}
+					partBlock ??= await this.factoryPartBlock(
+						proposal.taskId,
+						active.controller.signal,
+					);
+					assertCurrent();
 					const result: AgendaTaskRuntimeResult | undefined =
 						preparedResult ??
 						(recovered?.status === "completed" ||
@@ -5030,7 +5244,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							? recovered
 							: await runDesigner(
 									sessionId,
-									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. ${selectionRequired ? "If the pool cannot support the impact, report the setup gap; never understate risk or invent agents." : "If the configured pools cannot support the impact, omit reviewSelection rather than understate risk; a person then reviews the result. Never invent agents."} Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For independent implementation work, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
+									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${splitOffered ? `${factorySplitInstruction(Boolean(config.publishPullRequest))} ` : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. ${selectionRequired ? "If the pool cannot support the impact, report the setup gap; never understate risk or invent agents." : "If the configured pools cannot support the impact, omit reviewSelection rather than understate risk; a person then reviews the result. Never invent agents."} Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For one change whose pieces can be built in parallel but merge together, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${partBlock}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
 								));
 					assertCurrent();
 					if (!result || result.status === "cancelled")
@@ -5065,7 +5279,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 								verificationProfile: FactoryTaskConfig["verificationProfile"];
 								agents: FactoryAgents;
 						  }
-						| { conclusion: FactoryDesignConclusion };
+						| { conclusion: FactoryDesignConclusion }
+						| { split: NonNullable<FactoryDesignProgress["split"]> };
+					// Set when the answer was a breakdown that cannot be used.
+					let invalidSplit: string | undefined;
 					const currentProgress = progress;
 					const interpret = (
 						response: AgendaTaskRuntimeResult,
@@ -5084,6 +5301,27 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 									factoryDesignConclusionResponseSchema.parse(parsed)
 										.conclusion,
 							};
+						if (
+							splitOffered &&
+							parsed &&
+							typeof parsed === "object" &&
+							"split" in parsed
+						) {
+							const split = factoryDesignSplitResponseSchema.safeParse(parsed);
+							const problem = !split.success
+								? split.error.issues
+										.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+										.join("; ")
+								: !config.publishPullRequest &&
+										split.data.split.parts.some(
+											(part) => part.dependsOn.length > 0,
+										)
+									? "This card does not open pull requests, so no part can wait for another"
+									: undefined;
+							if (split.success && !problem) return { split: split.data.split };
+							invalidSplit = (problem ?? "invalid breakdown").slice(0, 2000);
+							throw new Error(`The breakdown cannot be used: ${invalidSplit}`);
+						}
 						const design = designSchema.parse(parsed);
 						if (
 							adaptive &&
@@ -5155,6 +5393,30 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						sessionId = progress.designerSessionId;
 						continue;
 					}
+					if (!answer && invalidSplit) {
+						// An unusable breakdown never stops the card: the offer is
+						// withdrawn for this revision and the designer plans it as one.
+						progress = {
+							...progress,
+							splitWithdrawn: invalidSplit,
+							designerSessionId: createSessionId("factory_design_"),
+							formatFeedback: `Factory cannot use the breakdown you returned (${invalidSplit}). Return a plan for the whole request as one card instead, in the plan JSON format; use implementationUnits for pieces built in parallel that merge together. A split is no longer accepted for this card.\nPREVIOUS RESPONSE:\n${(result.summary ?? "").slice(0, 100_000)}`,
+						};
+						sessionId = progress.designerSessionId;
+						const updated = this.store.updateTaskState(
+							task.taskId,
+							{ factoryDesignProgress: progress, originSessionId: sessionId },
+							proposal.revision,
+						);
+						if (!updated)
+							throw new Error("Could not persist the withdrawn split offer");
+						this.publish("task.updated", updated);
+						this.logger.log("factory breakdown withdrawn; scoping a plan", {
+							taskId: task.taskId,
+							reason: invalidSplit,
+						});
+						continue;
+					}
 					if (!answer) {
 						const formatRetries: number = progress.formatRetries ?? 0;
 						const maxRetries = config.maxRuntimeRetries ?? 2;
@@ -5178,6 +5440,33 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							throw new Error("Could not persist design format recovery");
 						this.publish("task.updated", updated);
 						continue;
+					}
+					if ("split" in answer) {
+						// Waits for a person's approval in the app; never approved
+						// automatically and never queued.
+						const proposed: FactoryDesignProgress = {
+							...progress,
+							phase: "complete",
+							revision: proposal.revision,
+							formatFeedback: undefined,
+							split: answer.split,
+							reviewerSessions: [],
+							reviews: [],
+						};
+						const saved = this.store.updateTaskState(
+							task.taskId,
+							{
+								factoryDesignProgress: proposed,
+								status: "pending_approval",
+								approvedRevision: null,
+							},
+							proposal.revision,
+						);
+						if (!saved) throw new Error("Could not persist the breakdown");
+						this.store.dequeueFactory(task.taskId);
+						this.store.countFactoryEvent("proposed");
+						this.publish("task.updated", saved);
+						return;
 					}
 					if ("conclusion" in answer) {
 						// Nothing to build: keep the brief, checks and criteria, skip plan
@@ -5665,6 +5954,718 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	}
 
 	/**
+	 * A person approves the breakdown scoping proposed (from the app only;
+	 * never automatically, never an agent). One write makes the parent
+	 * `completed` with its split record; then each kept part is created as
+	 * its own card, scoping queued, with the parent's whole config, triage
+	 * setting and priority. `omit` leaves parts out; a kept part may not wait
+	 * for an omitted one. Approving again returns the same parts.
+	 */
+	async approveFactorySplit(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+		omit: readonly number[] = [],
+	): Promise<{ task: AgendaTaskRecord; parts: AgendaTaskRecord[] }> {
+		this.assertUsable();
+		if (actor.kind !== "user")
+			throw new Error("Only a person approves a breakdown, in Factory.");
+		let task = await this.refreshAndVerifyTaskIntent(taskId);
+		if (task.factorySplit) {
+			const parts = await this.createFactoryParts(task);
+			return { task: this.requireTask(taskId), parts };
+		}
+		this.assertRevision(task, expectedRevision);
+		const design =
+			task.factoryDesignProgress?.revision === task.revision
+				? task.factoryDesignProgress
+				: undefined;
+		const split = design?.phase === "complete" ? design.split : undefined;
+		if (
+			!task.factory ||
+			!split ||
+			task.status !== "pending_approval" ||
+			task.archivedAt
+		)
+			throw new Error("This card has no breakdown waiting for approval.");
+		if (this.isExpired(task)) {
+			this.expireTask(task);
+			throw new Error(`task ${taskId} has expired`);
+		}
+		const omitted = new Set(omit);
+		if ([...omitted].some((index) => !split.parts[index]))
+			throw new Error("omit names a part the breakdown does not have.");
+		if (omitted.size >= split.parts.length)
+			throw new Error("Keep at least one part.");
+		for (const [index, part] of split.parts.entries()) {
+			const missing = part.dependsOn.find((earlier) => omitted.has(earlier));
+			if (!omitted.has(index) && missing !== undefined)
+				throw new Error(
+					`Part ${index + 1} waits for part ${missing + 1}; keep part ${missing + 1} or leave both out.`,
+				);
+		}
+		const splitId = randomBytes(8).toString("hex");
+		const record: FactorySplitRecord = {
+			splitId,
+			revision: task.revision,
+			approvedAt: nowIso(),
+			goal: split.goal,
+			parts: split.parts.map((part, index) => ({
+				title: part.title,
+				brief: part.brief,
+				paths: part.paths,
+				dependsOn: part.dependsOn,
+				taskId: factorySplitPartTaskId(task.taskId, splitId, index),
+				...(omitted.has(index) ? { omitted: true as const } : {}),
+			})),
+		};
+		if (
+			!this.store.applyFactorySplit(task.taskId, task.revision, record, actor)
+		)
+			throw new Error(
+				"The breakdown changed before approval; review it again.",
+			);
+		await this.abortFactoryDesign(task.taskId, "Breakdown approved");
+		this.rejectFactoryQuestions(task.taskId, "Breakdown approved");
+		this.store.countFactoryEvent("approved");
+		task = this.requireTask(task.taskId);
+		this.publish("task.updated", task);
+		this.logger.log("factory breakdown approved", {
+			taskId: task.taskId,
+			parts: record.parts.length - omitted.size,
+			omitted: omitted.size,
+		});
+		const parts = await this.createFactoryParts(task);
+		return { task: this.requireTask(task.taskId), parts };
+	}
+
+	/**
+	 * Creates the parts of an approved breakdown that do not exist yet, in
+	 * order, then records that all exist. A card already at a part's task id
+	 * counts only when it is linked to this parent and was created by the
+	 * manager; another card there is left alone and that part is not created.
+	 * Once all exist, a missing part (deleted since) is not created again.
+	 * Stops when the person cancelled the remaining parts.
+	 */
+	private async createFactoryParts(
+		parent: AgendaTaskRecord,
+	): Promise<AgendaTaskRecord[]> {
+		const record = parent.factorySplit;
+		if (!record || !parent.factory) return [];
+		const config = factoryPartConfig(
+			parent.factory,
+			factoryTriage(
+				parent.factory,
+				parent.factoryDesignProgress?.agents ?? parent.factory.agents,
+			),
+		);
+		const expiresAt = new Date(
+			Math.max(
+				Date.parse(parent.expiresAt),
+				Date.now() + FACTORY_PART_EXPIRY_MS,
+			),
+		).toISOString();
+		/** The part's card; null when another card holds its id. */
+		const existing = (taskId: string) => {
+			const stored = this.store.getTask(taskId);
+			if (!stored) return undefined;
+			if (
+				stored.factoryParentTaskId === parent.taskId &&
+				isTaskManagerActor(stored.createdBy)
+			)
+				return stored;
+			this.logger.log("factory part not created: another card uses its id", {
+				taskId: parent.taskId,
+				part: taskId,
+			});
+			return null;
+		};
+		const parts: AgendaTaskRecord[] = [];
+		for (const part of record.parts) {
+			if (part.omitted) continue;
+			const stored = existing(part.taskId);
+			if (stored) parts.push(stored);
+			if (stored !== undefined || record.createdAt) continue;
+			if (this.store.getTask(parent.taskId)?.factorySplit?.cancelledAt) break;
+			const filing = this.fileFactoryCard(
+				{
+					taskId: part.taskId,
+					type: parent.type,
+					title: part.title,
+					instructions: part.brief,
+					scope: parent.scope,
+					workspaceRoot: parent.workspaceRoot,
+					cwd: parent.cwd ?? parent.workspaceRoot,
+					expiresAt,
+					requiresApproval: true,
+					automationEligible: false,
+					modelSelection: parent.modelSelection,
+					factory: config,
+					factoryParentTaskId: parent.taskId,
+					...(parent.factoryPriority
+						? {
+								factoryPriority: {
+									level: parent.factoryPriority.level,
+									by: parent.factoryPriority.by,
+									...(parent.factoryPriority.reason
+										? { reason: parent.factoryPriority.reason }
+										: {}),
+								},
+							}
+						: {}),
+					createdBy: TASK_MANAGER_ACTOR,
+				},
+				// The person approved this list; the parent and its parts are not
+				// duplicates of each other.
+				{ allowDuplicate: true },
+			);
+			// A concurrent approval of the same breakdown may have created it.
+			const task = await filing.then(
+				(filed) => filed.task,
+				(error: unknown) => {
+					const created = existing(part.taskId);
+					if (created !== undefined) return created;
+					throw error;
+				},
+			);
+			if (task) parts.push(task);
+		}
+		const latest = this.store.getTask(parent.taskId);
+		if (
+			latest?.factorySplit &&
+			!latest.factorySplit.createdAt &&
+			!latest.factorySplit.cancelledAt
+		) {
+			const done = this.store.setFactorySplit(parent.taskId, {
+				...latest.factorySplit,
+				createdAt: nowIso(),
+			});
+			if (done) this.publish("task.updated", done);
+		}
+		return parts;
+	}
+
+	/**
+	 * "Keep as one card": the breakdown waiting for a decision is set aside
+	 * for good and the request is scoped again as one card (`split: "never"`).
+	 */
+	async keepFactoryCardWhole(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+	): Promise<AgendaTaskRecord> {
+		this.assertUsable();
+		const current = this.requireTask(taskId);
+		this.assertRevision(current, expectedRevision);
+		const design =
+			current.factoryDesignProgress?.revision === current.revision
+				? current.factoryDesignProgress
+				: undefined;
+		if (
+			!current.factory ||
+			current.factorySplit ||
+			current.status !== "pending_approval" ||
+			design?.phase !== "complete" ||
+			!design.split
+		)
+			throw new Error("This card has no breakdown waiting for a decision.");
+		const task = await this.updateTask({
+			taskId,
+			expectedRevision,
+			factory: { ...current.factory, split: "never" },
+			updatedBy: actor,
+		});
+		this.store.countFactoryEvent("kept_whole");
+		// Hands-off cards were queued by the edit; others scope on request only.
+		return task.factoryQueued || task.archivedAt
+			? task
+			: this.queueFactoryScoping(task.taskId, actor);
+	}
+
+	/**
+	 * A card's split links, as the status tool and hosts read them: a part's
+	 * parent (short id), a parent's kept parts with their states (no state
+	 * for a part that has no card of its own), and a waiting part's
+	 * dependency state. Empty for a card without links. Reads only.
+	 */
+	getFactoryCardLinks(taskId: string): FactoryStatusLinks {
+		const task = this.store.getTask(taskId);
+		if (!task) return {};
+		const parent = task.factoryParentTaskId
+			? this.store.getTask(task.factoryParentTaskId)
+			: undefined;
+		const dependency = this.factoryDependencyFor(task);
+		return {
+			...(parent ? { parent: factoryShortId(parent) } : {}),
+			...(task.factorySplit
+				? {
+						parts: this.factoryPartStates(task).map(({ id, state }) => ({
+							id,
+							...(state ? { state } : {}),
+						})),
+					}
+				: {}),
+			...(dependency ? { dependency } : {}),
+		};
+	}
+
+	/** A parent's kept parts in order, each with its card and state when it has one. */
+	private factoryPartStates(parent: AgendaTaskRecord): {
+		id: string;
+		task?: AgendaTaskRecord;
+		state?: FactoryCardState;
+	}[] {
+		const queue = this.getFactoryQueueState();
+		return (parent.factorySplit?.parts ?? []).flatMap((part) => {
+			if (part.omitted) return [];
+			const task = this.store.getTask(part.taskId);
+			if (task?.factoryParentTaskId !== parent.taskId)
+				return [{ id: part.taskId }];
+			return [
+				{
+					id: factoryShortId(task),
+					task,
+					state: factoryStatusCardState(
+						task,
+						this.factoryCurrentRun(task),
+						queue,
+						{ dependency: this.factoryDependencyFor(task) },
+					),
+				},
+			];
+		});
+	}
+
+	/** Open parts block archiving or deleting their parent. */
+	private assertNoOpenParts(parent: AgendaTaskRecord): void {
+		if (!parent.factorySplit) return;
+		const open = this.factoryPartStates(parent).filter(
+			({ state }) => factoryPartStanding(state) === "open",
+		);
+		if (open.length)
+			throw new Error(
+				`${factoryCardList(open.map(({ id }) => id))} ${open.length === 1 ? "is" : "are"} still open. Finish or cancel the remaining parts before you archive or delete this card.`,
+			);
+	}
+
+	/**
+	 * "Cancel remaining parts" (from the app only): cancels each part not
+	 * yet delivered, leaves delivered parts and their pull requests alone,
+	 * and creates no more parts. Nothing else cascades.
+	 */
+	async cancelFactoryParts(
+		taskId: string,
+		actor: AgendaTaskActor,
+	): Promise<{ task: AgendaTaskRecord; cancelled: AgendaTaskRecord[] }> {
+		this.assertUsable();
+		if (actor.kind !== "user")
+			throw new Error("Only a person cancels a breakdown's parts, in Factory.");
+		const parent = this.requireTask(taskId);
+		const record = parent.factorySplit;
+		if (!record) throw new Error("This card has no parts.");
+		if (!record.cancelledAt)
+			this.store.setFactorySplit(taskId, { ...record, cancelledAt: nowIso() });
+		const cancelled: AgendaTaskRecord[] = [];
+		for (const { task, state } of this.factoryPartStates(parent)) {
+			if (
+				!task ||
+				["completed", "cancelled", "expired"].includes(task.status) ||
+				factoryPartStanding(state) === "delivered"
+			)
+				continue;
+			cancelled.push(
+				await this.cancelTask(
+					task.taskId,
+					actor,
+					task.revision,
+					`Cancelled with the remaining parts of ${parent.factoryNumber ? formatFactoryId(parent.factoryNumber) : "its parent"}.`,
+				),
+			);
+		}
+		const latest = this.requireTask(taskId);
+		this.publish("task.updated", latest);
+		return { task: latest, cancelled };
+	}
+
+	/**
+	 * "Start anyway" (from the app only): a waiting part starts without
+	 * waiting for its earlier parts to merge.
+	 */
+	async startFactoryPartAnyway(
+		taskId: string,
+		expectedRevision: number,
+		actor: AgendaTaskActor,
+	): Promise<AgendaTaskRecord> {
+		this.assertUsable();
+		if (actor.kind !== "user")
+			throw new Error(
+				"Only a person starts a waiting part anyway, in Factory.",
+			);
+		const task = this.requireTask(taskId);
+		this.assertRevision(task, expectedRevision);
+		if (!task.factoryBlockedBy)
+			throw new Error("This card waits for no other card.");
+		const updated = this.writeFactoryBlockedBy(taskId, (blockedBy) =>
+			blockedBy.startedAnyway
+				? undefined
+				: { ...blockedBy, startedAnyway: { at: nowIso() } },
+		);
+		if (updated && this.started) void this.pumpFactoryQueue();
+		return updated ?? this.requireTask(taskId);
+	}
+
+	/** A card's run for its current revision, if any. */
+	private factoryCurrentRun(
+		task: AgendaTaskRecord,
+	): AgendaTaskRunRecord | undefined {
+		const runId = task.currentRunId ?? task.lastRunId;
+		const run = runId ? this.store.getRun(runId) : undefined;
+		return run?.taskRevision === task.revision ? run : undefined;
+	}
+
+	/**
+	 * Whether a part may start, from its stored links and its earlier parts'
+	 * current records (at most three of each). Undefined for a card with no
+	 * links. The one derivation the gate, the status tool and
+	 * getFactoryCardLinks share.
+	 */
+	private factoryDependencyFor(
+		task: AgendaTaskRecord,
+	): FactoryDependencyState | undefined {
+		const blockedBy = task.factoryBlockedBy;
+		if (!blockedBy) return undefined;
+		return factoryDependencyState(
+			blockedBy,
+			blockedBy.startedAnyway
+				? []
+				: blockedBy.taskIds
+						.filter((id) => !blockedBy.met[id])
+						.map((id) => {
+							const earlier = this.store.getTask(id);
+							const run = earlier && this.factoryCurrentRun(earlier);
+							return {
+								taskId: id,
+								...(earlier
+									? { factoryId: factoryShortId(earlier), task: earlier }
+									: {}),
+								...(run ? { run } : {}),
+							};
+						}),
+		);
+	}
+
+	/**
+	 * Why a part may not start scoping or run yet, or undefined. Settles the
+	 * merges PR follow-up recorded first, so the decision and the scoper's
+	 * context read the same latch. Never throws: the pump skips the card on
+	 * any answer but undefined.
+	 */
+	private factoryDependencyBlocker(task: AgendaTaskRecord): string | undefined {
+		try {
+			const dependency = this.factoryDependencyFor(
+				this.settleRecordedFactoryMerges(task),
+			);
+			if (!dependency || dependency.state === "ready") return undefined;
+			return dependency.state === "waiting"
+				? `Waiting for ${factoryCardList(dependency.on)} to merge`
+				: `${dependency.reason}. Start anyway or cancel.`;
+		} catch (error) {
+			this.logError("factory dependency check failed", error, {
+				taskId: task.taskId,
+			});
+			return "Its earlier parts could not be checked";
+		}
+	}
+
+	/**
+	 * Rewrites a part's links from the stored ones (no revision or
+	 * `updatedAt` change) and publishes; `change` returns undefined to leave
+	 * them. Returns the part when written.
+	 */
+	private writeFactoryBlockedBy(
+		taskId: string,
+		change: (blockedBy: FactoryBlockedBy) => FactoryBlockedBy | undefined,
+	): AgendaTaskRecord | undefined {
+		const current = this.store.getTask(taskId)?.factoryBlockedBy;
+		const next = current && change(current);
+		const updated = next && this.store.setFactoryBlockedBy(taskId, next);
+		if (updated) this.publish("task.updated", updated);
+		return updated;
+	}
+
+	/**
+	 * Settles an earlier part's merged pull request on a waiting part: `met`
+	 * when it merged into the part's base branch (its own `baseBranch`, else
+	 * the earlier part's), `mergedElsewhere` otherwise; the person decides
+	 * then. Both paths (recorded by PR follow-up, read with gh) use it.
+	 */
+	private settleFactoryMerge(
+		taskId: string,
+		earlierId: string,
+		merge: { prUrl: string; into: string; earlierBase: string },
+	): AgendaTaskRecord | undefined {
+		const expected =
+			this.store.getTask(taskId)?.factory?.baseBranch ?? merge.earlierBase;
+		const at = nowIso();
+		const updated = this.writeFactoryBlockedBy(taskId, (blockedBy) => {
+			if (
+				blockedBy.startedAnyway ||
+				blockedBy.met[earlierId] ||
+				blockedBy.mergedElsewhere?.[earlierId]
+			)
+				return undefined;
+			const { [earlierId]: _cleared, ...unreadable } =
+				blockedBy.unreadable ?? {};
+			return {
+				...blockedBy,
+				unreadable: Object.keys(unreadable).length ? unreadable : undefined,
+				...(merge.into === expected
+					? {
+							met: {
+								...blockedBy.met,
+								[earlierId]: { at, prUrl: merge.prUrl },
+							},
+						}
+					: {
+							mergedElsewhere: {
+								...blockedBy.mergedElsewhere,
+								[earlierId]: {
+									at,
+									prUrl: merge.prUrl,
+									baseBranch: merge.into,
+									expected,
+								},
+							},
+						}),
+			};
+		});
+		if (updated)
+			this.logger.log("factory part's earlier part merged", {
+				taskId,
+				prerequisite: earlierId,
+				intoBase: merge.into === expected,
+			});
+		return updated;
+	}
+
+	/**
+	 * Settles the merges PR follow-up recorded on a waiting part's earlier
+	 * parts (settleFactoryMerge); returns the part as stored afterwards.
+	 */
+	private settleRecordedFactoryMerges(
+		task: AgendaTaskRecord,
+	): AgendaTaskRecord {
+		const blockedBy = task.factoryBlockedBy;
+		if (!blockedBy || blockedBy.startedAnyway) return task;
+		let current = task;
+		for (const earlierId of blockedBy.taskIds) {
+			if (blockedBy.met[earlierId] || blockedBy.mergedElsewhere?.[earlierId])
+				continue;
+			const earlier = this.store.getTask(earlierId);
+			const state = earlier && this.factoryCurrentRun(earlier)?.factory;
+			const outcome = state?.pullRequestOutcome;
+			if (outcome?.state !== "merged" || !state?.pullRequestUrl) continue;
+			current =
+				this.settleFactoryMerge(task.taskId, earlierId, {
+					prUrl: state.pullRequestUrl,
+					into: outcome.baseBranch ?? state.workspace.baseBranch,
+					earlierBase: state.workspace.baseBranch,
+				}) ?? current;
+		}
+		return current;
+	}
+
+	/**
+	 * Settles each waiting part's earlier merges (held parts included): from
+	 * a recorded merge, else one read-only `gh pr view` per pull request at
+	 * most every FACTORY_MERGE_CHECK_INTERVAL_MS, at most
+	 * FACTORY_MERGE_CHECKS_PER_PASS per pass, each bounded and stopped on
+	 * dispose. After FACTORY_MERGE_CHECK_FAILURES failed reads in a row the
+	 * part asks the person (`unreadable`) while reads go on. Independent of
+	 * PR follow-up, the pause, the daily limit and free slots; never throws.
+	 */
+	private checkFactoryMerges(): Promise<void> {
+		this.factoryMergeCheck ??= this.checkFactoryMergesNow()
+			.catch((error: unknown) =>
+				this.logError("factory merge check failed", error, {}),
+			)
+			.finally(() => {
+				this.factoryMergeCheck = undefined;
+			});
+		return this.factoryMergeCheck;
+	}
+
+	private async checkFactoryMergesNow(): Promise<void> {
+		const signal = this.factoryMergeAbort.signal;
+		let reads = 0;
+		let changed = false;
+		const waitedOn = new Set<string>();
+		const views = new Map<string, { merged: boolean; baseBranch: string }>();
+		for (const waiting of this.store.listFactoryWaitingParts()) {
+			if (this.disposed) return;
+			const task = this.settleRecordedFactoryMerges(waiting);
+			changed ||= task !== waiting;
+			const blockedBy = task.factoryBlockedBy;
+			if (!blockedBy || blockedBy.startedAnyway) continue;
+			for (const earlierId of blockedBy.taskIds) {
+				if (blockedBy.met[earlierId] || blockedBy.mergedElsewhere?.[earlierId])
+					continue;
+				const earlier = this.store.getTask(earlierId);
+				const state = earlier && this.factoryCurrentRun(earlier)?.factory;
+				const prUrl = state?.pullRequestUrl;
+				if (!earlier || !state || !prUrl || state.pullRequestOutcome) continue;
+				waitedOn.add(prUrl);
+				let view = views.get(prUrl);
+				if (!view) {
+					const check = this.factoryMergeChecks.get(prUrl);
+					if (
+						(check &&
+							Date.now() - check.at < FACTORY_MERGE_CHECK_INTERVAL_MS) ||
+						reads >= FACTORY_MERGE_CHECKS_PER_PASS
+					)
+						continue;
+					const cwd = [task.workspaceRoot, earlier.workspaceRoot].find(
+						isExistingDirectory,
+					);
+					if (!cwd) continue;
+					reads++;
+					try {
+						view = await readFactoryPullRequestMerge({
+							url: prUrl,
+							cwd,
+							signal,
+							timeoutMs: FACTORY_MERGE_CHECK_TIMEOUT_MS,
+						});
+					} catch (error) {
+						if (signal.aborted) return;
+						const failures = (check?.failures ?? 0) + 1;
+						this.factoryMergeChecks.set(prUrl, { at: Date.now(), failures });
+						this.logError("factory merge check skipped", error, {
+							taskId: task.taskId,
+							prerequisite: earlierId,
+							failures,
+						});
+						if (failures >= FACTORY_MERGE_CHECK_FAILURES)
+							changed ||= Boolean(
+								this.writeFactoryBlockedBy(task.taskId, (current) =>
+									current.unreadable?.[earlierId]
+										? undefined
+										: {
+												...current,
+												unreadable: {
+													...current.unreadable,
+													[earlierId]: { at: nowIso(), prUrl },
+												},
+											},
+								),
+							);
+						continue;
+					}
+					views.set(prUrl, view);
+					this.factoryMergeChecks.set(prUrl, { at: Date.now(), failures: 0 });
+				}
+				if (view.merged)
+					changed ||= Boolean(
+						this.settleFactoryMerge(task.taskId, earlierId, {
+							prUrl,
+							into: view.baseBranch,
+							earlierBase: state.workspace.baseBranch,
+						}),
+					);
+				else if (blockedBy.unreadable?.[earlierId])
+					changed ||= Boolean(
+						this.writeFactoryBlockedBy(task.taskId, (current) => {
+							const { [earlierId]: _cleared, ...unreadable } =
+								current.unreadable ?? {};
+							return {
+								...current,
+								unreadable: Object.keys(unreadable).length
+									? unreadable
+									: undefined,
+							};
+						}),
+					);
+			}
+		}
+		for (const prUrl of this.factoryMergeChecks.keys())
+			if (!waitedOn.has(prUrl)) this.factoryMergeChecks.delete(prUrl);
+		if (changed && this.started) void this.pumpFactoryQueue();
+	}
+
+	/**
+	 * A part's scoping context (factoryPartContextBlock), with each latched
+	 * earlier part's pull request and, when this checkout has its commits,
+	 * its delivered diff. Reads the stored part, so a merge the gate latched
+	 * after this session began is included. Empty for a card that is not a
+	 * part.
+	 */
+	private async factoryPartBlock(
+		taskId: string,
+		signal: AbortSignal,
+	): Promise<string> {
+		const task = this.store.getTask(taskId);
+		const parent = task?.factoryParentTaskId
+			? this.store.getTask(task.factoryParentTaskId)
+			: undefined;
+		const record = parent?.factorySplit;
+		const index =
+			record?.parts.findIndex((part) => part.taskId === taskId) ?? -1;
+		if (!task || !parent || !record || index < 0) return "";
+		const shortId = (id: string) => {
+			const card = this.store.getTask(id);
+			return card?.factoryNumber
+				? formatFactoryId(card.factoryNumber)
+				: undefined;
+		};
+		const prerequisites = await Promise.all(
+			Object.entries(task.factoryBlockedBy?.met ?? {}).map(
+				async ([earlierId, met]) => {
+					const earlier = this.store.getTask(earlierId);
+					const run = earlier && this.factoryCurrentRun(earlier);
+					const base = run?.factory?.workspace.baseCommit;
+					const head = run?.factory?.candidate?.commit;
+					const diff =
+						base && head && task.workspaceRoot
+							? await runFactoryCommand({
+									cwd: task.workspaceRoot,
+									file: "git",
+									args: ["diff", "--no-color", base, head],
+									signal,
+									timeoutMs: 15_000,
+									maxBytes: FACTORY_PART_DIFF_CHARS,
+								})
+									.then((result) =>
+										result.exitCode === 0 && !result.timedOut
+											? result.output
+											: undefined,
+									)
+									.catch(() => undefined)
+							: undefined;
+					return {
+						factoryId: shortId(earlierId) ?? earlierId,
+						prUrl: met.prUrl,
+						...(diff ? { diff } : {}),
+					};
+				},
+			),
+		);
+		return factoryPartContextBlock({
+			record,
+			parent: {
+				title: parent.title,
+				...(parent.factoryNumber
+					? { factoryId: formatFactoryId(parent.factoryNumber) }
+					: {}),
+			},
+			index,
+			partIds: record.parts.map((part) =>
+				part.omitted ? undefined : shortId(part.taskId),
+			),
+			prerequisites,
+		});
+	}
+
+	/**
 	 * Sets or clears a Factory card's priority, in any status. It writes only
 	 * the priority (no revision, approval, status or `updatedAt` change) and
 	 * pumps the queue, whose order is read each pass; running work is never
@@ -5923,6 +6924,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					this.factoryOwner,
 				);
 			this.factoryControllers.delete(task.taskId);
+			// A merge it recorded settles the parts waiting on this card now
+			// (the gate settles first and never throws): the pump below reaches
+			// only queued parts, and not while paused, at the daily limit or
+			// with every slot busy.
+			if (this.store.getRun(run.runId)?.factory?.pullRequestOutcome)
+				for (const part of this.store.listFactoryWaitingParts())
+					if (part.factoryBlockedBy?.taskIds.includes(task.taskId))
+						this.factoryDependencyBlocker(part);
 			this.refreshFactorySpendThenPump();
 		}
 	}
@@ -6120,6 +7129,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					}
 					continue;
 				}
+				// A part waiting for earlier merges keeps its place and holds no slot.
+				if (this.factoryDependencyBlocker(task)) continue;
 				try {
 					if (next.stage === "design") {
 						await this.startFactoryDesign(
@@ -8042,8 +9053,28 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 	}
 
+	/**
+	 * A waiting part's clock starts when its turn comes: it does not expire
+	 * while an earlier part is not latched as merged (nor started anyway), and
+	 * then has at least FACTORY_PART_EXPIRY_MS from that moment.
+	 */
 	private isExpired(task: AgendaTaskRecord): boolean {
-		return Date.parse(task.expiresAt) <= Date.now();
+		const blockedBy = task.factoryBlockedBy;
+		const turn = blockedBy
+			? (blockedBy.startedAnyway?.at ??
+				(blockedBy.taskIds.every((id) => blockedBy.met[id])
+					? Object.values(blockedBy.met)
+							.map((met) => met.at)
+							.sort()
+							.at(-1)
+					: null))
+			: undefined;
+		if (turn === null) return false;
+		const expiresAt = Math.max(
+			Date.parse(task.expiresAt),
+			turn ? Date.parse(turn) + FACTORY_PART_EXPIRY_MS : 0,
+		);
+		return expiresAt <= Date.now();
 	}
 
 	/**

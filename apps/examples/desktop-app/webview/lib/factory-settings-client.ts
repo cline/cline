@@ -454,6 +454,7 @@ export const factorySettingsClient = {
 		paused?: boolean;
 		dailyCostUsd?: number | null;
 		duplicateCheck?: boolean;
+		splitLargeWork?: boolean;
 	}) => call<FactoryLimits>("factory_set_limits", args),
 };
 

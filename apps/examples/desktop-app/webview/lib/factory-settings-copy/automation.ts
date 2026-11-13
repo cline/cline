@@ -15,6 +15,11 @@ export const FS_AUTOMATION = {
 	duplicateCheckHint:
 		"Factory points to an open or recently delivered card that already covers a new request instead of creating a second one. Asking to file it anyway always works.",
 	duplicateCheckUnavailable: "Duplicate check: update Cline to change this.",
+	splitLargeWork: "Split large work into parts",
+	splitLargeWorkHint:
+		"Scoping may propose splitting a large request into up to 6 cards that each deliver on their own. Nothing starts until you approve the breakdown on the card.",
+	splitLargeWorkUnavailable:
+		"Splitting large work: update Cline to change this.",
 	notificationsGroup: "Notifications",
 	needsReviewer:
 		"“Mark ready when no review is needed” needs a reviewer on a different model.",

@@ -10,12 +10,14 @@ import {
 	type AgendaTaskRunRecord,
 	compareFactoryNeedsYou,
 	factoryCardState,
+	factoryPartsSummary,
 	factoryPlanApprovalBlocker,
 } from "@cline/shared";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import { activeFactorySessions } from "@/components/views/factory/factory-live";
+import type { FactorySplitContext } from "@/components/views/factory/factory-split";
 import { FactoryTaskHeader } from "@/components/views/factory/factory-task-header";
 import {
 	factoryActivity,
@@ -27,6 +29,7 @@ import {
 	FACTORY_BOARD_FIXTURES,
 	FACTORY_CARD_FIXTURES,
 	FACTORY_NEEDS_YOU_ORDER,
+	FACTORY_SPLIT_CARD_FIXTURES,
 	type FactoryCardFixture,
 	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
 } from "../../../../../sdk/packages/shared/src/__tests__/factory-card-fixtures";
@@ -140,7 +143,10 @@ function attentionOf(
 	} as FactoryAttention;
 }
 
-async function headlineOf(fixture: FactoryCardFixture) {
+async function headlineOf(
+	fixture: FactoryCardFixture,
+	split?: FactorySplitContext,
+) {
 	const { task, run } = fixture;
 	const container = document.createElement("div");
 	document.body.appendChild(container);
@@ -163,6 +169,7 @@ async function headlineOf(fixture: FactoryCardFixture) {
 				onBack={vi.fn()}
 				onArchive={vi.fn()}
 				onDelete={vi.fn()}
+				split={split}
 			/>,
 		),
 	);
@@ -262,5 +269,65 @@ describe("the board's Needs you order", () => {
 			.sort(compareFactoryNeedsYou)
 			.map(({ fixture }) => fixture.name);
 		expect(order).toEqual(FACTORY_NEEDS_YOU_ORDER);
+	});
+});
+
+/** Where the board lists each split fixture, and its card header's headline. */
+const SPLIT_CARDS: Record<string, { column: string; headline: string }> = {
+	"breakdown to approve": {
+		column: "Needs you",
+		headline: "Breakdown ready for your approval",
+	},
+	"parent tracking its parts": {
+		column: "Working",
+		headline: "Split into 2 parts",
+	},
+	"parent with every part settled": {
+		column: "Done",
+		headline: "Every part is delivered or closed",
+	},
+	"parent whose parts were all cancelled": {
+		column: "Done",
+		headline: "Every part closed before it was delivered",
+	},
+	"part waiting for an earlier merge": {
+		column: "Queued",
+		headline: "Waiting for F41 to merge",
+	},
+	"part whose earlier part closed unmerged": {
+		column: "Needs you",
+		headline: "F41 was closed without merging",
+	},
+};
+
+describe("the desktop agrees with factoryCardState for split cards", () => {
+	it.each(
+		FACTORY_SPLIT_CARD_FIXTURES.map(
+			(fixture) => [fixture.name, fixture] as const,
+		),
+	)("%s", async (name, fixture) => {
+		const { task, run } = fixture;
+		// The sidecar's link facts: the parts folded, the dependency as read.
+		const links = {
+			...(fixture.parts
+				? {
+						parts: factoryPartsSummary(fixture.parts.map((part) => part.state)),
+					}
+				: {}),
+			...(fixture.dependency ? { dependency: fixture.dependency } : {}),
+		};
+		const attention = attentionOf(task, run);
+		const activity = factoryActivity(
+			task,
+			attention && { ...attention, ...links },
+		);
+		expect(activity.column).toBe(SPLIT_CARDS[name]?.column);
+		expect(factoryNeedsYou(activity)).toBe(fixture.card.waitingOn === "person");
+		expect(activity.station.station).toBe(fixture.card.stage);
+		const header = await headlineOf(fixture, { links });
+		expect(header.headline).toBe(SPLIT_CARDS[name]?.headline);
+		expect(factoryCardState({ task, lastRun: run, ...links })).toMatchObject(
+			fixture.card,
+		);
 	});
 });

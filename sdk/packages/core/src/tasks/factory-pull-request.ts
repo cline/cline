@@ -50,6 +50,7 @@ const snapshotSchema = z.object({
 				state: z.enum(["OPEN", "CLOSED", "MERGED"]),
 				headRefOid: z.string(),
 				headRefName: z.string(),
+				baseRefName: z.string().optional(),
 				comments: connectionSchema(commentSchema),
 				reviews: connectionSchema(commentSchema.extend({ state: z.string() })),
 				reviewThreads: connectionSchema(
@@ -87,6 +88,8 @@ export type FactoryPullRequestSnapshot = {
 	state: "OPEN" | "CLOSED" | "MERGED";
 	headCommit: string;
 	branch: string;
+	/** The branch the PR targets. */
+	baseBranch?: string;
 	feedback: FactoryPullRequestFeedback[];
 	commentBodies: string[];
 	requiredChecks?: FactoryPullRequestChecks;
@@ -116,6 +119,44 @@ function pullRequestIdentity(url: string) {
 	return { owner, name, number };
 }
 
+/**
+ * Whether a pull request was merged, and into which branch: one read-only
+ * `gh pr view`, bounded by `timeoutMs`. Throws when gh fails or answers
+ * something else.
+ */
+export async function readFactoryPullRequestMerge(
+	input: { url: string; cwd: string; signal?: AbortSignal; timeoutMs: number },
+	run: Command = runFactoryCommand,
+): Promise<{ merged: boolean; baseBranch: string }> {
+	const { owner, name, number } = pullRequestIdentity(input.url);
+	const output = await checkedCommand(
+		{
+			cwd: input.cwd,
+			signal: input.signal,
+			file: "gh",
+			args: [
+				"pr",
+				"view",
+				number,
+				"--repo",
+				`${owner}/${name}`,
+				"--json",
+				"state,baseRefName",
+			],
+			timeoutMs: input.timeoutMs,
+			maxBytes: 64 * 1024,
+		},
+		run,
+	);
+	const view = z
+		.object({
+			state: z.enum(["OPEN", "CLOSED", "MERGED"]),
+			baseRefName: z.string(),
+		})
+		.parse(JSON.parse(output));
+	return { merged: view.state === "MERGED", baseBranch: view.baseRefName };
+}
+
 export async function readFactoryPullRequest(
 	input: {
 		url: string;
@@ -129,7 +170,7 @@ export async function readFactoryPullRequest(
 	// gh is pointed at the PR's own repository, never the checkout's guess.
 	const target = [number, "--repo", `${owner}/${name}`];
 	const commentFields = "id body url authorAssociation author{__typename}";
-	const query = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){state headRefOid headRefName comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}} reviews(first:100){nodes{${commentFields} state} pageInfo{hasNextPage}} reviewThreads(first:100){nodes{isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`;
+	const query = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){state headRefOid headRefName baseRefName comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}} reviews(first:100){nodes{${commentFields} state} pageInfo{hasNextPage}} reviewThreads(first:100){nodes{isResolved comments(first:100){nodes{${commentFields}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`;
 	const options = {
 		cwd: input.cwd,
 		signal: input.signal,
@@ -327,6 +368,7 @@ export async function readFactoryPullRequest(
 		state: snapshot.state,
 		headCommit: snapshot.headRefOid,
 		branch: snapshot.headRefName,
+		...(snapshot.baseRefName ? { baseBranch: snapshot.baseRefName } : {}),
 		feedback,
 		commentBodies: snapshot.comments.nodes.map((comment) => comment.body),
 	};
@@ -337,7 +379,10 @@ export async function readFactoryPullRequest(
  * against `publishedCommit`, the commit Factory last pushed to it.
  */
 function closedPullRequest(
-	snapshot: Pick<FactoryPullRequestSnapshot, "state" | "headCommit">,
+	snapshot: Pick<
+		FactoryPullRequestSnapshot,
+		"state" | "headCommit" | "baseBranch"
+	>,
 	publishedCommit: string,
 ): Partial<FactoryRunState> {
 	return {
@@ -347,6 +392,7 @@ function closedPullRequest(
 			state: snapshot.state === "MERGED" ? "merged" : "closed",
 			headChanged: snapshot.headCommit !== publishedCommit,
 			at: new Date().toISOString(),
+			...(snapshot.baseBranch ? { baseBranch: snapshot.baseBranch } : {}),
 		},
 	};
 }

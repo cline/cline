@@ -23,6 +23,8 @@ export const FACTORY_CONCURRENCY_MAX = 8;
  *
  * `duplicateCheck` is whether new work is checked against open cards when it
  * is filed (on unless turned off); absent from a Hub that predates it.
+ * `splitLargeWork` is whether scoping may propose splitting large work into
+ * parts (on unless turned off); absent from a Hub that predates it.
  */
 export type FactoryLimits =
 	| {
@@ -32,6 +34,7 @@ export type FactoryLimits =
 			dailyCostUsd?: number | null;
 			spentTodayUsd?: number;
 			duplicateCheck?: boolean;
+			splitLargeWork?: boolean;
 	  }
 	| { supported: false };
 

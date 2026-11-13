@@ -16,7 +16,11 @@ import {
 	currentFactoryRunState,
 	factoryAttentionReasons,
 } from "./factory-attention";
-import { FACTORY_OPEN_FINDINGS, factoryReviewRequest } from "./factory-copy";
+import {
+	FACTORY_OPEN_FINDINGS,
+	FACTORY_SPLIT,
+	factoryReviewRequest,
+} from "./factory-copy";
 import { eventEnvironmentId, sessionKey } from "./session-identity";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
@@ -279,6 +283,13 @@ function factoryAttention({ task, run }: FactoryTaskEvent): {
 						body: `${name}: designer concluded ${finding}.`,
 					};
 				}
+				case "breakdown":
+					return {
+						key: `breakdown:${task.taskId}:${task.revision}`,
+						eventType: "approvalNeeded",
+						title: FACTORY_SPLIT.notificationTitle,
+						body: `${name}: ${FACTORY_SPLIT.notificationBody}`,
+					};
 				case "plan":
 					return {
 						key: `plan:${task.taskId}:${task.revision}`,

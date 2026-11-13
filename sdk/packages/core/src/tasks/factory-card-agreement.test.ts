@@ -3,12 +3,17 @@
  * fixture. The desktop checks its stage line, Needs you and card header
  * against the same fixtures (webview/lib/factory-card-agreement.test.tsx).
  */
-import { factoryCardState, factoryPlanApprovalBlocker } from "@cline/shared";
+import {
+	factoryCardState,
+	factoryPartsSummary,
+	factoryPlanApprovalBlocker,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	FACTORY_BOARD_FIXTURES,
 	FACTORY_CARD_FIXTURES,
 	FACTORY_NEEDS_YOU_ORDER,
+	FACTORY_SPLIT_CARD_FIXTURES,
 	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
 } from "../../../shared/src/__tests__/factory-card-fixtures";
 import {
@@ -236,6 +241,75 @@ describe("factory_status agrees with factoryCardState", () => {
 			(state.kind === "stopped" || state.kind === "closed") &&
 				Boolean(task.error || run?.factory?.error || run?.error),
 		);
+	});
+});
+
+/** What the tool says for each split fixture: stage, next, and needsYou. */
+const SPLIT_TOOL: Record<
+	string,
+	[stage: FactoryStage, next: string | RegExp, needsYou?: string]
+> = {
+	"breakdown to approve": [
+		"Waiting for breakdown approval",
+		/^Waits for the user to approve the breakdown/,
+		"approve or decline the breakdown (split into 2 parts)",
+	],
+	"parent tracking its parts": [
+		"Tracking its parts",
+		"Nothing runs on this card; its parts do the work, each as its own card.",
+	],
+	"parent with every part settled": [
+		"Delivered",
+		"Nothing; every part is delivered or closed.",
+	],
+	"parent whose parts were all cancelled": [
+		"Parts closed",
+		"Nothing; every part was closed before it was delivered.",
+	],
+	"part waiting for an earlier merge": [
+		"Waiting for F41 to merge",
+		"Starts on its own once F41's pull request is merged; Factory never merges.",
+	],
+	"part whose earlier part closed unmerged": [
+		"Waiting for a decision to start",
+		"Waits for the user to start it anyway or cancel it in Factory.",
+		"F41 was closed without merging. Start anyway or cancel.",
+	],
+};
+
+describe("factory_status agrees with factoryCardState for a split's cards", () => {
+	it.each(
+		FACTORY_SPLIT_CARD_FIXTURES.map(
+			(fixture) => [fixture.name, fixture] as const,
+		),
+	)("%s", (name, fixture) => {
+		const { task, run, parts, dependency } = fixture;
+		const state = factoryCardState({
+			task,
+			lastRun: run,
+			...(parts
+				? { parts: factoryPartsSummary(parts.map((part) => part.state)) }
+				: {}),
+			...(dependency ? { dependency } : {}),
+		});
+		expect(state).toMatchObject(fixture.card);
+		const card = describeFactoryCard(task, run ? [run] : [], undefined, 0, {
+			...(parts
+				? {
+						parts: parts.map(({ id, state: part }) => ({
+							id,
+							...(part ? { state: { skipped: [], ...part } } : {}),
+						})),
+					}
+				: {}),
+			...(dependency ? { dependency } : {}),
+		});
+		const [stage, next, needsYou] = SPLIT_TOOL[name] ?? [];
+		expect(card.stage).toBe(stage);
+		if (next instanceof RegExp) expect(card.next).toMatch(next);
+		else expect(card.next).toBe(next);
+		expect(card.needsYou?.reason).toBe(needsYou);
+		expect(Boolean(card.needsYou)).toBe(state.waitingOn === "person");
 	});
 });
 
