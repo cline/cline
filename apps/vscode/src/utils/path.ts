@@ -137,7 +137,18 @@ export function isLocatedInPath(dirPath: string, pathToCheck: string): boolean {
 	}
 	// Handle long paths in Windows
 	if (dirPath.startsWith("\\\\?\\") || pathToCheck.startsWith("\\\\?\\")) {
-		return pathToCheck.startsWith(dirPath)
+		// The "\\?\" prefix carries no path boundary, so comparing raw strings reports a
+		// sibling such as `project_backup` as inside `project` and misses a plain path
+		// passed next to a long-path workspace root.
+		const stripLongPrefix = (value: string): string => {
+			if (value.startsWith("\\\\?\\UNC\\")) {
+				return "\\\\" + value.slice(8)
+			}
+			return value.startsWith("\\\\?\\") ? value.slice(4) : value
+		}
+		const dir = stripLongPrefix(dirPath).replace(/[\\/]+$/, "")
+		const target = stripLongPrefix(pathToCheck)
+		return target === dir || target.startsWith(dir + "\\") || target.startsWith(dir + "/")
 	}
 
 	const resolvedDirResult = workspaceResolver.resolveWorkspacePath(dirPath, "", "Utils.path.isLocatedInPath")
