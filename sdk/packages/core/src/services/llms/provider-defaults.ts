@@ -2,7 +2,11 @@
 
 import * as Llms from "@cline/llms";
 import {
-	fetchModelIdsFromSource,
+	extractModelIdsFromPayload,
+	extractOllamaVisionSupportFromTags,
+	fetchModelSourcePayload,
+	fetchOllamaVisionSupport,
+	type ModelSourceAuth,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -689,6 +693,45 @@ function resolvePublicCacheKey(
 	return `${resolvePrivateCacheKey(providerId, config)}:${fingerprint(JSON.stringify(config.headers ?? {}))}`;
 }
 
+// Enough parallelism to keep model-list refreshes quick on servers with many
+// pulled models, without opening a request per model at once.
+const OLLAMA_SHOW_CONCURRENCY = 8;
+
+/**
+ * Discover which of an Ollama server's models accept images.
+ *
+ * A model list built only from `/api/tags` carries no capability data, so every
+ * model was registered as text-only and the chat UI refused image attachments
+ * (and warned that the model "doesn't support images") even for vision models
+ * such as `qwen3-vl`. Recent Ollama versions include `capabilities` in
+ * `/api/tags` itself; older ones only report them per model on `/api/show`,
+ * which is asked only for the models the list did not cover. Models the server
+ * cannot answer for are left out of the map and keep the previous text-only
+ * default.
+ */
+async function resolveOllamaVisionSupport(
+	sourceUrl: string,
+	tagsPayload: unknown,
+	modelIds: string[],
+	auth: ModelSourceAuth,
+): Promise<Map<string, boolean>> {
+	const support = extractOllamaVisionSupportFromTags(tagsPayload);
+	const unknownIds = modelIds.filter((id) => !support.has(id));
+	for (let i = 0; i < unknownIds.length; i += OLLAMA_SHOW_CONCURRENCY) {
+		const batch = unknownIds.slice(i, i + OLLAMA_SHOW_CONCURRENCY);
+		const results = await Promise.all(
+			batch.map((id) => fetchOllamaVisionSupport(sourceUrl, id, auth)),
+		);
+		batch.forEach((id, index) => {
+			const vision = results[index];
+			if (vision !== undefined) {
+				support.set(id, vision);
+			}
+		});
+	}
+	return support;
+}
+
 async function getPublicProviderModels(
 	providerId: string,
 	modelCatalog: ModelCatalogConfig | undefined,
@@ -718,16 +761,25 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+	const auth: ModelSourceAuth = {
 		baseUrl: config.baseUrl ?? collection?.provider.baseUrl,
 		apiKey: resolveAuthToken(config),
 		headers: config.headers,
-	})
-		.then((modelIds) => {
+	};
+	const request = fetchModelSourcePayload(sourceUrl, auth)
+		.then(async (payload) => {
+			const modelIds = extractModelIdsFromPayload(payload, providerId);
+			const visionSupport =
+				providerId === "ollama"
+					? await resolveOllamaVisionSupport(sourceUrl, payload, modelIds, auth)
+					: new Map<string, boolean>();
 			const data = Object.fromEntries(
 				modelIds.map((id) => [
 					id,
-					buildModelFromPrivateSource(id, { name: id }),
+					buildModelFromPrivateSource(id, {
+						name: id,
+						supportsImages: visionSupport.get(id),
+					}),
 				]),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
