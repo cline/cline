@@ -1,0 +1,8 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+	"name": "cloud-agent-spawner",
+	"version": "0.1.0",
+	"description": "Spawn Cline Cloud agents from any MCP-capable agent client.",
+	"license": "Apache-2.0",
+	"keywords": ["cline", "cloud-agent", "mcp", "multi-agent"]
+}
