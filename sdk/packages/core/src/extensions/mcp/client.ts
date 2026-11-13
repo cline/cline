@@ -202,6 +202,22 @@ class NewlineMessageParser {
 	}
 }
 
+/**
+ * `shell: true` hands the whole command line to cmd.exe, which splits on
+ * whitespace and does not quote the executable for us. An MCP command that
+ * lives under a path with spaces (`C:\Program Files\nodejs\node.exe`, the
+ * default Node install on Windows) is then truncated to `C:\Program` and the
+ * spawn dies with "is not recognized as an internal or external command"
+ * before JSON-RPC is ever exchanged. Quote the executable so the shell keeps
+ * it whole; commands without whitespace/quotes are passed through untouched.
+ */
+function quoteForWindowsShell(command: string): string {
+	if (!/[\s"]/.test(command)) {
+		return command;
+	}
+	return `"${command.replace(/"/g, '""')}"`;
+}
+
 class StdioMcpClient implements McpServerClient {
 	private readonly registration: McpServerRegistration;
 	private process?: ChildProcessWithoutNullStreams;
@@ -447,14 +463,26 @@ class StdioMcpClient implements McpServerClient {
 		this.clearStdinFailureTimer();
 		this.protocolMode = protocolMode;
 
-		const platformOptions =
-			process.platform === "win32"
-				? {
-						windowsHide: true,
-						shell: true,
-					}
-				: {};
-		const child = spawn(transport.command, transport.args ?? [], {
+		const useWindowsShell = process.platform === "win32";
+		const platformOptions = useWindowsShell
+			? {
+					windowsHide: true,
+					shell: true,
+				}
+			: {};
+		// `shell: true` hands the command line to cmd.exe and Node concatenates the
+		// command with its arguments without escaping them (DEP0190). cmd.exe then
+		// splits on whitespace, so a command under `C:\Program Files\...` or an
+		// argument under a path whose parent holds a space
+		// (`C:\Users\First Last\AppData\Local\Temp\...`) reaches the child truncated
+		// and dies before JSON-RPC starts. Quote every token.
+		const command = useWindowsShell
+			? quoteForWindowsShell(transport.command)
+			: transport.command;
+		const args = useWindowsShell
+			? (transport.args ?? []).map(quoteForWindowsShell)
+			: (transport.args ?? []);
+		const child = spawn(command, args, {
 			cwd: transport.cwd,
 			env: {
 				...process.env,

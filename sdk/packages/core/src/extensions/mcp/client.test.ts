@@ -270,12 +270,9 @@ function fakeServerRegistration(options: {
 		name: "fake-server",
 		transport: {
 			type: "stdio",
-			// Quoted for the win32 shell:true spawn path, where the runtime may
-			// live under a directory containing spaces.
-			command:
-				process.platform === "win32"
-					? `"${process.execPath}"`
-					: process.execPath,
+			// Unquoted on every platform: the stdio client quotes the command and its
+			// arguments itself when spawning through a Windows shell.
+			command: process.execPath,
 			args: [join(tempRoot, options.script ?? "fake-server.js")],
 			env: {
 				FAKE_MCP_DELAY_MS: String(options.delayMs),
@@ -476,8 +473,7 @@ describe("mcp client request timeout", () => {
 	}, 30_000);
 
 	it("applies the configured timeout to the Content-Length compatibility request", async () => {
-		const command =
-			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
+		const command = process.execPath;
 		const client = await createDefaultMcpServerClientFactory()({
 			name: "framed-server",
 			transport: {
@@ -500,8 +496,7 @@ describe("mcp client request timeout", () => {
 	}, 30_000);
 
 	it("names both framing attempts when they fail differently", async () => {
-		const command =
-			process.platform === "win32" ? `"${process.execPath}"` : process.execPath;
+		const command = process.execPath;
 		const client = await createDefaultMcpServerClientFactory()({
 			name: "rejecting-server",
 			transport: {
