@@ -71,7 +71,11 @@ async function copyDirectoryNative(source: string, target: string): Promise<void
 /**
  * Recursively gets all files in a directory (parallelized)
  */
-async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
+async function getAllFiles(
+	dir: string,
+	baseDir: string,
+	skippedTopLevelDirectories: ReadonlySet<string> = new Set<string>(),
+): Promise<string[]> {
 	try {
 		const entries = await fs.readdir(dir, { withFileTypes: true })
 
@@ -83,7 +87,8 @@ async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
 				if (entry.isDirectory()) {
 					// Skip .git directory
 					if (entry.name === ".git") return []
-					return getAllFiles(fullPath, baseDir)
+					if (!relativePath.includes(path.sep) && skippedTopLevelDirectories.has(relativePath)) return []
+					return getAllFiles(fullPath, baseDir, skippedTopLevelDirectories)
 				} else {
 					return [relativePath]
 				}
@@ -213,7 +218,7 @@ export async function copyWorktreeIncludeFiles(
 
 		// Get all files, excluding already-copied directories
 		const dirSet = new Set(directoryPatterns)
-		const allFiles = await getAllFiles(sourceDir, sourceDir)
+		const allFiles = await getAllFiles(sourceDir, sourceDir, dirSet)
 
 		// Filter files that:
 		// 1. Are not in already-copied directories
