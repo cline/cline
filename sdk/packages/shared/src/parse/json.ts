@@ -168,6 +168,45 @@ function schemaAcceptsKind(
 	return false;
 }
 
+function preserveInvalidJsonStringEscapes(text: string): string {
+	let output = "";
+	let inString = false;
+
+	for (let index = 0; index < text.length; index += 1) {
+		const char = text[index];
+		if (char === '"') {
+			inString = !inString;
+			output += char;
+			continue;
+		}
+		if (!inString || char !== "\\") {
+			output += char;
+			continue;
+		}
+
+		const next = text[index + 1];
+		if (next !== undefined && '"\\/bfnrt'.includes(next)) {
+			output += `\\${next}`;
+			index += 1;
+			continue;
+		}
+		if (
+			next === "u" &&
+			/^[0-9a-fA-F]{4}$/.test(text.slice(index + 2, index + 6))
+		) {
+			output += text.slice(index, index + 6);
+			index += 5;
+			continue;
+		}
+
+		// Preserve the slash when a JSON-encoded tool field lost one escaping
+		// layer (for example C:\Dev).
+		output += "\\\\";
+	}
+
+	return output;
+}
+
 function parseJsonStringForSchema(
 	value: unknown,
 	schema: Record<string, unknown>,
@@ -187,7 +226,9 @@ function parseJsonStringForSchema(
 	}
 
 	try {
-		const parsed = JSON.parse(trimmed) as unknown;
+		const parsed = JSON.parse(
+			preserveInvalidJsonStringEscapes(trimmed),
+		) as unknown;
 		if (Array.isArray(parsed)) {
 			return expectsArray ? parsed : value;
 		}
