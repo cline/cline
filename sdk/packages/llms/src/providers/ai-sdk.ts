@@ -1465,6 +1465,22 @@ function extractGoogleThoughtMetadata(
 }
 
 /**
+ * Anthropic delivers a thinking block's signature in a separate
+ * `signature_delta`, which the AI SDK surfaces as a reasoning delta with empty
+ * text. The replay path needs it as `metadata.signature`.
+ */
+function extractAnthropicThoughtMetadata(
+	part: AiSdkStreamPart,
+): Record<string, unknown> | undefined {
+	const anthropic = (
+		part.providerMetadata as Record<string, unknown> | undefined
+	)?.anthropic as Record<string, unknown> | undefined;
+	return typeof anthropic?.signature === "string"
+		? { signature: anthropic.signature }
+		: undefined;
+}
+
+/**
  * A stream error captured while the raw provider error object is still in
  * hand: the flattened display message plus its classification. Both are
  * derived here because the structure needed to classify does not survive
@@ -1584,12 +1600,17 @@ async function* emitAiSdkEvents(
 						(part.textDelta as string | undefined) ??
 						(part.text as string | undefined) ??
 						(part.reasoning as string | undefined);
-					if (text) {
-						sawVisibleContent = true;
+					const anthropicMetadata = extractAnthropicThoughtMetadata(part);
+					if (text || anthropicMetadata) {
+						if (text) sawVisibleContent = true;
+						const googleMetadata = extractGoogleThoughtMetadata(part);
 						yield {
 							type: "reasoning-delta",
-							text,
-							metadata: extractGoogleThoughtMetadata(part),
+							text: text ?? "",
+							metadata:
+								googleMetadata || anthropicMetadata
+									? { ...googleMetadata, ...anthropicMetadata }
+									: undefined,
 						};
 					}
 					continue;
