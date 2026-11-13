@@ -19,6 +19,149 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("keeps Settings separate while navigating Customize and restoring history", () => {
+		let state = createDesktopAppState("draft", "Providers", "local");
+		const threads = state.threads;
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "settings" },
+		});
+		const settings = state.navigation.current;
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...settings, view: "customize" },
+		});
+		const browse = state.navigation.current;
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...browse, customizeSection: "manage" },
+		});
+		const manage = state.navigation.current;
+		expect(manage).toEqual({
+			activeThreadId: "draft",
+			settingsSection: "Providers",
+			customizeSection: "manage",
+			view: "customize",
+		});
+		expect(state.threads).toBe(threads);
+		// Switching Browse/Manage must create distinct history entries even
+		// though neither the app view nor the Settings selection changes.
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current).toEqual(browse);
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current).toEqual(settings);
+		state = desktopAppReducer(state, { type: "forward" });
+		state = desktopAppReducer(state, { type: "forward" });
+		expect(state.navigation.current).toEqual(manage);
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...manage, view: "settings" },
+		});
+		expect(state.navigation.current.settingsSection).toBe("Providers");
+	});
+
+	function onCustomize() {
+		const initial = createDesktopAppState("draft", settingsSection, "local");
+		return desktopAppReducer(initial, {
+			type: "navigate",
+			destination: { ...initial.navigation.current, view: "customize" },
+		});
+	}
+
+	it("steps through a detail page with Back and Forward and returns to its list", () => {
+		let state = onCustomize();
+		const list = state.navigation.current;
+		const detail = { kind: "edit", itemId: "item-1" };
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...list, detail },
+		});
+		expect(state.navigation.current.detail).toBe(detail);
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current).toEqual(list);
+		state = desktopAppReducer(state, { type: "forward" });
+		expect(state.navigation.current.detail).toBe(detail);
+		// The page's own Back is the same step, so Forward still reopens it.
+		state = desktopAppReducer(state, { type: "close-detail", detail });
+		expect(state.navigation.current).toEqual(list);
+		expect(state.navigation.forward[0]?.detail).toBe(detail);
+		// Closing a detail that is not showing changes nothing.
+		expect(desktopAppReducer(state, { type: "close-detail", detail })).toBe(
+			state,
+		);
+	});
+
+	it("forgets a deleted item's detail and replaces a detail in place", () => {
+		let state = onCustomize();
+		const list = state.navigation.current;
+		const draft = { kind: "create" };
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...list, detail: draft },
+		});
+		const saved = { kind: "edit", itemId: "item-9" };
+		state = desktopAppReducer(state, { type: "replace-detail", detail: saved });
+		expect(state.navigation.current.detail).toBe(saved);
+		expect(state.navigation.back).toEqual([
+			expect.objectContaining({ view: "chat" }),
+			list,
+		]);
+		state = desktopAppReducer(state, {
+			type: "close-detail",
+			detail: saved,
+			forget: true,
+		});
+		expect(state.navigation.current).toEqual(list);
+		expect(state.navigation.forward).toEqual([]);
+	});
+
+	it("leaves a page's detail behind when a new task opens", () => {
+		let state = onCustomize();
+		const detail = { kind: "edit", itemId: "item-1" };
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, detail },
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "thread-2",
+			environmentId: "local",
+		});
+		expect(state.navigation.current.view).toBe("chat");
+		expect(state.navigation.current.detail).toBeUndefined();
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current.detail).toBe(detail);
+	});
+
+	it("preserves Customize when its underlying session is deleted", () => {
+		let state = createDesktopAppState("draft", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "draft",
+			sessionId: "live-session",
+		});
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: {
+				...state.navigation.current,
+				view: "customize",
+				customizeSection: "manage",
+			},
+		});
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "live-session",
+			fallbackThreadId: "replacement",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.navigation.current).toEqual({
+			activeThreadId: "replacement",
+			settingsSection: "General",
+			customizeSection: "manage",
+			view: "customize",
+		});
+	});
+
 	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
 		let state = createDesktopAppState("new-local", settingsSection, "local");
 		state = desktopAppReducer(state, {

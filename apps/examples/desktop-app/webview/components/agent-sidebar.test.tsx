@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -14,6 +14,7 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import type { DesktopAppView } from "@/lib/desktop-app-state";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
 import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
@@ -203,6 +204,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={thread.id}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={history}
 						setView={vi.fn()}
@@ -289,6 +291,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
 							[scheduled, pinnedScheduled, regular],
@@ -365,6 +368,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
@@ -423,6 +427,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={activeSessionId}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={sessionHistory}
 							setView={vi.fn()}
@@ -470,6 +475,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
 							[run(2), makeThread("alpha", 3), run(1)],
@@ -503,6 +509,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
 							[regular, scheduled, pinned],
@@ -553,6 +560,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
@@ -601,6 +609,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={sessionHistory}
 							setView={vi.fn()}
@@ -636,6 +645,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(threads, vi.fn())}
 						setView={vi.fn()}
@@ -674,6 +684,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory(tasks, vi.fn(), {
 								isLoadingMore,
@@ -710,6 +721,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
 							[makeThread("plain", 1)],
@@ -739,6 +751,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([desktop, cli], vi.fn())}
 						setView={vi.fn()}
@@ -775,6 +788,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([], vi.fn(), {
 							hasLoadedHistory: false,
@@ -800,6 +814,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory([], vi.fn(), {
 							hasLoadedHistory: true,
@@ -900,6 +915,7 @@ describe("AgentSidebar session organization", () => {
 					<AgentSidebar
 						activeSessionId={null}
 						onHome={vi.fn()}
+						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={sessionHistory}
 						setView={vi.fn()}
@@ -958,6 +974,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1003,6 +1020,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={setView}
@@ -1037,6 +1055,7 @@ describe("AgentSidebar session organization", () => {
 							<AgentSidebar
 								activeSessionId={null}
 								onHome={vi.fn()}
+								onOpenCustomize={vi.fn()}
 								onSettingsSectionChange={onSettingsSectionChange}
 								sessionHistory={makeSessionHistory([], vi.fn())}
 								setView={vi.fn()}
@@ -1092,6 +1111,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={onHome}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1140,6 +1160,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1178,6 +1199,7 @@ describe("AgentSidebar session organization", () => {
 							onHome={vi.fn()}
 							onNavigateBack={onNavigateBack}
 							onNavigateForward={onNavigateForward}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1203,7 +1225,9 @@ describe("AgentSidebar session organization", () => {
 
 	it("stacks New, Schedule, and Customize as full-width rows below the logo", async () => {
 		const onHome = vi.fn();
+		const onOpenCustomize = vi.fn();
 		const onSettingsSectionChange = vi.fn();
+		const setView = vi.fn();
 		await act(async () => {
 			root.render(
 				<AccountProvider>
@@ -1211,9 +1235,10 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={onHome}
+							onOpenCustomize={onOpenCustomize}
 							onSettingsSectionChange={onSettingsSectionChange}
 							sessionHistory={makeSessionHistory([], vi.fn())}
-							setView={vi.fn()}
+							setView={setView}
 							settingsSection="General"
 							view="chat"
 						/>
@@ -1246,62 +1271,100 @@ describe("AgentSidebar session organization", () => {
 		await click(buttonWithText("Session", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
+		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
+			"Schedules",
+		);
+		expect(setView).not.toHaveBeenCalled();
 		await click(buttonWithText("Customize", actionsNav as ParentNode));
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Customize");
+		expect(onOpenCustomize).toHaveBeenCalledOnce();
+		expect(onSettingsSectionChange).toHaveBeenCalledOnce();
 	});
 
-	it("shows Installed and Marketplace sub-tabs under the open Customize row", async () => {
+	it.each([
+		{ sortMode: "time" },
+		{ sortMode: "project" },
+	] as const)("preserves the $sortMode session list when Customize opens", async ({
+		sortMode,
+	}) => {
+		const onOpenCustomize = vi.fn();
 		const onSettingsSectionChange = vi.fn();
-		const renderSidebar = async (section: "Customize" | "Marketplace") => {
-			await act(async () => {
-				root.render(
-					<AccountProvider>
-						<SidebarProvider>
-							<AgentSidebar
-								activeSessionId={null}
-								onHome={vi.fn()}
-								onSettingsSectionChange={onSettingsSectionChange}
-								sessionHistory={makeSessionHistory([], vi.fn())}
-								setView={vi.fn()}
-								settingsSection={section}
-								view="settings"
-							/>
-						</SidebarProvider>
-					</AccountProvider>,
-				);
-			});
-		};
+		const sessionHistory = makeSessionHistory(
+			[makeThread("alpha", 1), makeThread("beta", 1)],
+			vi.fn(),
+		);
+		function NavigationHarness() {
+			const [view, setView] = useState<DesktopAppView>("chat");
+			return (
+				<AgentSidebar
+					activeSessionId="alpha-1"
+					onHome={vi.fn()}
+					onOpenCustomize={() => {
+						onOpenCustomize();
+						setView("customize");
+					}}
+					onSettingsSectionChange={onSettingsSectionChange}
+					sessionHistory={sessionHistory}
+					setView={setView}
+					settingsSection="General"
+					view={view}
+				/>
+			);
+		}
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<NavigationHarness />
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+		if (sortMode === "project") {
+			await switchToProjectSort();
+			await click(buttonWithText("beta"));
+			expect(sessionIsVisible("beta session 1")).toBe(false);
+		}
+		const row = sessionRow("alpha session 1");
+		const viewport = row.closest<HTMLElement>(
+			'[data-slot="scroll-area-viewport"]',
+		);
+		if (!viewport) throw new Error("Missing session list viewport");
+		viewport.scrollTop = 180;
 
-		await renderSidebar("Customize");
 		const actionsNav = container.querySelector(
 			'[aria-label="Sidebar actions"]',
 		) as ParentNode;
-		const installedRow = buttonWithText("Installed", actionsNav);
-		const marketplaceRow = buttonWithText("Marketplace", actionsNav);
-		const customizeRow = buttonWithText("Customize", actionsNav);
-
-		// The active sub-tab carries the full selected background; the parent
-		// Customize row stays marked with a subtler highlight so the two
-		// simultaneous highlights read differently.
-		expect(installedRow.getAttribute("aria-current")).toBe("page");
-		expect(installedRow.className.split(" ")).toContain("bg-surface-hover");
-		expect(customizeRow.className.split(" ")).toContain(
-			"bg-surface-hover-lighter",
-		);
-		expect(customizeRow.className.split(" ")).not.toContain("bg-surface-hover");
-		// Sub-tabs are indented under the parent row.
-		expect(installedRow.className.split(" ")).toContain("pl-8!");
-
-		await click(marketplaceRow);
-		expect(onSettingsSectionChange).toHaveBeenCalledWith("Marketplace");
-		await renderSidebar("Marketplace");
+		const pageRow = buttonWithText("Customize", actionsNav);
 		expect(
-			buttonWithText("Marketplace", actionsNav).getAttribute("aria-current"),
-		).toBe("page");
+			[...actionsNav.querySelectorAll("button")].map(
+				(button) => button.textContent,
+			),
+		).toEqual(["Session", "Schedule", "Customize"]);
+		await click(pageRow);
+		expect(onOpenCustomize).toHaveBeenCalledOnce();
+		expect(onSettingsSectionChange).not.toHaveBeenCalled();
 		expect(
-			buttonWithText("Installed", actionsNav).getAttribute("aria-current"),
+			container.querySelector('[aria-label="Settings sections"]'),
 		).toBeNull();
+		expect(pageRow.getAttribute("aria-current")).toBe("page");
+		expect(pageRow.className.split(" ")).toContain("bg-surface-hover");
+		expect(
+			buttonWithText("Schedule", actionsNav).getAttribute("aria-current"),
+		).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Settings"]')?.className.split(" "),
+		).not.toContain("bg-surface-hover");
+		expect(sessionRow("alpha session 1")).toBe(row);
+		expect(row.closest('[data-slot="scroll-area-viewport"]')).toBe(viewport);
+		expect(viewport.scrollTop).toBe(180);
+		if (sortMode === "project") {
+			expect(
+				container.querySelector('[aria-label="Sort sessions: Project"]'),
+			).not.toBeNull();
+			expect(sessionIsVisible("beta session 1")).toBe(false);
+		}
+		await click(row);
+		expect(sessionHistory.openThread).toHaveBeenCalledWith("alpha-1");
 	});
 
 	it("groups Cline Account, Local, and BYOK under a Provider row", async () => {
@@ -1316,6 +1379,7 @@ describe("AgentSidebar session organization", () => {
 							<AgentSidebar
 								activeSessionId={null}
 								onHome={vi.fn()}
+								onOpenCustomize={vi.fn()}
 								onSettingsSectionChange={onSettingsSectionChange}
 								sessionHistory={makeSessionHistory([], vi.fn())}
 								setView={vi.fn()}
@@ -1369,6 +1433,7 @@ describe("AgentSidebar session organization", () => {
 								activeSessionId={null}
 								newTaskActive={newTaskActive}
 								onHome={vi.fn()}
+								onOpenCustomize={vi.fn()}
 								onSettingsSectionChange={vi.fn()}
 								sessionHistory={makeSessionHistory([], vi.fn())}
 								setView={vi.fn()}
@@ -1408,6 +1473,7 @@ describe("AgentSidebar session organization", () => {
 							activeSessionId={null}
 							onHome={vi.fn()}
 							onOpenSearch={onOpenSearch}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={sessionHistory}
 							setView={vi.fn()}
@@ -1442,6 +1508,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1470,6 +1537,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
@@ -1510,6 +1578,69 @@ describe("AgentSidebar session organization", () => {
 		).toContain("items-start");
 	});
 
+	it.each([
+		"chat",
+		"sessions",
+		"settings",
+		"customize",
+	] as const)("keeps Customize and Schedule as collapsed %s shortcuts", async (view) => {
+		const onOpenCustomize = vi.fn();
+		const onSettingsSectionChange = vi.fn();
+		const setView = vi.fn();
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider defaultOpen={false}>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onOpenCustomize={onOpenCustomize}
+							onSettingsSectionChange={onSettingsSectionChange}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={setView}
+							settingsSection="General"
+							view={view}
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+
+		const settingsNav = container.querySelector(
+			'[aria-label="Settings sections"]',
+		);
+		expect(settingsNav !== null).toBe(view === "settings");
+		const customizeButtons = container.querySelectorAll(
+			'button[aria-label="Customize"]',
+		);
+		expect(customizeButtons).toHaveLength(1);
+		const customizeButton = customizeButtons[0] as HTMLButtonElement;
+		expect(settingsNav?.contains(customizeButton) ?? false).toBe(false);
+		expect(customizeButton.getAttribute("aria-current")).toBe(
+			view === "customize" ? "page" : null,
+		);
+		expect(
+			customizeButton.className.split(" ").includes("bg-surface-hover"),
+		).toBe(view === "customize");
+		await click(customizeButton);
+		expect(onOpenCustomize).toHaveBeenCalledOnce();
+		const scheduleButtons = container.querySelectorAll(
+			'button[aria-label="Schedule"]',
+		);
+		expect(scheduleButtons).toHaveLength(1);
+		const scheduleButton = scheduleButtons[0] as HTMLButtonElement;
+		expect(settingsNav?.contains(scheduleButton) ?? false).toBe(false);
+		expect(scheduleButton.getAttribute("aria-current")).toBeNull();
+		expect(
+			scheduleButton.className.split(" ").includes("bg-surface-hover"),
+		).toBe(false);
+		await click(scheduleButton);
+		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
+			"Schedules",
+		);
+		expect(setView).not.toHaveBeenCalled();
+	});
+
 	it("shows only the labeled Settings button when signed out", async () => {
 		await act(async () => {
 			root.render(
@@ -1518,6 +1649,7 @@ describe("AgentSidebar session organization", () => {
 						<AgentSidebar
 							activeSessionId={null}
 							onHome={vi.fn()}
+							onOpenCustomize={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}

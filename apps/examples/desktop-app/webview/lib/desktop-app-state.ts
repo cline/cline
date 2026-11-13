@@ -1,3 +1,4 @@
+import type { CustomizeSection } from "@/components/views/customize/customize-sections";
 import {
 	createNavigationHistory,
 	type NavigationHistory,
@@ -6,7 +7,11 @@ import {
 import type { SessionHistoryItem, SessionMetadata } from "./session-history";
 import { sessionKey } from "./session-identity";
 
-export type DesktopAppView = "chat" | "sessions" | "settings";
+export type DesktopAppView =
+	| "chat"
+	| "sessions"
+	| "settings"
+	| "customize";
 
 export type DesktopThread = {
 	id: string;
@@ -22,7 +27,14 @@ export type DesktopThread = {
 export type DesktopAppLocation<SettingsSection extends string> = {
 	activeThreadId: string;
 	settingsSection: SettingsSection;
+	customizeSection: CustomizeSection;
 	view: DesktopAppView;
+	/**
+	 * The detail page or editor open within the view, so Back and Forward step
+	 * through it. Only the page that opened it knows what it is; the shell
+	 * compares it by identity.
+	 */
+	detail?: object;
 };
 
 export type DesktopAppState<SettingsSection extends string> = {
@@ -34,6 +46,8 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| { type: "navigate"; destination: DesktopAppLocation<SettingsSection> }
 	| { type: "back" }
 	| { type: "forward" }
+	| { type: "replace-detail"; detail: object }
+	| { type: "close-detail"; detail: object; forget?: boolean }
 	| { type: "new-thread"; threadId: string; environmentId: string }
 	| { type: "bind-unstarted-thread"; threadId: string; environmentId: string }
 	| {
@@ -72,8 +86,37 @@ function areLocationsEqual<SettingsSection extends string>(
 	return (
 		a.activeThreadId === b.activeThreadId &&
 		a.settingsSection === b.settingsSection &&
-		a.view === b.view
+		a.customizeSection === b.customizeSection &&
+		a.view === b.view &&
+		a.detail === b.detail
 	);
+}
+
+/** Return to the list behind a detail, optionally dropping the detail from history. */
+function closeDetail<SettingsSection extends string>(
+	navigation: NavigationHistory<DesktopAppLocation<SettingsSection>>,
+	detail: object,
+	forget: boolean,
+): NavigationHistory<DesktopAppLocation<SettingsSection>> {
+	let next = navigation;
+	if (navigation.current.detail === detail) {
+		// A detail is always opened from its list, so that is one step back.
+		next =
+			navigation.back.length > 0
+				? navigationHistoryReducer(navigation, { type: "back" })
+				: navigationHistoryReducer(navigation, {
+						type: "replace",
+						destination: { ...navigation.current, detail: undefined },
+					});
+	}
+	if (!forget) return next;
+	const keep = (location: DesktopAppLocation<SettingsSection>) =>
+		location.detail !== detail;
+	return {
+		back: next.back.filter(keep),
+		current: next.current,
+		forward: next.forward.filter(keep),
+	};
 }
 
 export function createDesktopAppState<SettingsSection extends string>(
@@ -86,6 +129,7 @@ export function createDesktopAppState<SettingsSection extends string>(
 		navigation: createNavigationHistory({
 			activeThreadId: initialThreadId,
 			settingsSection: initialSettingsSection,
+			customizeSection: "browse",
 			view: "chat",
 		}),
 	};
@@ -113,6 +157,23 @@ export function desktopAppReducer<SettingsSection extends string>(
 				...state,
 				navigation: navigationHistoryReducer(state.navigation, action),
 			};
+		case "replace-detail":
+			if (state.navigation.current.detail === undefined) return state;
+			return {
+				...state,
+				navigation: navigationHistoryReducer(state.navigation, {
+					type: "replace",
+					destination: { ...state.navigation.current, detail: action.detail },
+				}),
+			};
+		case "close-detail": {
+			const navigation = closeDetail(
+				state.navigation,
+				action.detail,
+				action.forget === true,
+			);
+			return navigation === state.navigation ? state : { ...state, navigation };
+		}
 		case "new-thread":
 			return {
 				threads: [
@@ -123,6 +184,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 					type: "navigate",
 					destination: {
 						...state.navigation.current,
+						detail: undefined,
 						activeThreadId: action.threadId,
 						view: "chat",
 					},
@@ -157,6 +219,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 					];
 			const destination = {
 				...state.navigation.current,
+				detail: undefined,
 				activeThreadId: targetThreadId,
 				view: "chat" as const,
 			};
@@ -227,6 +290,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 							: "navigate",
 					destination: {
 						...state.navigation.current,
+						detail: undefined,
 						activeThreadId: threadId,
 						view: "chat",
 					},
@@ -297,6 +361,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 			}
 			const fallback: DesktopAppLocation<SettingsSection> = {
 				...state.navigation.current,
+				detail: undefined,
 				activeThreadId: replacementThreadId,
 				view: "chat",
 			};

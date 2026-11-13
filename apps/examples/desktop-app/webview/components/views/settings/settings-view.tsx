@@ -59,16 +59,11 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import {
-	MarketplaceExplorerView,
-	type MarketplaceTypeFilter,
-} from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AboutContent } from "./about-view";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizeView } from "./customize-view";
 import { DebugContent } from "./debug-view";
 import { HubPanel } from "./hub-panel";
 import { ImportContent } from "./import-view";
@@ -88,7 +83,6 @@ import { VoiceInputContent } from "./voice-input-view";
 // Nav categories live in ./sections so the always-mounted sidebar can import
 // them without pulling this module graph into the initial bundle.
 export {
-	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
 } from "./sections";
@@ -112,18 +106,18 @@ let providerCatalogCache: {
 export function SettingsView({
 	section,
 	onNavigateSection,
+	onOpenConnectors,
 	onOpenSession,
 	onExportDiagnostics,
 }: {
 	section: SettingsSection;
 	onExportDiagnostics: () => void;
 	onNavigateSection: (section: SettingsSection) => void;
+	onOpenConnectors: () => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
 	const { refreshAccount } = useAccount();
-	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
-		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
 	);
@@ -642,16 +636,6 @@ export function SettingsView({
 			/>
 		) : activeNav === "Keybindings" ? (
 			<KeybindingsContent />
-		) : activeNav === "Customize" ? (
-			<CustomizeView
-				onOpenModelProviders={() => onNavigateSection("Providers")}
-				onOpenMarketplace={(filter) => {
-					setMarketplaceInitialFilter(filter ?? null);
-					onNavigateSection("Marketplace");
-				}}
-			/>
-		) : activeNav === "Marketplace" ? (
-			<MarketplaceExplorerView initialTypeFilter={marketplaceInitialFilter} />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
@@ -663,7 +647,7 @@ export function SettingsView({
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "About" ? (
-			<AboutContent onOpenConnectors={() => onNavigateSection("Customize")} />
+			<AboutContent onOpenConnectors={onOpenConnectors} />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent />
 		) : activeNav === "Debug" ? (

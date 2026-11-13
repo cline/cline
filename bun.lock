@@ -221,6 +221,7 @@
         "input-otp": "1.4.2",
         "lucide-react": "^0.564.0",
         "mermaid": "11.16.1",
+        "motion": "^12.38.0",
         "next": "16.2.11",
         "next-themes": "^0.4.6",
         "ollama": "^0.6.4",
@@ -237,6 +238,7 @@
         "streamdown": "^2.5.0",
         "tailwind-merge": "^3.3.1",
         "vaul": "^1.1.2",
+        "yaml": "^2.8.2",
         "zod": "^3.24.1",
       },
       "devDependencies": {

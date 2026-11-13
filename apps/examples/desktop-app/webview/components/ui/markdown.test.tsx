@@ -94,6 +94,34 @@ const ready = true;
 		]);
 	});
 
+	test("keeps chip tokens when resolving repository and local document links", () => {
+		const content = "/compact see @src/app.ts and [Guide](guide.md)";
+		const chipTokens = new Set(["/compact", "@src/app.ts"]);
+		const repositoryHtml = renderToStaticMarkup(
+			<MemoizedMarkdown
+				chipTokens={chipTokens}
+				content={content}
+				linkBaseUrl="https://github.com/example/skills/blob/main/SKILL.md"
+			/>,
+		);
+		expect(chipTexts(repositoryHtml)).toEqual(["/compact", "@src/app.ts"]);
+		expect(repositoryHtml).toContain(
+			'href="https://github.com/example/skills/blob/main/guide.md"',
+		);
+
+		const resolveLocalLink = vi.fn(() => () => {});
+		const localHtml = renderToStaticMarkup(
+			<MemoizedMarkdown
+				chipTokens={chipTokens}
+				content={content}
+				resolveLocalLink={resolveLocalLink}
+			/>,
+		);
+		expect(chipTexts(localHtml)).toEqual(["/compact", "@src/app.ts"]);
+		expect(resolveLocalLink).toHaveBeenCalledWith("guide.md");
+		expect(localHtml).toContain('type="button">Guide</button>');
+	});
+
 	test("names the diagram from the fence title", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
