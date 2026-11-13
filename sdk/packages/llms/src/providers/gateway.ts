@@ -186,6 +186,7 @@ class GatewayModelAdapter implements AgentModel {
 				requestedReasoning,
 			),
 			signal: request.signal ?? this.defaults?.signal,
+			emitStatusNotice: request.emitStatusNotice,
 		});
 	}
 }
