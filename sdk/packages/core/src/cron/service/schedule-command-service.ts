@@ -8,6 +8,7 @@ import type {
 } from "@cline/shared";
 import { createSessionId, readHubScheduleMode } from "@cline/shared";
 import type { HubConnectionAuthority } from "../../hub/server/command-transport";
+import { SCHEDULE_RESULT_SESSION_METADATA_KEY } from "./schedule-result-delivery";
 import type { HubScheduleService } from "./schedule-service";
 
 interface ScheduleCommandScope {
@@ -85,6 +86,16 @@ export class HubScheduleCommandService {
 		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		try {
+			const metadata = envelope.payload?.metadata;
+			if (
+				metadata &&
+				typeof metadata === "object" &&
+				SCHEDULE_RESULT_SESSION_METADATA_KEY in metadata
+			) {
+				throw new Error(
+					"Result destinations must be captured by the tasks tool",
+				);
+			}
 			const scope = this.resolveScope(authority);
 			switch (envelope.command) {
 				case "schedule.create":

@@ -110,6 +110,11 @@ export class HubRunQueue {
 				ended_at INTEGER,
 				error TEXT
 			);
+			CREATE TABLE IF NOT EXISTS hub_run_admission_keys (
+ run_id TEXT PRIMARY KEY,
+ session_id TEXT NOT NULL,
+ accepted_at INTEGER NOT NULL
+ );
 			CREATE INDEX IF NOT EXISTS idx_hub_runs_session
 				ON hub_runs(session_id, accepted_seq);
 			CREATE INDEX IF NOT EXISTS idx_hub_runs_state
@@ -122,30 +127,72 @@ export class HubRunQueue {
 		sessionId: string,
 		input: Record<string, unknown>,
 		clientId?: string,
+		requestedRunId?: string,
 	): HubRunAccepted {
-		const pendingAhead = this.countPendingBySession(sessionId);
-		if (pendingAhead >= this.maxPendingPerSession) {
-			throw new HubRunAdmissionRejectedError(
-				sessionId,
-				pendingAhead,
-				this.maxPendingPerSession,
-			);
-		}
-		const runId = createSessionId("hrun_");
-		const acceptedAt = Date.now();
-		this.db
-			.prepare(
-				`INSERT INTO hub_runs (run_id, session_id, state, input_json, client_id, accepted_at)
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			if (requestedRunId) {
+				const existing = this.get(requestedRunId);
+				if (existing) {
+					if (existing.sessionId !== sessionId)
+						throw new Error("run ID belongs to another session");
+					this.db.exec("COMMIT;");
+					return {
+						runId: existing.runId,
+						acceptedAt: existing.acceptedAt,
+						queuePosition: 0,
+					};
+				}
+			}
+			if (requestedRunId) {
+				const admitted = this.db
+					.prepare("SELECT * FROM hub_run_admission_keys WHERE run_id = ?;")
+					.get(requestedRunId);
+				if (admitted) {
+					if (admitted.session_id !== sessionId)
+						throw new Error("run ID belongs to another session");
+					this.db.exec("COMMIT;");
+					return {
+						runId: requestedRunId,
+						acceptedAt: Number(admitted.accepted_at),
+						queuePosition: 0,
+					};
+				}
+			}
+			const pendingAhead = this.countPendingBySession(sessionId);
+			if (pendingAhead >= this.maxPendingPerSession) {
+				throw new HubRunAdmissionRejectedError(
+					sessionId,
+					pendingAhead,
+					this.maxPendingPerSession,
+				);
+			}
+			const runId = requestedRunId ?? createSessionId("hrun_");
+			const acceptedAt = Date.now();
+			this.db
+				.prepare(
+					`INSERT INTO hub_runs (run_id, session_id, state, input_json, client_id, accepted_at)
 				 VALUES (?, ?, 'queued', ?, ?, ?);`,
-			)
-			.run(
-				runId,
-				sessionId,
-				JSON.stringify(input),
-				clientId ?? null,
-				acceptedAt,
-			);
-		return { runId, acceptedAt, queuePosition: pendingAhead };
+				)
+				.run(
+					runId,
+					sessionId,
+					JSON.stringify(input),
+					clientId ?? null,
+					acceptedAt,
+				);
+			if (requestedRunId)
+				this.db
+					.prepare(
+						"INSERT INTO hub_run_admission_keys (run_id, session_id, accepted_at) VALUES (?, ?, ?);",
+					)
+					.run(runId, sessionId, acceptedAt);
+			this.db.exec("COMMIT;");
+			return { runId, acceptedAt, queuePosition: pendingAhead };
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
 	}
 
 	get(runId: string): HubRunRecord | undefined {
@@ -193,6 +240,14 @@ export class HubRunQueue {
 			)
 			.get();
 		return Number(row?.n ?? 0);
+	}
+
+	markQueued(runId: string): void {
+		this.db
+			.prepare(
+				"UPDATE hub_runs SET state = 'queued', started_at = NULL WHERE run_id = ? AND state = 'running';",
+			)
+			.run(runId);
 	}
 
 	markRunning(runId: string): void {

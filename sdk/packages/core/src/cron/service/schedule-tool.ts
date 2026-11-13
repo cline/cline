@@ -15,6 +15,7 @@ import {
 } from "@cline/shared";
 import { z } from "zod";
 import { captureToolUsage } from "../../services/telemetry/core-events";
+import { SCHEDULE_RESULT_SESSION_METADATA_KEY } from "./schedule-result-delivery";
 import type { ListSchedulesOptions } from "./schedule-service";
 
 const ScheduleOperationSchema = z.enum([
@@ -38,6 +39,7 @@ export const ScheduledTaskInputSchema = z.object({
 	schedule_id: z.string().min(1).optional(),
 	schedule_type: z.enum(["once", "recurring"]).optional(),
 	name: z.string().min(1).optional(),
+	delivery: z.enum(["new_session", "current_session"]).optional(),
 	prompt: z.string().min(1).optional(),
 	run_at: z.string().datetime({ offset: true }).optional(),
 	cron_pattern: z.string().min(1).optional(),
@@ -357,9 +359,18 @@ export async function executeScheduleOperation(
 
 		switch (input.operation) {
 			case "create": {
+				const timing = createTiming(input);
 				const schedule = options.schedules.createSchedule({
 					name: requiredString(input.name, "name"),
-					...createTiming(input),
+					...timing,
+					metadata: {
+						...timing.metadata,
+						...(input.delivery === "current_session"
+							? {
+									[SCHEDULE_RESULT_SESSION_METADATA_KEY]: context.sessionId,
+								}
+							: {}),
+					},
 					prompt: requiredString(input.prompt, "prompt"),
 					workspaceRoot: defaults.workspaceRoot,
 					cwd: defaults.cwd,
@@ -384,9 +395,19 @@ export async function executeScheduleOperation(
 					options.schedules.getSchedule(scheduleId),
 					defaults,
 				);
+				const timing = updateTiming(input);
 				const schedule = options.schedules.updateSchedule(scheduleId, {
 					scheduleId,
-					...updateTiming(input),
+					...timing,
+					metadata: input.delivery
+						? {
+								...timing.metadata,
+								[SCHEDULE_RESULT_SESSION_METADATA_KEY]:
+									input.delivery === "current_session"
+										? context.sessionId
+										: null,
+							}
+						: timing.metadata,
 					name: input.name?.trim() || undefined,
 					prompt: input.prompt?.trim() || undefined,
 					modelSelection: modelSelectionOf(input.model_selection),

@@ -18,6 +18,7 @@ import {
 } from "@cline/shared/db";
 import { resolveCronDbPath } from "@cline/shared/storage";
 import { getNextCronTime } from "../schedule/scheduler";
+import type { ScheduleResultDelivery } from "../service/schedule-result-delivery";
 import { ensureCronSchema } from "./cron-schema";
 
 /**
@@ -1750,18 +1751,21 @@ export class SqliteCronStore {
 			sessionId?: string;
 			reportPath?: string;
 			error?: string;
+			delivery?: ScheduleResultDelivery;
 			completedAtIso?: string;
 			claimToken?: string;
 		},
 	): boolean {
-		const completedAt = update.completedAtIso ?? nowIso();
-		const whereClause = update.claimToken
-			? "WHERE run_id = ? AND claim_token = ?"
-			: "WHERE run_id = ?";
-		const changes =
-			this.db
-				.prepare(
-					`UPDATE cron_runs SET
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const completedAt = update.completedAtIso ?? nowIso();
+			const whereClause = update.claimToken
+				? "WHERE run_id = ? AND claim_token = ?"
+				: "WHERE run_id = ?";
+			const changes =
+				this.db
+					.prepare(
+						`UPDATE cron_runs SET
 						status = ?,
 						session_id = COALESCE(?, session_id),
 						report_path = COALESCE(?, report_path),
@@ -1772,18 +1776,101 @@ export class SqliteCronStore {
 						claim_until_at = NULL,
 						updated_at = ?
 					${whereClause}`,
+					)
+					.run(
+						update.status,
+						update.sessionId ?? null,
+						update.reportPath ?? null,
+						update.error ?? null,
+						completedAt,
+						completedAt,
+						runId,
+						...(update.claimToken ? [update.claimToken] : []),
+					).changes ?? 0;
+			if (changes > 0 && update.delivery) {
+				const { sessionId, prompt } = update.delivery;
+				this.db
+					.prepare(
+						`INSERT OR IGNORE INTO cron_result_deliveries (run_id, session_id, prompt) VALUES (?, ?, ?);`,
+					)
+					.run(runId, sessionId, prompt);
+			}
+			this.db.exec("COMMIT;");
+			return changes > 0;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	public listPendingResultDeliveries(): ScheduleResultDelivery[] {
+		return this.db
+			.prepare(
+				"SELECT * FROM cron_result_deliveries WHERE delivered_at IS NULL LIMIT 100;",
+			)
+			.all()
+			.map((row) => ({
+				runId: asString(row.run_id),
+				sessionId: asString(row.session_id),
+				prompt: asString(row.prompt),
+			}));
+	}
+
+	public claimResultDeliveries(
+		leaseMs = 30_000,
+	): Array<ScheduleResultDelivery & { claimToken: string }> {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const now = nowIso();
+			const claimToken = randomUUID();
+			const claimUntil = new Date(Date.now() + leaseMs).toISOString();
+			const deliveries = this.db
+				.prepare(
+					`SELECT * FROM cron_result_deliveries WHERE delivered_at IS NULL AND next_attempt_at <= ? AND (claim_until_at IS NULL OR claim_until_at <= ?) ORDER BY next_attempt_at, run_id LIMIT 100;`,
 				)
-				.run(
-					update.status,
-					update.sessionId ?? null,
-					update.reportPath ?? null,
-					update.error ?? null,
-					completedAt,
-					completedAt,
-					runId,
-					...(update.claimToken ? [update.claimToken] : []),
-				).changes ?? 0;
-		return changes > 0;
+				.all(now, now);
+			for (const row of deliveries)
+				this.db
+					.prepare(
+						`UPDATE cron_result_deliveries SET claim_token = ?, claim_until_at = ? WHERE run_id = ?;`,
+					)
+					.run(claimToken, claimUntil, row.run_id);
+			this.db.exec("COMMIT;");
+			return deliveries.map((row) => ({
+				runId: asString(row.run_id),
+				sessionId: asString(row.session_id),
+				prompt: asString(row.prompt),
+				claimToken,
+			}));
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
+	public acknowledgeResultDelivery(runId: string, claimToken: string): void {
+		this.db
+			.prepare(
+				"UPDATE cron_result_deliveries SET delivered_at = ?, prompt = '', error = NULL, claim_token = NULL, claim_until_at = NULL WHERE run_id = ? AND claim_token = ?;",
+			)
+			.run(nowIso(), runId, claimToken);
+	}
+
+	public recordResultDeliveryError(
+		runId: string,
+		error: string,
+		claimToken: string,
+	): void {
+		this.db
+			.prepare(
+				"UPDATE cron_result_deliveries SET error = ?, next_attempt_at = ?, claim_token = NULL, claim_until_at = NULL WHERE run_id = ? AND claim_token = ?;",
+			)
+			.run(
+				error,
+				new Date(Date.now() + 5_000).toISOString(),
+				runId,
+				claimToken,
+			);
 	}
 
 	public requeueRun(

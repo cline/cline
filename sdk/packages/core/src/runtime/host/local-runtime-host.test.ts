@@ -222,6 +222,368 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it("reuses the active runtime for scheduled delivery and rejects an immediate turn while busy", async () => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		try {
+			const input = normalizeStartInput({
+				interactive: true,
+				config: createConfig({
+					sessionId: "scheduled-result-origin",
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+				}),
+			});
+			const [first, concurrentResume] = await Promise.all([
+				manager.startSession(input),
+				manager.startSession({ ...input, resumeExistingSession: true }),
+			]);
+			expect(concurrentResume.sessionId).toBe(first.sessionId);
+			expect(concurrentResume.reusedActiveSession).toBe(true);
+			const reused = await manager.startSession({
+				...input,
+				config: { ...input.config, sessionId: first.sessionId },
+				resumeExistingSession: true,
+			});
+			expect(reused.sessionId).toBe(first.sessionId);
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			agent.canStartRun.mockReturnValue(false);
+			await expect(
+				manager.runTurn({
+					sessionId: first.sessionId,
+					prompt: "Scheduled result",
+					delivery: "immediate",
+				}),
+			).rejects.toMatchObject({ code: "session_run_in_progress" });
+			expect(agent.run).not.toHaveBeenCalled();
+			await expect(
+				manager.startSession({
+					...input,
+					config: { ...input.config, sessionId: "deleted-origin" },
+					resumeExistingSession: true,
+				}),
+			).rejects.toMatchObject({ code: "session_not_found" });
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			expect(
+				await manager.pendingPrompts.list({ sessionId: first.sessionId }),
+			).toEqual([]);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"bootstrap",
+		"initial turn",
+	])("rejects a competing start prompt during %s without waiting for the original start", async (phase) => {
+		let release!: () => void;
+		let entered!: () => void;
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		const pause = async () => {
+			entered();
+			await barrier;
+		};
+		const runtimeBuilder = {
+			build: vi.fn(async () => {
+				if (phase === "bootstrap") await pause();
+				return { tools: [], shutdown: vi.fn() };
+			}),
+		};
+		const agent = {
+			run: vi.fn(async () => {
+				if (phase === "initial turn") await pause();
+				return createResult();
+			}),
+			continue: vi.fn(),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const input = normalizeStartInput({
+			interactive: true,
+			prompt: "Original prompt",
+			config: createConfig({
+				sessionId: "concurrent-start",
+				cwd: isolatedHomeDir,
+				workspaceRoot: isolatedHomeDir,
+			}),
+		});
+		const original = manager.startSession(input);
+		let reopening: ReturnType<typeof manager.startSession> | undefined;
+		try {
+			await reached;
+			await expect(
+				manager.startSession({ ...input, prompt: "Competing prompt" }),
+			).rejects.toMatchObject({ code: "session_run_in_progress" });
+			expect(agent.abort).not.toHaveBeenCalled();
+			expect(agent.shutdown).not.toHaveBeenCalled();
+			reopening = manager.startSession({ ...input, prompt: undefined });
+			release();
+			const first = await original;
+			await expect(reopening).resolves.toMatchObject({
+				sessionId: first.sessionId,
+				reusedActiveSession: true,
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledOnce();
+			expect(agent.run).toHaveBeenCalledOnce();
+			expect(agent.run.mock.calls[0]).toContain(
+				'<user_input mode="act">Original prompt</user_input>',
+			);
+		} finally {
+			release();
+			await original;
+			await reopening;
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"user",
+		"scheduled",
+	])("reserves a %s turn during credential preparation and queues competing user input", async (firstSource) => {
+		let release: () => void = () => {};
+		let entered: () => void = () => {};
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		let block = false;
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+			oauthTokenManager: {
+				resolveProviderApiKey: vi.fn(async () => {
+					if (block) {
+						entered();
+						await barrier;
+					}
+					return null;
+				}),
+			} as never,
+		});
+		let firstTurn: Promise<unknown> | undefined;
+		try {
+			const started = await manager.startSession(
+				normalizeStartInput({
+					interactive: true,
+					config: createConfig({
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+				}),
+			);
+			block = true;
+			firstTurn = manager.runTurn({
+				sessionId: started.sessionId,
+				prompt: firstSource,
+				...(firstSource === "scheduled"
+					? { delivery: "immediate" as const }
+					: {}),
+			});
+			await reached;
+			expect(agent.run).not.toHaveBeenCalled();
+			await expect(
+				manager.runTurn({
+					sessionId: started.sessionId,
+					prompt: "Competing scheduled result",
+					delivery: "immediate",
+				}),
+			).rejects.toMatchObject({ code: "session_run_in_progress" });
+			await manager.runTurn({
+				sessionId: started.sessionId,
+				prompt: "Queued user request",
+			});
+			expect(
+				await manager.pendingPrompts.list({ sessionId: started.sessionId }),
+			).toHaveLength(1);
+			expect(agent.abort).not.toHaveBeenCalled();
+			expect(agent.shutdown).not.toHaveBeenCalled();
+			block = false;
+			release();
+			await firstTurn;
+			await expect
+				.poll(
+					() => agent.run.mock.calls.length + agent.continue.mock.calls.length,
+				)
+				.toBe(2);
+			await expect
+				.poll(async () => (await manager.getSession(started.sessionId))?.status)
+				.toBe("idle");
+			expect(agent.abort).not.toHaveBeenCalled();
+		} finally {
+			release();
+			await firstTurn;
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		true,
+		false,
+	])("preserves client tools and hooks when reopening a scheduled restoration (idle: %s)", async (idle) => {
+		let release: () => void = () => {};
+		let entered: () => void = () => {};
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const reached = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		let restoring = false;
+		const runtime = {
+			tools: [],
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const runtimeBuilder = {
+			build: vi.fn(async () => {
+				if (restoring) {
+					entered();
+					await barrier;
+				}
+				return runtime;
+			}),
+		};
+		const replaceTools = vi.fn();
+		let agentHooks: AgentConfig["hooks"];
+		const askQuestion = vi.fn(async () => "the answer");
+		const beforeTool = vi.fn(async () => ({ stop: true }));
+		const agent = {
+			replaceTools,
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent"),
+			getConversationId: vi.fn().mockReturnValue("conversation"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: (config) => {
+				agentHooks = config.hooks;
+				return agent as never;
+			},
+		});
+		const history = [{ role: "user" as const, content: "Saved conversation" }];
+		let pendingRestore: Promise<unknown> | undefined;
+		try {
+			const input = normalizeStartInput({
+				interactive: true,
+				initialMessages: history,
+				config: createConfig({
+					sessionId: "restored-origin",
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+				}),
+			});
+			const first = await manager.startSession(input);
+			await manager.stopSession(first.sessionId);
+			restoring = true;
+			const background = manager.startSession({
+				...input,
+				resumeExistingSession: true,
+			});
+			pendingRestore = background;
+			await reached;
+			const ordinary = manager.startSession({
+				...input,
+				capabilities: { toolExecutors: { askQuestion } },
+				localRuntime: { ...input.localRuntime, hooks: { beforeTool } },
+			});
+			release();
+			const [restored, reopened] = await Promise.all([background, ordinary]);
+			expect(restored.sessionId).toBe(first.sessionId);
+			expect(reopened.sessionId).toBe(first.sessionId);
+			expect(reopened.reusedActiveSession).toBe(true);
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(2);
+			const askTool = replaceTools.mock.calls
+				.at(-1)?.[0]
+				.find((tool: { name: string }) => tool.name === "ask_question");
+			expect(askTool).toBeDefined();
+			await askTool.execute(
+				{ question: "Continue?", options: ["Yes", "No"] },
+				{ toolCallId: "ask-1" },
+			);
+			expect(askQuestion).toHaveBeenCalledOnce();
+			await agentHooks?.beforeTool?.({} as never);
+			expect(beforeTool).toHaveBeenCalledOnce();
+			// Reopening after restoration also retains the active transcript and applies the latest callbacks.
+			agent.canStartRun.mockReturnValue(idle);
+			if (!idle) {
+				await manager.startSession({
+					...input,
+					localRuntime: { hooks: { beforeTool } },
+				});
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(2);
+			}
+		} finally {
+			release();
+			await pendingRestore;
+			await manager.dispose();
+		}
+	});
+
 	it("uses host connector authentication on startup and resume", async () => {
 		const settings = vi
 			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
@@ -3833,7 +4195,7 @@ describe("LocalRuntimeHost", () => {
 					prompt: "hello",
 				}),
 			),
-		).rejects.toThrow(/already has a run in progress/);
+		).rejects.toMatchObject({ code: "session_run_in_progress" });
 
 		// Stop still reaches the original run instead of an idle replacement.
 		await manager.abort(sessionId);
