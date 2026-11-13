@@ -2,7 +2,7 @@
 
 import * as Llms from "@cline/llms";
 import {
-	fetchModelIdsFromSource,
+	fetchModelsFromSource,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -718,16 +718,16 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+	const request = fetchModelsFromSource(sourceUrl, providerId, {
 		baseUrl: config.baseUrl ?? collection?.provider.baseUrl,
 		apiKey: resolveAuthToken(config),
 		headers: config.headers,
 	})
-		.then((modelIds) => {
+		.then((models) => {
 			const data = Object.fromEntries(
-				modelIds.map((id) => [
+				models.map(({ id, contextWindow }) => [
 					id,
-					buildModelFromPrivateSource(id, { name: id }),
+					buildModelFromPrivateSource(id, { name: id, contextWindow }),
 				]),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {

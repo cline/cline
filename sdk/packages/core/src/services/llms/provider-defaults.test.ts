@@ -618,10 +618,15 @@ describe("resolveProviderConfig", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
-	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
+	it("keeps declared context limits from keyless provider model discovery", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
-				JSON.stringify({ models: [{ name: "local-llama" }] }),
+				JSON.stringify({
+					models: [
+						{ name: "local-llama", context_length: 131_072 },
+						{ name: "unknown-window" },
+					],
+				}),
 				{
 					status: 200,
 					headers: { "content-type": "application/json" },
@@ -644,7 +649,14 @@ describe("resolveProviderConfig", () => {
 			"http://tailscale-host:11434/api/tags",
 			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
-		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
+			"local-llama",
+			"unknown-window",
+		]);
+		expect(resolved?.knownModels?.["local-llama"]?.contextWindow).toBe(131_072);
+		expect(
+			resolved?.knownModels?.["unknown-window"]?.contextWindow,
+		).toBeUndefined();
 	});
 
 	it("loads Poolside models from the authenticated models endpoint", async () => {

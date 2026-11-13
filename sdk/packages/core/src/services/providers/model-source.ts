@@ -1,26 +1,49 @@
-function parseModelIdList(input: unknown): string[] {
-	if (!Array.isArray(input)) return [];
-	return input
-		.map((item) => {
-			if (typeof item === "string") return item.trim();
-			if (item && typeof item === "object") {
-				const entry = item as { id?: unknown; name?: unknown; model?: unknown };
-				for (const value of [entry.id, entry.name, entry.model]) {
-					if (typeof value === "string" && value.trim()) {
-						return value.trim();
-					}
-				}
-			}
-			return "";
-		})
-		.filter((id) => id.length > 0);
+interface DiscoveredModel {
+	id: string;
+	contextWindow?: number;
 }
 
-export function extractModelIdsFromPayload(
+function withContextWindow(id: string, value: unknown): DiscoveredModel {
+	if (!value || typeof value !== "object") return { id };
+	const model = value as Record<string, unknown>;
+	const meta =
+		model.meta && typeof model.meta === "object"
+			? (model.meta as Record<string, unknown>)
+			: undefined;
+	const contextWindow = [
+		model.contextWindow,
+		model.context_length,
+		model.max_model_len,
+		meta?.n_ctx,
+	].find(
+		(limit): limit is number =>
+			typeof limit === "number" && Number.isSafeInteger(limit) && limit > 0,
+	);
+	return contextWindow === undefined ? { id } : { id, contextWindow };
+}
+
+function parseModelList(input: unknown): DiscoveredModel[] {
+	if (!Array.isArray(input)) return [];
+	return input.flatMap((item) => {
+		if (typeof item === "string") {
+			const id = item.trim();
+			return id ? [{ id }] : [];
+		}
+		if (!item || typeof item !== "object") return [];
+		const entry = item as { id?: unknown; name?: unknown; model?: unknown };
+		const id = [entry.id, entry.name, entry.model].find(
+			(value): value is string =>
+				typeof value === "string" && value.trim().length > 0,
+		);
+		return id ? [withContextWindow(id.trim(), item)] : [];
+	});
+}
+
+function extractModelsFromPayload(
 	payload: unknown,
 	providerId: string,
-): string[] {
-	const rootArray = parseModelIdList(payload);
+): DiscoveredModel[] {
+	const rootArray = parseModelList(payload);
 	if (rootArray.length > 0) return rootArray;
 	if (!payload || typeof payload !== "object") return [];
 
@@ -30,7 +53,7 @@ export function extractModelIdsFromPayload(
 		providers?: Record<string, unknown>;
 	};
 
-	const direct = parseModelIdList(data.data ?? data.models);
+	const direct = parseModelList(data.data ?? data.models);
 	if (direct.length > 0) return direct;
 
 	if (
@@ -38,18 +61,23 @@ export function extractModelIdsFromPayload(
 		typeof data.models === "object" &&
 		!Array.isArray(data.models)
 	) {
-		const keys = Object.keys(data.models).filter((k) => k.trim().length > 0);
-		if (keys.length > 0) return keys;
+		const models = Object.entries(data.models)
+			.filter(([id]) => id.trim().length > 0)
+			.map(([id, value]) => withContextWindow(id, value));
+		if (models.length > 0) return models;
 	}
 
 	const scoped = data.providers?.[providerId];
-	if (scoped && typeof scoped === "object") {
-		const nested = scoped as { models?: unknown };
-		const list = parseModelIdList(nested.models ?? scoped);
-		if (list.length > 0) return list;
-	}
+	return scoped && typeof scoped === "object"
+		? parseModelList((scoped as { models?: unknown }).models ?? scoped)
+		: [];
+}
 
-	return [];
+export function extractModelIdsFromPayload(
+	payload: unknown,
+	providerId: string,
+): string[] {
+	return extractModelsFromPayload(payload, providerId).map(({ id }) => id);
 }
 
 export interface ModelSourceAuth {
@@ -58,11 +86,11 @@ export interface ModelSourceAuth {
 	headers?: Record<string, string>;
 }
 
-export async function fetchModelIdsFromSource(
+export async function fetchModelsFromSource(
 	url: string,
 	providerId: string,
 	auth: ModelSourceAuth = {},
-): Promise<string[]> {
+): Promise<DiscoveredModel[]> {
 	// A model source may be a third-party public catalog. Only send provider
 	// credentials to its own origin, and do not follow authenticated redirects.
 	const headers = new Headers();
@@ -96,9 +124,19 @@ export async function fetchModelIdsFromSource(
 			`failed to fetch models from ${url}: HTTP ${response.status}`,
 		);
 	}
-	return extractModelIdsFromPayload(
+	return extractModelsFromPayload(
 		(await response.json()) as unknown,
 		providerId,
+	);
+}
+
+export async function fetchModelIdsFromSource(
+	url: string,
+	providerId: string,
+	auth: ModelSourceAuth = {},
+): Promise<string[]> {
+	return (await fetchModelsFromSource(url, providerId, auth)).map(
+		({ id }) => id,
 	);
 }
 
