@@ -10,6 +10,18 @@ import {
 } from "./slash-command-registry";
 
 describe("slash command registry", () => {
+	it("offers /cloud only when cloud handoff is enabled and preserves the draft", () => {
+		for (const cloudEnabled of [false, true]) {
+			const registry = buildSlashCommandRegistry({ cloudEnabled });
+			expect(resolveSlashCommand(registry, "cloud")).toMatchObject({
+				execution: "local",
+				visible: cloudEnabled,
+				selectable: cloudEnabled,
+				preserveInput: true,
+			});
+		}
+	});
+
 	it("keeps TUI-local commands local even when runtime also advertises them", () => {
 		const registry = buildSlashCommandRegistry({
 			canFork: true,
