@@ -1,4 +1,5 @@
 import type {
+	ClineCore,
 	ClineCoreListHistoryOptions,
 	ClineCoreStartInput,
 	CompareCheckpointInput,
@@ -21,6 +22,9 @@ import type {
 	StartSessionResult,
 } from "@cline/core"
 import type { AgentResult } from "@cline/shared"
+
+/** Connection fields updatable on a live session. Not exported by @cline/core; derived the same way the CLI does. */
+export type SessionConnectionUpdate = Parameters<ClineCore["updateSessionConnection"]>[1]
 
 export interface SdkSessionHost {
 	readonly runtimeAddress: string | undefined
@@ -60,6 +64,12 @@ export interface SdkSessionHost {
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
+	/**
+	 * Updates provider/model connection options for subsequent turns in an
+	 * active session, and syncs the persisted session manifest so history
+	 * reflects the connection the session is now using.
+	 */
+	updateSessionConnection?(sessionId: string, updates: SessionConnectionUpdate): Promise<void>
 }
 
 export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>
