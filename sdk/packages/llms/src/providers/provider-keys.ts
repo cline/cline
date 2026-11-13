@@ -157,6 +157,7 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		generatedProviderId: "tencent-tokenhub",
 	},
 	{ modelsDevKey: "v0", generatedProviderId: "v0" },
+	{ modelsDevKey: "fikraapi", generatedProviderId: "fikraapi" },
 ];
 
 function dedupe(values: readonly string[]): string[] {
