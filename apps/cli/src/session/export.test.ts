@@ -34,4 +34,27 @@ describe("generateConversationHTML", () => {
 		expect(html).toContain('<span class="success">Success</span>');
 		expect(html).toContain("Bun 1.3.14 is current.");
 	});
+
+	it("leaves markdown markers inside fenced code blocks untouched", () => {
+		const html = generateConversationHTML(
+			{
+				version: 1,
+				updated_at: "2026-08-13T00:00:00.000Z",
+				messages: [
+					{
+						id: "assistant-code",
+						role: "assistant",
+						content:
+							"Use **kwargs:\n```python\ndef f(**kwargs):\n    return g(**kwargs)\n```\nRun `pytest`.",
+					},
+				],
+			},
+			"session",
+		);
+
+		expect(html).toContain(
+			"<pre><code>def f(**kwargs):\n    return g(**kwargs)</code></pre>",
+		);
+		expect(html).toContain("Run <code>pytest</code>.");
+	});
 });
