@@ -110,9 +110,12 @@ function normalizeAgentName(name: string): string {
 	return name.trim().toLowerCase();
 }
 
-function isYamlFile(fileName: string): boolean {
+// Agent configs are documented as Markdown files with YAML frontmatter (see the
+// agents-squad plugin README), so markdown has to survive the directory scan. The YAML
+// extensions stay for configs that were authored without a prompt body in Markdown.
+function isAgentConfigFile(fileName: string): boolean {
 	const extension = extname(fileName).toLowerCase();
-	return extension === ".yml" || extension === ".yaml";
+	return extension === ".yml" || extension === ".yaml" || extension === ".md";
 }
 
 export function parseConfiguredAgentConfig(
@@ -174,7 +177,7 @@ export function loadConfiguredAgentConfigs(input: {
 		}
 
 		for (const entry of entries) {
-			if (!entry.isFile() || !isYamlFile(entry.name)) {
+			if (!entry.isFile() || !isAgentConfigFile(entry.name)) {
 				continue;
 			}
 
