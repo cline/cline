@@ -5,6 +5,7 @@ import {
 	compareFactoryNeedsYou,
 	compareFactoryPriority,
 	compareFactoryQueue,
+	factoryCardTitle,
 	isFactoryHandsOff,
 } from "@cline/shared/browser";
 import {
@@ -88,6 +89,7 @@ import {
 	FACTORY_MASTER_DETAIL,
 	FACTORY_MESSAGES,
 	FACTORY_OPEN_FINDINGS,
+	FACTORY_PR_REVIEW,
 	FACTORY_READY,
 	FACTORY_RECOVERY,
 	FACTORY_SPLIT,
@@ -96,6 +98,7 @@ import {
 	factoryFeedbackLabel,
 	factoryHistoryStatus,
 	factoryPullRequestActionLabel,
+	factoryPullRequestReference,
 	factoryReviewReason,
 	factoryWorkingDetail,
 } from "@/lib/factory-copy";
@@ -566,6 +569,8 @@ function FactoryPage({
 	const outcomes = new Map(
 		[...currentAttention.values()].map((item) => [item.taskId, item.outcome]),
 	);
+	const titleOf = (task: AgendaTaskRecord) =>
+		factoryCardTitle(task, outcomes.get(task.taskId));
 	const finished = tasks.filter(
 		(task) =>
 			!task.archivedAt &&
@@ -765,7 +770,7 @@ function FactoryPage({
 		return sessions.length ? (
 			<FactoryWatchButton
 				taskId={task.taskId}
-				title={task.title}
+				title={titleOf(task)}
 				sessions={sessions}
 				activity={liveActivity}
 				onOpenSession={(sessionId) => onOpenSession(sessionId)}
@@ -880,14 +885,14 @@ function FactoryPage({
 			? perform(async () => {
 					await desktopClient.designFactoryTask(task.taskId);
 					setMessage(
-						`Sending “${task.title}” back to scoping: its checks need fixing.`,
+						`Sending “${titleOf(task)}” back to scoping: its checks need fixing.`,
 					);
 				})
-			: startTasks([task], `Trying “${task.title}” again.`);
+			: startTasks([task], `Trying “${titleOf(task)}” again.`);
 	const rescope = (task: AgendaTaskRecord) =>
 		perform(async () => {
 			await desktopClient.designFactoryTask(task.taskId);
-			setMessage(`Scoping “${task.title}” again.`);
+			setMessage(`Scoping “${titleOf(task)}” again.`);
 		});
 	const loadingActivity =
 		(agenda.isLoading && tasks.length === 0) ||
@@ -1074,7 +1079,9 @@ function FactoryPage({
 		const railRow = (task: AgendaTaskRecord) => {
 			const state = railState(task);
 			const current = task.taskId === selectedId;
-			const name = [factoryShortId(task), task.title].filter(Boolean).join(" ");
+			const name = [factoryShortId(task), titleOf(task)]
+				.filter(Boolean)
+				.join(" ");
 			return (
 				<li key={task.taskId}>
 					<button
@@ -1083,7 +1090,7 @@ function FactoryPage({
 						data-factory-source="rail"
 						aria-label={`${name}, ${state.label}`}
 						aria-current={current ? "true" : undefined}
-						title={task.title}
+						title={titleOf(task)}
 						onClick={() => selectTask(task.taskId, "rail")}
 						className={cn(
 							"flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring @max-[1119px]/factory:justify-center",
@@ -1112,7 +1119,7 @@ function FactoryPage({
 						) : null}
 						<FactoryIdChip task={task} />
 						<span className="hidden min-w-0 flex-1 @min-[1120px]/factory:block">
-							<span className="block truncate text-sm">{task.title}</span>
+							<span className="block truncate text-sm">{titleOf(task)}</span>
 							<span
 								className={cn("block truncate text-xs", toneText(state.tone))}
 							>
@@ -1485,7 +1492,7 @@ function FactoryPage({
 		<Button
 			size="xs"
 			variant="outline"
-			aria-label={`${label}: ${task.title}`}
+			aria-label={`${label}: ${titleOf(task)}`}
 			disabled={disabled}
 			onClick={run}
 			title={label}
@@ -1570,11 +1577,14 @@ function FactoryPage({
 	) => {
 		const activity = activityOf(task);
 		const id = factoryShortId(task);
-		const name = [id, task.title].filter(Boolean).join(" ");
+		const name = [id, titleOf(task)].filter(Boolean).join(" ");
 		const state = activity.station.stopped ? stoppedAt(task) : rowLabel(task);
 		const parent = task.factoryParentTaskId
 			? tasksById.get(task.factoryParentTaskId)
 			: undefined;
+		// A review card names the pull request it reviews where others name
+		// their project.
+		const reviewed = task.factory?.review?.pullRequest;
 		// Grouped by stage, the column names the stage: no stepper on the card.
 		const stepper = stages && boardView.grouping !== "stage";
 		return (
@@ -1596,7 +1606,7 @@ function FactoryPage({
 					data-factory-task={task.taskId}
 					data-factory-source={group}
 					aria-label={`${name}, ${state}`}
-					title={task.title}
+					title={titleOf(task)}
 					onClick={() => selectTask(task.taskId, group)}
 					className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 				/>
@@ -1637,7 +1647,20 @@ function FactoryPage({
 							className="relative z-10 shrink-0"
 						/>
 					) : null}
-					{showProject && activity.unreadable === undefined ? (
+					{reviewed ? (
+						<span
+							data-factory-review-ref
+							title={reviewed.url}
+							className="flex min-w-0 items-center gap-1 font-mono text-[10.5px]"
+						>
+							<GitPullRequest aria-hidden className="size-3 shrink-0" />
+							<span className="truncate">
+								{factoryPullRequestReference(
+									outcomes.get(task.taskId)?.reviewPullRequest ?? reviewed,
+								)}
+							</span>
+						</span>
+					) : showProject && activity.unreadable === undefined ? (
 						<span
 							data-factory-project
 							title={projectOf(task)}
@@ -1683,7 +1706,7 @@ function FactoryPage({
 						queued ? "line-clamp-2" : "line-clamp-4",
 					)}
 				>
-					{task.title}
+					{titleOf(task)}
 					{ruleBadge(task) ? (
 						<span className="ml-1.5 inline-flex align-middle">
 							{ruleBadge(task)}
@@ -1832,7 +1855,7 @@ function FactoryPage({
 						task,
 						FACTORY_RECOVERY.start,
 						Play,
-						() => void startTasks([task], `Starting “${task.title}”.`),
+						() => void startTasks([task], `Starting “${titleOf(task)}”.`),
 						busy || !activityConfirmed,
 					)
 				: null,
@@ -1847,6 +1870,26 @@ function FactoryPage({
 				detail: activity.label,
 				end: formatRelativeTime(task.updatedAt),
 			});
+		const reviewed = task.factory?.review?.pullRequest;
+		// A review: what became of the draft, and its pull request a click away.
+		if (reviewed)
+			return boardCard(
+				task,
+				"delivered",
+				{
+					icon: (
+						<GitPullRequest className={cn("size-3", toneText("success"))} />
+					),
+					detail: activity.label,
+					end: formatRelativeTime(task.updatedAt),
+				},
+				quickAction(
+					task,
+					FACTORY_PR_REVIEW.openPr,
+					ExternalLink,
+					() => void openExternalUrl(reviewed.url),
+				),
+			);
 		const outcome = outcomes.get(task.taskId);
 		const url =
 			factoryOutcomeDetails(outcome).pullRequestUrl ??
@@ -2333,7 +2376,7 @@ function FactoryPage({
 																		task={task}
 																		className="inline-block align-middle"
 																	/>{" "}
-																	{task.title}
+																	{titleOf(task)}
 																</button>
 																{ruleBadge(task) ? (
 																	<span className="ml-2 inline-flex align-middle">

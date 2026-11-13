@@ -32,6 +32,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
+import { createFileReadExecutor } from "../extensions/tools/executors/file-read";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -51,6 +52,11 @@ import type {
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import type { SessionHistoryOriginMetadata } from "../session/history-origin";
+import {
+	confineFactoryReviewFileReads,
+	factoryReviewCheckoutRoot,
+	factoryReviewSearch,
+} from "../tasks/factory-review-checkout";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
@@ -345,10 +351,15 @@ export async function prepareLocalRuntimeBootstrap(
 	const {
 		modelCatalogDefaults,
 		userInstructionService,
-		configExtensions,
+		configExtensions: requestedConfigExtensions,
 		onTeamRestored,
 		...localConfigFields
 	} = localRuntime ?? {};
+	// A pull request review's checkout: see factory-review-checkout.ts.
+	const reviewCheckout =
+		factoryReviewCheckoutRoot(input.config.cwd) ??
+		factoryReviewCheckoutRoot(workspacePath);
+	const configExtensions = reviewCheckout ? [] : requestedConfigExtensions;
 	const localConfig =
 		Object.keys(localConfigFields).length > 0
 			? (localConfigFields as Partial<CoreSessionConfig>)
@@ -506,10 +517,12 @@ export async function prepareLocalRuntimeBootstrap(
 	// Composio registers only search/connect/execute meta tools in-process,
 	// independently of persisted desktop connections. Compiled hosts cannot
 	// spawn the drop-in plugin sandbox.
-	const composioToolsExtension = await createComposioToolsExtension({
-		request: connectorsRequest,
-		logger: localConfig?.logger,
-	});
+	const composioToolsExtension = reviewCheckout
+		? undefined
+		: await createComposioToolsExtension({
+				request: connectorsRequest,
+				logger: localConfig?.logger,
+			});
 	const builtInExtensionList = [
 		...(fileHookExtension ? [fileHookExtension] : []),
 		...(composioToolsExtension ? [composioToolsExtension] : []),
@@ -529,6 +542,9 @@ export async function prepareLocalRuntimeBootstrap(
 	const baseConfig: CoreSessionConfig = {
 		...input.config,
 		...(localConfig ?? {}),
+		...(reviewCheckout
+			? { enableSpawnAgent: false, enableAgentTeams: false }
+			: {}),
 		sessionId,
 		hooks: baseHooks,
 		extensions,
@@ -546,7 +562,7 @@ export async function prepareLocalRuntimeBootstrap(
 	);
 	const hooks = mergeAgentHooks([
 		baseConfig.hooks,
-		baseConfig.checkpoint?.enabled === true
+		baseConfig.checkpoint?.enabled === true && !reviewCheckout
 			? createCheckpointHooks({
 					cwd: baseConfig.cwd,
 					sessionId,
@@ -576,7 +592,16 @@ export async function prepareLocalRuntimeBootstrap(
 		input.capabilities,
 	);
 	const requestToolApproval = capabilities?.requestToolApproval;
-	const effectiveToolExecutors = capabilities?.toolExecutors;
+	const effectiveToolExecutors = reviewCheckout
+		? {
+				...capabilities?.toolExecutors,
+				readFile: confineFactoryReviewFileReads(
+					capabilities?.toolExecutors?.readFile ?? createFileReadExecutor(),
+					reviewCheckout,
+				),
+				search: factoryReviewSearch(reviewCheckout),
+			}
+		: capabilities?.toolExecutors;
 	const subAgentLifecycleCallbacks = createSubAgentLifecycleCallbacks?.(config);
 	const workspaceManager = new InMemoryWorkspaceManager({
 		currentWorkspacePath: workspaceInfo.rootPath,
@@ -614,6 +639,7 @@ export async function prepareLocalRuntimeBootstrap(
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
 			toolPolicies,
+			...(reviewCheckout ? { withoutProviderTools: true } : {}),
 			workspaceManager,
 			logger: config.logger,
 			telemetry: config.telemetry,

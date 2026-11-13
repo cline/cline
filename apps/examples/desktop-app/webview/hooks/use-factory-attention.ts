@@ -42,6 +42,8 @@ export type FactoryAttention = {
 		| "pullRequestUrl"
 		| "unresolvedFindings"
 		| "pullRequestOutcome"
+		| "reviewPost"
+		| "reviewPullRequest"
 		| "error"
 	> & {
 		/** The verification setup's dry run, without its log. */

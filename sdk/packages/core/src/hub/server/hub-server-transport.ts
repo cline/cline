@@ -18,6 +18,8 @@ import {
 	createSessionId,
 	DEFAULT_FACTORY_AGENTS,
 	FACTORY_INTAKE_METADATA_KEY,
+	FACTORY_PULL_REQUEST_REVIEW_METADATA_KEY,
+	factoryDeliverable,
 	factoryReviewMode,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	selectFactoryReviewAgents,
@@ -1161,6 +1163,9 @@ export class HubServerTransport implements NativeHubTransport {
 				factoryTaskId: task.factory ? task.taskId : undefined,
 				factoryRole,
 				...(factoryStage ? { factoryStage } : {}),
+				...(factoryDeliverable(task.factory) === "pr_review"
+					? { [FACTORY_PULL_REQUEST_REVIEW_METADATA_KEY]: true }
+					: {}),
 				factoryDesignConfig:
 					factoryRole === "designer"
 						? factoryDesignConfig(task, factoryAgent)
@@ -1234,6 +1239,11 @@ export class HubServerTransport implements NativeHubTransport {
 						enableTools: true,
 						enableSpawn: !task.factory,
 						enableTeams: !task.factory,
+						// A review's checkout is the pull request author's code: no
+						// rules, workflows, skills, hooks or plugins load from it.
+						...(factoryDeliverable(task.factory) === "pr_review"
+							? { configExtensions: [] }
+							: {}),
 					},
 					toolPolicies: {
 						"*": {

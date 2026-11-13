@@ -74,6 +74,8 @@ export interface FactoryDuplicateRequest {
 	intake?: FactoryDuplicateIntakeKey;
 	/** The filing's own source issue URL. */
 	sourceIssueUrl?: string;
+	/** A pull request review filing: the pull request's URL. */
+	reviewUrl?: string;
 }
 
 /** What the check needs from one existing card. */
@@ -103,6 +105,8 @@ export interface FactoryDuplicateCard {
 	replay?: boolean;
 	intake?: FactoryDuplicateIntakeKey;
 	sourceIssueUrl?: string;
+	/** A pull request review card: its pull request, and whether its review was posted. */
+	review?: { url: string; posted?: boolean };
 	/** `{source, key}` of earlier filings blocked as repeats of this card. */
 	duplicateReportKeys?: FactoryDuplicateIntakeKey[];
 }
@@ -124,7 +128,8 @@ export interface FactoryDuplicateScoredCard extends FactoryDuplicateScore {
 export type FactoryDuplicateImmediateRule =
 	| "reported_key"
 	| "source_issue"
-	| "same_title";
+	| "same_title"
+	| "same_pull_request";
 
 export interface FactoryDuplicateImmediate {
 	card: FactoryDuplicateCard;
@@ -336,6 +341,12 @@ function immediateRule(
 			(card.intake && sameKey(card.intake, intake)))
 	)
 		return "reported_key";
+	// A review matches only a review of the same pull request.
+	if (request.reviewUrl)
+		return card.review &&
+			normalizeUrl(card.review.url) === normalizeUrl(request.reviewUrl)
+			? "same_pull_request"
+			: undefined;
 	if (
 		request.sourceIssueUrl &&
 		card.sourceIssueUrl &&
@@ -361,6 +372,7 @@ function immediateRule(
 
 const RULE_ORDER: FactoryDuplicateImmediateRule[] = [
 	"reported_key",
+	"same_pull_request",
 	"source_issue",
 	"same_title",
 ];
@@ -379,6 +391,11 @@ export function selectFactoryDuplicateCandidates(
 	const limits = FACTORY_DUPLICATE_LIMITS;
 	const candidates = cards.slice(0, limits.candidateCap).filter((card) => {
 		if (card.replay) return false;
+		// Reviews and changes are different work. A review card stops
+		// covering its pull request once archived or posted: the next round
+		// is a new card.
+		if (Boolean(card.review) !== Boolean(request.reviewUrl)) return false;
+		if (card.review && (card.archived || card.review.posted)) return false;
 		// Same project is the caller's query; this only guards against a leak.
 		if (
 			request.workspaceRoot &&
@@ -420,7 +437,11 @@ export function selectFactoryDuplicateCandidates(
 			(a, b) => Number(!!b.linked) - Number(!!a.linked) || b.score - a.score,
 		)
 		.slice(0, limits.topK);
-	return { immediate: immediates[0], shortlist };
+	// A review is matched by its pull request alone, never by the judge.
+	return {
+		immediate: immediates[0],
+		shortlist: request.reviewUrl ? [] : shortlist,
+	};
 }
 
 // ---------------------------------------------------------------- decision
@@ -449,6 +470,7 @@ const IMMEDIATE_REASON: Record<FactoryDuplicateImmediateRule, string> = {
 	reported_key: "The same request was filed before and matched this card.",
 	source_issue: "This card was filed from the same issue.",
 	same_title: "A card with the same title and brief already exists.",
+	same_pull_request: "A review of the same pull request already exists.",
 };
 
 /**

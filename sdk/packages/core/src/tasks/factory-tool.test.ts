@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -3189,6 +3190,105 @@ describe("Factory agent card caps and projects", () => {
 		).resolves.toMatchObject({
 			ok: false,
 			error: { message: expect.stringContaining("is corrupt") },
+		});
+	});
+
+	it("files a pull request review only with both fields, in the project whose origin is its repository", async () => {
+		const { root, manager } = setup();
+		const project = (name: string, origin: string) => {
+			const path = join(root, name);
+			mkdirSync(path);
+			execFileSync("git", ["init", "-q"], { cwd: path });
+			execFileSync("git", ["remote", "add", "origin", origin], { cwd: path });
+			return path;
+		};
+		const widgets = project("widgets", "https://github.com/acme/widgets.git");
+		const other = project("other", "git@github.com:acme/other.git");
+		const tool = (defaults: Record<string, unknown>) =>
+			createFactoryTool({
+				manager,
+				resolveSessionDefaults: async () => ({
+					interactive: true,
+					...defaults,
+				}),
+				listProjects: async () => [widgets, other],
+			});
+		const managerChat = tool({ manager: true });
+		for (const extra of [
+			{ deliverable: "pr_review" },
+			{ pull_request: "acme/widgets#15" },
+			{
+				deliverable: "pr_review",
+				pull_request: 15,
+				plan: {
+					checks: [{ name: "T", command: "bun test" }],
+					acceptance_criteria: [{ text: "Passes", check: "T" }],
+					paths: ["src"],
+				},
+			},
+		])
+			await expect(
+				submit(managerChat, "Review it", "chat-1", extra),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "invalid_factory_input" },
+			});
+		expect(manager.createTask).not.toHaveBeenCalled();
+
+		await expect(
+			submit(managerChat, "Review widgets 15", "chat-1", {
+				deliverable: "pr_review",
+				pull_request: "https://github.com/acme/widgets/pull/15",
+			}),
+		).resolves.toMatchObject({ ok: true });
+		expect(manager.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workspaceRoot: widgets,
+				factory: expect.objectContaining({
+					deliverable: "pr_review",
+					review: {
+						pullRequest: {
+							host: "github.com",
+							owner: "acme",
+							name: "widgets",
+							number: 15,
+							url: "https://github.com/acme/widgets/pull/15",
+						},
+					},
+				}),
+			}),
+		);
+		await expect(
+			submit(managerChat, "Review elsewhere", "chat-1", {
+				deliverable: "pr_review",
+				pull_request: "acme/unknown#3",
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { code: "factory_unknown_project" },
+		});
+		await expect(
+			submit(managerChat, "Review a number", "chat-1", {
+				deliverable: "pr_review",
+				pull_request: 15,
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { code: "factory_project_required" },
+		});
+		await expect(
+			submit(tool({ workspaceRoot: other }), "Review widgets", "s-1", {
+				deliverable: "pr_review",
+				pull_request: "acme/widgets#15",
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: "invalid_factory_input",
+				message: expect.stringContaining(
+					"That pull request belongs to acme/widgets",
+				),
+			},
 		});
 	});
 

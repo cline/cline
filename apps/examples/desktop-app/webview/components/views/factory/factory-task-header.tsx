@@ -12,6 +12,7 @@ import {
 	FACTORY_PRIORITY_LABEL,
 	factoryActiveStage,
 	factoryCardState,
+	factoryCardTitle,
 	isFactoryHandsOff,
 } from "@cline/shared/browser";
 import {
@@ -86,6 +87,7 @@ import {
 	FACTORY_NOT_STARTED,
 	FACTORY_OPEN_FINDINGS,
 	FACTORY_PHASE_LABEL,
+	FACTORY_PR_REVIEW,
 	FACTORY_PRIORITY,
 	FACTORY_PROOF,
 	FACTORY_READY,
@@ -95,6 +97,7 @@ import {
 	FACTORY_SPLIT,
 	FACTORY_STAGES,
 	factoryPullRequestActionLabel,
+	factoryPullRequestReference,
 	factoryReviewRequest,
 } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
@@ -523,6 +526,44 @@ function summarize(
 				startAnyway: true,
 			};
 	}
+	// A pull request review: its reviewers are its only station.
+	if (card.deliverable?.kind === "review")
+		return card.kind === "stopped"
+			? {
+					tone: "danger",
+					icon: AlertTriangle,
+					headline: FACTORY_PR_REVIEW.stopped,
+					stage: "review",
+					stopped: true,
+				}
+			: card.kind === "delivered"
+				? card.deliverable.outcome === "posted"
+					? {
+							tone: "success",
+							icon: CheckCircle2,
+							headline: FACTORY_PR_REVIEW.posted,
+							stage: "deliver",
+						}
+					: {
+							tone: "accent",
+							icon: GitPullRequest,
+							headline: FACTORY_PR_REVIEW.draftReady,
+							stage: "deliver",
+						}
+				: card.kind === "running"
+					? {
+							tone: "working",
+							icon: Loader2,
+							headline: FACTORY_PR_REVIEW.reviewing,
+							stage: "review",
+							spinning: true,
+						}
+					: {
+							tone: "neutral",
+							icon: Clock,
+							headline: FACTORY_PR_REVIEW.waiting,
+							stage: "review",
+						};
 	const executionStage: FactoryStageKey = state
 		? factoryExecutionStage(state, task.error)
 		: "build";
@@ -763,7 +804,8 @@ export function factoryScopeRouteLine(task: AgendaTaskRecord): string | null {
 			? task.factoryDesignProgress
 			: undefined;
 	const route = progress?.route;
-	if (!route) return null;
+	// A review has no plan to report on.
+	if (!route || route.scoping === "none") return null;
 	if (route.scoping === "designer")
 		return FACTORY_SCOPE_ROUTE.notUsed(
 			route.reason ?? "it did not pass the quick check",
@@ -816,6 +858,21 @@ function nextActionSentence({
 	if (summary.waitingPart && waitingFor?.length)
 		return FACTORY_SPLIT.waitingNext(waitingFor);
 	if (summary.startAnyway) return FACTORY_SPLIT.unmergedNext;
+	if (task.factory?.deliverable === "pr_review") {
+		// Try again beside the headline says it.
+		if (summary.stopped)
+			return failure?.onRetry ? null : FACTORY_CARD.checkDetails;
+		const posted = state?.reviewPost;
+		if (task.status === "completed")
+			return posted?.state === "posted"
+				? FACTORY_PR_REVIEW.postedNext(
+						FACTORY_PR_REVIEW.eventPhrase[posted.event],
+					)
+				: FACTORY_PR_REVIEW.draftNext;
+		return task.status === "in_progress"
+			? FACTORY_PR_REVIEW.reviewingNext
+			: null;
+	}
 	if (state?.humanApproval) return FACTORY_CARD_ACTION.reviewed;
 	if (openFindings !== undefined)
 		return FACTORY_OPEN_FINDINGS.next(openFindings);
@@ -832,7 +889,7 @@ function nextActionSentence({
 		// Try again beside the headline says it; Edit plan is in More.
 		if (failure?.onRetry)
 			return failure.planFault ? FACTORY_CARD.planFaultNext : null;
-		return "Check the details below before choosing the next step.";
+		return FACTORY_CARD.checkDetails;
 	}
 	if (task.factory?.hold === true)
 		return "This card is on hold. Start it to begin scoping.";
@@ -1116,6 +1173,12 @@ export function FactoryTaskHeader({
 		waitingFor: card.waitingFor,
 	});
 	const source = task.factory?.sourceIssue;
+	// A pull request review card's pull request, and its posted review.
+	const reviewed = task.factory?.review?.pullRequest;
+	const postedReview =
+		runState?.reviewPost?.state === "posted"
+			? runState.reviewPost.url
+			: undefined;
 	const liveSessions = live?.sessions ?? [];
 	const showLive =
 		!summary.stopped &&
@@ -1135,7 +1198,9 @@ export function FactoryTaskHeader({
 	// The live line says what is running; the generic note would repeat it.
 	// On a card waiting for review, Factory's reason sits beside Accept.
 	const nextLine =
-		(showLive && nextAction === FACTORY_CARD.buildingNext) ||
+		(showLive &&
+			(nextAction === FACTORY_CARD.buildingNext ||
+				nextAction === FACTORY_PR_REVIEW.reviewingNext)) ||
 		(reviewState && accept?.reason)
 			? null
 			: nextAction;
@@ -1162,7 +1227,7 @@ export function FactoryTaskHeader({
 							task={task}
 							className="mr-2 inline-block align-middle text-xs leading-5"
 						/>
-						{task.title}
+						{factoryCardTitle(task, state)}
 					</h1>
 					{isFactoryRuleCard(task) ? (
 						<p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1181,6 +1246,21 @@ export function FactoryTaskHeader({
 							</span>
 							<span className="sr-only">{task.workspaceRoot}</span>
 						</span>
+						{reviewed ? (
+							<Button
+								variant="link"
+								className="h-auto gap-1 p-0 font-mono text-xs has-[>svg]:px-0"
+								data-factory-review-pr
+								title={reviewed.url}
+								onClick={() => void openExternalUrl(reviewed.url)}
+							>
+								<GitPullRequest aria-hidden className="size-3.5" />
+								{factoryPullRequestReference(
+									state?.reviewPullRequest ?? reviewed,
+								)}
+								<ArrowUpRight aria-hidden className="size-3" />
+							</Button>
+						) : null}
 						{split?.parent ? (
 							<FactoryParentLink parent={split.parent} onOpen={onOpenCard} />
 						) : null}
@@ -1413,12 +1493,17 @@ export function FactoryTaskHeader({
 							accept={reviewState ? accept : undefined}
 							onFixFindings={onFixFindings}
 							pullRequestUrl={
+								postedReview ??
 								openFindings?.pullRequestUrl ??
 								(reviewState || delivery
 									? (delivery?.pullRequestUrl ?? state?.pullRequestUrl)
 									: undefined)
 							}
-							pullRequestLabel={factoryPullRequestActionLabel(state)}
+							pullRequestLabel={
+								postedReview
+									? FACTORY_PR_REVIEW.openReview
+									: factoryPullRequestActionLabel(state)
+							}
 							delivery={delivery}
 							onReviewRule={summary.rule ? onReviewRule : undefined}
 							onStartAnyway={summary.startAnyway ? onStartAnyway : undefined}

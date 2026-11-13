@@ -2,6 +2,7 @@
 
 import {
 	CLINE_DEFAULT_MODEL_ID,
+	FACTORY_PULL_REQUEST_REVIEW_METADATA_KEY,
 	formatFactoryId,
 	type ProviderAuthInfo,
 } from "@cline/shared/browser";
@@ -31,6 +32,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ThirdPartyMarkdown } from "@/components/ui/markdown";
 import {
 	Sidebar,
 	SidebarInset,
@@ -2804,6 +2806,10 @@ function ChatThreadPane({
 	const importedFromTool = readImportedFromTool(
 		visibleHistorySession?.metadata,
 	);
+	const pullRequestReviewSession =
+		visibleHistorySession?.metadata?.[
+			FACTORY_PULL_REQUEST_REVIEW_METADATA_KEY
+		] === true;
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -3129,59 +3135,61 @@ function ChatThreadPane({
 								onClose={() => setShowDiffView(false)}
 							/>
 						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								activityLabel={activityLabel}
-								error={cloudSessionError?.message ?? displayedError}
-								errorAction={
-									cloudConnectUrl
-										? {
-												label: "Connect GitHub",
-												onClick: () => openGitHubConnect(cloudConnectUrl),
-											}
-										: undefined
-								}
-								importedFromTool={importedFromTool}
-								compact={isFactoryPanel}
-								messages={displayedMessages}
-								onEditMessage={
-									isCloudSession || isFactoryPanel
-										? undefined
-										: handleEditMessage
-								}
-								onRestoreCheckpoint={
-									isCloudSession || isFactoryPanel
-										? undefined
-										: handleRestoreCheckpoint
-								}
-								onForkSession={
-									isCloudSession || isFactoryPanel
-										? undefined
-										: handleForkSession
-								}
-								onProceedWhileRunning={
-									isCloudSession ? undefined : proceedWhileRunning
-								}
-								startingLabel={
-									isProvisioningCloudSession
-										? provisioningPhase
-										: isCloudSession && !displayedSessionId
-											? provisioningPhase
+							<ThirdPartyMarkdown when={pullRequestReviewSession}>
+								<ChatMessages
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									activityLabel={activityLabel}
+									error={cloudSessionError?.message ?? displayedError}
+									errorAction={
+										cloudConnectUrl
+											? {
+													label: "Connect GitHub",
+													onClick: () => openGitHubConnect(cloudConnectUrl),
+												}
 											: undefined
-								}
-								onFixCredentials={handleFixCredentials}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={
-									isProvisioningCloudSession ? "starting" : displayedStatus
-								}
-							/>
+									}
+									importedFromTool={importedFromTool}
+									compact={isFactoryPanel}
+									messages={displayedMessages}
+									onEditMessage={
+										isCloudSession || isFactoryPanel
+											? undefined
+											: handleEditMessage
+									}
+									onRestoreCheckpoint={
+										isCloudSession || isFactoryPanel
+											? undefined
+											: handleRestoreCheckpoint
+									}
+									onForkSession={
+										isCloudSession || isFactoryPanel
+											? undefined
+											: handleForkSession
+									}
+									onProceedWhileRunning={
+										isCloudSession ? undefined : proceedWhileRunning
+									}
+									startingLabel={
+										isProvisioningCloudSession
+											? provisioningPhase
+											: isCloudSession && !displayedSessionId
+												? provisioningPhase
+												: undefined
+									}
+									onFixCredentials={handleFixCredentials}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isSessionSwitching={displayedIsSwitching}
+									status={
+										isProvisioningCloudSession ? "starting" : displayedStatus
+									}
+								/>
+							</ThirdPartyMarkdown>
 						)
 					}
 					composer={

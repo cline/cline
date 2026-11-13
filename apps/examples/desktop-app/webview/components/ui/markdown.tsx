@@ -12,7 +12,14 @@ import type {
 	PointerEvent,
 	ReactNode,
 } from "react";
-import { isValidElement, memo, useRef, useState } from "react";
+import {
+	createContext,
+	isValidElement,
+	memo,
+	useContext,
+	useRef,
+	useState,
+} from "react";
 import {
 	type Components,
 	type ExtraProps,
@@ -46,6 +53,7 @@ export function createDesktopMarkdownPlugins(loader?: MermaidModuleLoader) {
 }
 
 const streamdownPlugins = createDesktopMarkdownPlugins();
+const thirdPartyPlugins = { ...streamdownPlugins, renderers: [] };
 
 export function MarkdownLinkSafetyModal({
 	isOpen,
@@ -309,10 +317,57 @@ function MarkdownImage({ alt, height, src, title, width }: MarkdownImageProps) {
 	);
 }
 
+/**
+ * An image in third-party Markdown is never loaded, wherever it points: a
+ * web address reads as a link to it, anything else as a note.
+ */
+function ThirdPartyMarkdownImage({ alt, src }: MarkdownImageProps) {
+	const label = typeof alt === "string" ? alt.trim() : "";
+	const source = typeof src === "string" ? src.trim() : "";
+	if (/^https?:\/\//i.test(source))
+		return <SafeMarkdownLink href={source}>{label || source}</SafeMarkdownLink>;
+	return (
+		<span data-streamdown="blocked-image" role="note">
+			Image not shown{label ? `: ${label}` : ""}
+		</span>
+	);
+}
+
+// The sanitiser keeps GitHub's tag list, which includes `<picture>` and
+// `<source srcset>`: a source would load its image before the `img` rules
+// apply, so sources are dropped and a picture is its fallback `img`.
 const markdownComponents = {
 	a: SafeMarkdownLink,
 	img: MarkdownImage,
+	picture: ({ children }: { children?: ReactNode }) => <>{children}</>,
+	source: () => null,
 } satisfies Components;
+
+const thirdPartyMarkdownComponents = {
+	...markdownComponents,
+	img: ThirdPartyMarkdownImage,
+} satisfies Components;
+
+const ThirdPartyMarkdownContext = createContext(false);
+
+/**
+ * Markdown below it is a third party's (`when`, by default): a pull request
+ * review card's request, draft and sessions. No image loads and no diagram
+ * is drawn.
+ */
+export function ThirdPartyMarkdown({
+	children,
+	when = true,
+}: {
+	children: ReactNode;
+	when?: boolean;
+}) {
+	return (
+		<ThirdPartyMarkdownContext.Provider value={when}>
+			{children}
+		</ThirdPartyMarkdownContext.Provider>
+	);
+}
 
 /**
  * Diagram links never reach {@link SafeMarkdownLink}: Streamdown injects the
@@ -387,6 +442,7 @@ export const MemoizedMarkdown = memo(
 			recordDiagramLinkPress,
 			setPendingUrl,
 		} = useDiagramLinkTarget();
+		const thirdParty = useContext(ThirdPartyMarkdownContext);
 
 		return (
 			// `contents` keeps the wrapper out of layout while still receiving
@@ -400,7 +456,9 @@ export const MemoizedMarkdown = memo(
 			>
 				<Streamdown
 					className={cn("cline-markdown", classNames)}
-					components={markdownComponents}
+					components={
+						thirdParty ? thirdPartyMarkdownComponents : markdownComponents
+					}
 					controls={agentMarkdownControls}
 					dir="auto"
 					isAnimating={streaming}
@@ -408,7 +466,7 @@ export const MemoizedMarkdown = memo(
 					mode={streaming ? "streaming" : "static"}
 					normalizeHtmlIndentation
 					parseIncompleteMarkdown={streaming}
-					plugins={streamdownPlugins}
+					plugins={thirdParty ? thirdPartyPlugins : streamdownPlugins}
 				>
 					{content}
 				</Streamdown>

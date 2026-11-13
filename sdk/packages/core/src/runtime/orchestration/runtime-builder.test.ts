@@ -154,6 +154,34 @@ describe("DefaultRuntimeBuilder", () => {
 		);
 	});
 
+	it("sends provider-side tools whatever the tool policy, except for a pull request review's checkout", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		const build = (withoutProviderTools?: true) =>
+			new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					providerId: "openai-native",
+					modelId: "gpt-5.4",
+				}),
+				// A scheduled job that lists its tools.
+				toolPolicies: {
+					"*": { enabled: false, autoApprove: true },
+					read_files: { enabled: true, autoApprove: true },
+				},
+				withoutProviderTools,
+			});
+
+		expect((await build()).modelTools).toEqual([
+			{ name: "web_search" },
+			{ name: "image_generation", outputFormat: "png" },
+		]);
+		expect((await build(true)).modelTools).toEqual([]);
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},

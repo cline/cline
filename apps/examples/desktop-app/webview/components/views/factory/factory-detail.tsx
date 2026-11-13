@@ -52,7 +52,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MemoizedMarkdown } from "@/components/ui/markdown";
+import { MemoizedMarkdown, ThirdPartyMarkdown } from "@/components/ui/markdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -82,12 +82,14 @@ import {
 	FACTORY_FEEDBACK,
 	FACTORY_OPEN_FINDINGS,
 	FACTORY_PANEL,
+	FACTORY_PR_REVIEW,
 	FACTORY_PROOF,
 	FACTORY_RECOVERY,
 	FACTORY_ROLE_LABEL,
 	FACTORY_SPLIT,
 	FACTORY_UNREADABLE,
 	factoryApprovalReasonText,
+	factoryPullRequestReference,
 	factoryReviewRequest,
 } from "@/lib/factory-copy";
 import {
@@ -132,6 +134,7 @@ import {
 } from "./factory-live";
 import { FactoryAgentLanes } from "./factory-live-transcript";
 import { FactoryProof } from "./factory-proof";
+import { FactoryReviewDraftPanel } from "./factory-review-draft";
 import {
 	FactoryBreakdownApproval,
 	FactoryPartsPanel,
@@ -246,6 +249,7 @@ export function FeatureDetail({
 	>(null);
 	const [runsLoading, setRunsLoading] = useState(true);
 	const [evidenceVersion, setEvidenceVersion] = useState(0);
+	const [reviewPostRunning, setReviewPostRunning] = useState(false);
 	const [transportReady, setTransportReady] = useState(false);
 	useEffect(() => {
 		const invalidate = () => setEvidenceVersion((version) => version + 1);
@@ -308,12 +312,16 @@ export function FeatureDetail({
 	>({});
 	const [startedDesignSession, setDesignSession] = useState<string>();
 	const replay = task.factory?.replay;
+	// A pull request review drafts a review of someone else's change: it has
+	// no plan, checks or draft PR of its own, and nothing scoped it.
+	const review = task.factory?.review?.pullRequest;
 	// A replay reuses its source brief; its review has no designer transcript.
-	const designSession = replay
-		? undefined
-		: (startedDesignSession ??
-			task.factoryDesignProgress?.designerSessionId ??
-			(task.factory?.intake ? undefined : task.originSessionId));
+	const designSession =
+		replay || review
+			? undefined
+			: (startedDesignSession ??
+				task.factoryDesignProgress?.designerSessionId ??
+				(task.factory?.intake ? undefined : task.originSessionId));
 	const [designStarted, setDesignStarted] = useState(false);
 	const [savedDraft, setSavedDraft] = useState({
 		revision: task.revision,
@@ -349,8 +357,9 @@ export function FeatureDetail({
 		(task.status === "pending_approval" ||
 			task.status === "approved" ||
 			task.status === "failed");
-	// Replay briefs, checks and settings are frozen copies of the source run.
-	const briefEditable = editable && !replay;
+	// Replay briefs, checks and settings are frozen copies of the source run;
+	// a review's request is fixed when it is filed.
+	const briefEditable = editable && !replay && !review;
 	const designActive =
 		editable &&
 		!task.error &&
@@ -375,6 +384,7 @@ export function FeatureDetail({
 			.then((result) => {
 				if (active) {
 					setRuns(result.runs ?? []);
+					setReviewPostRunning(result.reviewPostRunning === true);
 					setLoadedEvidenceKey(evidenceKey);
 					setRunsLoading(false);
 				}
@@ -831,6 +841,7 @@ export function FeatureDetail({
 		(dirty || (!handsOff && !stopped && !awaitingStart));
 	// While scoping waits on a question, the question is the one thing to do.
 	const showApprove =
+		!review &&
 		editable &&
 		!autoProgress &&
 		!stopped &&
@@ -879,25 +890,33 @@ export function FeatureDetail({
 	const tabShown: Record<FactoryPanelTab, boolean> = {
 		live: true,
 		changes: Boolean(state?.candidate?.commit),
-		checks: Boolean(
-			state?.candidate?.checks.length ||
-				state?.candidate?.stages?.length ||
-				state?.stagePlan?.unapproved.length ||
-				verification ||
-				(state?.error && !currentEvidence),
-		),
-		pr: Boolean(
-			(!state?.pullRequestUrl && publishFailure) ||
-				(state?.pullRequestChecks && currentEvidence) ||
-				state?.reviewEscalation ||
-				state?.candidate?.reviews.length,
-		),
+		checks:
+			!review &&
+			Boolean(
+				state?.candidate?.checks.length ||
+					state?.candidate?.stages?.length ||
+					state?.stagePlan?.unapproved.length ||
+					verification ||
+					(state?.error && !currentEvidence),
+			),
+		pr:
+			!review &&
+			Boolean(
+				(!state?.pullRequestUrl && publishFailure) ||
+					(state?.pullRequestChecks && currentEvidence) ||
+					state?.reviewEscalation ||
+					state?.candidate?.reviews.length,
+			),
 	};
+	// A review's draft takes the card's width; the reviewers' conversations
+	// are a link from the draft.
+	const reviewDraft = review && matchesTask ? state?.reviewDraft : undefined;
 	// A chosen tab that is not shown falls back to the default, then Agents.
-	const panelTab =
-		chosenTab &&
-		([chosenTab, panelDefault].find((item) => item && tabShown[item]) ??
-			"live");
+	const panelTab = reviewDraft
+		? null
+		: chosenTab &&
+			([chosenTab, panelDefault].find((item) => item && tabShown[item]) ??
+				"live");
 	// The Checks tab lists the failed checks with their output.
 	const checksInPanel =
 		panelTab !== null && Boolean(state?.candidate?.checks.length);
@@ -1478,6 +1497,7 @@ export function FeatureDetail({
 	// is edited from More (hands-off) or the Brief's Edit (manual), so no
 	// second button here would open the same editor.
 	const offerDesignAction =
+		!review &&
 		task.status !== "completed" &&
 		!autoProgress &&
 		!(handsOff && stopped) &&
@@ -2183,8 +2203,47 @@ export function FeatureDetail({
 				/>
 			) : null}
 			{deliveredBlock}
+			{review && reviewDraft ? (
+				<FactoryReviewDraftPanel
+					taskId={task.taskId}
+					reference={factoryPullRequestReference(
+						state?.reviewPullRequest ?? review,
+					)}
+					pullRequest={state?.reviewPullRequest}
+					pullRequestNow={state?.reviewPullRequestNow}
+					draft={reviewDraft}
+					post={state?.reviewPost}
+					postRunning={reviewPostRunning}
+					archived={Boolean(task.archivedAt)}
+					onRefresh={async () => {
+						setEvidenceVersion((version) => version + 1);
+						await onRefresh();
+					}}
+					onOpenSession={(sessionId) =>
+						void openSession(sessionId).catch(() => undefined)
+					}
+				/>
+			) : null}
 		</>
 	);
+	if (review)
+		return frame(
+			lead,
+			<>
+				<Panel
+					aria-label={FACTORY_PR_REVIEW.request}
+					title={FACTORY_PR_REVIEW.request}
+				>
+					<ThirdPartyMarkdown>
+						<MemoizedMarkdown
+							content={shownBrief}
+							classNames="text-sm break-words [&_:not(pre)>code]:break-all"
+						/>
+					</ThirdPartyMarkdown>
+				</Panel>
+				{details(costLine)}
+			</>,
+		);
 	if (handsOff)
 		return frame(
 			lead,

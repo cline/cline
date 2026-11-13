@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
-import { createDesktopMarkdownPlugins, MemoizedMarkdown } from "./markdown";
+import {
+	createDesktopMarkdownPlugins,
+	MemoizedMarkdown,
+	ThirdPartyMarkdown,
+} from "./markdown";
 
 describe("MemoizedMarkdown", () => {
 	test("renders structured GFM content and blocks remote images", () => {
@@ -41,6 +45,48 @@ const ready = true;
 		expect(html).toContain('src="/images/local.png"');
 		expect(html).toContain('src="/images/second-local.png"');
 		expect(html).not.toContain('data-streamdown="blocked-image"');
+	});
+
+	test("loads nothing without a click from HTML a message carries", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={[
+					'<picture><source srcset="https://attacker.example/p.png"><img src="/x.png"></picture>',
+					'<video src="https://attacker.example/v" poster="https://attacker.example/i"><track src="https://attacker.example/t"></video>',
+					'<audio src="https://attacker.example/a"></audio>',
+					'<iframe src="https://attacker.example/f"></iframe>',
+					'<object data="https://attacker.example/o"></object><embed src="https://attacker.example/e">',
+					'<link rel="stylesheet" href="https://attacker.example/l.css">',
+					"<style>body{background:url(https://attacker.example/s)}</style>",
+					'<div style="background:url(https://attacker.example/d)" background="https://attacker.example/b">x</div>',
+					'<svg><image href="https://attacker.example/g"/><use href="https://attacker.example/u#a"/></svg>',
+					'<img srcset="https://attacker.example/i2 2x" src="https://attacker.example/i1">',
+				].join("\n\n")}
+			/>,
+		);
+
+		// The style sheet's text is left as text; no attribute points anywhere.
+		expect(html).not.toMatch(/="[^"]*attacker\.example/);
+		expect(html).not.toMatch(/srcset|<(?:style|link|source|video|svg)\b/i);
+	});
+
+	test("loads no image at all in a third party's Markdown", () => {
+		const html = renderToStaticMarkup(
+			<ThirdPartyMarkdown>
+				<MemoizedMarkdown
+					content={
+						"![local](/images/local.png) ![remote](https://example.com/r.png)\n\n```mermaid\nflowchart LR\n  A --> B\n```"
+					}
+				/>
+			</ThirdPartyMarkdown>,
+		);
+
+		expect(html).not.toContain("<img");
+		expect(html).toContain("Image not shown: local");
+		expect(html).toMatch(
+			/<a [^>]*href="https:\/\/example\.com\/r\.png"[^>]*>remote<\/a>/,
+		);
+		expect(html).not.toContain('data-streamdown="mermaid-block"');
 	});
 
 	test("recognizes Mermaid fences as the owned diagram block instead of plain code", () => {

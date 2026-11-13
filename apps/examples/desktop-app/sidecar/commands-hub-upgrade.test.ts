@@ -134,6 +134,60 @@ describe("Factory Hub command routing", () => {
 		).resolves.toEqual({ task: { taskId: "feature" } });
 		expect(command).toHaveBeenCalledWith(name, args);
 	});
+
+	it("posts a review only for a trusted client, and passes the Hub's refusal code to the card", async () => {
+		const { handleCommand } = await import("./commands");
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const command = vi.spyOn(client, "command").mockResolvedValue({
+			version: "v1",
+			ok: true,
+			payload: { url: "https://github.com/acme/widgets/pull/15#review-1" },
+		});
+		vi.mocked(ensureSharedHubClient).mockResolvedValue(client);
+		const ctx = createContext();
+		const args = {
+			taskId: "feature",
+			expectedHead: "head",
+			event: "COMMENT",
+			body: "Summary",
+			comments: [],
+		};
+		await expect(
+			handleCommand(ctx, "task.factory.review.post", args, {
+				connection: connection(false),
+			}),
+		).rejects.toThrow("trusted desktop connection");
+		expect(command).not.toHaveBeenCalled();
+		command.mockImplementation(async (name) =>
+			name === "task.factory.review.post"
+				? {
+						version: "v1",
+						ok: false,
+						error: {
+							code: "factory_review_stale_head",
+							message: "The pull request has new commits since this draft.",
+						},
+					}
+				: { version: "v1", ok: true, payload: {} },
+		);
+		await expect(
+			handleCommand(ctx, "task.factory.review.post", args, {
+				connection: connection(true),
+			}),
+		).resolves.toEqual({
+			ok: false,
+			error: {
+				code: "factory_review_stale_head",
+				message: "The pull request has new commits since this draft.",
+			},
+		});
+		// The Hub's default deadline for a post is the one deadline.
+		const [, , , options] =
+			command.mock.calls.find(
+				([name]) => name === "task.factory.review.post",
+			) ?? [];
+		expect(options?.timeoutMs).toBeUndefined();
+	});
 });
 
 describe("Factory settings command routing", () => {

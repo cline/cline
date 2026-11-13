@@ -721,6 +721,61 @@ export const factoryReplayRequestSchema = z.object({
 });
 export type FactoryReplayRequest = z.infer<typeof factoryReplayRequestSchema>;
 
+/** A GitHub pull request by repository and number, with its URL. */
+export const factoryPullRequestReferenceSchema = z.object({
+	host: z.string().regex(/^[A-Za-z0-9.-]{1,253}(?::\d{1,5})?$/),
+	owner: z.string().regex(/^[\w.-]{1,100}$/),
+	name: z.string().regex(/^[\w.-]{1,100}$/),
+	number: z.number().int().positive(),
+	url: z.string().url().max(600),
+});
+export type FactoryPullRequestReference = z.infer<
+	typeof factoryPullRequestReferenceSchema
+>;
+
+const PULL_REQUEST_HOST =
+	/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::[1-9]\d{0,4})?$/;
+
+/**
+ * `reference` with its host, owner and name in lower case (GitHub matches
+ * them without case) and its URL exactly
+ * `https://<host>/<owner>/<name>/pull/<number>` of those parts. Throws when
+ * the URL names any other pull request, or the parts do not form one.
+ */
+export function canonicalFactoryPullRequestReference(
+	reference: FactoryPullRequestReference,
+): FactoryPullRequestReference {
+	const host = reference.host.toLowerCase();
+	const owner = reference.owner.toLowerCase();
+	const name = reference.name.toLowerCase();
+	const url = `https://${host}/${owner}/${name}/pull/${reference.number}`;
+	if (
+		!PULL_REQUEST_HOST.test(host) ||
+		[owner, name].some((part) => part === "." || part === "..") ||
+		!Number.isSafeInteger(reference.number) ||
+		reference.url.toLowerCase() !== url
+	)
+		throw new Error(
+			"A pull request review card's URL must be https://<host>/<owner>/<name>/pull/<number> of the same pull request as its host, owner, name and number.",
+		);
+	return { host, owner, name, number: reference.number, url };
+}
+
+/** Whether both references are canonical forms of one pull request. */
+export function sameFactoryPullRequest(
+	a: FactoryPullRequestReference,
+	b: FactoryPullRequestReference,
+): boolean {
+	try {
+		return (
+			canonicalFactoryPullRequestReference(a).url ===
+			canonicalFactoryPullRequestReference(b).url
+		);
+	} catch {
+		return false;
+	}
+}
+
 export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 	// Runtime profiles are frozen separately from portable recipe references.
 	agents: factoryAgentsSchema.optional(),
@@ -844,6 +899,16 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 	/** `never`: the person chose "Keep as one card"; scoping never offers a breakdown. */
 	split: z.literal("never").optional(),
 	/**
+	 * What the card delivers; unset is `change` (Factory's own build, to a
+	 * draft PR). `pr_review`: a review draft of `review.pullRequest` on the
+	 * card, which only a person posts; scoping, build and verify are skipped.
+	 * Fixed when the card is created (sealFactoryDeliverable).
+	 */
+	deliverable: z.enum(["change", "pr_review"]).optional(),
+	review: z
+		.object({ pullRequest: factoryPullRequestReferenceSchema })
+		.optional(),
+	/**
 	 * Whether scoping may conclude that no build is needed, set on a split's
 	 * parts from their parent (parts carry no intake). Unset: derived from the
 	 * card's intake source, imported issue or designer agent.
@@ -868,6 +933,51 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 });
 
 export type FactoryTaskConfig = z.infer<typeof factoryTaskConfigSchema>;
+
+export type FactoryDeliverable = NonNullable<FactoryTaskConfig["deliverable"]>;
+
+export function factoryDeliverable(
+	config: Pick<FactoryTaskConfig, "deliverable"> | undefined,
+): FactoryDeliverable {
+	return config?.deliverable ?? "change";
+}
+
+/**
+ * A new card's deliverable as it is stored. A `pr_review` card must name its
+ * pull request, stored canonical (canonicalFactoryPullRequestReference); it
+ * never publishes, watches a PR or runs checks, and has no plan, units or
+ * criteria. Any other card cannot name a pull request.
+ */
+export function sealFactoryDeliverable(
+	config: FactoryTaskConfig,
+): FactoryTaskConfig {
+	if (factoryDeliverable(config) !== "pr_review") {
+		if (config.review)
+			throw new Error(
+				'Only a pull request review card (deliverable "pr_review") names a pull request to review.',
+			);
+		return config;
+	}
+	if (!config.review)
+		throw new Error("A pull request review card needs its pull request.");
+	const {
+		prepared: _prepared,
+		implementationUnits: _units,
+		acceptanceCriteria: _criteria,
+		...rest
+	} = config;
+	return {
+		...rest,
+		review: {
+			pullRequest: canonicalFactoryPullRequestReference(
+				config.review.pullRequest,
+			),
+		},
+		checks: [],
+		publishPullRequest: false,
+		watchPullRequest: false,
+	};
+}
 
 /** Blocked `{source, key}` pairs a card remembers, oldest dropped first. */
 export const FACTORY_DUPLICATE_REPORT_KEYS_MAX = 200;
@@ -1379,6 +1489,13 @@ export function factoryCheckConfigurationFindings(
 
 /** Session metadata key that marks an ordinary chat as a Factory intake. */
 export const FACTORY_INTAKE_METADATA_KEY = "factoryIntake";
+
+/**
+ * Session metadata key that marks a pull request review card's session:
+ * its transcript holds the pull request's text.
+ */
+export const FACTORY_PULL_REQUEST_REVIEW_METADATA_KEY =
+	"factoryPullRequestReview";
 /**
  * Resolved by the host from the user's settings when an intake session starts
  * and frozen in its metadata, so the session's agent can submit work but never
@@ -1787,6 +1904,13 @@ export function factoryPlanApprovalBlocker(
 	task: FactoryPlanApprovalInput,
 ): string | null {
 	const { factory } = task;
+	// A review has no plan: it needs only its request and pull request.
+	if (factoryDeliverable(factory) === "pr_review")
+		return !task.instructions.trim()
+			? "Describe the request so the reviewers know what to look at."
+			: factory.review
+				? null
+				: "This review card names no pull request; file it again with the pull request.";
 	const design =
 		task.factoryDesignProgress?.revision === task.revision
 			? task.factoryDesignProgress
@@ -1898,10 +2022,12 @@ export const factoryWorkspaceSchema = z.object({
 	 * branch the card names, else `origin`'s default branch, at its tip on
 	 * origin); `local_head` for a card that does not publish. Absent on older
 	 * workspaces. `current_branch` (the project's checked-out branch) is no
-	 * longer produced; older workspaces may still record it.
+	 * longer produced; older workspaces may still record it. `pull_request`: a
+	 * review's checkout of the pull request's head, based at its merge base
+	 * with the PR's base commit; never committed to or pushed.
 	 */
 	baseSource: z
-		.enum(["current_branch", "remote_default", "local_head"])
+		.enum(["current_branch", "remote_default", "local_head", "pull_request"])
 		.optional(),
 	/** One line for the agents and the user about where the work starts. */
 	baseNote: z.string().optional(),
@@ -2075,8 +2201,393 @@ export function factoryFeedbackAnalysisStatus(
 		: "running";
 }
 
+const factoryCommitSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+
+/** A reviewed pull request as Factory verified it when the review run started. */
+export const factoryReviewPullRequestSchema =
+	factoryPullRequestReferenceSchema.extend({
+		title: z.string().max(300),
+		author: z.object({ login: z.string().max(60), association: z.string() }),
+		isDraft: z.boolean(),
+		isCrossRepository: z.boolean(),
+		baseRefName: z.string().max(255),
+		baseSha: factoryCommitSchema,
+		headSha: factoryCommitSchema,
+		changedFiles: z.number().int().nonnegative(),
+		additions: z.number().int().nonnegative(),
+		deletions: z.number().int().nonnegative(),
+		/**
+		 * The GitHub account Factory reads and posts as, as GitHub reported
+		 * it; compared with `author.login` for "your own pull request".
+		 */
+		viewerLogin: z.string().max(60).optional(),
+	});
+export type FactoryReviewPullRequest = z.infer<
+	typeof factoryReviewPullRequestSchema
+>;
+
+/** Pull requests larger than this are not reviewed by Factory. */
+export const FACTORY_PULL_REQUEST_REVIEW_BOUNDS = {
+	changedFiles: 100,
+	changedLines: 5_000,
+} as const;
+
+export const FACTORY_REVIEW_DRAFT_LIMITS = {
+	comments: 30,
+	bodyFindings: 25,
+	commentChars: 1500,
+	findingChars: 600,
+	summaryChars: 4_000,
+	bodyChars: 60_000,
+	listItems: 10,
+	listItemChars: 400,
+	droppedText: 200,
+} as const;
+
+export const FACTORY_REVIEW_SEVERITIES = [
+	"blocker",
+	"major",
+	"minor",
+	"nit",
+] as const;
+export type FactoryReviewSeverity = (typeof FACTORY_REVIEW_SEVERITIES)[number];
+
+const draftLimits = FACTORY_REVIEW_DRAFT_LIMITS;
+const reviewerCredits = z.array(z.string().max(60)).max(8);
+/**
+ * A review of a pull request's head that Factory drafted for the person,
+ * who edits it and decides whether to post it. `verdict` is a suggestion
+ * only; `comments` are single lines of the new version inside the diff.
+ */
+export const factoryReviewDraftSchema = z.object({
+	schemaVersion: z.literal(1),
+	headSha: factoryCommitSchema,
+	createdAt: z.string(),
+	verdict: z.enum(["comment", "request_changes", "approve_suggested"]),
+	body: z.string().max(draftLimits.bodyChars),
+	comments: z
+		.array(
+			z.object({
+				id: z.string().regex(/^c[1-9]\d{0,2}$/),
+				path: z.string().min(1).max(1024),
+				line: z.number().int().positive(),
+				side: z.literal("RIGHT"),
+				severity: z.enum(FACTORY_REVIEW_SEVERITIES),
+				body: z.string().min(1).max(draftLimits.commentChars),
+				reviewers: reviewerCredits,
+			}),
+		)
+		.max(draftLimits.comments),
+	findings: z
+		.array(
+			z.object({
+				text: z.string().max(draftLimits.findingChars),
+				reviewers: reviewerCredits,
+			}),
+		)
+		.max(draftLimits.bodyFindings),
+	questions: z
+		.array(z.string().max(draftLimits.listItemChars))
+		.max(draftLimits.listItems),
+	notChecked: z
+		.array(z.string().max(draftLimits.listItemChars))
+		.max(draftLimits.listItems),
+	reviewers: z
+		.array(
+			z.object({
+				reviewerIndex: z.number().int().nonnegative(),
+				label: z.string().max(60),
+				sessionId: z.string().optional(),
+				verdict: z.enum(["comment", "approve", "request_changes"]).optional(),
+				summary: z.string().max(draftLimits.summaryChars),
+				failed: z.literal(true).optional(),
+			}),
+		)
+		.max(8),
+	dropped: z
+		.array(
+			z.object({
+				reason: z.enum(["duplicate", "limit", "invalid_location", "empty"]),
+				text: z.string().max(draftLimits.droppedText),
+			}),
+		)
+		.max(500),
+});
+export type FactoryReviewDraft = z.infer<typeof factoryReviewDraftSchema>;
+
+export const FACTORY_REVIEW_EVENTS = [
+	"COMMENT",
+	"APPROVE",
+	"REQUEST_CHANGES",
+] as const;
+export type FactoryReviewEvent = (typeof FACTORY_REVIEW_EVENTS)[number];
+
+/**
+ * The upper bound of one `task.factory.review.post` in the Hub: reading the
+ * pull request, looking for a post whose reply was lost, and the post itself
+ * (with its one body-only retry). The Hub command's default deadline is set
+ * from it.
+ */
+export const FACTORY_REVIEW_POST_BOUND_MS = 180_000;
+
+/**
+ * Why the Hub refused to post or re-review a review card, as the reply's
+ * `error.code` (with one sentence as its message):
+ * - `stale_head`: the pull request has commits the draft has not seen;
+ * - `pr_closed`: the pull request is closed or merged;
+ * - `own_pr_event`: Approve or Request changes on the viewer's own PR;
+ * - `busy`: a post or re-review of this card is already running;
+ * - `discarded`: the card is archived;
+ * - `posted`: the draft was posted; the next round is a new card;
+ * - `mismatch`: the draft is not of the pull request the card names, or
+ *   the GitHub CLI is signed in as another account than the card shows;
+ * - `not_current`: not the card's current draft (or comment); reload;
+ * - `not_finished`: the card has no finished draft to act on;
+ * - `github_refused`: GitHub refused the review; nothing was posted;
+ * - `unconfirmed`: GitHub may have it; posting again checks first.
+ */
+export const FACTORY_REVIEW_REFUSAL_CODES = [
+	"factory_review_stale_head",
+	"factory_review_pr_closed",
+	"factory_review_own_pr_event",
+	"factory_review_busy",
+	"factory_review_discarded",
+	"factory_review_posted",
+	"factory_review_mismatch",
+	"factory_review_not_current",
+	"factory_review_not_finished",
+	"factory_review_github_refused",
+	"factory_review_unconfirmed",
+] as const;
+export type FactoryReviewRefusalCode =
+	(typeof FACTORY_REVIEW_REFUSAL_CODES)[number];
+
+/**
+ * Control, bidirectional-override and zero-width characters: they make text
+ * read differently from what it says. Tab and line feed are not included.
+ */
+export const FACTORY_REVIEW_HIDDEN_CHARACTERS =
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
+	/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g;
+
+/**
+ * Review text made inert wherever it is rendered as Markdown (GitHub, or
+ * the card), whoever wrote it: hidden characters are removed, and outside
+ * code a backslash goes before every `<` that could open an HTML tag,
+ * comment or autolink, every `&` that could start a character reference,
+ * every `[` after `!` (an image), every `]` before `(` or `:` (an inline
+ * link's target, a link reference or footnote definition), every `|` (a
+ * table's cells), and the `:` of `://` and the `.` of `www.`. GitHub turns
+ * a bare URL into a link that takes in the backslashes and backticks after
+ * it, so none must become one: URLs show as written, as plain text. Code
+ * spans and fenced code blocks, which GitHub shows literally, are left byte
+ * for byte. Mentions and issue references stay as written: the person reads
+ * them as they are. Idempotent.
+ */
+export function factoryReviewInertMarkdown(text: string): string {
+	return mapFactoryReviewProse(
+		text.replace(FACTORY_REVIEW_HIDDEN_CHARACTERS, ""),
+		(prose) =>
+			prose
+				.replaceAll("![", "!\\[")
+				.replace(/(www)\./gi, "$1\\.")
+				.replace(PROSE_MARK, (match, slashes: string, mark: string) =>
+					slashes.length % 2 ? match : `${slashes}\\${mark}`,
+				),
+	);
+}
+
+/**
+ * Inert review text (factoryReviewInertMarkdown) as the person reads and
+ * edits it: the escapes that rule adds, and only those, removed. Making it
+ * inert again gives back exactly the original, so unedited text posts as
+ * drafted.
+ */
+export function factoryReviewReadableText(text: string): string {
+	return mapFactoryReviewProse(text, (prose) =>
+		prose
+			.replaceAll("!\\[", "![")
+			.replace(/(www)\\\./gi, "$1.")
+			.replace(PROSE_MARK, (match, slashes: string, mark: string) =>
+				slashes.length % 2 ? `${slashes.slice(1)}${mark}` : match,
+			),
+	);
+}
+
+/**
+ * A Markdown mark outside code, with the backslashes before it. A `]` before
+ * an escaped `:` counts too, so removing that escape cannot make a new mark.
+ */
+const PROSE_MARK =
+	/(\\*)(<(?=[A-Za-z/!?])|&(?=[A-Za-z#])|\](?=\\?[(:])|\||:(?=\/\/))/g;
+const FENCE_OPEN = /^(`{3,}|~{3,})(.*)$/;
+const FENCE_INDENTED = /^[ \t]+(?:`{3,}|~{3,})/;
+
+/**
+ * `text` with `prose` applied to everything outside code. Code is a fenced
+ * block opened at a line's start, or a code span within one line, and only
+ * where GitHub must read it the same way: after an indented fence-like line
+ * (which may open a fence inside a list) nothing more is code, and after an
+ * unmatched backtick run no span is code until a blank line ends the
+ * paragraph.
+ */
+function mapFactoryReviewProse(
+	text: string,
+	prose: (text: string) => string,
+): string {
+	let out = "";
+	let pending = "";
+	const emit = (piece: string, code: boolean) => {
+		if (!code) {
+			pending += piece;
+			return;
+		}
+		out += prose(pending) + piece;
+		pending = "";
+	};
+	let fence: RegExp | undefined;
+	let unsure = false;
+	let openSpan = false;
+	const lines = text.split("\n");
+	lines.forEach((line, index) => {
+		const end = index < lines.length - 1 ? "\n" : "";
+		if (fence) {
+			if (fence.test(line)) fence = undefined;
+			emit(line + end, true);
+			return;
+		}
+		const open = unsure ? null : FENCE_OPEN.exec(line);
+		const mark = open?.[1] ?? "";
+		if (open && !(mark.startsWith("`") && open[2]?.includes("`"))) {
+			fence = new RegExp(`^ {0,3}\\${mark[0]}{${mark.length},}[ \\t]*$`);
+			openSpan = false;
+			emit(line + end, true);
+			return;
+		}
+		if (FENCE_INDENTED.test(line)) unsure = true;
+		if (!line.trim()) openSpan = false;
+		const { spans, unmatched } = lineCodeSpans(line);
+		let at = 0;
+		if (!unsure && !openSpan)
+			for (const [start, stop] of spans) {
+				emit(line.slice(at, start), false);
+				emit(line.slice(start, stop), true);
+				at = stop;
+			}
+		emit(line.slice(at) + end, false);
+		if (unmatched) openSpan = true;
+	});
+	return out + prose(pending);
+}
+
+/**
+ * The code spans of one line as CommonMark finds them, and whether a
+ * backtick run opened none.
+ */
+function lineCodeSpans(line: string): {
+	spans: [number, number][];
+	unmatched: boolean;
+} {
+	const runs = [...line.matchAll(/`+/g)].map((run) => ({
+		start: run.index,
+		length: run[0].length,
+	}));
+	// Each length's runs in order, and how many of them are behind the scan.
+	const byLength = new Map<number, { runs: number[]; passed: number }>();
+	runs.forEach((run, index) => {
+		const same = byLength.get(run.length) ?? { runs: [], passed: 0 };
+		same.runs.push(index);
+		byLength.set(run.length, same);
+	});
+	const nextOfLength = (length: number, after: number) => {
+		const same = byLength.get(length);
+		if (!same) return undefined;
+		while ((same.runs[same.passed] ?? Infinity) <= after) same.passed++;
+		const next = same.runs[same.passed];
+		return next === undefined ? undefined : runs[next];
+	};
+	const spans: [number, number][] = [];
+	let unmatched = false;
+	let at = 0;
+	runs.forEach((run, index) => {
+		if (run.start < at) return;
+		let slashes = 0;
+		while (line[run.start - 1 - slashes] === "\\") slashes++;
+		const start = run.start + (slashes % 2);
+		const length = run.length - (slashes % 2);
+		if (!length) return;
+		const close = nextOfLength(length, index);
+		if (!close) {
+			unmatched = true;
+			at = run.start + run.length;
+			return;
+		}
+		at = close.start + close.length;
+		spans.push([start, at]);
+	});
+	return { spans, unmatched };
+}
+
+/**
+ * A card's title on the person's screens: a pull request review card is
+ * named by its pull request's title once Factory has read it (bounded, one
+ * line, as GitHub had it at the last review run), else by its stored title.
+ * The pull request's author wrote that title, so tools and anything else a
+ * model reads use the stored title instead.
+ */
+export function factoryCardTitle(
+	task: { title: string; factory?: Pick<FactoryTaskConfig, "deliverable"> },
+	state?: { reviewPullRequest?: Pick<FactoryReviewPullRequest, "title"> },
+): string {
+	return (
+		(factoryDeliverable(task.factory) === "pr_review" &&
+			state?.reviewPullRequest?.title.trim()) ||
+		task.title
+	);
+}
+
 export const factoryRunStateSchema = z.object({
 	inputSnapshot: factoryExecutionInputSchema.optional(),
+	/** A `pr_review` run's pull request, read when the run started. */
+	reviewPullRequest: factoryReviewPullRequestSchema.optional(),
+	/** A `pr_review` run's result: the draft for the person. */
+	reviewDraft: factoryReviewDraftSchema.optional(),
+	/**
+	 * The person posting the draft from the app. `posting` is written before
+	 * the one GitHub request, so a lost reply is recovered by listing the
+	 * person's reviews instead of posting twice. `bodyOnly`: GitHub refused
+	 * an inline anchor, so the comments went into the body. `digests`
+	 * (while `posting`): SHA-256 of the body each attempt sends, which is how
+	 * that review is recognised on GitHub.
+	 */
+	reviewPost: z
+		.object({
+			state: z.enum(["posting", "posted"]),
+			event: z.enum(FACTORY_REVIEW_EVENTS),
+			headSha: factoryCommitSchema,
+			at: z.string(),
+			comments: z.number().int().nonnegative(),
+			url: z.string().optional(),
+			bodyOnly: z.literal(true).optional(),
+			digests: z
+				.object({
+					body: z.string().regex(/^[a-f0-9]{64}$/),
+					bodyOnly: z
+						.string()
+						.regex(/^[a-f0-9]{64}$/)
+						.optional(),
+				})
+				.optional(),
+		})
+		.optional(),
+	/**
+	 * The pull request as a post or re-review last found it on GitHub after
+	 * the draft: its head and whether it is open. A head other than the
+	 * draft's, or a closed pull request, means a post would be refused.
+	 */
+	reviewPullRequestNow: z
+		.object({ headSha: factoryCommitSchema, open: z.boolean(), at: z.string() })
+		.optional(),
 	reviewSelection: factoryReviewSelectionSchema.optional(),
 	/**
 	 * A person approved this run's plan revision (frozen at run start from the

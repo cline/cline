@@ -356,8 +356,10 @@ export function factoryAttentionReasons<
 	} else if (card.kind === "stopped") reasons.push({ kind: "stopped" });
 	else if (card.reasonCode === "followup_paused")
 		reasons.push({ kind: "paused" });
+	// A review draft is the person's to post or leave: nothing waits on it.
 	else if (
 		state &&
+		card.deliverable?.kind !== "review" &&
 		card.kind === "delivered" &&
 		task.status === "completed" &&
 		!state.humanApproval &&
@@ -882,6 +884,12 @@ export function factoryAttentionOutcome(
 			? { pullRequestOutcome: state.pullRequestOutcome }
 			: {}),
 		...(state.pullRequestReady ? { pullRequestReady: true } : {}),
+		// Whether a review draft was posted, for the card's place and label.
+		...(state.reviewPost ? { reviewPost: state.reviewPost } : {}),
+		// The reviewed pull request's title names a review card (factoryCardTitle).
+		...(state.reviewPullRequest
+			? { reviewPullRequest: state.reviewPullRequest }
+			: {}),
 		...(state.autoRecovery
 			? {
 					autoRecovery: state.autoRecovery,

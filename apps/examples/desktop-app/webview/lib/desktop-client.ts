@@ -787,9 +787,12 @@ class DesktopClient {
 		return response.task;
 	}
 
-	async getFactoryTask(
-		taskId: string,
-	): Promise<{ task?: AgendaTaskRecord; runs: AgendaTaskRunRecord[] }> {
+	async getFactoryTask(taskId: string): Promise<{
+		task?: AgendaTaskRecord;
+		runs: AgendaTaskRunRecord[];
+		/** A post of the card's review draft is running in the Hub now. */
+		reviewPostRunning?: true;
+	}> {
 		return this.invoke("task.get", { taskId, allWorkspaces: true });
 	}
 

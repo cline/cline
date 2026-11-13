@@ -11,7 +11,9 @@ import {
 	FACTORY_AUTO_APPROVAL_WAITING_PREFIX,
 	FACTORY_PLAN_HOLD_TEXT,
 	type FactoryRunState,
+	factoryReviewDraftSchema,
 	factoryTaskConfigSchema,
+	sealFactoryDeliverable,
 } from "../factory";
 import type { FactoryCardState } from "../factory-card-state";
 import type { FactoryDependencyState } from "../factory-split";
@@ -867,6 +869,180 @@ export const FACTORY_SPLIT_CARD_FIXTURES: readonly FactorySplitCardFixture[] = [
 			waitingOn: "person",
 			reasonCode: "dependency_unavailable",
 			stage: "waiting",
+		},
+	},
+];
+
+const HEAD = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
+const BASE = "0f1e2d3c4b5a69788796a5b4c3d2e1f001234567";
+const REVIEWED_PR = "https://github.com/acme/widgets/pull/15";
+const reviewConfig = sealFactoryDeliverable(
+	factoryTaskConfigSchema.parse({
+		...handsOff,
+		deliverable: "pr_review",
+		review: {
+			pullRequest: {
+				host: "github.com",
+				owner: "acme",
+				name: "widgets",
+				number: 15,
+				url: REVIEWED_PR,
+			},
+		},
+	}),
+);
+const reviewTask = (overrides: Partial<AgendaTaskRecord> = {}) =>
+	approved({
+		title: "Review acme/widgets#15",
+		instructions: "Review pull request acme/widgets#15.",
+		factory: reviewConfig,
+		factoryDesignProgress: design("complete", { route: { scoping: "none" } }),
+		...overrides,
+	});
+const reviewedPullRequest = {
+	host: "github.com",
+	owner: "acme",
+	name: "widgets",
+	number: 15,
+	url: REVIEWED_PR,
+	title: "Add a retry to the uploader",
+	author: { login: "octo", association: "CONTRIBUTOR" },
+	isDraft: false,
+	isCrossRepository: true,
+	baseRefName: "main",
+	baseSha: BASE,
+	headSha: HEAD,
+	changedFiles: 2,
+	additions: 30,
+	deletions: 4,
+};
+const reviewWorkspace = {
+	path: "/data/worktrees/task_fixture/repo",
+	branch: "factory/f-9-review-pr-15-a1b2c3d",
+	baseBranch: "pull/15",
+	baseCommit: BASE,
+	baseSource: "pull_request" as const,
+};
+const reviewDraft = factoryReviewDraftSchema.parse({
+	schemaVersion: 1,
+	headSha: HEAD,
+	createdAt: LATER,
+	verdict: "request_changes",
+	body: "The retry loop never stops on a permanent error.",
+	comments: [
+		{
+			id: "c1",
+			path: "src/upload.ts",
+			line: 12,
+			side: "RIGHT",
+			severity: "major",
+			body: "Stop retrying on 4xx responses.",
+			reviewers: ["Reviewer 1"],
+		},
+	],
+	findings: [],
+	questions: [],
+	notChecked: [],
+	reviewers: [
+		{
+			reviewerIndex: 0,
+			label: "Reviewer 1",
+			verdict: "request_changes",
+			summary: "Retries forever.",
+		},
+	],
+	dropped: [],
+});
+const reviewRun = (
+	factory: Partial<FactoryRunState> = {},
+	overrides: Partial<AgendaTaskRunRecord> = {},
+) =>
+	run(
+		{
+			phase: "reviewing",
+			workspace: reviewWorkspace,
+			reviewPullRequest: reviewedPullRequest,
+			...factory,
+		},
+		overrides,
+	);
+
+/**
+ * Pull request review cards (deliverable `pr_review`): Scope, Build and
+ * Verify are skipped from the start, and the review draft sits in Delivered
+ * until the person posts it. Kept apart from FACTORY_CARD_FIXTURES so each
+ * host adopts them on its own.
+ */
+export const FACTORY_PR_REVIEW_CARD_FIXTURES: readonly FactoryCardFixture[] = [
+	{
+		name: "review queued",
+		task: reviewTask({
+			status: "approved",
+			lastRunId: undefined,
+			factoryQueued: "run",
+			factoryQueuedAt: AT,
+		}),
+		card: { kind: "queued", waitingOn: "slot", stage: "waiting" },
+	},
+	{
+		name: "reviewing",
+		task: reviewTask({ status: "in_progress", currentRunId: "run_1" }),
+		run: reviewRun({ attempts: [attempt("reviewer")] }),
+		working: true,
+		card: { kind: "running", waitingOn: "nobody", stage: "review" },
+	},
+	{
+		name: "review draft ready",
+		task: reviewTask({ status: "completed", completedAt: LATER }),
+		run: reviewRun({ phase: "ready", reviewDraft }, { status: "completed" }),
+		card: {
+			kind: "delivered",
+			waitingOn: "nobody",
+			reasonCode: "review_draft_ready",
+			stage: "delivered",
+		},
+	},
+	{
+		name: "review posted",
+		task: reviewTask({ status: "completed", completedAt: LATER }),
+		run: reviewRun(
+			{
+				phase: "ready",
+				reviewDraft,
+				reviewPost: {
+					state: "posted",
+					event: "COMMENT",
+					headSha: HEAD,
+					at: LATER,
+					comments: 1,
+					url: `${REVIEWED_PR}#pullrequestreview-1`,
+				},
+			},
+			{ status: "completed" },
+		),
+		card: {
+			kind: "delivered",
+			waitingOn: "nobody",
+			reasonCode: "review_posted",
+			stage: "delivered",
+		},
+	},
+	{
+		name: "review stopped",
+		task: reviewTask({
+			status: "failed",
+			error:
+				"Pull request #15 is too large for Factory to review (140 files, 9000 changed lines; the limit is 100 files and 5,000 lines).",
+		}),
+		run: reviewRun(
+			{ phase: "blocked" },
+			{ status: "failed", error: "Pull request #15 is too large" },
+		),
+		card: {
+			kind: "stopped",
+			waitingOn: "person",
+			reasonCode: "unknown",
+			stage: "review",
 		},
 	},
 ];

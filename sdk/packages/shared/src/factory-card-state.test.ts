@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { FACTORY_PR_REVIEW_CARD_FIXTURES } from "./__tests__/factory-card-fixtures";
 import {
 	FACTORY_AUTO_APPROVAL_WAITING_PREFIX,
 	FACTORY_PLAN_FAULT_PREFIX,
@@ -1466,8 +1467,32 @@ describe("factoryCardState", () => {
 		expect(factoryCardState(input)).toEqual(state);
 	});
 
+	it.each(
+		FACTORY_PR_REVIEW_CARD_FIXTURES.map((fixture) => [fixture.name, fixture]),
+	)("a pull request review: %s", (_name, fixture) => {
+		const state = factoryCardState({
+			task: fixture.task,
+			lastRun: fixture.run,
+			live: { runLive: fixture.working },
+		});
+		expect(state).toMatchObject(fixture.card);
+		expect(state.skipped).toEqual(["scope", "build", "verify"]);
+		expect(state.deliverable).toEqual({
+			kind: "review",
+			url: "https://github.com/acme/widgets/pull/15",
+			...(fixture.card.reasonCode === "review_posted"
+				? { outcome: "posted" }
+				: {}),
+		});
+	});
+
 	it("covers every kind and every reason code", () => {
-		const states = CASES.map(([, input]) => factoryCardState(input));
+		const states = [
+			...CASES.map(([, input]) => factoryCardState(input)),
+			...FACTORY_PR_REVIEW_CARD_FIXTURES.map((fixture) =>
+				factoryCardState({ task: fixture.task, lastRun: fixture.run }),
+			),
+		];
 		expect(new Set(states.map((state) => state.kind))).toEqual(
 			new Set(FACTORY_CARD_KINDS),
 		);

@@ -23,7 +23,10 @@ import type {
 	FactoryPriority,
 	FactoryPriorityInput,
 	FactoryPrioritySetter,
+	FactoryPullRequestReference,
 	FactoryQuestion,
+	FactoryReviewEvent,
+	FactoryReviewPullRequest,
 	FactoryReviewSelection,
 	FactoryRunState,
 	FactorySplitRecord,
@@ -35,6 +38,7 @@ import {
 	applyFactoryAutonomyDefaults,
 	applyFactoryReviewSizePolicy,
 	applyFactoryVerificationProfile,
+	canonicalFactoryPullRequestReference,
 	clampFactoryPriority,
 	createSessionId,
 	DEFAULT_FACTORY_AGENTS,
@@ -50,6 +54,8 @@ import {
 	FACTORY_PLAN_FAULT_STOPPED_PREFIX,
 	FACTORY_PLAN_HOLD_TEXT,
 	FACTORY_PRIORITY_REASON_MAX,
+	FACTORY_PULL_REQUEST_REVIEW_BOUNDS,
+	FACTORY_REVIEW_POST_BOUND_MS,
 	FACTORY_REVIEW_SIZE_BOUNDS,
 	FACTORY_VERIFICATION_EXERCISE_HEADING,
 	FACTORY_VERIFICATION_PROFILE_PATH,
@@ -59,6 +65,7 @@ import {
 	factoryCardList,
 	factoryCheckSchema,
 	factoryDailySpendingLimitReason,
+	factoryDeliverable,
 	factoryDependencyState,
 	factoryDesignConclusionSchema,
 	factoryDesignSplitResponseSchema,
@@ -70,6 +77,7 @@ import {
 	factoryRepairRounds,
 	factoryRequiresIndependentReview,
 	factoryReviewFindings,
+	factoryReviewInertMarkdown,
 	factoryReviewMode,
 	factoryReviewSelectionSchema,
 	factoryReviewSize,
@@ -86,6 +94,8 @@ import {
 	noopBasicLogger,
 	parseFactoryId,
 	parseFactoryJson,
+	sameFactoryPullRequest,
+	sealFactoryDeliverable,
 	selectFactoryReviewAgents,
 } from "@cline/shared";
 import { resolveTasksDbPath } from "@cline/shared/storage";
@@ -135,6 +145,7 @@ import {
 	factoryBranchName,
 	factoryCheckConfigurationFindings,
 	prepareFactoryWorkspace,
+	removeFactoryReviewWorkspace,
 	runFactoryCommand,
 } from "./factory-local";
 import {
@@ -174,6 +185,19 @@ import {
 	formatFactoryRepositoryMap,
 	readFactoryRepositoryMap,
 } from "./factory-repository-map";
+import { factoryReviewDraftStale } from "./factory-review-draft";
+import {
+	readFactoryPullRequestHead,
+	readFactoryReviewInput,
+} from "./factory-review-input";
+import {
+	FactoryReviewPostUncertainError,
+	FactoryReviewRefusal,
+	factoryReviewPostDigests,
+	findFactoryPostedReview,
+	postFactoryReview,
+} from "./factory-review-post";
+import { runFactoryPullRequestReview } from "./factory-review-run";
 import { FactoryPersistenceError } from "./factory-session";
 import {
 	cleanFactoryWorktrees,
@@ -567,6 +591,27 @@ type WatchedScope = {
 	timer?: ReturnType<typeof setTimeout>;
 };
 
+/**
+ * A review card's pull request in canonical form; a card whose URL and parts
+ * disagree (filed before they were checked) is refused.
+ */
+function factoryReviewReference(
+	task: AgendaTaskRecord,
+): FactoryPullRequestReference {
+	const reference = task.factory?.review?.pullRequest;
+	if (!reference)
+		throw new FactoryDecisionError(
+			"This review card names no pull request; file it again with the pull request.",
+		);
+	try {
+		return canonicalFactoryPullRequestReference(reference);
+	} catch (error) {
+		throw new FactoryDecisionError(
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
 function nowIso(): string {
 	return new Date().toISOString();
 }
@@ -600,6 +645,7 @@ function factoryDuplicateRequest(
 		...(factory?.sourceIssue
 			? { sourceIssueUrl: factory.sourceIssue.url }
 			: {}),
+		...(factory?.review ? { reviewUrl: factory.review.pullRequest.url } : {}),
 	};
 }
 
@@ -632,6 +678,9 @@ function factoryDuplicateCard(task: AgendaTaskRecord): FactoryDuplicateCard {
 		...(factory?.intake ? { intake: factory.intake } : {}),
 		...(factory?.sourceIssue
 			? { sourceIssueUrl: factory.sourceIssue.url }
+			: {}),
+		...(factory?.review
+			? { review: { url: factory.review.pullRequest.url } }
 			: {}),
 		...(reported?.length
 			? {
@@ -1219,6 +1268,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private factoryMergeCheck?: Promise<void>;
 	/** Stops merge reads in flight on dispose. */
 	private readonly factoryMergeAbort = new AbortController();
+	/** Stops a review's GitHub reads and posts in flight on dispose. */
+	private readonly factoryReviewAbort = new AbortController();
+	/** Review cards with a post or a re-review in progress; one at a time. */
+	private readonly factoryReviewCommands = new Map<string, "post" | "rerun">();
 	/** The last filing of each project, settled; the next one waits for it. */
 	private readonly factoryFilings = new Map<string, Promise<void>>();
 	private readonly resolveFactoryDuplicateCheck?: () => Promise<
@@ -2618,6 +2671,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		// The pass stops at its next card; work it already started is stopped below.
 		await this.factoryPumpPass;
 		this.factoryMergeAbort.abort(new Error("Hub stopped"));
+		this.factoryReviewAbort.abort(new Error("Hub stopped"));
 		await this.factoryMergeCheck;
 		await Promise.allSettled(
 			[...this.designSessions.keys()].map((taskId) =>
@@ -2973,13 +3027,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	): FactoryDuplicateCard {
 		// An archived delivery still reads as delivered; a parent reads as its
 		// parts (open work, delivered, or closed).
+		const runs = this.store.listRuns({ taskId: task.taskId, limit: 1 });
 		const {
 			card: described,
 			kind,
 			pullRequestOutcome,
 		} = describeFactoryCardState(
 			{ ...task, archivedAt: undefined },
-			this.store.listRuns({ taskId: task.taskId, limit: 1 }),
+			runs,
 			queue,
 			undefined,
 			task.factorySplit ? this.getFactoryCardLinks(task.taskId) : {},
@@ -2998,6 +3053,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			stateKind: kind,
 			statePhrase: described.stage,
 			...(pullRequest ? { pullRequest } : {}),
+			...(card.review && runs[0]?.factory?.reviewPost?.state === "posted"
+				? { review: { ...card.review, posted: true } }
+				: {}),
 		};
 	}
 
@@ -3190,12 +3248,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			!input.factory?.replay;
 		const factory = input.factory
 			? sealFactoryPreparedScope(
-					normalizeFactoryTaskWorkflow(
-						factoryTaskConfigSchema.parse(
-							applyFactoryAutonomyDefaults({
-								...input.factory,
-								...(held ? { hold: true } : {}),
-							}),
+					sealFactoryDeliverable(
+						normalizeFactoryTaskWorkflow(
+							factoryTaskConfigSchema.parse(
+								applyFactoryAutonomyDefaults({
+									...input.factory,
+									...(held ? { hold: true } : {}),
+								}),
+							),
 						),
 					),
 					input.instructions,
@@ -3290,6 +3350,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			!record ||
 			!part ||
 			!input.factory ||
+			factoryDeliverable(input.factory) !== "change" ||
 			parent.factoryParentTaskId ||
 			parent.scope !== input.scope ||
 			parent.workspaceRoot !== input.workspaceRoot
@@ -3413,13 +3474,23 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				`task ${current.taskId} cannot be edited from ${current.status}; create a new task instead`,
 			);
 		}
-		if (input.factory)
-			input = {
-				...input,
-				factory: normalizeFactoryTaskWorkflow(
+		if (input.factory) {
+			const factory = sealFactoryDeliverable(
+				normalizeFactoryTaskWorkflow(
 					factoryTaskConfigSchema.parse(input.factory),
 				),
-			};
+			);
+			if (
+				current.factory &&
+				(factoryDeliverable(factory) !== factoryDeliverable(current.factory) ||
+					JSON.stringify(factory.review) !==
+						JSON.stringify(current.factory.review))
+			)
+				throw new Error(
+					"What a card delivers, and the pull request a review card reviews, are fixed when it is filed; cancel it and file a new card instead.",
+				);
+			input = { ...input, factory };
+		}
 		// A person's change to the brief or plan after scoping makes the card's
 		// later plans theirs to approve (see FACTORY_PLAN_HOLD_TEXT).
 		const personChange =
@@ -3820,6 +3891,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 		current = this.requireTask(taskId);
 		this.assertRevision(current, expectedRevision);
+		await this.removeFactoryReviewWorkspaces(current);
+		current = this.requireTask(taskId);
+		this.assertRevision(current, expectedRevision);
 		if (current.specPath && existsSync(current.specPath)) {
 			const source = this.readTaskSpec(current);
 			this.fileStoreForTask(current).deleteSpec(current.specPath, {
@@ -4212,8 +4286,52 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					sessions: new Set<string>(),
 				};
 				this.factoryControllers.set(taskId, active);
-				const priorState = resumed;
+				const review = factoryDeliverable(task.factory) === "pr_review";
+				let priorState = resumed;
+				// A review continues an unfinished run on the head it started on;
+				// otherwise it reads the pull request again, and a new head starts
+				// afresh.
+				let reviewPullRequest = priorState?.reviewPullRequest;
+				if (
+					review &&
+					(!priorState ||
+						priorState.phase === "ready" ||
+						priorState.phase === "blocked")
+				) {
+					reviewPullRequest = await this.readFactoryReviewPullRequest(
+						task,
+						active.controller.signal,
+					);
+					if (
+						priorState?.reviewPullRequest?.headSha !== reviewPullRequest.headSha
+					)
+						priorState = undefined;
+				}
+				// A review's checkout is made again when it was removed (see
+				// removeFactoryReviewWorkspaces); other heads' checkouts go.
+				const reviewWorkspace =
+					review && reviewPullRequest
+						? await prepareFactoryWorkspace({
+								sourceRoot: task.workspaceRoot ?? "",
+								taskId,
+								storageDir: this.factoryStorageDir,
+								publish: false,
+								pullRequest: reviewPullRequest,
+								...(task.factoryNumber
+									? {
+											branchName: factoryBranchName(
+												task.factoryNumber,
+												`review pr ${reviewPullRequest.number} ${reviewPullRequest.headSha.slice(0, 7)}`,
+											),
+										}
+									: {}),
+								signal: active.controller.signal,
+							})
+						: undefined;
+				if (reviewWorkspace)
+					await this.removeFactoryReviewWorkspaces(task, reviewWorkspace.path);
 				const workspace =
+					reviewWorkspace ??
 					priorState?.workspace ??
 					(await prepareFactoryWorkspace({
 						sourceRoot: task.workspaceRoot ?? "",
@@ -4255,11 +4373,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				const { verifier: _verifier, ...withoutVerifier } = materialized;
 				const agents =
 					priorState?.agents ||
-					!materialized.verifier ||
-					factoryVerifierNeeded(
-						design?.reviewSelection,
-						task.factory.acceptanceCriteria,
-					)
+					(!review &&
+						(!materialized.verifier ||
+							factoryVerifierNeeded(
+								design?.reviewSelection,
+								task.factory.acceptanceCriteria,
+							)))
 						? materialized
 						: withoutVerifier;
 				const sessionUsage =
@@ -4273,10 +4392,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				// Repository stages are resolved from the user's checkout (never
 				// the card's worktree) at every run start, so an approval takes
 				// effect on Try again; only this frozen copy runs.
-				const stagePlan = await resolveFactoryStagePlan(
-					task.workspaceRoot,
-					this.factoryStageTrust,
-				);
+				const stagePlan = review
+					? undefined
+					: await resolveFactoryStagePlan(
+							task.workspaceRoot,
+							this.factoryStageTrust,
+						);
 				// Earlier runs' spend, so the card's limit covers all of them.
 				const priorCardCostUsd = this.factoryRecordedCardSpend(
 					task,
@@ -4301,9 +4422,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 										priorCardCostUsd,
 										stagePlan,
 										error: undefined,
+										...(reviewPullRequest ? { reviewPullRequest } : {}),
 									}
 								: {
-										phase: "implementing",
+										phase: review ? "reviewing" : "implementing",
+										...(reviewPullRequest ? { reviewPullRequest } : {}),
 										// Keep the whole frozen pool; reviewSelection indexes into it.
 										inputSnapshot: factoryExecutionInputSchema.parse({
 											...task,
@@ -4585,6 +4708,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		// Before any write: a part waiting for earlier merges is not scoped.
 		const waiting = this.factoryDependencyBlocker(task);
 		if (waiting) throw new Error(waiting);
+		if (factoryDeliverable(task.factory) === "pr_review")
+			return this.startFactoryReview(task, requestedByClientId);
 		if (!this.runtime.startDesignSession)
 			throw new Error("Feature design is unavailable");
 		const existing = this.designSessions.get(taskId);
@@ -4819,6 +4944,539 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				this.designSessions.delete(taskId);
 				this.designControllers.delete(taskId);
 			}
+		}
+	}
+
+	/**
+	 * A pull request review's direct route: no scoping and no plan. The card
+	 * records that scoping was not needed and is approved and queued to run,
+	 * whatever the workflow's approval setting; the spending limits still
+	 * apply. The returned id is a placeholder that never becomes a session.
+	 */
+	private async startFactoryReview(
+		task: AgendaTaskRecord,
+		requestedByClientId?: string,
+	): Promise<{ sessionId: string }> {
+		const limitCheck = this.factorySpendingLimitBlocker(task);
+		const spendingLimit =
+			limitCheck instanceof Promise ? await limitCheck : limitCheck;
+		if (spendingLimit) {
+			this.store.dequeueFactory(task.taskId);
+			const waiting = this.store.updateTaskState(
+				task.taskId,
+				{ error: spendingLimit },
+				task.revision,
+			);
+			if (waiting) this.publish("task.updated", waiting);
+			throw new Error(spendingLimit);
+		}
+		let current = this.requireTask(task.taskId);
+		if (current.factory?.hold) {
+			const { hold: _hold, ...released } = current.factory;
+			current = await this.updateTask({
+				taskId: current.taskId,
+				expectedRevision: current.revision,
+				factory: released,
+				updatedBy: TASK_MANAGER_ACTOR,
+			});
+		}
+		let progress =
+			current.factoryDesignProgress?.revision === current.revision
+				? current.factoryDesignProgress
+				: undefined;
+		if (!progress) {
+			const agents =
+				(await this.runtime.resolveFactoryAgents?.(current)) ??
+				current.factory?.agents ??
+				DEFAULT_FACTORY_AGENTS;
+			current = this.requireTask(task.taskId);
+			progress = {
+				phase: "complete",
+				revision: current.revision,
+				originalRequest: current.instructions,
+				repairRound: 0,
+				agents,
+				designerSessionId: createSessionId("factory_review_route_"),
+				findings: [],
+				reviewerSessions: [],
+				reviews: [],
+				route: {
+					scoping: "none",
+					...(current.factory?.intake
+						? { source: current.factory.intake.source }
+						: {}),
+				},
+			};
+			const updated = this.store.updateTaskState(
+				current.taskId,
+				{
+					factoryDesignProgress: progress,
+					error: null,
+					status:
+						current.status === "failed" ? "pending_approval" : current.status,
+				},
+				current.revision,
+			);
+			if (!updated) throw new Error("Could not start the review");
+			this.publish("task.updated", updated);
+			current = updated;
+		}
+		if (
+			current.status === "approved" &&
+			current.approvedRevision === current.revision
+		)
+			this.queueFactoryExecution(
+				current,
+				TASK_MANAGER_ACTOR,
+				requestedByClientId,
+			);
+		else
+			await this.approveTask(
+				current.taskId,
+				TASK_MANAGER_ACTOR,
+				current.revision,
+			);
+		return { sessionId: progress.designerSessionId };
+	}
+
+	/**
+	 * The review card's pull request as GitHub has it now, verified: open,
+	 * in the project's origin and within Factory's review size.
+	 */
+	private async readFactoryReviewPullRequest(
+		task: AgendaTaskRecord,
+		signal: AbortSignal,
+	): Promise<FactoryReviewPullRequest> {
+		const reference = factoryReviewReference(task);
+		if (!task.workspaceRoot)
+			throw new FactoryDecisionError(
+				"This review card names no pull request; file it again with the pull request.",
+			);
+		const read = await readFactoryReviewInput({
+			workspaceRoot: task.workspaceRoot,
+			pullRequest: reference.url,
+			signal,
+		});
+		if (read.state !== "OPEN")
+			throw new FactoryDecisionError(
+				`Pull request #${read.number} is ${read.state.toLowerCase()}; Factory reviews open pull requests only.`,
+			);
+		const bounds = FACTORY_PULL_REQUEST_REVIEW_BOUNDS;
+		const lines = read.additions + read.deletions;
+		if (read.changedFiles > bounds.changedFiles || lines > bounds.changedLines)
+			throw new FactoryDecisionError(
+				`Pull request #${read.number} is too large for Factory to review (${read.changedFiles} files, ${lines} changed lines; the limit is ${bounds.changedFiles} files and ${bounds.changedLines.toLocaleString("en-US")} lines).`,
+			);
+		if (
+			!sameFactoryPullRequest(reference, {
+				...read.repository,
+				number: read.number,
+				url: read.url,
+			})
+		)
+			throw new FactoryDecisionError(
+				"GitHub returned a different pull request than this card names; file the review again.",
+			);
+		return {
+			host: read.repository.host,
+			owner: read.repository.owner,
+			name: read.repository.name,
+			number: read.number,
+			url: read.url,
+			title: read.title,
+			author: read.author,
+			isDraft: read.isDraft,
+			isCrossRepository: read.isCrossRepository,
+			baseRefName: read.baseRefName,
+			baseSha: read.baseSha,
+			headSha: read.headSha,
+			changedFiles: read.changedFiles,
+			additions: read.additions,
+			deletions: read.deletions,
+			viewerLogin: read.viewerLogin,
+		};
+	}
+
+	/**
+	 * Removes a review card's checkouts of its pull request, their branches
+	 * and folders, except the one at `keep`; best effort.
+	 */
+	private async removeFactoryReviewWorkspaces(
+		task: AgendaTaskRecord,
+		keep?: string,
+	): Promise<void> {
+		const sourceRoot = task.workspaceRoot;
+		if (factoryDeliverable(task.factory) !== "pr_review" || !sourceRoot) return;
+		const workspaces = new Map(
+			this.store
+				.listRuns({ taskId: task.taskId, limit: 100 })
+				.flatMap((run) =>
+					run.factory?.workspace ? [run.factory.workspace] : [],
+				)
+				.filter((workspace) => workspace.path !== keep)
+				.map((workspace) => [workspace.path, workspace]),
+		);
+		for (const workspace of workspaces.values())
+			await removeFactoryReviewWorkspace({ sourceRoot, workspace }).catch(
+				(error: unknown) =>
+					this.logError("factory review checkout removal failed", error, {
+						taskId: task.taskId,
+					}),
+			);
+	}
+
+	/** A review card with its current run, or why it has none to act on. */
+	private factoryReviewCard(taskId: string): {
+		task: AgendaTaskRecord;
+		run?: AgendaTaskRunRecord;
+	} {
+		const task = this.requireTask(taskId);
+		if (factoryDeliverable(task.factory) !== "pr_review" || !task.workspaceRoot)
+			throw new Error("Only a pull request review card has a review draft.");
+		const run = task.lastRunId ? this.store.getRun(task.lastRunId) : undefined;
+		return {
+			task,
+			...(run?.taskRevision === task.revision ? { run } : {}),
+		};
+	}
+
+	/**
+	 * Posts a review card's draft as the person edited it: one GitHub review
+	 * of the draft's head, never automatically. The pull request must still
+	 * be open at that head; Approve and Request changes are refused on the
+	 * person's own pull request. A post whose reply was lost is found on
+	 * GitHub instead of repeated, and posting a posted draft returns it.
+	 */
+	async postFactoryReview(
+		taskId: string,
+		input: {
+			expectedHead: string;
+			expectedDraft: string;
+			event: FactoryReviewEvent;
+			body: string;
+			comments: readonly { id: string; body: string }[];
+		},
+	): Promise<{
+		task: AgendaTaskRecord;
+		run: AgendaTaskRunRecord;
+		url: string;
+		bodyOnly?: true;
+	}> {
+		this.assertUsable();
+		const { task, run } = this.factoryReviewCard(taskId);
+		const state = run?.factory;
+		const draft = state?.reviewDraft;
+		if (!run || !state || !draft || task.status !== "completed")
+			throw new FactoryReviewRefusal(
+				"factory_review_not_finished",
+				"This card has no finished review draft to post.",
+			);
+		if (task.archivedAt)
+			throw new FactoryReviewRefusal(
+				"factory_review_discarded",
+				"This review was discarded; restore it to post it.",
+			);
+		if (
+			input.expectedDraft !== draft.createdAt ||
+			factoryReviewDraftStale(draft, input.expectedHead)
+		)
+			throw new FactoryReviewRefusal(
+				"factory_review_not_current",
+				"This is not the card's current review draft; reload the card.",
+			);
+		const posted = state.reviewPost;
+		if (posted?.state === "posted" && posted.url)
+			return { task, run, url: posted.url };
+		// Whoever wrote it, what is posted is inert (factoryReviewInertMarkdown);
+		// the draft's own text is already, so it is sent unchanged.
+		const body = factoryReviewInertMarkdown(input.body);
+		const comments = input.comments.map((comment) => {
+			const drafted = draft.comments.find((entry) => entry.id === comment.id);
+			if (!drafted)
+				throw new FactoryReviewRefusal(
+					"factory_review_not_current",
+					`The draft has no comment ${comment.id}; reload the card.`,
+				);
+			return {
+				path: drafted.path,
+				line: drafted.line,
+				body: factoryReviewInertMarkdown(comment.body),
+			};
+		});
+		if (
+			new Set(input.comments.map((comment) => comment.id)).size !==
+			comments.length
+		)
+			throw new Error("Each draft comment can be posted once.");
+		const pullRequest = state.reviewPullRequest;
+		if (
+			!pullRequest ||
+			!sameFactoryPullRequest(pullRequest, factoryReviewReference(task))
+		)
+			throw new FactoryReviewRefusal(
+				"factory_review_mismatch",
+				"This draft is not of the pull request the card names; review it again.",
+			);
+		if (
+			this.factoryReviewCommands.has(taskId) ||
+			this.factoryControllers.has(taskId)
+		)
+			throw new FactoryReviewRefusal(
+				"factory_review_busy",
+				"Factory is already working on this review.",
+			);
+		this.factoryReviewCommands.set(taskId, "post");
+		try {
+			const workspaceRoot = task.workspaceRoot as string;
+			const signal = AbortSignal.any([
+				this.factoryReviewAbort.signal,
+				AbortSignal.timeout(FACTORY_REVIEW_POST_BOUND_MS),
+			]);
+			const now = await readFactoryPullRequestHead({
+				workspaceRoot,
+				pullRequest,
+				signal,
+			});
+			const record = (patch: Partial<FactoryRunState>) => {
+				const latest = this.store.getRun(run.runId);
+				if (!latest?.factory)
+					throw new Error("The review card changed while it was posted.");
+				const updated = this.store.updateRun(run.runId, {
+					factory: { ...latest.factory, ...patch },
+				});
+				this.publish("task.updated", this.requireTask(taskId), updated);
+				return updated ?? latest;
+			};
+			// Kept, so the card offers a post only when GitHub would take it.
+			record({
+				reviewPullRequestNow: {
+					headSha: now.headSha,
+					open: now.open,
+					at: nowIso(),
+				},
+			});
+			if (!now.open || factoryReviewDraftStale(draft, now.headSha))
+				throw !now.open
+					? new FactoryReviewRefusal(
+							"factory_review_pr_closed",
+							"The pull request is no longer open; nothing was posted.",
+						)
+					: new FactoryReviewRefusal(
+							"factory_review_stale_head",
+							"The pull request has new commits since this draft; review it again before posting.",
+						);
+			const shown = state.reviewPullRequest?.viewerLogin;
+			if (shown && shown.toLowerCase() !== now.viewerLogin.toLowerCase())
+				throw new FactoryReviewRefusal(
+					"factory_review_mismatch",
+					`The GitHub CLI is now signed in as ${now.viewerLogin}, not ${shown} as this card shows; switch back with gh auth switch to post. Nothing was posted.`,
+				);
+			if (
+				input.event !== "COMMENT" &&
+				now.authorLogin.toLowerCase() === now.viewerLogin.toLowerCase()
+			)
+				throw new FactoryReviewRefusal(
+					"factory_review_own_pr_event",
+					"GitHub does not let you approve or request changes on your own pull request; post it as a comment.",
+				);
+			const finish = (sent: {
+				url: string;
+				event: FactoryReviewEvent;
+				comments: number;
+				bodyOnly?: true;
+			}) => {
+				const updated = record({
+					reviewPost: {
+						state: "posted",
+						event: sent.event,
+						headSha: draft.headSha,
+						at: nowIso(),
+						comments: sent.bodyOnly ? 0 : sent.comments,
+						url: sent.url,
+						...(sent.bodyOnly ? { bodyOnly: sent.bodyOnly } : {}),
+					},
+				});
+				return {
+					task: this.requireTask(taskId),
+					run: updated,
+					url: sent.url,
+					...(sent.bodyOnly ? { bodyOnly: sent.bodyOnly } : {}),
+				};
+			};
+			// A lost reply: GitHub may have the intent's review, which is what
+			// the card then records, whatever this click asked for.
+			if (
+				posted?.state === "posting" &&
+				posted.headSha === draft.headSha &&
+				posted.digests
+			) {
+				const found = await findFactoryPostedReview({
+					workspaceRoot,
+					pullRequest,
+					headSha: draft.headSha,
+					viewerLogin: now.viewerLogin,
+					event: posted.event,
+					digests: posted.digests,
+					signal,
+				});
+				if (found)
+					return finish({
+						...found,
+						event: posted.event,
+						comments: posted.comments,
+					});
+			}
+			record({
+				reviewPost: {
+					state: "posting",
+					event: input.event,
+					headSha: draft.headSha,
+					at: nowIso(),
+					comments: comments.length,
+					digests: factoryReviewPostDigests({ body, comments }),
+				},
+			});
+			try {
+				const result = await postFactoryReview({
+					workspaceRoot,
+					pullRequest,
+					headSha: draft.headSha,
+					event: input.event,
+					body,
+					comments,
+					signal,
+				});
+				return finish({
+					...result,
+					event: input.event,
+					comments: comments.length,
+				});
+			} catch (error) {
+				// Nothing reached GitHub: the draft is postable as before.
+				if (!(error instanceof FactoryReviewPostUncertainError))
+					record({ reviewPost: undefined });
+				throw error;
+			}
+		} finally {
+			this.factoryReviewCommands.delete(taskId);
+			// The card no longer has a post running (reviewPostRunning).
+			const latest = this.store.getTask(taskId);
+			if (latest) this.publish("task.updated", latest);
+		}
+	}
+
+	/** Whether a post of the card's review draft is running in this process. */
+	factoryReviewPostRunning(taskId: string): boolean {
+		return this.factoryReviewCommands.get(taskId) === "post";
+	}
+
+	/**
+	 * Reviews the card's pull request again: when its head moved since the
+	 * draft (or the review stopped), the card is queued and the next run
+	 * reviews the new head afresh. An unchanged head returns `unchanged`
+	 * and spends nothing. A posted, posting or discarded (archived) review is
+	 * not reviewed again: the next round is a new card. Posting and reviewing
+	 * again exclude each other on a card.
+	 */
+	async rerunFactoryReview(
+		taskId: string,
+		actor: AgendaTaskActor,
+	): Promise<{ task: AgendaTaskRecord; unchanged: boolean }> {
+		this.assertUsable();
+		const refusal = (task: AgendaTaskRecord, run?: AgendaTaskRunRecord) => {
+			if (run?.factory?.reviewPost)
+				return new FactoryReviewRefusal(
+					"factory_review_posted",
+					"This review was posted; file a new review card for the next round.",
+				);
+			if (task.archivedAt)
+				return new FactoryReviewRefusal(
+					"factory_review_discarded",
+					"This review was discarded; restore it, or file a new review card.",
+				);
+			if (task.status !== "completed" && task.status !== "failed")
+				return new FactoryReviewRefusal(
+					"factory_review_not_finished",
+					"Only a finished or stopped review can be reviewed again.",
+				);
+			return undefined;
+		};
+		const { task, run } = this.factoryReviewCard(taskId);
+		if (
+			this.factoryReviewCommands.has(taskId) ||
+			this.factoryControllers.has(taskId) ||
+			task.currentRunId ||
+			task.factoryQueued
+		)
+			return { task, unchanged: true };
+		const before = refusal(task, run);
+		if (before) throw before;
+		const reference = factoryReviewReference(task);
+		this.factoryReviewCommands.set(taskId, "rerun");
+		try {
+			const now = await readFactoryPullRequestHead({
+				workspaceRoot: task.workspaceRoot as string,
+				pullRequest: run?.factory?.reviewPullRequest ?? reference,
+				signal: AbortSignal.any([
+					this.factoryReviewAbort.signal,
+					AbortSignal.timeout(60_000),
+				]),
+			});
+			const latest = this.factoryReviewCard(taskId);
+			const after = refusal(latest.task, latest.run);
+			if (after) throw after;
+			// Kept, so the card offers a post only when GitHub would take it.
+			const factory = latest.run?.factory;
+			if (latest.run && factory) {
+				const updated = this.store.updateRun(latest.run.runId, {
+					factory: {
+						...factory,
+						reviewPullRequestNow: {
+							headSha: now.headSha,
+							open: now.open,
+							at: nowIso(),
+						},
+					},
+				});
+				this.publish("task.updated", latest.task, updated);
+			}
+			if (!now.open)
+				throw new FactoryReviewRefusal(
+					"factory_review_pr_closed",
+					"The pull request is no longer open; nothing to review.",
+				);
+			if (
+				latest.task.revision !== task.revision ||
+				latest.task.lastRunId !== task.lastRunId ||
+				latest.task.currentRunId ||
+				latest.task.factoryQueued ||
+				this.factoryControllers.has(taskId)
+			)
+				throw new FactoryReviewRefusal(
+					"factory_review_busy",
+					"The review card changed; try again.",
+				);
+			if (
+				latest.task.status === "completed" &&
+				latest.run?.factory?.reviewDraft?.headSha === now.headSha
+			)
+				return { task: latest.task, unchanged: true };
+			const queued = this.store.updateTaskState(
+				taskId,
+				{
+					status: "approved",
+					error: null,
+					completedAt: null,
+					updatedBy: actor,
+				},
+				latest.task.revision,
+			);
+			if (!queued) throw new Error(`unknown task: ${taskId}`);
+			this.publish("task.updated", queued);
+			this.queueFactoryExecution(queued, actor, actor.clientId);
+			return { task: this.requireTask(taskId), unchanged: false };
+		} finally {
+			this.factoryReviewCommands.delete(taskId);
 		}
 	}
 
@@ -7816,7 +8474,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private factoryIndependentReviewBlocker(
 		task: AgendaTaskRecord,
 	): string | undefined {
-		if (!task.factory || !factoryRequiresIndependentReview(task.factory))
+		// A review has no builder to be independent of.
+		if (
+			!task.factory ||
+			factoryDeliverable(task.factory) === "pr_review" ||
+			!factoryRequiresIndependentReview(task.factory)
+		)
 			return undefined;
 		const design =
 			task.factoryDesignProgress?.revision === task.revision
@@ -8323,6 +8986,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		run: AgendaTaskRunRecord,
 		sessionId?: string,
 	): Promise<void> {
+		const review = factoryDeliverable(task.factory) === "pr_review";
 		try {
 			const factoryActive = this.factoryControllers.get(task.taskId);
 			const workspaceRoot = task.workspaceRoot;
@@ -8333,43 +8997,54 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					factoryActive.controller.signal,
 				);
 			const result =
-				run.factory && factoryActive
-					? await runFactoryWorkflow({
-							// The size rating sets the repair budget for this run.
-							task: task.factory
-								? {
-										...task,
-										factory: {
-											...task.factory,
-											maxRepairRounds: factoryRepairRounds(
-												task.factory,
-												run.factory.reviewSelection,
-											),
-										},
-									}
-								: task,
+				run.factory && factoryActive && review
+					? await runFactoryPullRequestReview({
+							task,
 							run,
 							state: run.factory,
 							runtime: this.factoryRuntime,
-							storageDir: this.factoryStorageDir,
 							signal: factoryActive.controller.signal,
 							save: (state) =>
 								this.updateFactoryRun(task.taskId, run.runId, state),
 							sessionStarted: (id) => factoryActive.sessions.add(id),
-							verificationProfileProven:
-								await this.factoryVerificationProfileProven(task),
-							onVerificationProfileProven: async (hash) => {
-								if (workspaceRoot)
-									await this.factoryVerificationProfiles.markProven(
-										workspaceRoot,
-										hash,
-									);
-							},
-							knownRuleKeys: this.factoryKnownRuleKeys(task),
 						})
-					: sessionId
-						? await this.runtime.runSession(sessionId, task, run)
-						: { status: "failed" as const, error: "Task session is missing" };
+					: run.factory && factoryActive
+						? await runFactoryWorkflow({
+								// The size rating sets the repair budget for this run.
+								task: task.factory
+									? {
+											...task,
+											factory: {
+												...task.factory,
+												maxRepairRounds: factoryRepairRounds(
+													task.factory,
+													run.factory.reviewSelection,
+												),
+											},
+										}
+									: task,
+								run,
+								state: run.factory,
+								runtime: this.factoryRuntime,
+								storageDir: this.factoryStorageDir,
+								signal: factoryActive.controller.signal,
+								save: (state) =>
+									this.updateFactoryRun(task.taskId, run.runId, state),
+								sessionStarted: (id) => factoryActive.sessions.add(id),
+								verificationProfileProven:
+									await this.factoryVerificationProfileProven(task),
+								onVerificationProfileProven: async (hash) => {
+									if (workspaceRoot)
+										await this.factoryVerificationProfiles.markProven(
+											workspaceRoot,
+											hash,
+										);
+								},
+								knownRuleKeys: this.factoryKnownRuleKeys(task),
+							})
+						: sessionId
+							? await this.runtime.runSession(sessionId, task, run)
+							: { status: "failed" as const, error: "Task session is missing" };
 			const latestRun = this.store.getRun(run.runId);
 			if (!latestRun || TERMINAL_RUN_STATUSES.has(latestRun.status)) return;
 			if (
@@ -8382,8 +9057,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				if (run.factory) {
 					// Frozen at delivery: whether a person must stamp this result. A
 					// result that needs the stamp is not also queued as a sample.
+					// A review draft is the person's to post: no stamp, sample or rules.
 					const reviewed =
-						latestRun.factory && task.factory
+						latestRun.factory && task.factory && !review
 							? {
 									...latestRun.factory,
 									humanReview: factoryStampRequirement(
@@ -8392,9 +9068,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 									),
 								}
 							: latestRun.factory;
-					const delivered = reviewed?.humanReview?.required
-						? undefined
-						: factoryDeliveredSample(task, reviewed, completedAt);
+					const delivered =
+						review || reviewed?.humanReview?.required
+							? undefined
+							: factoryDeliveredSample(task, reviewed, completedAt);
 					const factory = delivered ?? reviewed;
 					const finished = this.store.finishFactoryRun(
 						run.runId,
@@ -8417,7 +9094,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						},
 					);
 					this.publish("task.run.completed", finished.task, finished.run);
-					await this.fileFactoryRuleCards(task, finished.run);
+					if (!review) await this.fileFactoryRuleCards(task, finished.run);
 					return;
 				}
 				const finalRun =

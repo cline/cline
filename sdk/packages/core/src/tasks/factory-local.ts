@@ -11,7 +11,7 @@ import {
 	stat,
 	writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import {
 	FACTORY_ARTIFACT_EXTENSIONS,
@@ -40,7 +40,8 @@ export {
 };
 
 const OUTPUT_BYTES = 32_768;
-const DIFF_BYTES = 250_000;
+/** The largest diff Factory reviews, in bytes. */
+export const FACTORY_DIFF_BYTES = 250_000;
 /** Time limit of one check command. */
 export const CHECK_TIMEOUT_MS = 10 * 60_000;
 
@@ -138,6 +139,8 @@ export async function runFactoryCommand(input: {
 	onSpawn?: (pid: number) => void;
 	/** Also returns stdout alone, for commands whose stdout is parsed. */
 	captureStdout?: boolean;
+	/** Written to the command's standard input, which is otherwise closed. */
+	stdin?: string;
 }): Promise<{
 	exitCode: number | null;
 	/** stdout and stderr interleaved. */
@@ -157,11 +160,14 @@ export async function runFactoryCommand(input: {
 	const child = spawn(input.file, input.args, {
 		cwd: input.cwd,
 		env,
-		stdio: ["ignore", "pipe", "pipe"],
+		stdio: [input.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
 		detached: process.platform !== "win32",
 		windowsHide: true,
 	});
 	if (child.pid) input.onSpawn?.(child.pid);
+	// A command that exits before reading its input must not fail the write.
+	child.stdin?.on("error", () => {});
+	child.stdin?.end(input.stdin);
 	const chunks: Buffer[] = [];
 	const stdoutChunks: Buffer[] = [];
 	let bytes = 0;
@@ -178,7 +184,7 @@ export async function runFactoryCommand(input: {
 			bytes += kept.length;
 		}
 	};
-	child.stdout.on("data", (chunk: Buffer) => {
+	child.stdout?.on("data", (chunk: Buffer) => {
 		collect(chunk);
 		if (!input.captureStdout) return;
 		const remaining = limit - stdoutBytes;
@@ -189,7 +195,7 @@ export async function runFactoryCommand(input: {
 			stdoutBytes += kept.length;
 		}
 	});
-	child.stderr.on("data", collect);
+	child.stderr?.on("data", collect);
 	const kill = () => {
 		if (child.pid) killFactoryProcessTree(child.pid);
 	};
@@ -223,13 +229,86 @@ export async function runFactoryCommand(input: {
 	}
 }
 
+/**
+ * Configuration of every review git command: no hooks, fsmonitor, submodule
+ * recursion, `ext::` remotes or automatic maintenance, and symbolic links
+ * are checked out as plain files.
+ */
+const FACTORY_REVIEW_GIT_CONFIG = [
+	`core.hooksPath=${devNull}`,
+	"core.fsmonitor=false",
+	"core.symlinks=false",
+	"submodule.recurse=false",
+	"fetch.recurseSubmodules=false",
+	"protocol.ext.allow=never",
+	"gc.auto=0",
+	"maintenance.auto=false",
+];
+
+/**
+ * Runs git on a pull request review's checkout, or on the user's repository
+ * for it: hooks, fsmonitor, submodules, symbolic links and every filter
+ * driver configured where it runs (`cwd`, conditional includes as they
+ * evaluate there; git-lfs included) are off, so no code from the user's
+ * configuration runs on the pull request's files and none from the pull
+ * request runs at all. Every review git command goes through here.
+ */
+export async function runFactoryReviewGit(
+	input: Omit<Parameters<typeof runFactoryCommand>[0], "file" | "env">,
+): ReturnType<typeof runFactoryCommand> {
+	const drivers = await runFactoryCommand({
+		cwd: input.cwd,
+		file: "git",
+		args: [
+			"config",
+			"--null",
+			"--name-only",
+			"--get-regexp",
+			"^filter\\..+\\.(clean|smudge|process|required)$",
+		],
+		signal: input.signal,
+	});
+	if (drivers.exitCode !== 0 && drivers.exitCode !== 1)
+		throw new Error("Could not read the repository's git filters.");
+	const filters = new Set(
+		drivers.output
+			.split("\0")
+			.map((name) => /^filter\.([\s\S]+)\.[a-z]+$/.exec(name)?.[1])
+			.filter((name): name is string => name !== undefined),
+	);
+	const settings = [...FACTORY_REVIEW_GIT_CONFIG];
+	for (const name of filters) {
+		if (/[=\n]/.test(name))
+			throw new Error(
+				"A git filter driver's name cannot be neutralised; rename it in git config.",
+			);
+		settings.push(
+			`filter.${name}.clean=`,
+			`filter.${name}.smudge=`,
+			`filter.${name}.process=`,
+			`filter.${name}.required=false`,
+		);
+	}
+	return runFactoryCommand({
+		...input,
+		file: "git",
+		args: [...settings.flatMap((setting) => ["-c", setting]), ...input.args],
+		env: { GIT_LFS_SKIP_SMUDGE: "1" },
+	});
+}
+
 async function git(input: {
 	cwd: string;
 	args: string[];
 	signal?: AbortSignal;
 	maxBytes?: number;
+	/** A pull request review's command: see runFactoryReviewGit. */
+	review?: boolean;
 }): Promise<string> {
-	const result = await runFactoryCommand({ ...input, file: "git" });
+	const { review, ...command } = input;
+	const result = await (review
+		? runFactoryReviewGit(command)
+		: runFactoryCommand({ ...command, file: "git" }));
 	if (result.exitCode !== 0 || result.timedOut)
 		throw new Error(`Git ${input.args[0]} failed: ${result.output}`);
 	if (result.truncated)
@@ -268,10 +347,12 @@ export async function assertOwnedWorkspace(
 ): Promise<void> {
 	if (!FACTORY_BRANCH.test(workspace.branch))
 		throw new Error("Factory requires its task-owned branch.");
+	const review = workspace.baseSource === "pull_request";
 	const branch = await git({
 		cwd: workspace.path,
 		args: ["symbolic-ref", "--short", "HEAD"],
 		signal,
+		review,
 	});
 	if (branch !== workspace.branch)
 		throw new Error(
@@ -281,6 +362,7 @@ export async function assertOwnedWorkspace(
 		cwd: workspace.path,
 		args: ["merge-base", "--is-ancestor", workspace.baseCommit, "HEAD"],
 		signal,
+		review,
 	});
 }
 
@@ -334,9 +416,8 @@ async function originBranchTip(input: {
 
 /** Deletes a Factory-owned ref; best effort, since it only pins objects. */
 async function deleteFactoryRef(cwd: string, ref: string): Promise<void> {
-	await runFactoryCommand({
+	await runFactoryReviewGit({
 		cwd,
-		file: "git",
 		args: ["update-ref", "-d", ref],
 	}).catch(() => undefined);
 }
@@ -505,13 +586,32 @@ export async function prepareFactoryWorkspace(input: {
 	 * branch is `feat/factory-<hex>`.
 	 */
 	branchName?: string;
+	/**
+	 * A pull request review: the worktree checks out the PR's head (fetched
+	 * into a Factory-owned ref and verified to be `headSha`) and is based at
+	 * its merge base with `baseSha`. A new head gets a new worktree.
+	 */
+	pullRequest?: { number: number; headSha: string; baseSha: string };
 	signal?: AbortSignal;
 }): Promise<FactoryWorkspace> {
 	const sourceRoot = await realpath(input.sourceRoot);
-	const id = key(`${sourceRoot}\0${input.taskId}`);
+	const pullRequest = input.pullRequest;
+	const review = pullRequest !== undefined;
+	const sourceGit = (args: string[]) =>
+		review
+			? runFactoryReviewGit({ cwd: sourceRoot, args, signal: input.signal })
+			: runFactoryCommand({
+					cwd: sourceRoot,
+					file: "git",
+					args,
+					signal: input.signal,
+				});
+	const id = key(
+		`${sourceRoot}\0${input.taskId}${pullRequest ? `\0${pullRequest.headSha}` : ""}`,
+	);
 	const root = path.join(input.storageDir, "factory-worktrees", id);
 	const manifest = path.join(root, "workspace.json");
-	// Holds a fetched publish base until the task branch points at it.
+	// Holds a fetched publish base (or a review's head) until the task branch points at it.
 	let baseRef: string | undefined;
 	try {
 		let workspace: FactoryWorkspace;
@@ -541,6 +641,12 @@ export async function prepareFactoryWorkspace(input: {
 				!(error instanceof Error && "code" in error && error.code === "ENOENT")
 			)
 				throw error;
+			if (pullRequest)
+				baseRef = await fetchFactoryPullRequestHead(
+					sourceRoot,
+					pullRequest,
+					input.signal,
+				);
 			// Chosen once: an existing manifest keeps its recorded base.
 			const published =
 				input.publish && !input.baseline
@@ -551,10 +657,11 @@ export async function prepareFactoryWorkspace(input: {
 							signal: input.signal,
 						})
 					: undefined;
-			baseRef = published?.baseRef;
+			baseRef = published?.baseRef ?? baseRef;
 			const baseBranch =
 				published?.baseBranch ??
 				input.baseline?.baseBranch ??
+				(pullRequest ? `pull/${pullRequest.number}` : undefined) ??
 				(await git({
 					cwd: sourceRoot,
 					args: ["symbolic-ref", "--short", "HEAD"],
@@ -563,6 +670,14 @@ export async function prepareFactoryWorkspace(input: {
 			const baseCommit =
 				published?.baseCommit ??
 				input.baseline?.baseCommit ??
+				(pullRequest
+					? await git({
+							cwd: sourceRoot,
+							args: ["merge-base", pullRequest.headSha, pullRequest.baseSha],
+							signal: input.signal,
+							review,
+						})
+					: undefined) ??
 				(await git({
 					cwd: sourceRoot,
 					args: ["rev-parse", "HEAD"],
@@ -579,17 +694,12 @@ export async function prepareFactoryWorkspace(input: {
 			}
 			let branch = `feat/factory-${id}`;
 			if (input.branchName && FACTORY_BRANCH.test(input.branchName)) {
-				const taken = await runFactoryCommand({
-					cwd: sourceRoot,
-					file: "git",
-					args: [
-						"show-ref",
-						"--quiet",
-						`refs/heads/${input.branchName}`,
-						`refs/remotes/origin/${input.branchName}`,
-					],
-					signal: input.signal,
-				});
+				const taken = await sourceGit([
+					"show-ref",
+					"--quiet",
+					`refs/heads/${input.branchName}`,
+					`refs/remotes/origin/${input.branchName}`,
+				]);
 				// Another card (such as one numbered by another Hub database) owns
 				// that name: keep the collision-free hashed branch instead.
 				if (taken.exitCode === 1) branch = input.branchName;
@@ -603,9 +713,14 @@ export async function prepareFactoryWorkspace(input: {
 				baseCommit,
 				...(published
 					? { baseSource: published.source, baseNote: published.note }
-					: input.publish === false
-						? { baseSource: "local_head" as const }
-						: {}),
+					: pullRequest
+						? {
+								baseSource: "pull_request" as const,
+								baseNote: `The pull request's head ${pullRequest.headSha.slice(0, 12)}, compared with its merge base with ${pullRequest.baseSha.slice(0, 12)}.`,
+							}
+						: input.publish === false
+							? { baseSource: "local_head" as const }
+							: {}),
 			};
 			await mkdir(root, { recursive: true });
 			await writeFile(manifest, JSON.stringify(workspace), { flag: "wx" });
@@ -617,40 +732,138 @@ export async function prepareFactoryWorkspace(input: {
 				!(error instanceof Error && "code" in error && error.code === "ENOENT")
 			)
 				throw error;
-			const branch = await runFactoryCommand({
-				cwd: sourceRoot,
-				file: "git",
-				args: [
-					"show-ref",
-					"--verify",
-					"--quiet",
-					`refs/heads/${workspace.branch}`,
-				],
-				signal: input.signal,
-			});
+			const branch = await sourceGit([
+				"show-ref",
+				"--verify",
+				"--quiet",
+				`refs/heads/${workspace.branch}`,
+			]);
 			if (branch.exitCode !== 0 && branch.exitCode !== 1)
 				throw new Error("Could not inspect the task branch.");
+			// A review's files are checked out from inside the new worktree, so
+			// the filter drivers neutralised are those its own configuration
+			// (conditional includes too) would run there.
 			await git({
 				cwd: sourceRoot,
-				args:
-					branch.exitCode === 0
-						? ["worktree", "add", workspace.path, workspace.branch]
+				args: [
+					"worktree",
+					"add",
+					...(review ? ["--no-checkout"] : []),
+					...(branch.exitCode === 0
+						? [workspace.path, workspace.branch]
 						: [
-								"worktree",
-								"add",
 								"-b",
 								workspace.branch,
 								workspace.path,
-								workspace.baseCommit,
-							],
+								pullRequest?.headSha ?? workspace.baseCommit,
+							]),
+				],
 				signal: input.signal,
+				review,
 			});
+			if (review)
+				await git({
+					cwd: workspace.path,
+					args: ["reset", "--hard", "--quiet"],
+					signal: input.signal,
+					review,
+				});
 		}
 		await assertOwnedWorkspace(workspace, input.signal);
 		return workspace;
 	} finally {
 		if (baseRef) await deleteFactoryRef(sourceRoot, baseRef);
 	}
+}
+
+/**
+ * Fetches a pull request's head into a Factory-owned ref and verifies it is
+ * `headSha`; makes sure `baseSha` is present too. Nothing else is written:
+ * no FETCH_HEAD, tags or remote-tracking refs. Returns the ref, which the
+ * caller deletes once the review branch holds the head.
+ */
+async function fetchFactoryPullRequestHead(
+	cwd: string,
+	pullRequest: { number: number; headSha: string; baseSha: string },
+	signal?: AbortSignal,
+): Promise<string> {
+	const ref = `refs/factory/review/${randomUUID()}`;
+	const run = (args: string[]) => runFactoryReviewGit({ cwd, args, signal });
+	const fetch = (...refspecs: string[]) =>
+		run([
+			"fetch",
+			"--quiet",
+			"--no-tags",
+			"--no-write-fetch-head",
+			"--no-recurse-submodules",
+			"origin",
+			...refspecs,
+		]);
+	const unreachable = (output: string) =>
+		originFailure(
+			output,
+			new Error(
+				"Factory could not fetch the pull request from origin; check the network and the origin remote, then try again.",
+			),
+		);
+	try {
+		const fetched = await fetch(`+refs/pull/${pullRequest.number}/head:${ref}`);
+		if (fetched.exitCode !== 0 || fetched.timedOut)
+			throw unreachable(fetched.output);
+		const head = await run([
+			"rev-parse",
+			"--verify",
+			"--quiet",
+			`${ref}^{commit}`,
+		]);
+		if (head.exitCode !== 0 || head.output.trim() !== pullRequest.headSha)
+			throw new Error(
+				"The pull request's head moved while Factory was reading it; try again.",
+			);
+		const hasBase = async () =>
+			(await run(["cat-file", "-e", `${pullRequest.baseSha}^{commit}`]))
+				.exitCode === 0;
+		if (!(await hasBase())) {
+			const base = await fetch(pullRequest.baseSha);
+			if (base.exitCode !== 0 || base.timedOut || !(await hasBase()))
+				throw unreachable(base.output);
+		}
+		return ref;
+	} catch (error) {
+		await deleteFactoryRef(cwd, ref);
+		throw error;
+	}
+}
+
+/**
+ * Removes a pull request review's checkout, its branch and the folder
+ * Factory keeps beside it. A review never writes to its checkout, so the
+ * removal is forced. Does nothing for any other workspace, or one already
+ * removed; best effort otherwise.
+ */
+export async function removeFactoryReviewWorkspace(input: {
+	sourceRoot: string;
+	workspace: FactoryWorkspace;
+}): Promise<void> {
+	const { workspace } = input;
+	const root = path.dirname(workspace.path);
+	if (
+		workspace.baseSource !== "pull_request" ||
+		path.basename(workspace.path) !== "repo" ||
+		path.basename(path.dirname(root)) !== "factory-worktrees" ||
+		!FACTORY_BRANCH.test(workspace.branch)
+	)
+		return;
+	try {
+		await stat(root);
+	} catch {
+		return;
+	}
+	const run = (args: string[]) =>
+		runFactoryReviewGit({ cwd: input.sourceRoot, args, timeoutMs: 120_000 });
+	await run(["worktree", "remove", "--force", workspace.path]);
+	await run(["branch", "-D", workspace.branch]);
+	await rm(root, { recursive: true, force: true });
 }
 
 export async function assertFactoryCandidate(input: {
@@ -746,7 +959,7 @@ export async function checkpointFactoryWorkspace(input: {
 			input.workspace.baseCommit,
 			candidateCommit,
 		],
-		maxBytes: DIFF_BYTES,
+		maxBytes: FACTORY_DIFF_BYTES,
 	});
 	if (!diff) throw new Error("The feature task produced no changes to review.");
 	const changedPaths = input.includeChangedPaths

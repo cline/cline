@@ -576,6 +576,8 @@ export const FACTORY_CARD = {
 	/** A rule Factory proposed from the person's note. */
 	ruleNext: "Factory suggests a rule from your note. Save it or discard it.",
 	reviewRule: "Review the rule",
+	/** A stopped card with no one-click way forward. */
+	checkDetails: "Check the details below before choosing the next step.",
 	/** Under a building card's headline when no live line is shown. */
 	buildingNext:
 		"Nothing is needed from you while Factory builds and checks it.",
@@ -966,7 +968,11 @@ const STAGE_VERBS = new Set<string>([
  * label would only repeat the stage.
  */
 export function factoryWorkingDetail(station: string, label: string): string {
-	return STAGE_VERBS.has(label) || !label ? station : `${station} · ${label}`;
+	return STAGE_VERBS.has(label) ||
+		label === FACTORY_PR_REVIEW.reviewing ||
+		!label
+		? station
+		: `${station} · ${label}`;
 }
 
 /** Repository stages (`.cline/factory/stages.json`): a sub-step of Build. */
@@ -1269,4 +1275,129 @@ export const FACTORY_SPLIT = {
 	// Notifications
 	notificationTitle: "Breakdown ready for your approval",
 	notificationBody: "approve the breakdown, or keep it as one card.",
+} as const;
+
+/** A pull request by repository and number: "acme/widgets#15". */
+export function factoryPullRequestReference(pr: {
+	owner: string;
+	name: string;
+	number: number;
+}): string {
+	return `${pr.owner}/${pr.name}#${pr.number}`;
+}
+
+/**
+ * A pull request review card: Factory drafts a review of someone's pull
+ * request and only the person posts it, from the card.
+ */
+export const FACTORY_PR_REVIEW = {
+	waiting: "Waiting to review",
+	reviewing: "Reviewing",
+	/** The card page's panel with the person's request. */
+	request: "Request",
+	draftReady: "Review draft ready",
+	posted: "Review posted",
+	stopped: "Review stopped",
+	posting: "Posting review…",
+	reviewingNext: "Nothing is needed from you while the review runs.",
+	draftNext:
+		"Edit the draft below and post it when you want to. Nothing is posted until you do.",
+	postedNext: (event: string) => `Posted to GitHub ${event}.`,
+	bodyOnly:
+		"GitHub would not place the comments on their lines, so they were posted in the summary.",
+	openPr: "Open PR",
+	openReview: "Open review on GitHub",
+	/** The card's PR line: "Reviewed at a1b2c3d". */
+	reviewedAt: (sha: string) => `Reviewed at ${sha}`,
+	changedSince: "changed since",
+	/** "by octo · from a fork · draft · 2 files, +30 −4". */
+	facts: (pr: {
+		author: { login: string };
+		isCrossRepository: boolean;
+		isDraft: boolean;
+		changedFiles: number;
+		additions: number;
+		deletions: number;
+	}) =>
+		[
+			`by ${pr.author.login}`,
+			pr.isCrossRepository ? "from a fork" : undefined,
+			pr.isDraft ? "draft" : undefined,
+			`${pr.changedFiles} ${pr.changedFiles === 1 ? "file" : "files"}, +${pr.additions} −${pr.deletions}`,
+		]
+			.filter(Boolean)
+			.join(" · "),
+	summary: "Summary",
+	summaryHint:
+		"Posted as the review's main comment, with its findings and questions.",
+	comments: "Comments",
+	/** "4 of 6 included". */
+	included: (included: number, total: number) =>
+		`${included} of ${total} included`,
+	noComments: "The reviewers left no comments on lines of the change.",
+	include: (place: string) => `Include the comment on ${place}`,
+	/** "line 12". */
+	line: (line: number) => `line ${line}`,
+	edit: "Edit",
+	done: "Done",
+	editComment: (place: string) => `Edit the comment on ${place}`,
+	severity: {
+		blocker: "Blocker",
+		major: "Major",
+		minor: "Minor",
+		nit: "Nit",
+	},
+	notChecked: "Not checked",
+	reviewers: "Reviewers",
+	reviewerDidNotFinish: (label: string) => `${label} did not finish`,
+	viewConversation: "View conversation",
+	/** The reviewers' suggestion, never a preselected choice. */
+	suggested: (verdict: "comment" | "request_changes" | "approve_suggested") =>
+		`Reviewers suggest: ${verdict === "request_changes" ? "request changes" : verdict === "approve_suggested" ? "approve" : "comment"}`,
+	event: "Post as",
+	events: {
+		COMMENT: "Comment",
+		APPROVE: "Approve",
+		REQUEST_CHANGES: "Request changes",
+	},
+	/** How a posted event reads in a sentence. */
+	eventPhrase: {
+		COMMENT: "as a comment",
+		APPROVE: "as an approval",
+		REQUEST_CHANGES: "as a request for changes",
+	},
+	ownPullRequest:
+		"This is your own pull request, so GitHub only takes a comment.",
+	post: "Post review…",
+	/** Who posts: "octocat on github.com", or "you" when unknown. */
+	postsAs: (login: string | undefined, host: string | undefined) =>
+		`${login ?? "you"}${host ? ` on ${host}` : ""}`,
+	/** The footer's line before posting. */
+	willPost: (comments: number, reference: string, as: string) =>
+		comments
+			? `Posts the summary and ${comments} ${comments === 1 ? "comment" : "comments"} to ${reference} as ${as}.`
+			: `Posts the summary to ${reference} as ${as}.`,
+	needsSummary: "Write a summary to post this review.",
+	/** The confirmation's title. */
+	confirmTitle: (comments: number, reference: string, as: string) =>
+		comments
+			? `Post ${comments} ${comments === 1 ? "comment" : "comments"} to ${reference} as ${as}?`
+			: `Post the summary to ${reference} as ${as}?`,
+	confirmBody: (event: string) =>
+		`GitHub shows one review from your account, ${event}. You cannot take it back from here.`,
+	confirm: "Post review",
+	keepEditing: "Keep editing",
+	/** A post whose reply never came (the Hub kept its intent). */
+	unconfirmed:
+		"Posting did not confirm. Post again checks GitHub first, so the review is not posted twice.",
+	stale: "The pull request changed since this review.",
+	reviewAgain: "Review again",
+	unchanged: "No new commits since this review.",
+	closed: "The pull request is closed. Nothing was posted.",
+	/** A new draft replaced the one the person had edited. */
+	replaced:
+		"Factory reviewed the pull request again. Your edits were to the earlier draft and are not in this one.",
+	useEarlierSummary: "Use my earlier summary",
+	postedReadOnly:
+		"What you posted is on GitHub; this is the draft as Factory wrote it.",
 } as const;

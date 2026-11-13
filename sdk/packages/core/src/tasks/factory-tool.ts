@@ -90,6 +90,11 @@ import {
 	factoryPreparedPlanProblems,
 } from "./factory-prepared";
 import {
+	FactoryReviewInputError,
+	parseFactoryPullRequestReference,
+	resolveFactoryPullRequestReference,
+} from "./factory-review-input";
+import {
 	readFactoryWorkflowFile,
 	validateFactoryWorkflowRecipe,
 } from "./factory-workflow-recipe";
@@ -119,6 +124,7 @@ Use the \`factory\` tool to hand project work to Factory, including discoveries 
 - Submitting the same title and instructions for the same project again, from this or any other session, returns the existing card (\`existing: true\`) instead of a duplicate. For work rediscovered across runs, such as a scheduled routine's findings, pass a stable \`source\` naming the routine and a stable \`idempotency_key\` derived from the work item's identity rather than its wording; a repeat with the same pair returns the stored card without editing, restarting or approving it, including completed and archived cards.
 - Factory checks every filing for an existing card that covers the same work. If the reply has \`duplicateOf\`, no card was created: report that card's short id and state and stop. Pass \`allow_duplicate: true\` only when the user says it is different work.
 - Factory may split a large request into parts after the user approves the breakdown in Factory: the original card (for example F40) then only tracks its parts, each part is its own card, and a part may wait for an earlier part's pull request to be merged. Report a parent as its parts' progress and a waiting part as waiting for that merge, which only the user can do; no tool approves a breakdown, cancels the remaining parts or starts a waiting part anyway.
+- When the user asks you to review an existing pull request, file it with \`deliverable: "pr_review"\` and \`pull_request\` (its URL, owner/repo#number, or number in this project); Factory skips scoping and building and drafts a review on the card. The pull request must belong to the project's origin repository. You cannot post, approve or request changes: posting is the user's click on the card, and Factory never runs the pull request's code. A request to fix or change something stays an ordinary card even when it mentions a pull request.
 - A returned card may carry \`conclusion\`: its designer found no build needed (\`already_fixed\`, \`duplicate\` or \`no_change\`) and the card waits for a person. Do not resubmit that work under a new key; report the rationale instead.
 - When the user asks how Factory work is going, call \`${FACTORY_STATUS_TOOL_NAME}\` (with no card for an overview, or a \`task_id\` such as \`F42\` or a title \`query\`) and report its plain answer, naming cards by their short id (\`factoryId\`); do not guess from \`${FACTORY_LIST_TOOL_NAME}\`.
 - Use \`${FACTORY_STATUS_TOOL_NAME}\` actions only when the user asks: \`hold\` keeps a card from starting, \`start\` starts a queued card and \`retry\` tries a stopped card again; an agent's retries of a card are limited. You may hold a card but not release a hold: only the user starts a held card. Plan approval, review, merging and archiving stay with the user in Factory.
@@ -251,6 +257,18 @@ export const FactoryToolInputSchema = z
 			.optional()
 			.describe(
 				"true only when the user says this is different work from the card a previous reply named in duplicateOf: skips the duplicate check (an exact repeat still returns its card)",
+			),
+		deliverable: z
+			.enum(["change", "pr_review"])
+			.optional()
+			.describe(
+				'"pr_review" only when the user asks to review an existing pull request (with pull_request); omit for work to build',
+			),
+		pull_request: z
+			.union([z.string().trim().min(1).max(600), z.number().int().positive()])
+			.optional()
+			.describe(
+				'With deliverable "pr_review": the pull request URL, owner/repo#number, or its number in the project',
 			),
 	})
 	.strict();
@@ -582,7 +600,11 @@ export async function requireFactoryManagerProject(
  */
 async function factoryProjectFor(
 	options: Pick<FactoryToolOptions, "listProjects">,
-	input: { project?: string; workspace_root?: string },
+	input: {
+		project?: string;
+		workspace_root?: string;
+		pull_request?: string | number;
+	},
 	defaults: FactorySessionDefaults,
 ): Promise<{ workspaceRoot: string; known?: FactoryManagerProjects }> {
 	if (!defaults.manager) {
@@ -599,13 +621,54 @@ async function factoryProjectFor(
 		};
 	}
 	const known = await loadManagerProjects(options);
-	return {
-		workspaceRoot: chooseManagerProject(
-			input.project ?? input.workspace_root,
+	const requested = input.project ?? input.workspace_root;
+	if (requested === undefined && input.pull_request !== undefined) {
+		const byOrigin = await factoryProjectForPullRequest(
 			known,
-		),
-		known,
-	};
+			input.pull_request,
+		);
+		if (byOrigin) return { workspaceRoot: byOrigin, known };
+	}
+	return { workspaceRoot: chooseManagerProject(requested, known), known };
+}
+
+/**
+ * The one known project whose origin is the repository a pull request
+ * reference names; undefined for a bare number. Throws a
+ * FactoryProjectError when no known project, or more than one, has it.
+ */
+async function factoryProjectForPullRequest(
+	known: FactoryManagerProjects,
+	pullRequest: string | number,
+): Promise<string | undefined> {
+	let named: ReturnType<typeof parseFactoryPullRequestReference>;
+	try {
+		named = parseFactoryPullRequestReference(pullRequest);
+	} catch {
+		return undefined;
+	}
+	const repository = named.repository;
+	if (!repository) return undefined;
+	const matches: string[] = [];
+	for (const project of known.projects) {
+		const resolved = await resolveFactoryPullRequestReference({
+			workspaceRoot: project,
+			pullRequest,
+			signal: AbortSignal.timeout(15_000),
+		}).catch(() => undefined);
+		if (resolved) matches.push(project);
+	}
+	if (matches.length === 1) return matches[0];
+	const label = `${repository.owner}/${repository.name}`;
+	throw matches.length
+		? new FactoryProjectError(
+				"factory_project_required",
+				`More than one project has ${label} as its origin; pass project. ${knownProjectsText(known)}`,
+			)
+		: new FactoryProjectError(
+				"factory_unknown_project",
+				`No project Factory knows has ${label} as its origin; open a checkout of it in Cline first. ${knownProjectsText(known)}`,
+			);
 }
 
 /** Like factoryProjectFor, but the manager naming no project sees them all. */
@@ -728,6 +791,7 @@ export function createFactoryTool(
 			"Submit project work to Factory: give a title and instructions, and Factory runs it to a draft pull request; nothing else to do. " +
 			"workspace_root defaults to this session's project; the Factory manager chat names the project with project instead. Omitting workflow_path uses the user's default workflow. " +
 			"Pass start_scoping: false only to just queue. Pass priority only when the user or the work item states how urgent it is. A repeat of the same work returns the existing card. " +
+			'To have Factory draft a review of an existing pull request, pass deliverable "pr_review" with pull_request; only the user posts it, from Factory. ' +
 			"Factory checks every filing for an open or recently delivered card of the project that already covers it: then no card is created and the reply carries duplicateOf (that card's id, short id, title, state and PR link), reason and fileAnyway; pass allow_duplicate: true only if the user says it is different work. " +
 			"Returns the card's id, title, status and project, whether it already existed, relatedTo (cards Factory linked to a new card), and the designer's conclusion when no build was needed.",
 		inputSchema: zodToJsonSchema(FactoryToolInputSchema),
@@ -746,6 +810,18 @@ export function createFactoryTool(
 					},
 				};
 			}
+			const reviewing = parsed.data.deliverable === "pr_review";
+			const reviewProblem =
+				reviewing !== (parsed.data.pull_request !== undefined)
+					? 'Pass deliverable "pr_review" together with pull_request to review a pull request; omit both for other work.'
+					: reviewing && parsed.data.plan
+						? "A pull request review has no plan; omit plan."
+						: undefined;
+			if (reviewProblem)
+				return {
+					ok: false,
+					error: { code: "invalid_factory_input", message: reviewProblem },
+				};
 			const capture = (success: boolean) =>
 				captureToolUsage(options.telemetry, {
 					ulid: context.sessionId ?? context.conversationId ?? context.agentId,
@@ -798,6 +874,19 @@ export function createFactoryTool(
 					intake,
 					workspaceRoot,
 				);
+				const review =
+					input.pull_request === undefined
+						? undefined
+						: {
+								deliverable: "pr_review" as const,
+								review: {
+									pullRequest: await resolveFactoryPullRequestReference({
+										workspaceRoot,
+										pullRequest: input.pull_request,
+										signal: AbortSignal.timeout(15_000),
+									}),
+								},
+							};
 				const requestedTaskId = createSessionId("task_");
 				const cardInput: AgendaTaskCreateInput = {
 					taskId: requestedTaskId,
@@ -850,6 +939,7 @@ export function createFactoryTool(
 							intake: identity,
 							sourceIssue: intake?.sourceIssue,
 							...prepared,
+							...review,
 						}),
 					),
 					modelSelection: defaults.modelSelection,
@@ -940,7 +1030,12 @@ export function createFactoryTool(
 				};
 			} catch (error) {
 				capture(false);
-				return failure("factory_submission_failed", error);
+				return failure(
+					error instanceof FactoryReviewInputError
+						? "invalid_factory_input"
+						: "factory_submission_failed",
+					error,
+				);
 			}
 		},
 	});
@@ -1100,6 +1195,8 @@ export type FactoryStage =
 	| "Reviewing"
 	| "Publishing"
 	| "Draft PR ready"
+	| "Review draft ready"
+	| "Review posted"
 	| "Delivered"
 	| "Stopped"
 	| "Archived";
@@ -1149,7 +1246,13 @@ export interface FactoryStatusCard {
 	needsYou?: FactoryNeedsYou;
 	/** Why a card that waits on someone to start it is not moving: "not started", "on hold" or "plan needs revising". Not a decision Factory asks for. */
 	waiting?: string;
+	/** The draft PR, or for a review card the pull request it reviews. */
 	pullRequestUrl?: string;
+	/**
+	 * A review card's draft in one line: commit, reviewers, comments, the
+	 * suggested verdict, and whether and how it was posted.
+	 */
+	review?: string;
 	/** "required (reason)", "not required" or "stamped". */
 	humanReview?: string;
 	/** What became of the draft PR once it closed: "merged as delivered", "merged after changes" or "closed without merging". */
@@ -1542,6 +1645,10 @@ function describeFactoryStage(
 					return card.checks ? "Running checks" : "Building";
 			}
 		case "delivered":
+			if (card.deliverable?.kind === "review")
+				return card.reasonCode === "review_posted"
+					? "Review posted"
+					: "Review draft ready";
 			// An open draft PR nobody has stamped or rated yet.
 			return card.deliverable?.kind === "draft_pr" &&
 				!card.deliverable.outcome &&
@@ -1602,6 +1709,10 @@ function describeFactoryNext(
 				: "Waits for a person to review the result in Factory.";
 		case "draft_pr_ready":
 			return "Waits for a person to review the draft PR.";
+		case "review_draft_ready":
+			return "Waits for a person to read the review draft in Factory; only they can post it. Factory never posts, approves or merges.";
+		case "review_posted":
+			return "Nothing; the review was posted to the pull request.";
 		case "plan_not_ready":
 			return "Waits until someone revises the plan in Factory; it cannot be approved as written.";
 		case "split_approval":
@@ -1737,6 +1848,24 @@ export function describeFactoryCardState(
 	return { card, kind, ...(pullRequestOutcome ? { pullRequestOutcome } : {}) };
 }
 
+const REVIEW_VERDICT_TEXT = {
+	comment: "comment",
+	request_changes: "request changes",
+	approve_suggested: "approve",
+} as const;
+
+/** A review card's draft and its posting in one line. */
+function describeFactoryReview(state: FactoryRunState): string | undefined {
+	const draft = state.reviewDraft;
+	if (!draft) return undefined;
+	const count = (n: number, label: string) =>
+		`${n} ${label}${n === 1 ? "" : "s"}`;
+	const finished = draft.reviewers.filter((reviewer) => !reviewer.failed);
+	const failed = draft.reviewers.length - finished.length;
+	const post = state.reviewPost;
+	return `Reviewed ${state.reviewPullRequest ? `${state.reviewPullRequest.owner}/${state.reviewPullRequest.name}#${state.reviewPullRequest.number} ` : ""}at ${draft.headSha.slice(0, 12)}: ${count(finished.length, "reviewer")}${failed ? ` (${failed} did not finish)` : ""}, ${count(draft.comments.length, "inline comment")}, ${count(draft.findings.length, "other finding")}; suggested verdict: ${REVIEW_VERDICT_TEXT[draft.verdict]}.${post?.state === "posted" ? ` Posted as ${post.event.toLowerCase().replace("_", " ")}${post.bodyOnly ? " with the comments in its body" : ""}.` : post?.state === "posting" ? " Posting did not confirm; posting again checks GitHub first." : " Not posted."}`;
+}
+
 /** A working agent as the board names its role. */
 const FACTORY_ATTEMPT_ROLE_NAME: Record<FactoryAttempt["role"], string> = {
 	builder: "builder",
@@ -1867,6 +1996,7 @@ function describeFactoryCardWithUrgency(
 	const route = state && delivered ? describeFactoryRoute(state) : undefined;
 	const scope = describeFactoryScopeRoute(design);
 	const stages = state ? describeFactoryStages(state) : undefined;
+	const reviewLine = state ? describeFactoryReview(state) : undefined;
 
 	const described: FactoryStatusCard = {
 		taskId: task.taskId,
@@ -1906,6 +2036,10 @@ function describeFactoryCardWithUrgency(
 				}
 			: {}),
 		...(state?.pullRequestUrl ? { pullRequestUrl: state.pullRequestUrl } : {}),
+		...(task.factory?.review
+			? { pullRequestUrl: task.factory.review.pullRequest.url }
+			: {}),
+		...(reviewLine ? { review: reviewLine } : {}),
 		...(stamp ? { humanReview: stamp } : {}),
 		...(state?.pullRequestOutcome
 			? {

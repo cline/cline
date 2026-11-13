@@ -9,6 +9,7 @@ import type {
 	FactoryFeedbackAnalysis,
 	FactoryPriority,
 	FactoryPrioritySetter,
+	FactoryReviewEvent,
 } from "@cline/shared";
 import type { FactoryDuplicateReply } from "./factory-duplicates";
 import type { FactoryGuidanceRole } from "./factory-guidance";
@@ -205,6 +206,32 @@ export interface AgendaTaskManagerApi {
 		expectedRevision: number,
 		actor: AgendaTaskActor,
 	): Promise<AgendaTaskRecord>;
+	/**
+	 * Posts a review card's draft as the person edited it, as one GitHub
+	 * review of `expectedHead`. People only (trusted local clients).
+	 */
+	postFactoryReview?(
+		taskId: string,
+		input: {
+			expectedHead: string;
+			expectedDraft: string;
+			event: FactoryReviewEvent;
+			body: string;
+			comments: readonly { id: string; body: string }[];
+		},
+	): Promise<{
+		task: AgendaTaskRecord;
+		run: AgendaTaskRunRecord;
+		url: string;
+		bodyOnly?: true;
+	}>;
+	/** Whether a post of the card's review draft is running in this process. */
+	factoryReviewPostRunning?(taskId: string): boolean;
+	/** Reviews a review card's pull request again when its head moved. */
+	rerunFactoryReview?(
+		taskId: string,
+		actor: AgendaTaskActor,
+	): Promise<{ task: AgendaTaskRecord; unchanged: boolean }>;
 	/** Factory session cost recorded since local midnight across all cards, in USD. */
 	getFactorySpentTodayUsd?(): Promise<number>;
 	/** Queue order and the cards being worked, for status reports. */

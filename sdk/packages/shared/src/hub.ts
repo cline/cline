@@ -1,9 +1,11 @@
 import type { AgentMessage } from "./agent";
-import type {
-	FactoryFeedbackAnalysis,
-	FactoryReplayRequest,
-	FactoryVerificationProfile,
-	FactoryWorkflowRecipe,
+import {
+	FACTORY_REVIEW_POST_BOUND_MS,
+	type FactoryFeedbackAnalysis,
+	type FactoryReplayRequest,
+	type FactoryReviewEvent,
+	type FactoryVerificationProfile,
+	type FactoryWorkflowRecipe,
 } from "./factory";
 import type { FactoryPriority } from "./factory-priority";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
@@ -57,6 +59,8 @@ export type HubCapabilityName =
 	| "task.factory.split.keep"
 	| "task.factory.parts.cancel"
 	| "task.factory.part.start"
+	| "task.factory.review.post"
+	| "task.factory.review.rerun"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"
@@ -120,6 +124,8 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.split.keep",
 	"task.factory.parts.cancel",
 	"task.factory.part.start",
+	"task.factory.review.post",
+	"task.factory.review.rerun",
 	"task.factory.replay",
 	"task.factory.defaults.get",
 	"task.factory.defaults.set",
@@ -960,6 +966,32 @@ export interface HubCommandInputMap {
 	 * Needs a client trusted across workspaces.
 	 */
 	"task.factory.part.start": HubTaskRevisionInput;
+	/**
+	 * The person posts the review draft of a `pr_review` card as one GitHub
+	 * review of `expectedHead` (the draft's head); `expectedDraft` is the
+	 * draft's `createdAt`, so a draft a re-review replaced is never posted
+	 * from a page that still shows it. `comments` are the draft's
+	 * comments to keep, by id, with the person's text; `body` is the review
+	 * body as edited. Needs a client trusted across workspaces; no tool or
+	 * agent reaches it. Factory makes everything posted inert
+	 * (factoryReviewInertMarkdown). A refusal carries one of
+	 * FACTORY_REVIEW_REFUSAL_CODES as `error.code`.
+	 */
+	"task.factory.review.post": HubTaskIdInput & {
+		expectedHead: string;
+		expectedDraft: string;
+		event: FactoryReviewEvent;
+		body: string;
+		comments: { id: string; body: string }[];
+	};
+	/**
+	 * Reviews the pull request again when its head moved since the draft;
+	 * `unchanged` (and nothing queued) when it did not. Needs a client trusted
+	 * across workspaces, like posting; a repeat filing never reviews again.
+	 * Refused on a posted, discarded (archived) or unfinished card, with one
+	 * of FACTORY_REVIEW_REFUSAL_CODES as `error.code`.
+	 */
+	"task.factory.review.rerun": HubTaskIdInput;
 	"task.factory.replay": FactoryReplayRequest & { allWorkspaces?: boolean };
 	"task.factory.defaults.get": Record<string, never>;
 	"task.factory.defaults.set": HubTaskFactoryDefaultsSetInput;
@@ -1014,7 +1046,15 @@ export interface HubCommandOutputMap {
 	"session.search": { hits: HubSessionSearchHit[] };
 	"task.create": HubTaskCreateOutput;
 	"task.list": { tasks: AgendaTaskRecord[] };
-	"task.get": { task?: AgendaTaskRecord; runs?: AgendaTaskRunRecord[] };
+	"task.get": {
+		task?: AgendaTaskRecord;
+		runs?: AgendaTaskRunRecord[];
+		/**
+		 * A post of this review card's draft is running in this Hub process
+		 * now. A `posting` record without it is a post whose reply was lost.
+		 */
+		reviewPostRunning?: true;
+	};
 	"task.update": { task: AgendaTaskRecord };
 	"task.approve": { task: AgendaTaskRecord };
 	"task.cancel": { task: AgendaTaskRecord };
@@ -1045,6 +1085,15 @@ export interface HubCommandOutputMap {
 		cancelled: AgendaTaskRecord[];
 	};
 	"task.factory.part.start": { task: AgendaTaskRecord };
+	"task.factory.review.post": {
+		task: AgendaTaskRecord;
+		run: AgendaTaskRunRecord;
+		/** The posted review on GitHub. */
+		url: string;
+		/** GitHub refused an inline anchor: the comments went into the body. */
+		bodyOnly?: true;
+	};
+	"task.factory.review.rerun": { task: AgendaTaskRecord; unchanged: boolean };
 	"task.factory.replay": { tasks: AgendaTaskRecord[] };
 	"task.factory.defaults.get": { workflow?: FactoryWorkflowRecipe };
 	"task.factory.defaults.set": { workflow?: FactoryWorkflowRecipe };
@@ -1161,6 +1210,8 @@ export type HubCommandName =
 	| "task.factory.split.keep"
 	| "task.factory.parts.cancel"
 	| "task.factory.part.start"
+	| "task.factory.review.post"
+	| "task.factory.review.rerun"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"
@@ -1206,7 +1257,11 @@ export function getDefaultHubCommandTimeoutMs(
 		case "task.factory.stamp":
 		case "task.factory.storage.get":
 		case "task.factory.storage.clean":
+		// A re-review reads the pull request from GitHub (60 seconds at most).
+		case "task.factory.review.rerun":
 			return 75_000;
+		case "task.factory.review.post":
+			return FACTORY_REVIEW_POST_BOUND_MS + 15_000;
 		case "run.start":
 		case "session.send_input":
 			return null;

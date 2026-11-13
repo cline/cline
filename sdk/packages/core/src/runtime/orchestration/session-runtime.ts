@@ -81,6 +81,8 @@ export interface RuntimeBuilderInput {
 	toolExecutors?: Partial<ToolExecutors>;
 	runCommandExecutionController?: RunCommandExecutionController;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
+	/** Sends no provider-side tools (web search, image generation). */
+	withoutProviderTools?: boolean;
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

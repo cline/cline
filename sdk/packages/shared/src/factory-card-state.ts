@@ -9,6 +9,7 @@ import {
 	type FactoryTaskConfig,
 	factoryActiveStage,
 	factoryCheckConfigurationFindings,
+	factoryDeliverable,
 	factoryPlanHoldReason,
 	factoryRepositoryRelative,
 	factoryWatchesPullRequest,
@@ -111,6 +112,10 @@ export const FACTORY_CARD_REASON_CODES = [
 	"pr_merged",
 	/** The draft PR was closed without merging. */
 	"pr_closed",
+	/** A pull request review's draft is on the card; only the person posts it. */
+	"review_draft_ready",
+	/** The person posted the review draft to the pull request. */
+	"review_posted",
 	/** Stopped at the repair limit with the draft PR open and findings left. */
 	"open_findings",
 	/** PR follow-up was paused; a person resumes it. */
@@ -172,7 +177,7 @@ export interface FactoryCardState {
 	stage: FactoryCardStage;
 	/** At Build because the plan's checks (or repository stages) run, or stopped there. */
 	checks?: true;
-	/** Stages the settled plan leaves out: Verify without a verifier. */
+	/** Stages the card leaves out (factorySkippedStages). */
 	skipped: FactoryCardStage[];
 	/** Why automatic approval left the plan for a person (reason `plan_held`). */
 	planHold?: FactoryPlanHoldReason;
@@ -184,10 +189,11 @@ export interface FactoryCardState {
 	 */
 	flagged?: true;
 	deliverable?: {
-		kind: "draft_pr" | "branch";
+		/** `review`: a draft review of the pull request at `url`. */
+		kind: "draft_pr" | "branch" | "review";
 		url?: string;
-		/** What became of the draft PR once it closed. */
-		outcome?: "merged" | "closed";
+		/** What became of the draft PR once it closed, or that the review was posted. */
+		outcome?: "merged" | "closed" | "posted";
 	};
 	/** A split's parent: its parts' progress, when the host passed it. */
 	parts?: FactoryPartsSummary;
@@ -223,6 +229,8 @@ export type FactoryCardTaskFacts = Pick<
 				| "watchPullRequest"
 				| "checks"
 				| "agents"
+				| "deliverable"
+				| "review"
 			>
 		> & {
 			verificationProfile?: Pick<
@@ -263,6 +271,7 @@ export type FactoryCardRunStateFacts = Pick<FactoryRunState, "phase"> &
 			| "pullRequestWatch"
 			| "reviewEscalation"
 			| "reviewSelection"
+			| "reviewPost"
 			| "stagePlan"
 			| "unresolvedFindings"
 		>
@@ -399,6 +408,20 @@ const running = (attempt: { status: string }) =>
 	attempt.status === "intent" || attempt.status === "running";
 
 /**
+ * The stages a card leaves out. A pull request review skips Scope, Build and
+ * Verify from the start; any other card skips Verify once its plan settled
+ * without a verifier.
+ */
+export function factorySkippedStages(
+	config: Pick<FactoryTaskConfig, "deliverable"> | undefined,
+	facts: { settled: boolean; verifier: boolean },
+): FactoryCardStage[] {
+	if (factoryDeliverable(config) === "pr_review")
+		return ["scope", "build", "verify"];
+	return config && facts.settled && !facts.verifier ? ["verify"] : [];
+}
+
+/**
  * The card's state from its persisted task record, its current (or last)
  * run and what the live Hub knows. Pure; never throws for a well-typed input.
  */
@@ -465,15 +488,25 @@ function deriveFactoryCardState({
 		);
 		return line || undefined;
 	};
-	const deliverable: FactoryCardState["deliverable"] = state?.pullRequestUrl
+	const review = factoryDeliverable(task.factory) === "pr_review";
+	const posted = state?.reviewPost?.state === "posted";
+	const deliverable: FactoryCardState["deliverable"] = review
 		? {
-				kind: "draft_pr",
-				url: state.pullRequestUrl,
-				...(state.pullRequestOutcome
-					? { outcome: state.pullRequestOutcome.state }
+				kind: "review",
+				...(task.factory?.review
+					? { url: task.factory.review.pullRequest.url }
 					: {}),
+				...(posted ? { outcome: "posted" as const } : {}),
 			}
-		: undefined;
+		: state?.pullRequestUrl
+			? {
+					kind: "draft_pr",
+					url: state.pullRequestUrl,
+					...(state.pullRequestOutcome
+						? { outcome: state.pullRequestOutcome.state }
+						: {}),
+				}
+			: undefined;
 	const hasChecks = (task.factory?.checks?.length ?? 0) > 0;
 	const verifierRunning = Boolean(
 		state?.attempts?.some(
@@ -491,8 +524,10 @@ function deriveFactoryCardState({
 			state?.attempts?.some((attempt) => attempt.role === "verifier") ||
 			(state?.agents ?? task.factory?.agents)?.verifier,
 	);
-	const skipped: FactoryCardStage[] =
-		task.factory && settled && !hasVerifier ? ["verify"] : [];
+	const skipped = factorySkippedStages(task.factory, {
+		settled,
+		verifier: hasVerifier,
+	});
 	const activeStage = state ? factoryActiveStage(state) : undefined;
 
 	const make = (fields: Fields, place: Place): FactoryCardState => {
@@ -523,6 +558,13 @@ function deriveFactoryCardState({
 
 	/** Where a run phase places the card; undefined for `blocked`. */
 	const phasePlace = (completed: boolean): Place | undefined => {
+		// A review's reviewers are its only station.
+		if (review)
+			return state?.phase === "ready"
+				? { stage: "delivered" }
+				: state && state.phase !== "blocked"
+					? { stage: "review" }
+					: undefined;
 		switch (state?.phase) {
 			case "implementing":
 			case "repairing":
@@ -552,6 +594,7 @@ function deriveFactoryCardState({
 	 * words otherwise.
 	 */
 	const stoppedPlace = (): Place => {
+		if (review) return { stage: "review" };
 		const code = factoryErrorReasonCode(task.error);
 		if (
 			task.status === "failed" &&
@@ -650,8 +693,8 @@ function deriveFactoryCardState({
 						: { reasonCode: "none" };
 		return make(
 			{ kind: "queued", waitingOn: "slot", ...reason, deliverable },
-			// The automatic retry builds again; it is not back in Waiting.
-			{ stage: autoRetry ? "build" : "waiting" },
+			// The automatic retry works again; it is not back in Waiting.
+			{ stage: autoRetry ? (review ? "review" : "build") : "waiting" },
 		);
 	};
 
@@ -764,6 +807,18 @@ function deriveFactoryCardState({
 				waitingOn: "nobody",
 				reasonCode: "none",
 				deliverable: deliverable ?? { kind: "branch" },
+			},
+			{ stage: "delivered" },
+		);
+
+	// A review draft is the person's to post; nothing waits on it.
+	if (task.status === "completed" && review)
+		return make(
+			{
+				kind: "delivered",
+				waitingOn: "nobody",
+				reasonCode: posted ? "review_posted" : "review_draft_ready",
+				deliverable,
 			},
 			{ stage: "delivered" },
 		);

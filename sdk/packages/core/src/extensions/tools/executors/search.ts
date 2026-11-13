@@ -55,6 +55,11 @@ export interface SearchExecutorOptions {
 	 * @default 20
 	 */
 	maxDepth?: number;
+
+	/**
+	 * Globs ripgrep never searches, whatever the tree's ignore files say
+	 */
+	neverSearch?: string[];
 }
 
 const DEFAULT_INCLUDE_EXTENSIONS = [
@@ -176,13 +181,24 @@ function searchWithRipgrep(
 	cwd: string,
 	maxResults: number,
 	contextLines: number,
+	neverSearch: readonly string[],
 	timeoutMs: number = 5000,
 	abortSignal?: AbortSignal,
 ): Promise<SearchMatch[] | null> {
 	return new Promise((resolve) => {
 		const child = spawn(
 			"rg",
-			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			[
+				"--json",
+				`--context=${contextLines}`,
+				"--max-count=1",
+				"-i",
+				...neverSearch.map((glob) => `--glob=!${glob}`),
+				// The pattern is model input: never an option.
+				"-e",
+				query,
+				"--",
+			],
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
@@ -338,6 +354,7 @@ export function createSearchExecutor(
 		maxResults = 100,
 		contextLines = 2,
 		maxDepth = 20,
+		neverSearch = [],
 	} = options;
 	const excludeDirsSet = new Set(excludeDirs);
 	const includeExtensionsSet = new Set(
@@ -363,6 +380,7 @@ export function createSearchExecutor(
 				cwd,
 				maxResults,
 				contextLines,
+				neverSearch,
 				5000,
 				context.signal,
 			);

@@ -12,6 +12,8 @@ import {
 	applyFactoryAutonomyDefaults,
 	FACTORY_CONCURRENCY_DEFAULT,
 	FACTORY_DAILY_COST_DEFAULT_USD,
+	FACTORY_REVIEW_DRAFT_LIMITS,
+	FACTORY_REVIEW_EVENTS,
 	factoryPrioritySchema,
 	factoryReplayRequestSchema,
 	factoryTaskConfigSchema,
@@ -28,6 +30,7 @@ import {
 	FACTORY_GUIDANCE_MAX_CHARS,
 	FACTORY_GUIDANCE_ROLES,
 } from "../../tasks/factory-guidance";
+import { FactoryReviewRefusal } from "../../tasks/factory-review-post";
 import { FactorySettingsError } from "../../tasks/factory-settings";
 import { factoryManagerProjects } from "../../tasks/factory-tool";
 import type { HubConnectionAuthority } from "./command-transport";
@@ -78,6 +81,8 @@ const TASK_COMMANDS = new Set<HubCommandName>([
 	"task.factory.split.keep",
 	"task.factory.parts.cancel",
 	"task.factory.part.start",
+	"task.factory.review.post",
+	"task.factory.review.rerun",
 	"task.factory.replay",
 	"task.factory.defaults.get",
 	"task.factory.defaults.set",
@@ -256,6 +261,9 @@ export class HubAgendaTaskCommandService {
 					return okReply(envelope, {
 						task,
 						runs: this.tasks.getTaskRuns?.(task.taskId) ?? [],
+						...(this.tasks.factoryReviewPostRunning?.(task.taskId)
+							? { reviewPostRunning: true }
+							: {}),
 					});
 				}
 				case "task.update": {
@@ -510,6 +518,54 @@ export class HubAgendaTaskCommandService {
 						),
 					});
 				}
+				// Posting a review to GitHub is the person's action in the app:
+				// trusted local clients only, and no tool or agent reaches it.
+				case "task.factory.review.post": {
+					if (authority?.crossWorkspace !== true)
+						throw new Error(
+							"Posting a review requires an authenticated local client",
+						);
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.postFactoryReview)
+						throw new Error("Factory reviews are unavailable");
+					const post = z
+						.object({
+							expectedHead: z.string().trim().min(1),
+							expectedDraft: z.string().min(1),
+							event: z.enum(FACTORY_REVIEW_EVENTS),
+							body: z.string().max(FACTORY_REVIEW_DRAFT_LIMITS.bodyChars),
+							comments: z
+								.array(
+									z.object({
+										id: z.string().min(1),
+										body: z.string().trim().min(1).max(5_000),
+									}),
+								)
+								.max(FACTORY_REVIEW_DRAFT_LIMITS.comments),
+						})
+						.parse(payload);
+					if (!post.body.trim() && !post.comments.length)
+						throw new Error("Write a review body or keep at least one comment");
+					return okReply(
+						envelope,
+						await this.tasks.postFactoryReview(taskIdOf(payload), post),
+					);
+				}
+				// A re-review spends on reviewers outside the filing caps: like
+				// posting, only the person's trusted client asks for one.
+				case "task.factory.review.rerun": {
+					if (authority?.crossWorkspace !== true)
+						throw new Error(
+							"Reviewing again requires an authenticated local client",
+						);
+					await this.requireScopedTask(payload, workspaceRoot);
+					if (!this.tasks.rerunFactoryReview)
+						throw new Error("Factory reviews are unavailable");
+					return okReply(
+						envelope,
+						await this.tasks.rerunFactoryReview(taskIdOf(payload), actor),
+					);
+				}
 				case "task.factory.start": {
 					const entries = z
 						.array(
@@ -736,6 +792,8 @@ export class HubAgendaTaskCommandService {
 					);
 			}
 		} catch (error) {
+			if (error instanceof FactoryReviewRefusal)
+				return errorReply(envelope, error.code, error.message);
 			return errorReply(
 				envelope,
 				"task_command_failed",

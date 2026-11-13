@@ -23,6 +23,7 @@ import {
 	FactoryGuidanceStore,
 	factoryGuidanceHash,
 } from "../../tasks/factory-guidance";
+import { FactoryReviewRefusal } from "../../tasks/factory-review-post";
 import { FileFactoryStageTrustStore } from "../../tasks/factory-stages";
 import { createFactoryWorkflowRecipe } from "../../tasks/factory-workflow-recipe";
 import { HubAgendaTaskCommandService } from "./task-command-service";
@@ -365,6 +366,106 @@ describe("HubAgendaTaskCommandService", () => {
 				...(command === "task.factory.split.approve" ? [[1]] : []),
 			);
 		}
+	});
+
+	it("lets only a trusted local client post a review, and passes nothing but the person's draft", async () => {
+		const posted = { task: task(), run: {}, url: "https://example.test/r/1" };
+		const manager = {
+			...managerMock(),
+			postFactoryReview: vi.fn(async () => posted),
+		} as unknown as AgendaTaskManagerApi;
+		const service = new HubAgendaTaskCommandService(manager);
+		const payload = {
+			taskId: "task_1",
+			expectedHead: "a".repeat(40),
+			expectedDraft: "2026-01-01T00:00:00.000Z",
+			event: "COMMENT",
+			body: "Edited body.",
+			comments: [{ id: "c1", body: "Edited comment." }],
+		};
+		for (const authority of [
+			undefined,
+			AUTHORITY,
+			{ ...AUTHORITY, crossWorkspace: false },
+		])
+			expect(
+				await service.handleCommand(
+					envelope("task.factory.review.post", payload),
+					authority,
+				),
+			).toMatchObject({
+				ok: false,
+				error: {
+					message: authority
+						? "Posting a review requires an authenticated local client"
+						: "task commands require a Hub-authorized workspace",
+				},
+			});
+		expect(manager.postFactoryReview).not.toHaveBeenCalled();
+		const trusted = { ...AUTHORITY, crossWorkspace: true };
+		expect(
+			await service.handleCommand(
+				envelope("task.factory.review.post", { ...payload, merge: true }),
+				trusted,
+			),
+		).toMatchObject({ ok: true, payload: posted });
+		expect(manager.postFactoryReview).toHaveBeenCalledWith("task_1", {
+			expectedHead: payload.expectedHead,
+			expectedDraft: payload.expectedDraft,
+			event: "COMMENT",
+			body: "Edited body.",
+			comments: payload.comments,
+		});
+		expect(
+			(
+				await service.handleCommand(
+					envelope("task.factory.review.post", { ...payload, event: "MERGE" }),
+					trusted,
+				)
+			).ok,
+		).toBe(false);
+	});
+
+	it("lets only a trusted local client ask for a review again", async () => {
+		const manager = {
+			...managerMock(),
+			rerunFactoryReview: vi.fn(async () => ({
+				task: task(),
+				unchanged: true,
+			})),
+		} as unknown as AgendaTaskManagerApi;
+		const service = new HubAgendaTaskCommandService(manager);
+		const rerun = envelope("task.factory.review.rerun", { taskId: "task_1" });
+		for (const authority of [
+			AUTHORITY,
+			{ ...AUTHORITY, crossWorkspace: false },
+		])
+			expect(await service.handleCommand(rerun, authority)).toMatchObject({
+				ok: false,
+				error: {
+					message: "Reviewing again requires an authenticated local client",
+				},
+			});
+		expect(manager.rerunFactoryReview).not.toHaveBeenCalled();
+		expect(
+			await service.handleCommand(rerun, {
+				...AUTHORITY,
+				crossWorkspace: true,
+			}),
+		).toMatchObject({ ok: true, payload: { unchanged: true } });
+		// A refusal reaches the app as its code, with its sentence.
+		vi.mocked(manager.rerunFactoryReview!).mockRejectedValueOnce(
+			new FactoryReviewRefusal("factory_review_discarded", "Discarded."),
+		);
+		expect(
+			await service.handleCommand(rerun, {
+				...AUTHORITY,
+				crossWorkspace: true,
+			}),
+		).toMatchObject({
+			ok: false,
+			error: { code: "factory_review_discarded", message: "Discarded." },
+		});
 	});
 
 	it("honors selected repositories only for authenticated cross-workspace clients", async () => {

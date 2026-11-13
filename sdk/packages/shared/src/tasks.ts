@@ -46,7 +46,8 @@ export type FactoryQuestion = z.infer<typeof factoryQuestionSchema>;
  * used (`reason`). Absent: an ordinary card (the designer scoped it).
  */
 export const factoryDesignRouteSchema = z.object({
-	scoping: z.enum(["prepared", "designer"]),
+	/** `none`: the card's deliverable needs no plan (a pull request review). */
+	scoping: z.enum(["prepared", "designer", "none"]),
 	/** Who supplied the plan: the card's intake source (such as `agent` or a routine's name). */
 	source: z.string().max(200).optional(),
 	/** The repository paths the supplied plan said it touches. */

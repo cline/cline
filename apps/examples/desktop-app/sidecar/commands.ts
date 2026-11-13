@@ -1426,6 +1426,8 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.factory.split.keep",
 	"task.factory.parts.cancel",
 	"task.factory.part.start",
+	"task.factory.review.post",
+	"task.factory.review.rerun",
 	"task.factory.answer",
 	"task.factory.audit",
 	"task.factory.audit.resolve",
@@ -1445,6 +1447,8 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.factory.split.keep",
 	"task.factory.parts.cancel",
 	"task.factory.part.start",
+	"task.factory.review.post",
+	"task.factory.review.rerun",
 	"task.factory.answer",
 	"task.factory.audit",
 	"task.factory.audit.resolve",
@@ -1520,6 +1524,9 @@ async function handleAgendaTaskCommand(
 	const hubClient = await ensureSharedHubClient(ctx);
 	await syncFactoryDefaults(ctx, hubClient);
 	const reply = await hubClient.command(command as never, args);
+	// A review refusal reaches the card with its code, which the card acts on.
+	if (!reply.ok && reply.error?.code.startsWith("factory_review_"))
+		return { ok: false, error: reply.error };
 	if (!reply.ok) {
 		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
 	}

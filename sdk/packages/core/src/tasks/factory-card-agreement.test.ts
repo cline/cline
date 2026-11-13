@@ -13,6 +13,7 @@ import {
 	FACTORY_BOARD_FIXTURES,
 	FACTORY_CARD_FIXTURES,
 	FACTORY_NEEDS_YOU_ORDER,
+	FACTORY_PR_REVIEW_CARD_FIXTURES,
 	FACTORY_SPLIT_CARD_FIXTURES,
 	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
 } from "../../../shared/src/__tests__/factory-card-fixtures";
@@ -310,6 +311,66 @@ describe("factory_status agrees with factoryCardState for a split's cards", () =
 		else expect(card.next).toBe(next);
 		expect(card.needsYou?.reason).toBe(needsYou);
 		expect(Boolean(card.needsYou)).toBe(state.waitingOn === "person");
+	});
+});
+
+/** What the tool says for each pull request review fixture. */
+const REVIEW_TOOL: Record<
+	string,
+	[stage: FactoryStage, next: string | RegExp]
+> = {
+	"review queued": [
+		"Waiting for a free slot",
+		"Starts on its own when a working slot frees up.",
+	],
+	reviewing: ["Reviewing", "Continues on its own."],
+	"review draft ready": [
+		"Review draft ready",
+		/^Waits for a person to read the review draft in Factory; only they can post it\./,
+	],
+	"review posted": [
+		"Review posted",
+		"Nothing; the review was posted to the pull request.",
+	],
+	"review stopped": ["Stopped", "Stays stopped until someone tries again."],
+};
+
+describe("factory_status agrees with factoryCardState for pull request reviews", () => {
+	it.each(
+		FACTORY_PR_REVIEW_CARD_FIXTURES.map(
+			(fixture) => [fixture.name, fixture] as const,
+		),
+	)("%s", (name, fixture) => {
+		const { task, run, working } = fixture;
+		const queue = {
+			paused: false,
+			concurrency: 2,
+			working: working ? [task.taskId] : [],
+			queued: task.factoryQueued
+				? [{ taskId: task.taskId, stage: task.factoryQueued }]
+				: [],
+		};
+		const state = factoryCardState({
+			task,
+			lastRun: run,
+			live: { runLive: Boolean(working) },
+		});
+		expect(state).toMatchObject(fixture.card);
+		const card = describeFactoryCard(task, run ? [run] : [], queue);
+		const [stage, next] = REVIEW_TOOL[name] ?? [];
+		expect(card.stage).toBe(stage);
+		if (next instanceof RegExp) expect(card.next).toMatch(next);
+		else expect(card.next).toBe(next);
+		// A draft waiting to be posted is not a decision Factory asks for.
+		expect(/^(?:Waits\b|Stays stopped until someone)/.test(card.next)).toBe(
+			state.waitingOn === "person" || state.reasonCode === "review_draft_ready",
+		);
+		expect(Boolean(card.needsYou)).toBe(state.waitingOn === "person");
+		expect(card.pullRequestUrl).toBe("https://github.com/acme/widgets/pull/15");
+		if (run?.factory?.reviewDraft)
+			expect(card.review).toMatch(
+				/^Reviewed acme\/widgets#15 at a1b2c3d4e5f6: 1 reviewer, 1 inline comment, 0 other findings; suggested verdict: request changes\. (?:Not posted|Posted as comment)\.$/,
+			);
 	});
 });
 

@@ -401,8 +401,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
 		const modelTools: ModelTool[] = [];
+		const providerTools =
+			normalized.enableTools && input.withoutProviderTools !== true;
 		if (
-			normalized.enableTools &&
+			providerTools &&
 			normalized.mode !== "yolo" &&
 			isModelToolEnabledGlobally("web_search") &&
 			supportsModelTool(
@@ -413,7 +415,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			modelTools.push({ name: "web_search" });
 		}
 		if (
-			normalized.enableTools &&
+			providerTools &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"image_generation",

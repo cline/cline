@@ -32,7 +32,9 @@ import {
 	factoryRepositoryRelative,
 	factoryRequiresIndependentReview,
 	factoryReviewFindings,
+	factoryReviewInertMarkdown,
 	factoryReviewMode,
+	factoryReviewReadableText,
 	factoryReviewSchema,
 	factoryReviewSelectionSchema,
 	factoryReviewSize,
@@ -2062,5 +2064,108 @@ describe("factoryPreparedScopeProblems", () => {
 		expect(problems.join("\n")).toContain(
 			'Acceptance criterion "other" needs a named approved check',
 		);
+	});
+});
+
+describe("review card text", () => {
+	// Reviewer (or pull request author) text that would fetch, define a link
+	// target, render HTML, notify or link through a character reference,
+	// build a table or turn into a link, with escapes already present.
+	const probes = [
+		"Looks odd ![s](https://evil.example/p)",
+		"[s]: https://evil.example/c?d=SECRET",
+		"- [t]: list item definition",
+		"[s\\\\]: even backslashes leave the label open",
+		"[s\\]: already escaped",
+		"\\[x]: older escape",
+		"nested [a[b]: c and [click](https://evil.example)",
+		"<img src=x> <!-- c --> </b> <?p?> <!DOCTYPE x> <https://evil.example>",
+		"a < b && c > d, &lt;b> typed literally, &amp;lt;i>",
+		"&commat;octocat &num;123 &#64;team &#x40;org",
+		"| a | b |\n| --- | --- |",
+		"see www.evil.example and https://evil.example/x",
+		"!\\[ already inert",
+	];
+	const live =
+		/(?<!\\)(?:\\\\)*(?:!\[|\][(:]|<[A-Za-z/!?]|&[A-Za-z#]|\||:\/\/)|www\./i;
+	const inert = factoryReviewInertMarkdown;
+	const readable = factoryReviewReadableText;
+
+	it("is inert after the rule, and the rule changes nothing it already made inert", () => {
+		for (const probe of probes) {
+			const made = inert(probe);
+			expect(made).not.toMatch(live);
+			expect(inert(made)).toBe(made);
+		}
+		// Hidden characters go; mentions and references stay as written.
+		expect(inert("@octocat\u202e fixed #12\u200b in\r\nGH-3")).toBe(
+			"@octocat fixed #12 in\nGH-3",
+		);
+	});
+
+	it("leaves code as written, where GitHub shows it literally", () => {
+		const code = "Use `Array<string>`, `x[i]: y` and `\\d+`; ``a ` b`` too.";
+		expect(inert(code)).toBe(code);
+		expect(inert("```ts\nif (a < b && c[0]) x |= 1;\n```\n<b>")).toBe(
+			"```ts\nif (a < b && c[0]) x |= 1;\n```\n\\<b>",
+		);
+		// Where GitHub could read it otherwise, it is not left as code: a span
+		// GitHub may close across lines, or a fence inside a list.
+		expect(inert("`a\nb` <img> `c`")).toBe("`a\nb` \\<img> `c`");
+		expect(inert("- x\n  ```\n<img>\n```")).toBe("- x\n  ```\n\\<img>\n```");
+		// A link's target or a bare URL would take in the backticks after it;
+		// neither forms, so the span is code on GitHub too.
+		expect(inert("[a](`) <img> `)")).toBe("[a\\](`) <img> `)");
+		expect(inert("www.e.test`<i>`")).toBe("www\\.e.test`<i>`");
+	});
+
+	it("reads without its escapes and posts back exactly as drafted", () => {
+		expect(readable(inert(probes[0] ?? ""))).toBe(probes[0]);
+		expect(readable(inert("&commat;x `a<b>` [y](z)"))).toBe(
+			"&commat;x `a<b>` [y](z)",
+		);
+		// Removing one escape must not make a neighbour a mark.
+		const colon = inert("x]\\://y");
+		expect(inert(readable(colon))).toBe(colon);
+		const atoms = [
+			"`",
+			"``",
+			"```",
+			"~~~",
+			"\\",
+			"<b>",
+			"&amp;",
+			"&#60;",
+			"]",
+			"[",
+			"(",
+			":",
+			"|",
+			"!",
+			"//",
+			"www.",
+			"\n",
+			"\n\n",
+			"  ",
+			"- ",
+			"> ",
+			"a",
+			" ",
+			"\u202e",
+			"\u200b",
+		];
+		let seed = 7;
+		const random = () => {
+			seed = (seed * 1103515245 + 12345) % 2147483648;
+			return seed / 2147483648;
+		};
+		for (let round = 0; round < 20_000; round++) {
+			let text = "";
+			for (let size = 1 + Math.floor(random() * 12); size > 0; size--)
+				text += atoms[Math.floor(random() * atoms.length)];
+			const made = inert(text);
+			expect(inert(made)).toBe(made);
+			expect(inert(readable(made))).toBe(made);
+		}
 	});
 });

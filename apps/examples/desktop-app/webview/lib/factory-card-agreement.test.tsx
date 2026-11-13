@@ -29,6 +29,7 @@ import {
 	FACTORY_BOARD_FIXTURES,
 	FACTORY_CARD_FIXTURES,
 	FACTORY_NEEDS_YOU_ORDER,
+	FACTORY_PR_REVIEW_CARD_FIXTURES,
 	FACTORY_SPLIT_CARD_FIXTURES,
 	type FactoryCardFixture,
 	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
@@ -329,5 +330,33 @@ describe("the desktop agrees with factoryCardState for split cards", () => {
 		expect(factoryCardState({ task, lastRun: run, ...links })).toMatchObject(
 			fixture.card,
 		);
+	});
+});
+
+/** Where the board lists each pull request review fixture, and its headline. */
+const REVIEW_CARDS: Record<string, { column: string; headline: string }> = {
+	"review queued": { column: "Queued", headline: "Waiting to review" },
+	reviewing: { column: "Working", headline: "Reviewing" },
+	"review draft ready": { column: "Done", headline: "Review draft ready" },
+	"review posted": { column: "Done", headline: "Review posted" },
+	"review stopped": { column: "Needs you", headline: "Review stopped" },
+};
+
+describe("the desktop agrees with factoryCardState for pull request reviews", () => {
+	it.each(
+		FACTORY_PR_REVIEW_CARD_FIXTURES.map(
+			(fixture) => [fixture.name, fixture] as const,
+		),
+	)("%s", async (name, fixture) => {
+		const { task, run } = fixture;
+		const activity = factoryActivity(task, attentionOf(task, run));
+		expect(activity.column).toBe(REVIEW_CARDS[name]?.column);
+		expect(factoryNeedsYou(activity)).toBe(fixture.card.waitingOn === "person");
+		expect(activity.station.station).toBe(fixture.card.stage);
+		// Scope, Build and Verify never ran, wherever the card is.
+		expect(activity.station.skipped).toEqual(["scope", "build", "verify"]);
+		const header = await headlineOf(fixture);
+		expect(header.headline).toBe(REVIEW_CARDS[name]?.headline);
+		expect(header.stopped).toBe(fixture.card.kind === "stopped");
 	});
 });

@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { gzipSync } from "node:zlib";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { MAX_SEARCH_OUTPUT_CHARS } from "./output-limits";
@@ -123,6 +124,28 @@ describe("createSearchExecutor", () => {
 			expect(result).toContain("small.ts");
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("searches for a pattern that reads like ripgrep options as text", async () => {
+		const root = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		const dir = path.join(root, "checkout");
+		await fs.mkdir(dir);
+		const patterns = path.join(root, "patterns.txt");
+		try {
+			// A worktree's `.git` file names the repository it belongs to.
+			await fs.writeFile(path.join(dir, ".git"), "gitdir: /outside/.git\n");
+			await fs.writeFile(path.join(dir, "notes.txt"), "alpha-marker\n");
+			await fs.writeFile(patterns, "alpha-marker\n");
+			await fs.writeFile(
+				path.join(dir, "packed.txt.gz"),
+				gzipSync("beta-marker\n"),
+			);
+			const search = createSearchExecutor();
+			for (const query of ["-uuuegitdir", `-f${patterns}`, "-zebeta-marker"])
+				expect(await search(query, dir, ctx)).toMatch(/^No results found/);
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
 		}
 	});
 });

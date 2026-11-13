@@ -154,6 +154,7 @@ export function describeFactoryScopeRoute(
 ): string | undefined {
 	const route = progress?.route;
 	if (!route) return undefined;
+	if (route.scoping === "none") return "not needed for a pull request review";
 	const by = route.source ? ` by ${route.source}` : "";
 	if (route.scoping === "designer")
 		return `plan provided${by} was not used (${route.reason ?? "it did not pass the quick check"}); Factory scoped it`;

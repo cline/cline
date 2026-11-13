@@ -35,8 +35,9 @@ import {
 	factoryRepositoryGuidanceNeedsAcceptance,
 	screenFactoryGuidance,
 } from "./factory-guidance";
-import { runFactoryCommand } from "./factory-local";
+import { runFactoryCommand, runFactoryReviewGit } from "./factory-local";
 import { FACTORY_OUTCOME_WATCH_MAX_AGE_DAYS } from "./factory-pull-request";
+import { factoryReviewCheckoutRoot } from "./factory-review-checkout";
 import {
 	createFactoryVerificationProfileSnapshot,
 	type FactoryVerificationProfileStore,
@@ -974,12 +975,14 @@ export async function cleanFactoryWorktrees(input: {
 	const remove =
 		input.removeWorktree ??
 		(async (sourceRoot: string, repoPath: string) => {
-			const result = await runFactoryCommand({
+			const command = {
 				cwd: sourceRoot,
-				file: "git",
 				args: ["worktree", "remove", repoPath],
 				timeoutMs: 120_000,
-			});
+			};
+			const result = await (factoryReviewCheckoutRoot(repoPath)
+				? runFactoryReviewGit(command)
+				: runFactoryCommand({ ...command, file: "git" }));
 			return { ok: result.exitCode === 0 };
 		});
 	const root = path.resolve(input.worktreesDir);

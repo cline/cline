@@ -48,6 +48,7 @@ import {
 	FACTORY_ACTIVITY,
 	FACTORY_DECISION,
 	FACTORY_LINE,
+	FACTORY_PR_REVIEW,
 	FACTORY_PRIORITY,
 	FACTORY_READY,
 	FACTORY_ROW_ACTION,
@@ -698,6 +699,23 @@ function factoryPlacement(
 					? FACTORY_DECISION.failure
 					: FACTORY_DECISION.blocker,
 		};
+	// A review draft is delivered whether or not it was posted: posting is
+	// optional, so it never needs the person.
+	if (card.deliverable?.kind === "review")
+		switch (card.kind) {
+			case "delivered":
+				return {
+					column: "Done",
+					label:
+						card.deliverable.outcome === "posted"
+							? FACTORY_PR_REVIEW.posted
+							: FACTORY_PR_REVIEW.draftReady,
+				};
+			case "running":
+				return { column: "Working", label: FACTORY_PR_REVIEW.reviewing };
+			case "queued":
+				return { column: "Queued", label: FACTORY_PR_REVIEW.waiting };
+		}
 	// A note never asks anything of the person; a rule proposed from it does.
 	if (card.reasonCode === "rule_proposed")
 		return { column: "Needs you", label: FACTORY_DECISION.rule };
