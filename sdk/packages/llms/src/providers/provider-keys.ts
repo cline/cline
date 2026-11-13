@@ -144,6 +144,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 	{ modelsDevKey: "lmstudio", generatedProviderId: "lmstudio" },
 	{ modelsDevKey: "zai", generatedProviderId: "zai" },
 	{ modelsDevKey: "requesty", generatedProviderId: "requesty" },
+	{
+		modelsDevKey: "rodiumai",
+		generatedProviderId: "rodiumai",
+		runtimeProviderId: "rodiumai",
+	},
 	{ modelsDevKey: "amazon-bedrock", generatedProviderId: "bedrock" },
 	{ modelsDevKey: "mistral", generatedProviderId: "mistral" },
 	{ modelsDevKey: "moonshotai", generatedProviderId: "moonshot" },
