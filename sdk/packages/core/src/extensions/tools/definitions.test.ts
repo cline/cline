@@ -2182,7 +2182,7 @@ describe("default editor tool", () => {
 		);
 	});
 
-	it("returns a recoverable tool error when text exceeds the soft character limit", async () => {
+	it("returns a recoverable tool error when text exceeds the character limit", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
 			executors: {
@@ -2225,9 +2225,9 @@ describe("default editor tool", () => {
 		if (typeof result !== "object" || result == null || !("error" in result)) {
 			throw new Error("Expected editor tool result to include an error.");
 		}
-		expect(result.error).toContain(
-			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
-		);
+		expect(result.error).toContain(`limit of ${INPUT_ARG_CHAR_LIMIT}`);
+		expect(result.error).not.toContain("recommended");
+		expect(result.error).toContain("rejected again");
 		expect(execute).not.toHaveBeenCalled();
 	});
 });
