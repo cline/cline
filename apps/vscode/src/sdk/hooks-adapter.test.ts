@@ -62,6 +62,46 @@ describe("hooks-adapter task id threading", () => {
 		expect(runner.run).toHaveBeenCalledWith(expect.objectContaining({ taskId: "conv-1" }))
 	})
 
+	it("serializes non-string tool result output as JSON instead of [object Object]", async () => {
+		const hooks = buildAgentHooks(stateManager)
+		const objOutput = { content: "file contents", path: "test.txt" }
+		await hooks.afterTool?.({
+			toolCall: { toolName: "read_file" },
+			input: { path: "test.txt" },
+			result: { output: objOutput, isError: false },
+			durationMs: 10,
+			snapshot,
+		} as never)
+
+		expect(mocks.create).toHaveBeenCalledWith("PostToolUse", "conv-1", "read_file")
+		expect(runner.run).toHaveBeenCalledWith(
+			expect.objectContaining({
+				postToolUse: expect.objectContaining({
+					result: JSON.stringify(objOutput),
+				}),
+			}),
+		)
+	})
+
+	it("passes string tool result output as-is", async () => {
+		const hooks = buildAgentHooks(stateManager)
+		await hooks.afterTool?.({
+			toolCall: { toolName: "write_file" },
+			input: { path: "test.txt" },
+			result: { output: "File written successfully", isError: false },
+			durationMs: 3,
+			snapshot,
+		} as never)
+
+		expect(runner.run).toHaveBeenCalledWith(
+			expect.objectContaining({
+				postToolUse: expect.objectContaining({
+					result: "File written successfully",
+				}),
+			}),
+		)
+	})
+
 	it("passes the task id when creating the TaskStart and UserPromptSubmit runners", async () => {
 		const hooks = buildAgentHooks(stateManager)
 		await hooks.beforeRun?.({ snapshot } as never)
