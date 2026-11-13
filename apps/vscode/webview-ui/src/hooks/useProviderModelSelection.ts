@@ -38,9 +38,18 @@ export function useProviderModelSelection(
 	const committedSelection = currentMode === "plan" ? config?.planSelection : config?.actSelection
 	const fallbackModelId = defaultModelId || Object.keys(models)[0] || ""
 	const selectedModelId = committedSelection?.modelId ?? fallbackModelId
-	const selectedModelInfo = committedSelection?.modelInfo
-		? fromProtobufModelInfo(committedSelection.modelInfo)
-		: (models[selectedModelId] ??
+	const liveCatalogModelInfo = selectedModelId ? models[selectedModelId] : undefined
+	const committedModelInfo = committedSelection?.modelInfo ? fromProtobufModelInfo(committedSelection.modelInfo) : undefined
+	// Prefer live catalog metadata when the selected model is in the resolved
+	// catalog and has no user-authored overrides, so refreshed model metadata
+	// supersedes an older persisted snapshot without discarding custom overrides.
+	const selectedModelInfo = committedSelection?.overrides
+		? (committedModelInfo ??
+			liveCatalogModelInfo ??
+			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
+			fallbackModelInfo)
+		: (liveCatalogModelInfo ??
+			committedModelInfo ??
 			(selectedModelId && customModelInfo ? customModelInfo(selectedModelId) : undefined) ??
 			fallbackModelInfo)
 

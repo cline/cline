@@ -185,13 +185,6 @@ function isModelInfo(value: unknown): value is ModelInfo {
 	return isRecord(value) && typeof value.supportsPromptCache === "boolean"
 }
 
-function isKnownModelIdForProvider(providerId: ProviderId, modelId: string): boolean {
-	const sdkProviderId = toSdkProviderId(providerId)
-	return Boolean(
-		getGeneratedModelsForProvider(sdkProviderId)[modelId] || MODEL_COLLECTIONS_BY_PROVIDER_ID[sdkProviderId]?.models[modelId],
-	)
-}
-
 function readProviderSettingsModelId(providerId: ProviderId): string | undefined {
 	const model = getProviderSettings(providerId).model
 	return typeof model === "string" && model.trim().length > 0 ? model.trim() : undefined
@@ -924,12 +917,12 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ResolvedMod
 		return rememberedSelection ?? providerSettingsSelection
 	}
 
-	if (!isKnownModelIdForProvider(providerId, modelId)) {
-		return rememberedSelection ?? providerSettingsSelection
-	}
-
+	// The mode-specific model id identifies the selection even when the
+	// bundled catalog does not list it, as with a model only the live catalog
+	// knows. providers.json cannot stand in for it: it holds one model per
+	// provider, while Plan and Act may each hold their own.
 	if (!rememberedSelection || rememberedSelection.modelId !== modelId) {
-		return providerSettingsSelection
+		return resolveSelection({ providerId, modelId })
 	}
 	return rememberedSelection
 }

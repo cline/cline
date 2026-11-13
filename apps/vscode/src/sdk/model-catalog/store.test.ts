@@ -1096,6 +1096,70 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSavedProviderSettings("openrouter")).not.toHaveProperty("maxTokens")
 	})
 
+	it("preserves separate Plan and Act selections across reload for providers sharing apiModelId", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const providerId = parseProviderId("openai-native")
+		mocks.setGeneratedModels("openai-native", {
+			"gpt-5.4": modelInfoA,
+			"gpt-5.4-mini": modelInfoB,
+		})
+		mocks.setApiConfiguration({
+			planActSeparateModelsSetting: true,
+			planModeApiProvider: "openai-native",
+			actModeApiProvider: "openai-native",
+		})
+		const store = createProviderConfigStore()
+
+		store.commitSelection(providerId, "plan", { providerId, modelId: "gpt-5.4" })
+		store.commitSelection(providerId, "act", { providerId, modelId: "gpt-5.4-mini" })
+
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		const reloadedStore = createReloadedStore()
+
+		expect(reloadedStore.readSelection(providerId, "plan")).toMatchObject({
+			providerId,
+			modelId: "gpt-5.4",
+			modelInfoSource: "catalog",
+			baseModelInfo: modelInfoA,
+			modelInfo: modelInfoA,
+		})
+		expect(reloadedStore.readSelection(providerId, "act")).toMatchObject({
+			providerId,
+			modelId: "gpt-5.4-mini",
+			modelInfoSource: "catalog",
+			baseModelInfo: modelInfoB,
+			modelInfo: modelInfoB,
+		})
+	})
+
+	it("preserves separate Plan and Act selections across reload for live-only models not in the static bundle", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const providerId = parseProviderId("openai-native")
+		mocks.setApiConfiguration({
+			planActSeparateModelsSetting: true,
+			planModeApiProvider: "openai-native",
+			actModeApiProvider: "openai-native",
+		})
+		const store = createProviderConfigStore()
+
+		store.commitSelection(providerId, "plan", { providerId, modelId: "gpt-5.9-live-only" }, modelInfoA)
+		store.commitSelection(providerId, "act", { providerId, modelId: "gpt-5.9-mini-live-only" }, modelInfoB)
+
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		const reloadedStore = createReloadedStore()
+
+		expect(reloadedStore.readSelection(providerId, "plan")).toMatchObject({
+			providerId,
+			modelId: "gpt-5.9-live-only",
+		})
+		expect(reloadedStore.readSelection(providerId, "act")).toMatchObject({
+			providerId,
+			modelId: "gpt-5.9-mini-live-only",
+		})
+	})
+
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
