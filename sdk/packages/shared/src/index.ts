@@ -315,6 +315,7 @@ export {
 export {
 	maskSecret,
 	sanitizeFileName,
+	sliceUtf16,
 	stripUtf8Bom,
 	trimNonEmpty,
 	truncateSplit,
