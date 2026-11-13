@@ -579,7 +579,7 @@ function ModelRow(props: {
 			<text fg={isSelected ? palette.textOnSelection : undefined}>
 				{model.name}
 			</text>
-			{model.maxInputTokens && (
+			{model.maxInputTokens !== undefined && model.maxInputTokens > 0 && (
 				<text fg={isSelected ? palette.textOnSelection : "gray"} flexShrink={0}>
 					{formatTokenCount(model.maxInputTokens)}
 				</text>
