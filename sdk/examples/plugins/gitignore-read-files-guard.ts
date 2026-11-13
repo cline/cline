@@ -181,10 +181,41 @@ function parseCheckIgnoreOutput(output: Buffer): IgnoreMatch[] {
 	return matches;
 }
 
+/**
+ * Reports whether workspaceRoot is inside a git work tree.
+ *
+ * `git check-ignore` exits immediately with "not a git repository" outside a
+ * work tree, which closes its stdin before we write to it (see the EPIPE
+ * guard below). Skipping the spawn entirely keeps the guard cheap and quiet
+ * in non-repository workspaces.
+ */
+async function isInsideGitWorkTree(): Promise<boolean> {
+	return new Promise((resolveResult) => {
+		const child = spawn("git", ["rev-parse", "--is-inside-work-tree"], {
+			cwd: workspaceRoot,
+			stdio: ["ignore", "pipe", "ignore"],
+			windowsHide: true,
+		});
+
+		const stdout: Buffer[] = [];
+		child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+
+		child.on("error", () => resolveResult(false));
+		child.on("close", (code) => {
+			const output = Buffer.concat(stdout).toString("utf8").trim();
+			resolveResult(code === 0 && output === "true");
+		});
+	});
+}
+
 async function checkIgnoredByWorkspaceGitignore(
 	relativePaths: string[],
 ): Promise<IgnoreMatch[]> {
 	if (relativePaths.length === 0) {
+		return [];
+	}
+
+	if (!(await isInsideGitWorkTree())) {
 		return [];
 	}
 
@@ -204,6 +235,15 @@ async function checkIgnoredByWorkspaceGitignore(
 
 		child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
 		child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+
+		child.stdin.on("error", (error) => {
+			// git exited before consuming stdin (e.g. the workspace is not a
+			// git repository), so the child.stdin.end() write fails with EPIPE.
+			// Without this handler the 'error' event is unhandled and crashes
+			// the entire plugin-sandbox process. Treat as no matches.
+			void error;
+			resolveMatches([]);
+		});
 
 		child.on("error", (error) => {
 			console.warn(
