@@ -1,6 +1,4 @@
-import type { ExtensionState } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { MessageTranslatorState } from "./message-translator"
 import { pushMessageToWebview, WebviewGrpcBridge } from "./webview-grpc-bridge"
 
 // Mock the gRPC streaming functions
@@ -29,11 +27,9 @@ vi.mock("@shared/proto-conversions/cline-message", () => ({
 
 describe("WebviewGrpcBridge", () => {
 	let bridge: WebviewGrpcBridge
-	let translatorState: MessageTranslatorState
 
 	beforeEach(() => {
-		translatorState = new MessageTranslatorState()
-		bridge = new WebviewGrpcBridge(translatorState)
+		bridge = new WebviewGrpcBridge()
 		vi.clearAllMocks()
 	})
 
@@ -78,23 +74,18 @@ describe("WebviewGrpcBridge", () => {
 		})
 	})
 
-	describe("pushStateUpdateFromController", () => {
-		it("should push state from the provided getter", async () => {
+	describe("terminal events", () => {
+		it.each([
+			{ type: "ended" },
+			{ type: "agent_event", payload: { event: { type: "done" } } },
+			{ type: "agent_event", payload: { event: { type: "error" } } },
+		])("does not bypass the controller state debouncer for %o", async (event) => {
 			const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
-			const mockState = { version: "1.0.0", mode: "act" } as unknown as ExtensionState
+			const listener = bridge.createListener()
 
-			await bridge.pushStateUpdateFromController(async () => mockState)
-
-			expect(sendStateUpdate).toHaveBeenCalledWith(mockState)
-		})
-
-		it("should handle errors from the state getter", async () => {
-			const { sendStateUpdate } = await import("@core/controller/state/subscribeToState")
-			const errorGetter = async () => {
-				throw new Error("state error")
-			}
-
-			await bridge.pushStateUpdateFromController(errorGetter)
+			// biome-ignore lint/suspicious/noExplicitAny: test-only event type
+			listener([], event as any)
+			await new Promise((resolve) => setTimeout(resolve, 10))
 
 			expect(sendStateUpdate).not.toHaveBeenCalled()
 		})

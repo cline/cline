@@ -33,7 +33,9 @@ describe("SdkSessionEventCoordinator", () => {
 		await Promise.resolve()
 
 		expect(options.messages.appendAndEmit).toHaveBeenCalledWith([message], event)
-		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+		// Transcript deltas use the partial-message stream. They must not also trigger a
+		// full ExtensionState snapshot, which grows with every message in a resumed task.
+		expect(options.postStateToWebview).not.toHaveBeenCalled()
 	})
 
 	it("filters late completion messages after cancellation", async () => {
