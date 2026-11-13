@@ -17,8 +17,7 @@
 //   - Auto-approve all (Shift+Tab)
 // ---------------------------------------------------------------------------
 
-import { expect, test } from "@microsoft/tui-test";
-import type { Terminal } from "@microsoft/tui-test/lib/terminal/term";
+import type { Cell, Color, TuiTest as Terminal } from "@microsoft/tui-test";
 import { CLINE_BIN, TERMINAL_WIDE } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import {
@@ -30,6 +29,7 @@ import {
 	expectVisible,
 	typeAndSubmit,
 } from "../helpers/terminal.js";
+import { expect, test } from "../helpers/test.js";
 
 test.describe("cline (authenticated) - shows chat view", () => {
 	test.use({
@@ -66,29 +66,33 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		env: clineEnv("default"),
 	});
 
-	type Background = {
-		mode: number | undefined;
-		color: number | undefined;
-	};
-	type TerminalSnapshot = ReturnType<Terminal["serialize"]> & {
-		baseY: number;
+	type TerminalSnapshot = {
+		text: string;
+		cells: Cell[];
 	};
 	const backgroundsEqual = (
-		left: Background | undefined,
-		right: Background | undefined,
-	): boolean => left?.mode === right?.mode && left?.color === right?.color;
-	const snapshotTerminal = (terminal: Terminal): TerminalSnapshot => ({
-		...terminal.serialize(),
-		baseY: terminal.getCursor().baseY,
+		left: Color | undefined,
+		right: Color | undefined,
+	): boolean => left === right;
+	const snapshotTerminal = async (
+		terminal: Terminal,
+	): Promise<TerminalSnapshot> => ({
+		text: await terminal.text(),
+		cells: await terminal.cells(
+			0,
+			0,
+			TERMINAL_WIDE.columns,
+			TERMINAL_WIDE.rows,
+		),
 	});
 
 	const findTextPosition = (
-		terminal: Terminal,
+		snapshot: TerminalSnapshot,
 		text: string,
 	): { x: number; y: number } => {
-		const lines = terminal.getViewableBuffer();
+		const lines = snapshot.text.split("\n");
 		for (let y = 0; y < lines.length; y++) {
-			const x = lines[y].join("").indexOf(text);
+			const x = lines[y].indexOf(text);
 			if (x !== -1) {
 				return { x, y };
 			}
@@ -99,25 +103,10 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 	const getCellBackground = (
 		snapshot: TerminalSnapshot,
 		position: { x: number; y: number },
-	): Background => {
-		const targetRow = snapshot.baseY + position.y;
-		let background: Background = { mode: undefined, color: undefined };
-
-		for (let y = snapshot.baseY; y <= targetRow; y++) {
-			for (let x = 0; x < TERMINAL_WIDE.columns; x++) {
-				const shift = snapshot.shifts.get(`${x},${y}`);
-				if (shift?.bgColorMode !== undefined) {
-					background = { mode: shift.bgColorMode, color: shift.bgColor };
-				}
-				if (x === position.x && y === targetRow) {
-					return background;
-				}
-			}
-		}
-
-		throw new Error(
-			`Cell is outside the visible terminal: ${position.x},${position.y}`,
-		);
+	): Color | undefined => {
+		return snapshot.cells.find(
+			(cell) => cell.x === position.x && cell.y === position.y,
+		)?.bg;
 	};
 
 	// @opentui-ui/dialog is built against @opentui/core ^0.1.69, whose
@@ -131,28 +120,32 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		terminal,
 	}) => {
 		await waitForChatReady(terminal);
-		const terminalBeforeDialog = snapshotTerminal(terminal);
+		const terminalBeforeDialog = await snapshotTerminal(terminal);
 		await typeAndSubmit(terminal, "/help");
 		await expectVisible(terminal, "Keyboard Shortcuts");
-		const dialogPosition = findTextPosition(terminal, "Keyboard Shortcuts");
+		const terminalWithDialog = await snapshotTerminal(terminal);
+		const dialogPosition = findTextPosition(
+			terminalWithDialog,
+			"Keyboard Shortcuts",
+		);
 		const backgroundAtDialogPosition = getCellBackground(
 			terminalBeforeDialog,
 			dialogPosition,
 		);
 		const dialogBackground = getCellBackground(
-			snapshotTerminal(terminal),
+			terminalWithDialog,
 			dialogPosition,
 		);
 		expect(dialogBackground).not.toEqual(backgroundAtDialogPosition);
 
-		terminal.keyEscape();
+		await terminal.press("Escape");
 		await expectNotVisible(terminal, "Keyboard Shortcuts");
 
 		// The panel unmounts a frame after its content. Poll the title's former
 		// position until the background captured from the visible panel is gone.
 		const deadline = Date.now() + 10_000;
 		let backgroundAfterDialog = getCellBackground(
-			snapshotTerminal(terminal),
+			await snapshotTerminal(terminal),
 			dialogPosition,
 		);
 		while (
@@ -161,7 +154,7 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		) {
 			await new Promise((resolve) => setTimeout(resolve, 100));
 			backgroundAfterDialog = getCellBackground(
-				snapshotTerminal(terminal),
+				await snapshotTerminal(terminal),
 				dialogPosition,
 			);
 		}
