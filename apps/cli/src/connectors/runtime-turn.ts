@@ -49,22 +49,6 @@ function formatToolInput(toolName: string | undefined, input: unknown): string {
 	}
 }
 
-export function formatConnectorToolStatus(input: {
-	toolName: string | undefined;
-	status: "start" | "error";
-	toolInput?: unknown;
-	errorMessage?: string;
-}): string {
-	const resolvedName = input.toolName?.trim() || "unknown_tool";
-	if (input.status === "start") {
-		return `Executing ${resolvedName}...`;
-	}
-	const detail = input.errorMessage?.trim();
-	return detail
-		? `${resolvedName} failed: ${truncateConnectorText(detail, 240)}`
-		: `${resolvedName} failed`;
-}
-
 export function formatConnectorApprovalPrompt(
 	input: PendingConnectorApproval,
 ): string {
@@ -105,33 +89,6 @@ export function parseConnectorApprovalDecision(
 	return undefined;
 }
 
-function resolveTextDelta(
-	payload: Record<string, unknown>,
-	previous: string,
-): { delta: string; nextText: string } {
-	const accumulated =
-		typeof payload.accumulated === "string" ? payload.accumulated : undefined;
-	if (typeof accumulated === "string") {
-		if (accumulated.startsWith(previous)) {
-			return {
-				delta: accumulated.slice(previous.length),
-				nextText: accumulated,
-			};
-		}
-		if (previous.startsWith(accumulated)) {
-			return {
-				delta: "",
-				nextText: previous,
-			};
-		}
-	}
-	const text = typeof payload.text === "string" ? payload.text : "";
-	return {
-		delta: text,
-		nextText: `${previous}${text}`,
-	};
-}
-
 export function createConnectorRuntimeTurnStream(input: {
 	client: HubSessionClient;
 	sessionId: string;
@@ -140,7 +97,6 @@ export function createConnectorRuntimeTurnStream(input: {
 	logger: CliLoggerAdapter;
 	transport: string;
 	conversationId: string;
-	onToolStatus?: (message: string) => Promise<void>;
 	onApprovalRequested?: (approval: PendingConnectorApproval) => Promise<void>;
 	onMedia?: (media: GeneratedMedia) => Promise<void> | void;
 	onCompleted?: (result: {
@@ -150,13 +106,12 @@ export function createConnectorRuntimeTurnStream(input: {
 	}) => Promise<void>;
 	onFailed?: (error: Error) => Promise<void>;
 }): AsyncIterable<string> {
-	let lastStatusMessage = "";
-
 	return {
 		[Symbol.asyncIterator]: async function* () {
 			const queue: QueueItem[] = [];
 			let notify: (() => void) | undefined;
-			let streamedText = "";
+			let pendingSubmission: string | undefined;
+			let submittedText: string | undefined;
 			let closed = false;
 			let failed = false;
 
@@ -164,24 +119,6 @@ export function createConnectorRuntimeTurnStream(input: {
 				queue.push(item);
 				notify?.();
 				notify = undefined;
-			};
-
-			const postStatus = async (message: string): Promise<void> => {
-				if (!message || message === lastStatusMessage) {
-					return;
-				}
-				lastStatusMessage = message;
-				try {
-					await input.onToolStatus?.(message);
-				} catch (error) {
-					input.logger.core.log("Connector tool status delivery failed", {
-						severity: "warn",
-						transport: input.transport,
-						conversationId: input.conversationId,
-						sessionId: input.sessionId,
-						error,
-					});
-				}
 			};
 
 			const stopStreaming = input.client.streamEvents(
@@ -224,33 +161,32 @@ export function createConnectorRuntimeTurnStream(input: {
 							return;
 						}
 						if (event.eventType === "runtime.chat.tool_call_start") {
-							void postStatus(
-								formatConnectorToolStatus({
-									toolName:
-										typeof event.payload.toolName === "string"
-											? event.payload.toolName
-											: undefined,
-									status: "start",
-									toolInput: event.payload.input,
-								}),
-							);
+							if (event.payload.toolName === "submit_and_exit") {
+								const rawInput = event.payload.input;
+								const input =
+									typeof rawInput === "string"
+										? parseToolApprovalInput(rawInput)
+										: rawInput;
+								const summary =
+									typeof input === "object" && input !== null &&
+									typeof (input as { summary?: unknown }).summary === "string"
+										? (input as { summary: string }).summary.trim()
+										: "";
+								pendingSubmission = summary || undefined;
+							}
 							return;
 						}
 						if (event.eventType === "runtime.chat.tool_call_end") {
-							if (
-								typeof event.payload.error === "string" &&
-								event.payload.error.trim()
-							) {
-								void postStatus(
-									formatConnectorToolStatus({
-										toolName:
-											typeof event.payload.toolName === "string"
-												? event.payload.toolName
-												: undefined,
-										status: "error",
-										errorMessage: event.payload.error,
-									}),
+							if (event.payload.toolName === "submit_and_exit") {
+								const hasError = Boolean(
+									typeof event.payload.error === "string" &&
+										event.payload.error.trim(),
 								);
+								if (!hasError && pendingSubmission) {
+									submittedText = pendingSubmission;
+									push({ type: "chunk", value: pendingSubmission });
+								}
+								pendingSubmission = undefined;
 							}
 							return;
 						}
@@ -268,11 +204,7 @@ export function createConnectorRuntimeTurnStream(input: {
 							}
 							return;
 						}
-						const resolved = resolveTextDelta(event.payload, streamedText);
-						streamedText = resolved.nextText;
-						if (resolved.delta) {
-							push({ type: "chunk", value: resolved.delta });
-						}
+						// Assistant narration is intentionally hidden in connector chats.
 					},
 					onError: (error) => {
 						input.logger.core.log(
@@ -304,18 +236,12 @@ export function createConnectorRuntimeTurnStream(input: {
 					if (failed) {
 						return;
 					}
-					const finalText = response.result.text ?? "";
 					await input.onCompleted?.({
-						text: finalText,
+						text: submittedText ?? "",
 						finishReason: response.result.finishReason,
 						iterations: response.result.iterations,
 					});
-					if (finalText?.startsWith(streamedText)) {
-						const remainder = finalText.slice(streamedText.length);
-						if (remainder) {
-							push({ type: "chunk", value: remainder });
-						}
-					}
+					// Connector replies are emitted only from a successful submit_and_exit call.
 				})
 				.catch(async (error) => {
 					if (failed) {
