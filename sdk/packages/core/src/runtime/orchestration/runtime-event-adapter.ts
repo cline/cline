@@ -63,6 +63,7 @@ import type {
 	AgentUsage,
 	LegacyAgentUsage,
 } from "@cline/shared";
+import { extractToolPayloadError } from "../../extensions/tools/payload-error";
 
 // =============================================================================
 // Helpers
@@ -139,8 +140,16 @@ function statusToLegacyFinishReason(
 function deriveToolError(
 	result: AgentToolResultPart | undefined,
 ): string | undefined {
-	if (!result || result.isError !== true) {
+	if (!result) {
 		return undefined;
+	}
+	if (result.isError !== true) {
+		// Tools that report failure inside their payload rather than by
+		// throwing (the `ToolOperationResult[]` shape returned by read_files,
+		// search_codebase, fetch_web_content and run_commands) leave the
+		// envelope unflagged. Without this the event carries no error and
+		// every renderer presents the call as a success.
+		return extractToolPayloadError(result.output);
 	}
 	if (typeof result.output === "string") {
 		return result.output;
