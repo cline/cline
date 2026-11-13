@@ -9,7 +9,10 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
-import type { AgentToolContext } from "@cline/shared";
+import {
+	type AgentToolContext,
+	sliceHeadAtCodePointBoundary,
+} from "@cline/shared";
 import { resolveExistingFilePath } from "@cline/shared/storage";
 import {
 	TOOL_RESULT_CACHE_MISS,
@@ -142,7 +145,7 @@ async function readTextWindow(
 
 			let line = rawLine;
 			if (line.length > MAX_LINE_CHARS) {
-				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+				line = `${sliceHeadAtCodePointBoundary(line, MAX_LINE_CHARS)} [line truncated]`;
 			}
 
 			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
