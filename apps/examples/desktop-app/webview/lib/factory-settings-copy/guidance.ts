@@ -44,7 +44,6 @@ export const FS_GUIDANCE = {
 	none: "None",
 	builtIn: "Built-in",
 	changedCount: (n: number) => `${n} changed`,
-	chars: (n: number) => count(n),
 	targetSummary: (title: string, state: string) => `${title} · ${state}`,
 
 	yours: "Yours",
@@ -69,12 +68,12 @@ export const FS_GUIDANCE = {
 	empty: (target: string) =>
 		`No guidance for ${target} yet. Roles use Factory's built-in instructions.`,
 	write: "Write guidance",
-	askFactory: "Ask Factory",
+	askFactory: "Ask Factory to write it",
 
-	edit: "Edit",
+	edit: "Edit text",
 	editLabel: (title: string, scope: string) =>
 		`Edit ${title} guidance, ${scope}`,
-	change: "Change with Ask Factory",
+	change: "Ask Factory to change it",
 	draft: (target: string) => `Change the ${target} guidance: `,
 	draftRepository: (target: string, project: string) =>
 		`Change the ${target} guidance for ${project}: `,
@@ -103,6 +102,7 @@ export const FS_GUIDANCE = {
 		`${keeps} using Factory's built-in instructions until you accept it.`,
 	accept: "Accept change",
 	discard: "Discard change",
+	discardAction: "Discard change…",
 	discardTitle: "Discard change?",
 	discardBody:
 		"The file goes back to the version you accepted. History keeps the outside change.",

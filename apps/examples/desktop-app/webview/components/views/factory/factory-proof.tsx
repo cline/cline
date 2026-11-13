@@ -23,7 +23,12 @@ import {
 	factoryShortModel,
 } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
-import { type FactoryTone, StatusPill, toneText } from "./factory-ui";
+import {
+	DetailsSummary,
+	type FactoryTone,
+	StatusPill,
+	toneText,
+} from "./factory-ui";
 
 /**
  * Whether a requirement's own text says the build cannot check it ("the
@@ -412,9 +417,7 @@ export function FactoryProof({
 				) : null}
 				{requirements?.length ? (
 					<details className="text-sm">
-						<summary className="cursor-pointer select-none text-xs text-muted-foreground">
-							{FACTORY_PROOF.showEach}
-						</summary>
+						<DetailsSummary>{FACTORY_PROOF.showEach}</DetailsSummary>
 						<ul
 							className="mt-2 divide-y rounded-lg border"
 							data-testid="factory-proof-requirements"

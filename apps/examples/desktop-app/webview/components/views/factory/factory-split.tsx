@@ -34,7 +34,7 @@ import {
 	type FactoryTone,
 	factoryShortId,
 	Panel,
-	toneText,
+	toneDot,
 } from "./factory-ui";
 
 /** Another card of the same split, as a link names it. */
@@ -174,7 +174,7 @@ export function FactoryParentLink({
 			aria-label={FACTORY_SPLIT.openParent(id)}
 			title={`${FACTORY_SPLIT.partOf(id)}: ${parent.title}`}
 			className={cn(
-				"h-auto gap-0.5 p-0 font-normal text-muted-foreground hover:text-foreground has-[>svg]:px-0",
+				"h-auto gap-0.5 p-0 font-normal text-accent-foreground hover:underline has-[>svg]:px-0",
 				compact ? "font-mono text-[10.5px]" : "text-xs",
 				className,
 			)}
@@ -347,6 +347,7 @@ export function FactoryPartsPanel({
 					<Button
 						size="sm"
 						variant="outline"
+						className="text-error-text hover:border-destructive/60 hover:bg-destructive/10 hover:text-error-text"
 						disabled={busy}
 						onClick={() => setConfirming(true)}
 					>
@@ -366,30 +367,36 @@ export function FactoryPartsPanel({
 							<span className="shrink-0 tabular-nums text-muted-foreground">
 								{row.number}.
 							</span>
-							{row.card?.shortId ? (
-								<Button
-									variant="link"
-									className="h-auto shrink-0 p-0 font-mono text-xs"
+							{row.card ? (
+								<button
+									type="button"
+									className="min-w-0 rounded-sm text-left hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 									onClick={() => row.card && onOpenCard(row.card.taskId)}
 								>
-									{row.card.shortId}
-								</Button>
-							) : null}
-							<span
-								className={cn(
-									"min-w-0 break-words",
-									!row.card && "text-muted-foreground",
-								)}
-							>
-								{row.card?.title ?? row.title}
-							</span>
+									{row.card.shortId ? (
+										<span className="mr-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+											{row.card.shortId}
+										</span>
+									) : null}
+									<span className="break-words">{row.card.title}</span>
+								</button>
+							) : (
+								<span className="min-w-0 break-words text-muted-foreground">
+									{row.title}
+								</span>
+							)}
 						</div>
 						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-5 text-xs">
-							<span
-								className={
-									row.card ? toneText(row.card.tone) : "text-muted-foreground"
-								}
-							>
+							<span className="flex items-center gap-1.5 text-muted-foreground">
+								{row.card ? (
+									<span
+										aria-hidden
+										className={cn(
+											"size-1.5 rounded-full",
+											toneDot(row.card.tone),
+										)}
+									/>
+								) : null}
 								{row.omitted
 									? FACTORY_SPLIT.leftOut
 									: (row.card?.label ?? row.missing)}

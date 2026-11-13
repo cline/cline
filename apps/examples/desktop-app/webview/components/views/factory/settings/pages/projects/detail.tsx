@@ -74,7 +74,7 @@ export function ProjectDetail({
 							type="button"
 							aria-label={P.back}
 							onClick={onBack}
-							className="rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						>
 							{FS_PAGES.projects}
 						</button>

@@ -137,6 +137,22 @@ describe("Connections", () => {
 		await page.unmount();
 	});
 
+	it("marks only the browser links with an arrow and draws Manage providers as a bordered button", async () => {
+		const page = await renderSettingsPage(settingsPage, {
+			client: client(signedIn),
+			shell: { workflow },
+		});
+		await click(page.row("linear")?.querySelector("button[aria-expanded]"));
+		const withArrow = [...page.container.querySelectorAll("button")]
+			.filter((button) => button.querySelector("svg.lucide-arrow-up-right"))
+			.map((button) => button.textContent);
+		expect(withArrow).toEqual(["Open Linear settings"]);
+		expect(page.buttons("Manage providers")[0]?.className.split(" ")).toContain(
+			"border",
+		);
+		await page.unmount();
+	});
+
 	it("gives the exact sign-in command to copy when gh is not signed in", async () => {
 		const page = await renderSettingsPage(settingsPage, {
 			client: client(signedOut),

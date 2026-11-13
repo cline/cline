@@ -1199,6 +1199,7 @@ export type FactoryStage =
 	| "Review posted"
 	| "Delivered"
 	| "Stopped"
+	| "Stopped opening the draft PR"
 	| "Archived";
 
 /** What the user must do for a card; present only when factoryCardState says it waits on a person. */
@@ -1659,6 +1660,10 @@ function describeFactoryStage(
 		case "delivered_with_findings":
 			return "Draft PR ready";
 		case "stopped":
+			// The draft PR step comes after Review; Review itself passed.
+			return card.reasonCode === "publish_failed"
+				? "Stopped opening the draft PR"
+				: "Stopped";
 		case "closed":
 			return "Stopped";
 	}
@@ -1908,6 +1913,7 @@ function describeFactoryCardWithUrgency(
 	queue: FactoryQueueState | undefined,
 	now = Date.now(),
 	links: FactoryStatusLinks = {},
+	slotsInUse = queue?.working.length ?? 0,
 ): {
 	card: FactoryStatusCard;
 	urgency?: number;
@@ -1962,10 +1968,11 @@ function describeFactoryCardWithUrgency(
 
 	const repairRound = state?.repairRound || design?.repairRound || undefined;
 	const slots = queue
-		? `${queue.working.length} of ${queue.concurrency} slots in use`
+		? `${slotsInUse} of ${queue.concurrency} slots in use`
 		: undefined;
 	let queueLine: string | undefined;
-	if (live) queueLine = slots ? `working (${slots})` : "working";
+	if (live && card.waitingOn !== "person")
+		queueLine = slots ? `working (${slots})` : "working";
 	else if (card.kind === "queued" && queue?.paused)
 		queueLine = "Factory is paused";
 	else if (queuedAt >= 0)
@@ -2085,7 +2092,7 @@ export function createFactoryStatusTool(
 	return createTool({
 		name: FACTORY_STATUS_TOOL_NAME,
 		description:
-			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 open cards (those needing the user first, then those working, then the rest by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
+			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 cards (those needing the user first, then the open cards working, then the other open cards by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
 			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
 		inputSchema: zodToJsonSchema(FactoryStatusToolInputSchema),
 		retryable: false,
@@ -2123,6 +2130,19 @@ export function createFactoryStatusTool(
 				// A card's split links, from the manager's one derivation.
 				const linksOf = (task: AgendaTaskRecord): FactoryStatusLinks =>
 					manager.getFactoryCardLinks?.(task.taskId) ?? {};
+				// As the board counts Working: a card whose live session waits on
+				// the user (a scoping question) is in Needs you instead.
+				const live = await Promise.all(
+					(queue?.working ?? []).map((id) =>
+						manager.getTask(id, { reconcile: false }),
+					),
+				);
+				const slotsInUse = live.filter(
+					(task) =>
+						!task ||
+						factoryStatusCardState(task, currentRun(task, runsOf(task)), queue)
+							.waitingOn !== "person",
+				).length;
 				const describeWithUrgency = (
 					task: AgendaTaskRecord,
 					runs = runsOf(task),
@@ -2134,6 +2154,7 @@ export function createFactoryStatusTool(
 						queue,
 						undefined,
 						links,
+						slotsInUse,
 					);
 					return {
 						card:
@@ -2199,7 +2220,7 @@ export function createFactoryStatusTool(
 					};
 				};
 				const overview = queue
-					? `${queue.working.length} of ${queue.concurrency} slots in use, ${queue.queued.length} waiting${queue.paused ? "; Factory is paused, so nothing new starts" : ""}`
+					? `${slotsInUse} of ${queue.concurrency} slots in use, ${queue.queued.length} waiting${queue.paused ? "; Factory is paused, so nothing new starts" : ""}`
 					: undefined;
 				let matches: AgendaTaskRecord[];
 				if (input.task_id) {
@@ -2246,17 +2267,17 @@ export function createFactoryStatusTool(
 						throw new Error(
 							`Name the card for ${input.action} with task_id or query.`,
 						);
+					// Every unarchived card's state counts toward needsYou, as on the
+					// board: a delivery can wait on the user too. Only the cards
+					// listed are described in full: what needs the user, then what
+					// is working, then the other open cards, highest priority first.
+					// Only a waiting part reads more: its earlier parts.
 					const tasks = await manager.listTasks({
 						scope: "workspace",
 						workspaceRoot,
 						factoryOnly: true,
-						statuses: OPEN_STATUSES,
 						limit: OVERVIEW_SCANNED,
 					});
-					// Every open card's state counts toward needsYou; only the cards
-					// listed are described in full: what needs the user, then what
-					// is working, then the rest, highest priority first. Only a
-					// waiting part reads more: its earlier parts.
 					const dependencies = new Map(
 						tasks
 							.filter((task) => task.factoryBlockedBy)
@@ -2281,7 +2302,11 @@ export function createFactoryStatusTool(
 								: [],
 						)
 						.sort(compareFactoryNeedsYou);
-					const rest = scanned.filter((entry) => entry.urgency === undefined);
+					const open = new Set<AgendaTaskStatus>(OPEN_STATUSES);
+					const rest = scanned.filter(
+						(entry) =>
+							entry.urgency === undefined && open.has(entry.task.status),
+					);
 					const working = (entry: (typeof rest)[number]) =>
 						entry.state.kind === "running" || entry.state.kind === "scoping";
 					const listed = [
@@ -2339,7 +2364,7 @@ export function createFactoryStatusTool(
 								next: card.next,
 							};
 						}),
-						more: tasks.length > 20,
+						more: needing.length + rest.length > 20,
 					};
 				}
 				if (input.action === "status") {

@@ -191,6 +191,36 @@ describe("Roles & models: an expanded role", () => {
 		await page.unmount();
 	});
 
+	it("expands with one down chevron that turns when the role is open", async () => {
+		const page = await render();
+		const toggle = page.container.querySelector(
+			'button[aria-controls="role-implementers-detail"]',
+		);
+		expect(toggle?.querySelectorAll("svg")).toHaveLength(1);
+		expect(toggle?.querySelector("svg")?.getAttribute("class")).not.toContain(
+			"rotate-180",
+		);
+		await page.expand("implementers");
+		expect(toggle?.querySelectorAll("svg")).toHaveLength(1);
+		expect(toggle?.querySelector("svg")?.getAttribute("class")).toContain(
+			"rotate-180",
+		);
+		await page.unmount();
+	});
+
+	it("marks the selected agent tab with a fill other tabs only get on hover", async () => {
+		const page = await render();
+		await page.expand("implementers");
+		const [selected, other] = [
+			...page.container.querySelectorAll('[role="tab"]'),
+		].map((tab) => tab.className.split(" "));
+		expect(selected).toContain("bg-surface-hover");
+		expect(selected).not.toContain("hover:bg-surface-hover-lighter");
+		expect(other).not.toContain("bg-surface-hover");
+		expect(other).toContain("hover:bg-surface-hover-lighter");
+		await page.unmount();
+	});
+
 	it("edits the selected agent's model in its tab", async () => {
 		const page = await render();
 		await page.expand("implementers");

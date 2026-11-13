@@ -229,7 +229,7 @@ export function TestSetupEditor({
 			<div className="flex justify-end gap-2">
 				<Button
 					type="button"
-					variant="ghost"
+					variant="outline"
 					size="sm"
 					disabled={busy}
 					onClick={onCancel}

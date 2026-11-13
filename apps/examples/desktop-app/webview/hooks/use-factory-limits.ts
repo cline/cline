@@ -7,10 +7,17 @@ import type { FactoryLimits } from "@/lib/factory-limits";
 type SupportedLimits = Extract<FactoryLimits, { supported: true }>;
 
 /**
+ * A burst of `refreshSpend` calls reads the spend once, this long after the
+ * first: the Hub caches the figure for about as long.
+ */
+export const SPEND_REFRESH_MS = 5_000;
+
+/**
  * How much Factory work the Hub runs at once, whether new work is paused
  * (`limits.paused`, from a Hub that persists it), and the daily spending limit
  * (`limits.dailyCostUsd`, from a Hub that supports it). The Hub is the source
  * of truth; a change shows immediately and rolls back if the Hub rejects it.
+ * Today's spend (`limits.spentTodayUsd`) is read again on `refreshSpend`.
  * `enabled: false` reads nothing, for a surface that may not need the limits.
  */
 export function useFactoryLimits({
@@ -27,6 +34,7 @@ export function useFactoryLimits({
 		"read" | "concurrency" | "dailyCostUsd" | null
 	>(null);
 	const latest = useRef(0);
+	const savingNow = useRef(false);
 	// Bumped by `reload`, after something else changed the Hub's limits.
 	const [version, setVersion] = useState(0);
 
@@ -60,6 +68,44 @@ export function useFactoryLimits({
 		};
 	}, [enabled, version]);
 
+	const spendTimer = useRef<number | undefined>(undefined);
+	const spendReads = useRef(0);
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+			window.clearTimeout(spendTimer.current);
+			spendTimer.current = undefined;
+		};
+	}, []);
+
+	/**
+	 * Reads today's spend again, once for a burst of calls, after card work
+	 * may have spent money. A change the person is saving wins over it.
+	 */
+	const refreshSpend = useCallback(() => {
+		if (!enabled || spendTimer.current !== undefined) return;
+		spendTimer.current = window.setTimeout(async () => {
+			spendTimer.current = undefined;
+			const request = ++spendReads.current;
+			const attempt = latest.current;
+			try {
+				const value =
+					await desktopClient.invoke<FactoryLimits>("factory_get_limits");
+				if (
+					mounted.current &&
+					request === spendReads.current &&
+					attempt === latest.current &&
+					!savingNow.current
+				)
+					setLimits(value);
+			} catch {
+				// The shown figure stays until the next read.
+			}
+		}, SPEND_REFRESH_MS);
+	}, [enabled]);
+
 	/** Reads the limits again (after a settings reset). */
 	const reload = useCallback(() => setVersion((value) => value + 1), []);
 
@@ -82,6 +128,7 @@ export function useFactoryLimits({
 				...change,
 			});
 			setSaving(true);
+			savingNow.current = true;
 			setError(null);
 			setErrorFor(null);
 			try {
@@ -98,7 +145,10 @@ export function useFactoryLimits({
 				);
 				setError(cause instanceof Error ? cause.message : failure);
 			} finally {
-				if (attempt === latest.current) setSaving(false);
+				if (attempt === latest.current) {
+					setSaving(false);
+					savingNow.current = false;
+				}
 			}
 		},
 		[limits],
@@ -137,5 +187,6 @@ export function useFactoryLimits({
 		setDailyCostUsd,
 		setPaused,
 		reload,
+		refreshSpend,
 	};
 }

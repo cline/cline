@@ -281,6 +281,21 @@ describe("FactorySettingsPage shell", () => {
 		expect(back).toHaveBeenCalledOnce();
 	});
 
+	it("draws Ask Factory as an outline toggle, not a filled primary", async () => {
+		serve(handsOff());
+		await render({ onAskFactory: () => {} });
+		const ask = () =>
+			container.querySelector<HTMLElement>("[data-ask-factory]");
+		const fill = () =>
+			ask()?.getAttribute("class")?.split(/\s+/).includes("bg-surface-hover");
+		expect(ask()?.getAttribute("class")).not.toContain("bg-primary");
+		expect(ask()?.getAttribute("aria-pressed")).toBe("false");
+		expect(fill()).toBe(false);
+		await render({ onAskFactory: () => {}, askFactoryOpen: true });
+		expect(ask()?.getAttribute("aria-pressed")).toBe("true");
+		expect(fill()).toBe(true);
+	});
+
 	it("lists five groups and eleven pages, Automation first", async () => {
 		serve(handsOff());
 		await render();
@@ -532,7 +547,7 @@ describe("Automation", () => {
 					?.textContent,
 			).toContain("sets a $10 card limit");
 			expect(control("humanStamp").value).toBe("always");
-			await click(buttons("Update")[0]);
+			await click(buttons("Update the workflow")[0]);
 			expect(saved).toHaveLength(1);
 			expect(lastSaved()).toMatchObject({
 				autonomy: "hands_off",

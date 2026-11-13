@@ -183,6 +183,46 @@ describe("Test setup page", () => {
 		);
 	});
 
+	it("folds a long command in a code block until Show full command", async () => {
+		const start =
+			`bun run dev --port $PORT ${"--flag value ".repeat(20)}`.trim();
+		const page = await render({
+			...states.proposed,
+			profile: { ...profile, environment: { ...profile.environment, start } },
+		});
+		const block = page.container.querySelector(
+			'[data-field="start"] [data-command-block] pre',
+		);
+		expect(block?.textContent).toBe(start);
+		expect(block?.className).toContain("overflow-hidden");
+		const toggle = page.buttons("Show full command")[0];
+		expect(toggle?.getAttribute("aria-controls")).toBe(block?.id);
+		await click(toggle);
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(block?.className).toContain("overflow-auto");
+		expect(
+			page.container.querySelector('[data-field="install"] button'),
+		).toBeNull();
+	});
+
+	it("keeps Needs approval a static pill, unlike the Approve button beside it", async () => {
+		const page = await render(states.proposed);
+		const pill = [
+			...page.container.querySelectorAll('[data-slot="badge"]'),
+		].find((badge) => badge.textContent === "Needs approval");
+		expect(pill?.closest("button")).toBeNull();
+		expect(pill?.className).toContain("rounded-full");
+		expect(pill?.className).toContain("border-transparent");
+		expect(page.buttons("Approve")[0]?.className).not.toContain("rounded-full");
+	});
+
+	it("draws the editor's Cancel as a bordered button", async () => {
+		const page = await render(states.local);
+		await click(page.buttons("Edit")[0]);
+		const cancel = page.buttons("Cancel")[0];
+		expect(cancel?.className.split(" ")).toContain("border");
+	});
+
 	it("approves by the shown hash and stops using by the approved hash", async () => {
 		const page = await render(states.proposed);
 		await click(page.buttons("Approve")[0]);

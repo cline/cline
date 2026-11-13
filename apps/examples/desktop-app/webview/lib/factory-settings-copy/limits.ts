@@ -17,12 +17,13 @@ export const FS_LIMITS = {
 		"Factory stops starting and running work when today's spending reaches this.",
 	spentToday: (spent: string) => `${spent} spent today · resets at midnight`,
 	noDailyLimit: "No limit: Factory keeps spending until you stop it.",
-	perDay: "per day",
 	cardLimit: "Card spending limit",
 	cardLimitHint:
 		"A card stops, even mid-run, when it has spent this much. For new work.",
-	builtIn: "Built-in limits",
-	builtInHint: "Time and step limits Factory applies on its own.",
+	builtIn: "Time and step limits",
+	builtInHint: "Limits Factory applies on its own.",
+	showBuiltIn: "Show the limits",
+	hideBuiltIn: "Hide the limits",
 	builtInItems: [
 		["Role session", "30 minutes unless the role sets less (Roles & models)"],
 		[

@@ -137,10 +137,14 @@ export const factoryDesignSplitSchema = z
 	});
 export type FactoryDesignSplit = z.infer<typeof factoryDesignSplitSchema>;
 
-/** The designer's final response when it splits the request. */
-export const factoryDesignSplitResponseSchema = z
-	.object({ split: factoryDesignSplitSchema })
-	.strict();
+/**
+ * The designer's final response when it splits the request. Keys beside
+ * `split` are dropped, not rejected: the same prompt asks adaptive cards for
+ * the plan format's reviewSelection, which a breakdown has no use for.
+ */
+export const factoryDesignSplitResponseSchema = z.object({
+	split: factoryDesignSplitSchema,
+});
 
 /**
  * An approved breakdown, stored on the parent with its status set to

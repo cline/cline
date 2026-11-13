@@ -327,6 +327,16 @@ describe("FactoryStageRows", () => {
 		expect(rows[1]).toContain("Skipped: no matching files");
 		expect(rows[2]).toContain("Security scan");
 		expect(rows[2]).toContain("Needs approval");
+		// The output toggle is a disclosure naming the output it opens.
+		const toggle = container.querySelector<HTMLButtonElement>(
+			"button[aria-expanded]",
+		);
+		const outputId = toggle?.getAttribute("aria-controls");
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(outputId && document.getElementById(outputId)).toBeTruthy();
+		await act(async () => toggle?.click());
+		expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+		expect(toggle?.textContent).toBe("Show output · exit 1");
 		await act(async () =>
 			root.render(
 				<FactoryStageRows

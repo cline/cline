@@ -198,7 +198,7 @@ export const settingsPage: SettingsPageDefinition = {
 		},
 		...DANGER_ACTIONS.map((action) => ({
 			row: action.row,
-			title: action.title,
+			title: action.confirmTitle.replace("?", ""),
 			description: action.hint,
 		})),
 	],

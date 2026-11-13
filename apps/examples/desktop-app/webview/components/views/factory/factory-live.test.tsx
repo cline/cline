@@ -198,6 +198,8 @@ it("board buttons are labelled with the role and card", async () => {
 	);
 	if (!(button instanceof HTMLButtonElement)) throw new Error("No button");
 	expect(button.textContent).toBe("Watch");
+	// The session opens in the app: no outside-link arrow.
+	expect(button.querySelector("svg")).toBeNull();
 	await act(async () => button.click());
 	expect(onOpenSession).toHaveBeenCalledWith("s");
 });

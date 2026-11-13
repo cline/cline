@@ -287,14 +287,14 @@ it("archives with revision protection, surfaces conflicts, and restores without 
 
 it("requires explicit confirmation before deleting a task", async () => {
 	await render(task);
-	await menuItem("Delete…");
+	await menuItem("Delete card…");
 	expect(mocks.invoke).not.toHaveBeenCalledWith(
 		"task.delete",
 		expect.anything(),
 	);
-	await act(async () => button("Keep task").click());
+	await act(async () => button("Keep card").click());
 	expect(onClose).not.toHaveBeenCalled();
-	await menuItem("Delete…");
+	await menuItem("Delete card…");
 	await act(async () => button("Delete permanently").click());
 	expect(mocks.invoke).toHaveBeenCalledWith("task.delete", {
 		taskId: task.taskId,
@@ -1004,6 +1004,8 @@ it("does not label an intake session as the designer before scoping starts", asy
 	expect(document.body.textContent).not.toContain("View design transcript");
 	await act(async () => button("Start scoping").click());
 	expect(mocks.designFactoryTask).toHaveBeenCalledWith(task.taskId);
+	// The transcript opens in the app, so it carries no outside-link arrow.
+	expect(button("View design transcript").querySelector("svg")).toBeNull();
 	await act(async () => button("View design transcript").click());
 	expect(onOpenSession).toHaveBeenCalledWith("designer");
 });
@@ -1224,6 +1226,8 @@ it("shows a designer conclusion, keeps approval blocked and offers dismissal or 
 		"The designer concluded no build is needed (duplicate). Dismiss the card, or revise the brief to design it anyway.",
 	);
 
+	// An in-app jump carries no outside-link arrow.
+	expect(button("task_other").querySelector("svg")).toBeNull();
 	await act(async () => button("task_other").click());
 	expect(onOpenTask).toHaveBeenCalledWith("task_other");
 
@@ -1553,6 +1557,7 @@ it("orders a hands-off card status first and keeps configuration read-only behin
 		(item) => item.querySelector("summary")?.textContent === "Details",
 	);
 	expect(details?.textContent).toContain("Model: test/model-x");
+	expect(details?.querySelector("summary > svg")).not.toBeNull();
 	expect(details?.textContent).toContain("Plan settings");
 	expect(details?.textContent).toContain("node check.mjs");
 	expect(details?.textContent).toContain("No test setup.");
@@ -3348,7 +3353,7 @@ describe("feedback analysis on a delivered card", () => {
 				?.querySelector('[data-testid="tool-file-diff"]')
 				?.getAttribute("data-new"),
 		).toBe("## Empty titles\nCheck empty titles.");
-		expect(rowButtons()).toEqual(["Save rule", "Discard", "Discuss"]);
+		expect(rowButtons()).toEqual(["Save rule", "Discard rule", "Discuss"]);
 		// The header asks for the rule, not the merge: its primary action
 		// brings the rule into view.
 		const status = document.querySelector('[aria-label="Task progress"]');
@@ -3382,7 +3387,7 @@ describe("feedback analysis on a delivered card", () => {
 			expectedHash: "h2",
 			allWorkspaces: true,
 		});
-		await act(async () => button("Discard").click());
+		await act(async () => button("Discard rule").click());
 		expect(mocks.invoke).toHaveBeenLastCalledWith(
 			"task.factory.audit.resolve",
 			{ taskId: task.taskId, decision: "discard", allWorkspaces: true },
@@ -3706,10 +3711,10 @@ describe("a split", () => {
 		expect(openExternalUrl).toHaveBeenCalledWith(
 			"https://github.com/o/r/pull/41",
 		);
-		await act(async () => button("Cancel remaining parts").click());
+		await act(async () => button("Cancel remaining parts…").click());
 		await act(async () => button("Keep parts").click());
 		expect(commandsSent("task.factory.parts.cancel")).toEqual([]);
-		await act(async () => button("Cancel remaining parts").click());
+		await act(async () => button("Cancel remaining parts…").click());
 		await act(async () => button("Cancel parts").click());
 		expect(commandsSent("task.factory.parts.cancel")).toEqual([
 			[

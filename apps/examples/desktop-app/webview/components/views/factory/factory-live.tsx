@@ -1,7 +1,7 @@
 "use client";
 
 import type { AgendaTaskRecord, FactoryAttempt } from "@cline/shared";
-import { ArrowLeft, ArrowUpRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -437,10 +437,8 @@ export function FactoryWatchButton({
 		>
 			{label}
 			{available.length > 1 ? (
-				<ChevronDown className="ml-1 size-3.5" />
-			) : (
-				<ArrowUpRight className="ml-1 size-3.5" />
-			)}
+				<ChevronDown aria-hidden className="ml-1 size-3.5" />
+			) : null}
 		</Button>
 	);
 	const notice = missing.size ? (

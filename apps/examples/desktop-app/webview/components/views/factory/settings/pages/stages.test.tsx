@@ -89,6 +89,46 @@ const decisionButtons = (row: HTMLElement | null) =>
 		["Approve", "Stop using"].includes(button.textContent ?? ""),
 	);
 
+describe("Stages page: what is clickable", () => {
+	it("draws the stage line as a static figure, not a row of tabs", async () => {
+		const page = await render();
+		const line = page.container.querySelector<HTMLElement>('[role="img"]');
+		expect(line?.querySelector("button, [tabindex]")).toBeNull();
+		expect(line?.className).not.toMatch(/\b(border|rounded-lg|bg-card)\b/);
+		for (const cell of line?.querySelectorAll("*") ?? [])
+			expect(cell.getAttribute("class") ?? "").not.toMatch(
+				/\b(text-primary|bg-primary\/10)\b/,
+			);
+	});
+
+	it("keeps the status pill a static tint beside a bordered Stop using", async () => {
+		const page = await render();
+		const row = page.row("stage-security-scan");
+		const pill = [...(row?.querySelectorAll('[data-slot="badge"]') ?? [])].find(
+			(badge) => badge.textContent === "In use",
+		);
+		expect(pill?.closest("button")).toBeNull();
+		expect(pill?.className).toContain("border-transparent");
+		const [stop] = decisionButtons(row);
+		expect(stop?.textContent).toBe("Stop using");
+		expect(stop?.className.split(" ")).toContain("border");
+		expect(stop?.className).not.toContain("border-transparent");
+	});
+
+	it("shows and hides a stage's definition with one down chevron", async () => {
+		const page = await render();
+		const toggle = page.container.querySelector<HTMLButtonElement>(
+			"#stage-security-scan-title",
+		);
+		const chevron = () => toggle?.querySelector("svg")?.getAttribute("class");
+		expect(toggle?.querySelectorAll("svg")).toHaveLength(1);
+		expect(chevron()).not.toContain("rotate-180");
+		await click(toggle);
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(chevron()).toContain("rotate-180");
+	});
+});
+
 describe("Stages page", () => {
 	it("shows the stage line and one row per stage with exactly one decision", async () => {
 		const page = await render();
@@ -245,7 +285,7 @@ describe("Stages page", () => {
 			[...document.querySelectorAll('[role="menuitem"]')].find(
 				(element) => element.textContent === name,
 			);
-		expect(item("Change with Ask Factory")).toBeDefined();
+		expect(item("Ask Factory to change it")).toBeDefined();
 		await click(item("Remove with Ask Factory"));
 		expect(page.shell.askFactory).toHaveBeenLastCalledWith(
 			"Remove the “Security scan” stage from app.",
@@ -257,7 +297,7 @@ describe("Stages page", () => {
 					new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
 				);
 		});
-		await click(item("Change with Ask Factory"));
+		await click(item("Ask Factory to change it"));
 		expect(page.shell.askFactory).toHaveBeenLastCalledWith(
 			"Change the “Security scan” stage in app so that ",
 		);

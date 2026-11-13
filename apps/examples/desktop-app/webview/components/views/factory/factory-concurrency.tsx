@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,23 +96,25 @@ export function factoryWaitingForSlot(
 }
 
 /**
- * The limit beside the Working heading: "of 3", amber with its reason as
- * the tooltip when more runs than it allows. It opens the work-at-once
- * control in a popover, so changing it never leaves the home. Nothing shows
- * while the Hub reports no limit.
+ * The limit beside the Working heading: "of 3", with an amber warning icon
+ * while every slot is in use and its reason as the tooltip when more runs
+ * than it allows. It opens the work-at-once control in a popover, so
+ * changing it never leaves the home. Nothing shows while the Hub reports no
+ * limit.
  */
 export function FactoryWorkingLimit({
 	running,
 	state,
-	className,
 }: {
 	running: number;
 	state: ReturnType<typeof useFactoryLimits>;
-	className?: string;
 }) {
 	const limit = state.limits?.supported ? state.limits.concurrency : undefined;
 	if (limit === undefined) return null;
 	const over = factoryWorkingOverLimit(running, limit);
+	// Every slot in use (or more, after a lowered limit): the link keeps its
+	// colour and the warning rides on an icon.
+	const full = running >= limit;
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
@@ -122,13 +125,15 @@ export function FactoryWorkingLimit({
 					title={over}
 					// accent-11 keeps small link text at 4.5:1 on dark too; py-1
 					// makes the small link a usable target.
-					className={cn(
-						"h-auto shrink-0 px-0 py-1 text-xs font-normal text-accent-foreground",
-						className,
-						over && toneText("attention"),
-					)}
+					className="h-auto shrink-0 gap-1 px-0 py-1 text-xs font-normal text-accent-foreground"
 					aria-label={`${factoryWorkingLimit(limit)}: ${over ?? "change how much work runs at once"}`}
 				>
+					{full ? (
+						<AlertTriangle
+							aria-hidden
+							className={cn("size-3", toneText("attention"))}
+						/>
+					) : null}
 					{factoryWorkingLimit(limit)}
 				</Button>
 			</PopoverTrigger>

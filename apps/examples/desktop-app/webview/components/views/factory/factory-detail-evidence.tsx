@@ -14,7 +14,6 @@ import {
 import { AgentImageLightboxContent } from "@cline/ui";
 import { ToolActivityCode } from "@cline/ui/components/agent-chat";
 import {
-	ArrowUpRight,
 	CheckCircle2,
 	Circle,
 	CircleAlert,
@@ -39,7 +38,12 @@ import {
 } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
 import { factoryRequirementUncheckable } from "./factory-proof";
-import { type FactoryTone, StatusPill, toneText } from "./factory-ui";
+import {
+	DetailsSummary,
+	type FactoryTone,
+	StatusPill,
+	toneText,
+} from "./factory-ui";
 
 /**
  * A check's screenshot or recording: loaded on demand, then shown in the
@@ -331,9 +335,7 @@ export function FactoryErrorDetails({
 			) : null}
 			{summary.details ? (
 				<details className="text-xs">
-					<summary className="cursor-pointer select-none text-muted-foreground">
-						Show full log
-					</summary>
+					<DetailsSummary>Show full log</DetailsSummary>
 					<div className="mt-2 space-y-2">
 						<div className="flex justify-end">
 							<Button
@@ -479,7 +481,7 @@ export function ReviewResult({
 	if (collapsed)
 		return (
 			<details className="group rounded-lg border text-sm">
-				<summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5">
+				<DetailsSummary className="gap-2 rounded-lg px-4 py-2.5 text-sm text-foreground">
 					<StatusPill
 						tone={review.verdict === "pass" ? "success" : "attention"}
 						icon={review.verdict === "pass" ? CheckCircle2 : CircleAlert}
@@ -490,7 +492,7 @@ export function ReviewResult({
 					<span className="min-w-0 truncate text-xs text-muted-foreground">
 						{firstLine(review.summary)}
 					</span>
-				</summary>
+				</DetailsSummary>
 				<div className="border-t px-4 pb-4">
 					<ReviewResult
 						label={label}
@@ -530,7 +532,7 @@ export function ReviewResult({
 			) : null}
 			{review.coverage ? (
 				<details className="mt-3 text-xs text-muted-foreground">
-					<summary className="cursor-pointer">Private local coverage</summary>
+					<DetailsSummary>Private local coverage</DetailsSummary>
 					{[
 						{ label: "Static review", paths: review.coverage.static },
 						{ label: "Executed checks", paths: review.coverage.exercised },
@@ -560,7 +562,6 @@ export function ReviewResult({
 				onClick={() => void onOpenSession(sessionId)}
 			>
 				Open {label.toLowerCase()} session
-				<ArrowUpRight className="ml-1 size-3" />
 			</Button>
 		</div>
 	);

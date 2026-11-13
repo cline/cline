@@ -50,6 +50,23 @@ describe("factoryPullRequestReviewPrompt", () => {
 		);
 		expect(prompt.slice(0, open)).toContain("You cannot post, approve");
 	});
+
+	it("has the draft written to the author, without Factory's card ids, reviewer numbers or how it was reviewed", () => {
+		const prompt = factoryPullRequestReviewPrompt({
+			pullRequest: { ...pullRequest, title: "F7: Retry uploads" },
+			body: "Opened by Cline Factory · card F7",
+			commits: ["F7: Retry uploads"],
+			diff: "+retry()",
+		});
+		const rules = prompt.slice(0, prompt.indexOf("<<<UNTRUSTED-"));
+		expect(rules).toContain(
+			"posted on the pull request as the person's own review, addressed to its author",
+		);
+		expect(rules).toContain(
+			"Never mention Factory, cards or card ids (such as F12, even where the pull request's text has one), reviewers or reviewer numbers, tools, this checkout",
+		);
+		expect(rules).toContain('not "I read the file in the checkout"');
+	});
 });
 
 describe("factoryPullRequestReviewerIndices", () => {

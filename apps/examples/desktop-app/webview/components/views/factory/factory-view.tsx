@@ -12,12 +12,12 @@ import {
 	AlertTriangle,
 	ArrowLeft,
 	ArrowRight,
+	ArrowUpRight,
 	CheckCircle2,
 	ChevronLeft,
 	ChevronRight,
 	CircleDashed,
 	Clock,
-	ExternalLink,
 	Factory as FactoryIcon,
 	Flag,
 	GitBranch,
@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import {
 	type FactoryAttention,
@@ -140,7 +141,7 @@ import {
 } from "./factory-concurrency";
 import { type FactoryDraft, FeatureDetail } from "./factory-detail";
 import { FactoryHandsOffNotice } from "./factory-hands-off-notice";
-import { FactoryRowStages } from "./factory-line";
+import { FactoryRowStages, factoryStoppedLabel } from "./factory-line";
 import {
 	FactoryLiveLine,
 	type FactoryLiveSession,
@@ -171,8 +172,11 @@ import {
 	factoryShortId,
 	factoryUrgency,
 	hasFactoryPriority,
+	NAV_ITEM_SELECTED,
+	SECTION_LABEL,
 	StatusPill,
 	toneDot,
+	toneStatusText,
 	toneText,
 } from "./factory-ui";
 import type { AppSettingsSection } from "./settings/types";
@@ -323,7 +327,7 @@ function BoardColumn({
 		<section
 			aria-labelledby={headingId}
 			data-factory-group={id}
-			className="group/column flex min-h-0 min-w-[220px] max-w-[420px] flex-[1_1_0] snap-start flex-col overflow-hidden rounded-lg border bg-muted/50 dark:bg-card"
+			className="group/column flex min-h-0 min-w-[220px] flex-[1_1_0] snap-start flex-col overflow-hidden rounded-lg border bg-muted/50 dark:bg-card"
 			{...hold}
 		>
 			<div className="flex h-9 shrink-0 items-center gap-[7px] px-2.5">
@@ -547,6 +551,28 @@ function FactoryPage({
 	const tasks = agenda.tasks.filter((task) => task.factory);
 	const tasksById = new Map(tasks.map((task) => [task.taskId, task]));
 	const limits = useFactoryLimits();
+	// The header's spend is read again when card work may have spent money:
+	// a card's run, phase, recorded cost or running sessions changed, as the
+	// shared attention read (refreshed on task events) reports.
+	const spendSignal = attention.hasLoaded
+		? attention.items
+				.map(
+					(item) =>
+						`${item.taskId}:${item.runId ?? ""}:${item.outcome?.phase ?? ""}:${item.outcome?.usage?.totals.totalCost ?? ""}:${item.outcome?.activeSessions.length ?? 0}`,
+				)
+				.join("|")
+		: undefined;
+	const shownSpendSignal = useRef(spendSignal);
+	const { refreshSpend } = limits;
+	useEffect(() => {
+		if (spendSignal === undefined) return;
+		if (
+			shownSpendSignal.current !== undefined &&
+			shownSpendSignal.current !== spendSignal
+		)
+			refreshSpend();
+		shownSpendSignal.current = spendSignal;
+	}, [spendSignal, refreshSpend]);
 	const [view, setView] = useState<FactoryDestination>(savedDestination);
 	useEffect(() => {
 		sessionStorage.setItem(DESTINATION_KEY, view);
@@ -1022,9 +1048,7 @@ function FactoryPage({
 		) : null;
 	/** Where a card stopped, in its station's name. */
 	const stoppedAt = (task: AgendaTaskRecord) =>
-		FACTORY_LINE.stoppedAt(
-			FACTORY_LINE.stations[activityOf(task).station.station],
-		);
+		factoryStoppedLabel(activityOf(task).station);
 	const byId = (task: AgendaTaskRecord) => task.taskId;
 	/**
 	 * The home's status groups, in the board's order: each card once, in the
@@ -1045,11 +1069,7 @@ function FactoryPage({
 		// then the queue), Needs you, Delivered.
 		const railSections = homeGroups
 			.filter(([, , items]) => items.length > 0)
-			.map(([group, label, items]) =>
-				group === "waiting" && !boardView.queueColumn
-					? ([FACTORY_BOARD.queue, items] as const)
-					: ([label, items] as const),
-			);
+			.map(([, label, items]) => [label, items] as const);
 		// With any priority on the rail, every wide row keeps the icon's slot so
 		// the titles stay aligned.
 		const railPriority = railSections.some(([, items]) =>
@@ -1083,7 +1103,17 @@ function FactoryPage({
 				.filter(Boolean)
 				.join(" ");
 			return (
-				<li key={task.taskId}>
+				// The row's fill and bar cover its live line too, which sits
+				// outside the button (it holds a live region).
+				<li
+					key={task.taskId}
+					className={cn(
+						"relative transition-colors",
+						current
+							? NAV_ITEM_SELECTED
+							: "has-[>button:hover]:bg-surface-hover-lighter",
+					)}
+				>
 					<button
 						type="button"
 						data-factory-task={task.taskId}
@@ -1093,8 +1123,10 @@ function FactoryPage({
 						title={titleOf(task)}
 						onClick={() => selectTask(task.taskId, "rail")}
 						className={cn(
-							"flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring @max-[1119px]/factory:justify-center",
-							current && "bg-muted",
+							"flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring @max-[1119px]/factory:justify-center",
+							current
+								? "text-sidebar-foreground"
+								: "text-sidebar-foreground/80 hover:text-sidebar-foreground",
 						)}
 					>
 						{state.working ? (
@@ -1121,7 +1153,10 @@ function FactoryPage({
 						<span className="hidden min-w-0 flex-1 @min-[1120px]/factory:block">
 							<span className="block truncate text-sm">{titleOf(task)}</span>
 							<span
-								className={cn("block truncate text-xs", toneText(state.tone))}
+								className={cn(
+									"line-clamp-2 text-xs font-normal",
+									toneStatusText(state.tone),
+								)}
 							>
 								{state.detail}
 							</span>
@@ -1162,7 +1197,7 @@ function FactoryPage({
 								title={FACTORY_MASTER_DETAIL.allActivity}
 								onClick={() => selectTask(null)}
 							>
-								<FactoryIcon className="size-4" />
+								<ArrowLeft className="size-4" />
 								<span className="hidden @min-[1120px]/factory:inline">
 									Factory
 								</span>
@@ -1210,7 +1245,12 @@ function FactoryPage({
 							<div className="pb-4">
 								{railSections.map(([label, items]) => (
 									<section key={label} aria-label={label} className="pt-2">
-										<h2 className="hidden items-center gap-2 px-3 pb-1 text-xs font-medium text-muted-foreground @min-[1120px]/factory:flex">
+										<h2
+											className={cn(
+												"hidden items-center gap-2 px-3 pb-1 @min-[1120px]/factory:flex",
+												SECTION_LABEL,
+											)}
+										>
 											{label}
 											<span className="tabular-nums">{items.length}</span>
 										</h2>
@@ -1343,9 +1383,9 @@ function FactoryPage({
 						{loadError && !factoryRawData(loadError) ? ` ${loadError}` : ""}
 					</span>
 					<Button
-						variant="link"
-						size="sm"
-						className="h-auto shrink-0 p-0 text-xs text-accent-foreground"
+						variant="outline"
+						size="xs"
+						className="h-6 shrink-0"
 						disabled={busy}
 						onClick={() => {
 							setError(null);
@@ -1409,7 +1449,7 @@ function FactoryPage({
 				</output>
 			) : null}
 			{view === "activity" ? (
-				<FactoryHandsOffNotice className="min-h-8 shrink-0 rounded-none border-0 border-b px-4 py-1 text-[12.5px] [&_p]:truncate [&_svg]:size-3.5 [&_button]:h-6" />
+				<FactoryHandsOffNotice className="min-h-8 shrink-0 rounded-none border-0 border-b px-4 py-1 text-[12.5px] [&_svg]:size-3.5 [&_button]:h-6" />
 			) : null}
 		</>
 	);
@@ -1480,12 +1520,13 @@ function FactoryPage({
 	};
 	/**
 	 * A card's one quick action: shown on hover or keyboard focus, in the DOM
-	 * always so Tab and assistive technology reach it.
+	 * always so Tab and assistive technology reach it. `"browser"` marks one
+	 * that opens the browser: a trailing arrow instead of a leading icon.
 	 */
 	const quickAction = (
 		task: AgendaTaskRecord,
 		label: string,
-		Icon: typeof RotateCcw,
+		Icon: typeof RotateCcw | "browser",
 		run: () => void,
 		disabled = false,
 	) => (
@@ -1498,10 +1539,13 @@ function FactoryPage({
 			title={label}
 			className="h-[22px] gap-1 bg-background px-2 text-[11.5px] shadow-none dark:bg-[var(--neutral-4)]"
 		>
-			<Icon aria-hidden className="size-3" />
+			{Icon === "browser" ? null : <Icon aria-hidden className="size-3" />}
 			<span aria-hidden data-label>
 				{label}
 			</span>
+			{Icon === "browser" ? (
+				<ArrowUpRight aria-hidden className="size-3" />
+			) : null}
 		</Button>
 	);
 	/**
@@ -1886,7 +1930,7 @@ function FactoryPage({
 				quickAction(
 					task,
 					FACTORY_PR_REVIEW.openPr,
-					ExternalLink,
+					"browser",
 					() => void openExternalUrl(reviewed.url),
 				),
 			);
@@ -1931,7 +1975,7 @@ function FactoryPage({
 				? quickAction(
 						task,
 						factoryPullRequestActionLabel(outcome),
-						ExternalLink,
+						"browser",
 						() => void openExternalUrl(url),
 					)
 				: null,
@@ -2046,7 +2090,10 @@ function FactoryPage({
 							<li
 								key={`section-${section.id}`}
 								data-factory-section={section.id}
-								className="flex items-center gap-2 px-1 pt-2 pb-0.5 text-[11px] text-muted-foreground"
+								className={cn(
+									"flex items-center gap-2 px-1 pt-2 pb-0.5",
+									SECTION_LABEL,
+								)}
 							>
 								<span>{section.title}</span>
 								<span className="tabular-nums">{section.all.length}</span>
@@ -2081,11 +2128,7 @@ function FactoryPage({
 				aside={
 					working ? (
 						<>
-							<FactoryWorkingLimit
-								running={running}
-								state={limits}
-								className={slotsFull ? toneText("attention") : undefined}
-							/>
+							<FactoryWorkingLimit running={running} state={limits} />
 							{queued > 0 ? (
 								<span
 									data-factory-queued
@@ -2138,8 +2181,8 @@ function FactoryPage({
 				Factory
 			</h1>
 			<Badge
-				variant="outline"
-				className="h-4 px-1.5 text-[10.5px] font-medium text-muted-foreground"
+				variant="secondary"
+				className="h-4 rounded-full px-1.5 text-[10.5px] font-medium text-muted-foreground"
 			>
 				Preview
 			</Badge>
@@ -2204,11 +2247,17 @@ function FactoryPage({
 			{onAskFactory ? (
 				<Button
 					size="sm"
-					variant={askFactoryOpen ? "secondary" : "default"}
+					variant={
+						view === "activity" && !askFactoryOpen ? "default" : "outline"
+					}
 					aria-expanded={askFactoryOpen}
+					aria-pressed={askFactoryOpen}
 					data-ask-factory=""
 					onClick={onAskFactory}
-					className={cn("h-7 px-2.5", askFactoryOpen && "border")}
+					className={cn(
+						"h-7 px-2.5",
+						askFactoryOpen && "bg-surface-hover text-foreground",
+					)}
 				>
 					<MessageSquare aria-hidden className="size-3.5" />
 					{FACTORY_MANAGER.ask}
@@ -2286,25 +2335,26 @@ function FactoryPage({
 						{showHistory ? (
 							<div className="pb-6">
 								{backToActivity}
-								<div className="mb-4 flex flex-wrap items-center gap-1.5">
-									{(
-										[
-											["history", `Finished (${finished.length})`],
-											["archived", `Archived (${archived.length})`],
-										] satisfies [FactoryDestination, string][]
-									).map(([destination, label]) => (
-										<Button
-											type="button"
-											size="xs"
-											key={destination}
-											aria-pressed={view === destination}
-											variant={view === destination ? "default" : "outline"}
-											onClick={() => setView(destination)}
-										>
-											{label}
-										</Button>
-									))}
-								</div>
+								<Tabs
+									value={view}
+									onValueChange={(value) =>
+										setView(value as FactoryDestination)
+									}
+									className="mb-4"
+								>
+									<TabsList>
+										{(
+											[
+												["history", `Finished (${finished.length})`],
+												["archived", `Archived (${archived.length})`],
+											] satisfies [FactoryDestination, string][]
+										).map(([destination, label]) => (
+											<TabsTrigger key={destination} value={destination}>
+												{label}
+											</TabsTrigger>
+										))}
+									</TabsList>
+								</Tabs>
 								<p className="mb-3 text-xs text-muted-foreground">
 									{view === "archived"
 										? "Archived work. Open an item to restore or delete it."
@@ -2358,7 +2408,7 @@ function FactoryPage({
 																		outcome?.phase === "blocked"
 																	? "danger"
 																	: task.status === "completed"
-																		? "accent"
+																		? "success"
 																		: "neutral";
 													return (
 														<tr
@@ -2514,7 +2564,16 @@ function BoardDisplayMenu({
 							onChange(toggleFactoryBoardColumn(view, columns, column.id))
 						}
 					>
-						{column.title}
+						{factoryBoardPinned(view.grouping, column.id) ? (
+							<span className="flex flex-col">
+								{column.title}
+								<span className="text-xs text-muted-foreground">
+									{FACTORY_BOARD.pinned}
+								</span>
+							</span>
+						) : (
+							column.title
+						)}
 					</DropdownMenuCheckboxItem>
 				))}
 				{view.grouping === "status" ? (

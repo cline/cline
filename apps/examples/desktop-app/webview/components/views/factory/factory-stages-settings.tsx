@@ -5,7 +5,7 @@ import {
 	type FactoryWorkflowConfig,
 	factoryStageCanonicalJson,
 } from "@cline/shared/browser";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -94,7 +94,7 @@ export function FactoryStageLine() {
 			role="img"
 			aria-label={S.lineLabel}
 			data-stage-line=""
-			className="mt-3 grid grid-cols-6 overflow-hidden rounded-lg border bg-card"
+			className="mt-3 grid grid-cols-6 gap-x-3"
 		>
 			{S.line.map((item) => {
 				const slot = item.id === "repository";
@@ -104,16 +104,13 @@ export function FactoryStageLine() {
 						key={item.id}
 						data-stage-line-item={item.id}
 						className={cn(
-							"min-w-0 border-l px-3 py-2.5 first:border-l-0 @max-[720px]/settings:px-2",
-							slot && "bg-primary/10",
+							"min-w-0 border-t-2 pt-2",
+							slot
+								? "border-dashed border-muted-foreground/50"
+								: "border-border",
 						)}
 					>
-						<p
-							className={cn(
-								"text-xs font-semibold leading-[18px]",
-								slot && "text-primary",
-							)}
-						>
+						<p className="text-xs font-medium leading-[18px] text-foreground">
 							{slot ? item.name : `${number} ${item.name}`}
 						</p>
 						<p
@@ -186,11 +183,11 @@ export function FactoryStageRow({
 						onClick={() => setOpen((value) => !value)}
 						className="-ml-0.5 flex items-center gap-1 rounded-sm text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
 					>
-						<ChevronRight
+						<ChevronDown
 							aria-hidden
 							className={cn(
 								"size-3.5 shrink-0 text-muted-foreground transition-transform",
-								shown && "rotate-90",
+								shown && "rotate-180",
 							)}
 						/>
 						{stage.name}
@@ -206,7 +203,7 @@ export function FactoryStageRow({
 					<StatusPill tone={TRUST_TONE[status]}>{S.trust[status]}</StatusPill>
 					<Button
 						size="xs"
-						variant={approving ? "default" : "ghost"}
+						variant={approving ? "default" : "outline"}
 						className="h-[26px] px-2.5 text-xs"
 						disabled={busy || disabled}
 						aria-describedby={`${id}-title`}

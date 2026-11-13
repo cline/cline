@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import {
 	FACTORY_STATIONS,
 	type FactoryStation,
@@ -8,7 +8,7 @@ import {
 } from "@/lib/factory-attention";
 import { FACTORY_LINE } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
-import { type FactoryTone, toneText } from "./factory-ui";
+import { type FactoryTone, toneStatusText } from "./factory-ui";
 
 export {
 	FACTORY_STATIONS,
@@ -66,31 +66,81 @@ export function factoryCardStations(
 	}));
 }
 
+type ShownState = Exclude<FactoryStationLineState, "skipped">;
+
+const STEP_LABEL: Record<ShownState, string> = {
+	done: "text-muted-foreground",
+	current: "font-medium text-foreground",
+	stopped: "font-medium text-error-text",
+	upcoming: "text-muted-foreground/70",
+};
+
+function StepIcon({ state }: { state: ShownState }) {
+	const className = "mr-1.5 shrink-0";
+	if (state === "done")
+		return (
+			<Check
+				aria-hidden
+				className={cn(className, "size-3 text-muted-foreground")}
+			/>
+		);
+	if (state === "stopped")
+		return (
+			<X aria-hidden className={cn(className, "size-3 text-error-text")} />
+		);
+	return (
+		<span
+			aria-hidden
+			className={cn(
+				className,
+				"size-2 rounded-full",
+				state === "current"
+					? "bg-foreground"
+					: "border border-muted-foreground/50",
+			)}
+		/>
+	);
+}
+
+/** How a stopped card's stop is named on its line and rows. */
+export function factoryStoppedLabel(
+	state: Pick<FactoryStationState, "station" | "publishFailed">,
+): string {
+	return state.publishFailed
+		? FACTORY_LINE.stoppedOpeningPr
+		: FACTORY_LINE.stoppedAt(FACTORY_LINE.stations[state.station]);
+}
+
 /**
- * A card's stages as one line of names, "Scope › Build › Review › Done",
- * with its own stage marked and skipped stages left out: the card header's
- * form.
+ * A card's stages as a stepper (done, current or stopped, upcoming), joined
+ * by short rules, with skipped stages left out: the card header's form.
  */
 export function FactoryStationLine({
 	stations,
+	stoppedLabel,
 	className,
 	"aria-label": label,
 }: {
 	stations: readonly FactoryLineStation[];
+	/** The stop's name, from `factoryStoppedLabel`; "Stopped at …" by default. */
+	stoppedLabel?: string;
 	className?: string;
 	"aria-label": string;
 }) {
-	const shown = stations.filter((station) => station.state !== "skipped");
+	const shown = stations.filter(
+		(station): station is FactoryLineStation & { state: ShownState } =>
+			station.state !== "skipped",
+	);
 	return (
 		<section aria-label={label} data-factory-line-root className={className}>
-			<p
+			<ol
 				data-factory-line="compact"
-				className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm"
+				className="flex flex-wrap items-center gap-y-1 text-xs"
 			>
-				{/* Each chevron ends the stage before it, so a wrapped line
-				    never starts with one. */}
+				{/* Each connector trails its step, so a wrapped line never
+				    starts with one. */}
 				{shown.map((station, index) => (
-					<span
+					<li
 						key={station.station}
 						data-factory-station={station.station}
 						data-state={station.state}
@@ -99,40 +149,27 @@ export function FactoryStationLine({
 								? "step"
 								: undefined
 						}
-						className="flex items-center gap-1.5 whitespace-nowrap"
+						className="flex items-center whitespace-nowrap"
 					>
-						<span
-							className={cn(
-								station.state === "upcoming"
-									? "text-muted-foreground"
-									: station.state === "stopped"
-										? "font-medium text-error-text"
-										: station.state === "current"
-											? "font-medium"
-											: "text-foreground",
-							)}
-						>
+						<StepIcon state={station.state} />
+						<span className={STEP_LABEL[station.state]}>
 							{FACTORY_LINE.stations[station.station]}
 							{station.state === "stopped" ? (
-								<span className={cn("ml-0.5", toneText("danger"))}>
-									<X aria-hidden className="inline size-3 align-[-1px]" />
-									<span className="sr-only">
-										,{" "}
-										{FACTORY_LINE.stoppedAt(
+								<span className="sr-only">
+									,{" "}
+									{stoppedLabel ??
+										FACTORY_LINE.stoppedAt(
 											FACTORY_LINE.stations[station.station],
 										)}
-									</span>
 								</span>
 							) : null}
 						</span>
 						{index < shown.length - 1 ? (
-							<span aria-hidden className="text-muted-foreground">
-								›
-							</span>
+							<span aria-hidden className="mx-1.5 h-px w-2.5 bg-border" />
 						) : null}
-					</span>
+					</li>
 				))}
-			</p>
+			</ol>
 		</section>
 	);
 }
@@ -173,7 +210,7 @@ export function FactoryRowStages({
 			data-state={state.stopped ? "stopped" : undefined}
 			className={cn(
 				"flex min-w-0 items-center gap-2 text-xs whitespace-nowrap",
-				toneText(tone),
+				toneStatusText(tone),
 				className,
 			)}
 		>
@@ -181,7 +218,7 @@ export function FactoryRowStages({
 				role="img"
 				aria-label={
 					state.stopped
-						? FACTORY_LINE.stoppedAt(name)
+						? factoryStoppedLabel(state)
 						: FACTORY_LINE.stage(name, index, FACTORY_STAGES.length)
 				}
 				className={cn("flex shrink-0 gap-0.5", segmentsClassName)}

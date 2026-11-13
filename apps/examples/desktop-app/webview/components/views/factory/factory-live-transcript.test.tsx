@@ -138,6 +138,10 @@ it("switches roles and keeps the transcript read-only", async () => {
 	});
 	await act(async () => button("Scoping agent")?.click());
 	expect(button("Scoping agent")?.getAttribute("aria-pressed")).toBe("true");
+	// The chosen lane is drawn apart from the others, not only on hover.
+	expect(button("Scoping agent")?.className).not.toBe(
+		button("Builder")?.className,
+	);
 	expect(container.textContent).toContain("Here is the plan");
 	expect(container.textContent).not.toContain("Editing the exporter");
 	expect(stateLine()).toBe("Scoping agent finished");
@@ -156,6 +160,8 @@ it("hides the switcher for a single session and opens it in chat", async () => {
 	const onOpenInChat = vi.fn();
 	await render({ sessions: [sessions[1] as FactoryLiveSession], onOpenInChat });
 	expect(container.querySelector("fieldset")).toBeNull();
+	// It opens in the app, so it carries no outside-link arrow.
+	expect(button("Open in chat")?.querySelector("svg")).toBeNull();
 	await act(async () => button("Open in chat")?.click());
 	expect(onOpenInChat).toHaveBeenCalledWith("builder-1");
 });

@@ -23,6 +23,7 @@ import {
 	AlertTriangle,
 	ArrowUpRight,
 	CheckCircle2,
+	ChevronDown,
 	Eye,
 	FileText,
 	Loader2,
@@ -149,7 +150,7 @@ import {
 	factoryScopingStopped,
 	factoryScopingStopReason,
 } from "./factory-task-header";
-import { Panel } from "./factory-ui";
+import { DetailsSummary, Panel } from "./factory-ui";
 import { useElementSize } from "./use-element-size";
 
 /**
@@ -1164,7 +1165,9 @@ export function FeatureDetail({
 						}}
 					>
 						{conclusion.duplicateOf}
-						<ArrowUpRight className="ml-1 size-3" />
+						{/^https?:\/\//.test(conclusion.duplicateOf) ? (
+							<ArrowUpRight className="ml-1 size-3" />
+						) : null}
 					</Button>
 				</p>
 			) : null}
@@ -1329,7 +1332,7 @@ export function FeatureDetail({
 							</Button>
 							<Button
 								size="sm"
-								variant="ghost"
+								variant="outline"
 								disabled={busy}
 								onClick={() => discussFeedback(feedbackState.summary)}
 							>
@@ -1359,7 +1362,7 @@ export function FeatureDetail({
 							</Button>
 							<Button
 								size="sm"
-								variant="ghost"
+								variant="outline"
 								disabled={busy}
 								onClick={() => discussFeedback(feedbackState.message)}
 							>
@@ -1435,8 +1438,9 @@ export function FeatureDetail({
 					The agent saved a newer brief. Reload it before making further
 					changes.
 					<Button
-						size="sm"
-						variant="link"
+						size="xs"
+						variant="outline"
+						className="ml-2"
 						onClick={() => {
 							setInstructions(task.instructions);
 							setConfig(task.factory ?? DEFAULT_FACTORY);
@@ -1471,12 +1475,13 @@ export function FeatureDetail({
 						/>
 					</div>
 					<Button
-						variant="link"
-						size="sm"
-						className="h-auto p-0 text-xs"
+						variant="ghost"
+						size="xs"
+						className="-ml-1.5 h-6 gap-1 px-1.5 text-xs text-muted-foreground has-[>svg]:px-1.5"
 						aria-expanded={false}
 						onClick={() => setBriefExpanded(true)}
 					>
+						<ChevronDown aria-hidden className="size-3.5" />
 						Show all
 					</Button>
 				</>
@@ -1910,14 +1915,14 @@ export function FeatureDetail({
 	 */
 	const details = (children: ReactNode) => (
 		<details
-			className="group rounded-lg border bg-card"
+			className="rounded-lg border bg-card"
 			open={editingPlan || detailsOpen}
 			onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
 			data-testid="factory-details"
 		>
-			<summary className="cursor-pointer select-none px-5 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+			<DetailsSummary className="gap-1.5 rounded-lg px-5 py-3 text-sm font-semibold text-foreground">
 				{FACTORY_DETAILS.heading}
-			</summary>
+			</DetailsSummary>
 			<div className="space-y-5 border-t px-5 py-5">
 				<div
 					className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"
@@ -1959,7 +1964,7 @@ export function FeatureDetail({
 		// columns, the page on one), inside the column's width.
 		<div
 			data-testid="factory-footer"
-			className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2 rounded-lg border border-t-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_-12px_rgb(0_0_0/0.25)] backdrop-blur"
+			className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2 rounded-lg border border-t-border bg-background px-4 py-3 shadow-[0_-8px_24px_-12px_rgb(0_0_0/0.25)]"
 		>
 			<div className="mr-auto min-w-0 max-w-2xl flex-1 basis-56 text-xs leading-5 text-muted-foreground">
 				{showApprove && approvalReason ? (
@@ -2264,7 +2269,7 @@ export function FeatureDetail({
 						editingPlan ? (
 							<Button
 								size="sm"
-								variant="ghost"
+								variant="outline"
 								disabled={busy}
 								onClick={discardPlanEdits}
 							>
@@ -2378,9 +2383,7 @@ export function FeatureDetail({
 								<span />
 							) : (
 								<details className="min-w-0 text-xs text-muted-foreground">
-									<summary className="cursor-pointer select-none">
-										How scoping and approval work
-									</summary>
+									<DetailsSummary>How scoping and approval work</DetailsSummary>
 									<p className="mt-2 max-w-prose leading-5">
 										To refine a saved plan, edit the brief or reference docs,
 										then choose Refine design. The agent reads your request,
@@ -2401,8 +2404,7 @@ export function FeatureDetail({
 										void openSession(designSession).catch(() => undefined)
 									}
 								>
-									View design transcript{" "}
-									<ArrowUpRight className="ml-1 size-3" />
+									View design transcript
 								</Button>
 							) : null}
 						</div>

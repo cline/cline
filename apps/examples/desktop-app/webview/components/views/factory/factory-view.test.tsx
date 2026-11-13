@@ -537,8 +537,15 @@ describe("Factory workflow", () => {
 			),
 		);
 		const ask = button("Ask Factory");
-		// A toggle for the docked panel.
+		// A toggle for the docked panel, and the board's one filled button.
 		expect(ask.getAttribute("aria-expanded")).toBe("false");
+		expect(ask.getAttribute("aria-pressed")).toBe("false");
+		expect(ask.className.split(" ")).toContain("bg-primary");
+		expect(
+			[...container.querySelectorAll("button")].filter((item) =>
+				item.className.split(" ").includes("bg-primary"),
+			),
+		).toEqual([ask]);
 		expect(
 			[...container.querySelectorAll("button")].some(
 				(candidate) => candidate.textContent?.trim() === "Add work",
@@ -989,7 +996,14 @@ describe("Factory workflow", () => {
 		expect(container.textContent).not.toContain("Archived feature");
 		await act(async () => button("All history").click());
 		expect(container.textContent).not.toContain("Archived feature");
-		await act(async () => button("Archived (1)").click());
+		const archivedTab = button("Archived (1)");
+		expect(archivedTab.getAttribute("role")).toBe("tab");
+		await act(async () =>
+			archivedTab.dispatchEvent(
+				new MouseEvent("mousedown", { bubbles: true, button: 0 }),
+			),
+		);
+		expect(button("Archived (1)").getAttribute("aria-selected")).toBe("true");
 		expect(container.textContent).toContain("Archived feature");
 		expect(container.textContent).not.toContain("Active feature");
 		expect(section("Working")).toBe("");
@@ -1889,7 +1903,15 @@ describe("Factory home", () => {
 			history[0]?.closest('[data-factory-group="delivered"]'),
 		).not.toBeNull();
 		await act(async () => history[0]?.click());
-		expect(button("Finished (3)").getAttribute("aria-pressed")).toBe("true");
+		const finishedTab = button("Finished (3)");
+		expect(finishedTab.getAttribute("role")).toBe("tab");
+		expect(finishedTab.getAttribute("aria-selected")).toBe("true");
+		// A filter, never drawn as the primary action.
+		expect(
+			[...container.querySelectorAll("button")].some((item) =>
+				item.className.split(" ").includes("bg-primary"),
+			),
+		).toBe(false);
 	});
 
 	it("puts a delivery that waits for review in Needs you only, with Review", async () => {
@@ -2231,6 +2253,63 @@ describe("Factory home", () => {
 		expect(section("Needs you")).toBe("Needs you0Nothing needs you.");
 	});
 
+	it("reads today's spend again once card work spends, and not while nothing changes", async () => {
+		mocks.tasks = [
+			task({
+				taskId: "build",
+				title: "Building card",
+				status: "in_progress",
+				currentRunId: "run-build",
+			}),
+		];
+		const cost = (totalCost: number) => [
+			attention("build", {
+				outcome: outcome("implementing", {
+					usage: {
+						totals: {
+							inputTokens: 0,
+							outputTokens: 0,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost,
+						},
+						unknownSessionIds: [],
+					},
+				}),
+			}),
+		];
+		const limitReads = () =>
+			mocks.invoke.mock.calls.filter(
+				([command]) => command === "factory_get_limits",
+			).length;
+		withBoard(cost(1), { supported: true, concurrency: 3, spentTodayUsd: 4 });
+		vi.useFakeTimers();
+		try {
+			await render();
+			const refreshAttention = () =>
+				act(async () => {
+					for (const [event, handler] of mocks.subscribe.mock.calls)
+						if (event === "task.updated") handler();
+				});
+			await refreshAttention();
+			await act(async () => vi.advanceTimersByTimeAsync(10_000));
+			expect(limitReads()).toBe(1);
+			withBoard(cost(1.5), {
+				supported: true,
+				concurrency: 3,
+				spentTodayUsd: 4.5,
+			});
+			await refreshAttention();
+			await act(async () => vi.advanceTimersByTimeAsync(10_000));
+			expect(limitReads()).toBe(2);
+			expect(
+				container.querySelector("[data-factory-spend]")?.textContent,
+			).toContain("$4.50");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("shows a banner only when paused, at the spending limit, or unreachable", async () => {
 		mocks.tasks = [
 			task({
@@ -2533,9 +2612,13 @@ describe("Factory work-at-once limit", () => {
 			container.querySelector(`[data-factory-group="${group}"] h2`)
 				?.parentElement?.textContent;
 		expect(heading("working")).toBe("Working2of 2· 4 queued");
-		expect(container.querySelector("[data-factory-section]")?.textContent).toBe(
-			"Queue4",
-		);
+		const divider = container.querySelector("[data-factory-section]");
+		expect(divider?.textContent).toBe("Queue4");
+		// A section label, not a control.
+		expect(divider?.querySelector("button")).toBeNull();
+		expect(divider?.className).toContain("uppercase");
+		// Every slot in use: still a link, with a warning icon.
+		expect(button("of 2").querySelector("svg")).not.toBeNull();
 		const rows = (label: string) =>
 			Array.from(
 				container.querySelectorAll(
@@ -2561,6 +2644,7 @@ describe("Factory work-at-once limit", () => {
 		concurrency = 4;
 		await render();
 		expect(heading("working")).toBe("Working2of 4· 4 queued");
+		expect(button("of 4").querySelector("svg")).toBeNull();
 		expect(rows("Waiting for a free slot")).toHaveLength(0);
 		expect(rows("Waiting to start")).toHaveLength(3);
 		// Running cards first, then the divider, then the queue; each once.
@@ -2569,19 +2653,19 @@ describe("Factory work-at-once limit", () => {
 				'[data-factory-list="working"] > li',
 			),
 		);
-		const divider = items.findIndex((item) =>
+		const dividerAt = items.findIndex((item) =>
 			item.hasAttribute("data-factory-section"),
 		);
 		expect(
-			items.slice(0, divider).map((item) => item.dataset.factoryRow),
+			items.slice(0, dividerAt).map((item) => item.dataset.factoryRow),
 		).toEqual(["working", "working"]);
 		expect(
-			items.slice(divider + 1).map((item) => item.dataset.factoryRow),
+			items.slice(dividerAt + 1).map((item) => item.dataset.factoryRow),
 		).toEqual(["waiting", "waiting", "waiting", "waiting"]);
 		for (const id of ["a", "b", "c", "d", "e", "f"]) expect(listed(id)).toBe(1);
 
-		// A limit lowered below what runs: the name stays, "of 1" is amber
-		// and says why.
+		// A limit lowered below what runs: the name stays, "of 1" stays a
+		// link with an amber warning icon and says why.
 		await act(async () => root.unmount());
 		root = createRoot(container);
 		concurrency = 1;
@@ -2590,7 +2674,11 @@ describe("Factory work-at-once limit", () => {
 		const limit = container.querySelector("[data-factory-working-limit]");
 		expect(limit?.getAttribute("data-factory-working-limit")).toBe("over");
 		expect(limit?.getAttribute("title")).toContain("limit of 1");
-		expect(limit?.className).toContain("text-warning-text");
+		expect(limit?.className).toContain("text-accent-foreground");
+		expect(limit?.className).not.toContain("text-warning-text");
+		expect(limit?.querySelector("svg")?.getAttribute("class")).toContain(
+			"text-warning-text",
+		);
 		expect(
 			container.querySelector(
 				'[data-factory-group="working"] [data-factory-column-title]',
@@ -2666,6 +2754,22 @@ describe("Activity master-detail and short ids", () => {
 		expect(document.activeElement).toBe(other);
 		expect(other.getAttribute("aria-current")).toBe("true");
 		expect(current?.getAttribute("aria-current")).toBeNull();
+		// Selected differs from hovered in fill, weight and the accent bar,
+		// drawn on the whole row so its live line is inside them.
+		const classes = (item: Element | null | undefined) =>
+			item?.closest("li")?.className.split(" ") ?? [];
+		expect(classes(other)).toEqual(
+			expect.arrayContaining([
+				"bg-surface-hover",
+				"font-medium",
+				"before:bg-primary",
+			]),
+		);
+		expect(classes(current)).toContain(
+			"has-[>button:hover]:bg-surface-hover-lighter",
+		);
+		expect(classes(current)).not.toContain("bg-surface-hover");
+		expect(classes(current)).not.toContain("before:bg-primary");
 		expect(sessionStorage.getItem("factory.selectedTask")).toBe("other");
 		expect(cardColumn()).toContain("Other work");
 		expect(cardColumn()).not.toContain("Export activity");
@@ -2696,6 +2800,11 @@ describe("Activity master-detail and short ids", () => {
 			),
 		);
 		expect(onSelectedTaskChange).toHaveBeenLastCalledWith(null);
+		// Open, the header toggle is pressed rather than filled.
+		const header = button("Ask Factory");
+		expect(header.getAttribute("aria-pressed")).toBe("true");
+		expect(header.className.split(" ")).not.toContain("bg-primary");
+		expect(header.className.split(" ")).toContain("bg-surface-hover");
 		await act(async () => row("Needs you", "feature-1").click());
 		expect(onSelectedTaskChange).toHaveBeenLastCalledWith({
 			taskId: "feature-1",
@@ -2833,7 +2942,8 @@ describe("Factory home fits the width it has", () => {
 			expect(board?.className.split(" ")).toContain(name);
 		const column = container.querySelector('[data-factory-group="needsYou"]');
 		expect(column?.className).toContain("min-w-[220px]");
-		expect(column?.className).toContain("max-w-[420px]");
+		// No maximum: columns share the whole width, so a wide window has no dead space.
+		expect(column?.className).not.toContain("max-w-");
 		expect(
 			column?.querySelector("[data-factory-list]")?.className.split(" "),
 		).toContain("overflow-y-auto");
@@ -3181,11 +3291,13 @@ describe("Factory board display", () => {
 		mocks.tasks = cards();
 		await render();
 		await openDisplay();
-		expect(menuItem("Needs you").getAttribute("aria-disabled")).toBe("true");
+		// The always-on column says why it cannot be turned off.
+		const pinned = "Needs youAlways shown, so nothing that needs you is hidden";
+		expect(menuItem(pinned).getAttribute("aria-disabled")).toBe("true");
 		await choose("Delivered");
 		expect(groups()).toEqual(["working", "needsYou"]);
 		await choose("Delivered");
-		await choose("Needs you");
+		await choose(pinned);
 		expect(groups()).toContain("needsYou");
 		// Move Delivered left of Needs you, from the Reorder submenu.
 		const sub = menuItem("Reorder columns");
@@ -3206,6 +3318,11 @@ describe("Factory board display", () => {
 		await openDisplay();
 		await choose("Queue as its own column");
 		expect(groups()).toEqual(["waiting", "working", "delivered", "needsYou"]);
+		expect(
+			container.querySelector(
+				'[data-factory-group="waiting"] [data-factory-column-title]',
+			)?.textContent,
+		).toBe("Queue");
 		expect(listed("queued")).toBe(1);
 		expect(saved()).toMatchObject({ queueColumn: true });
 		await choose("Reset to default");

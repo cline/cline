@@ -25,7 +25,7 @@ import {
 	FACTORY_VERIFICATION_SETUP,
 } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
-import { StatusPill, toneText } from "./factory-ui";
+import { DetailsSummary, StatusPill, toneText } from "./factory-ui";
 import { FactoryWorkflowEditor } from "./factory-workflow-editor";
 
 const labelClass = "block space-y-2 text-sm font-medium";
@@ -75,9 +75,9 @@ export function FactoryDetailConfiguration({
 		});
 	return (
 		<details className="rounded-lg border bg-card">
-			<summary className="cursor-pointer select-none px-5 py-3 text-sm font-semibold">
+			<DetailsSummary className="gap-1.5 rounded-lg px-5 py-3 text-sm font-semibold text-foreground">
 				Configuration
-			</summary>
+			</DetailsSummary>
 			<div className="space-y-6 border-t px-5 py-5">
 				<label className={labelClass} htmlFor="feature-documents">
 					Reference docs
@@ -769,18 +769,14 @@ export function FactoryVerificationSetup({
 				)}
 			</dl>
 			<details className="text-xs">
-				<summary className="cursor-pointer select-none text-muted-foreground">
-					{FACTORY_VERIFICATION_SETUP.exercise}
-				</summary>
+				<DetailsSummary>{FACTORY_VERIFICATION_SETUP.exercise}</DetailsSummary>
 				<p className="mt-2 whitespace-pre-wrap break-words rounded bg-muted/40 p-3">
 					{profile.exercise}
 				</p>
 			</details>
 			{result?.preflight === "failed" && result.detail ? (
 				<details className="text-xs">
-					<summary className="cursor-pointer select-none text-muted-foreground">
-						{FACTORY_VERIFICATION_SETUP.showLog}
-					</summary>
+					<DetailsSummary>{FACTORY_VERIFICATION_SETUP.showLog}</DetailsSummary>
 					<pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-3 font-mono">
 						{result.detail}
 					</pre>

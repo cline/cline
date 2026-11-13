@@ -49,7 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ModelSelector } from "../chat/chat-input-bar";
 import { FactorySpendingField } from "./factory-concurrency";
-import { toneText } from "./factory-ui";
+import { DetailsSummary, toneText } from "./factory-ui";
 
 const noop = () => {};
 // Sentence case, like every other heading in the app.
@@ -278,12 +278,14 @@ export function FactoryWorkflowEditor({
 	);
 	const advanced = (
 		<details ref={advancedRef} className="group rounded-lg border">
-			<summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium">
-				{FACTORY_SETTING_LABEL.advanced}
-				<span className="ml-2 text-xs font-normal text-muted-foreground">
-					{FACTORY_SETTING_LABEL.advancedSummary}
+			<DetailsSummary className="gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium text-foreground">
+				<span>
+					{FACTORY_SETTING_LABEL.advanced}
+					<span className="ml-2 text-xs font-normal text-muted-foreground">
+						{FACTORY_SETTING_LABEL.advancedSummary}
+					</span>
 				</span>
-			</summary>
+			</DetailsSummary>
 			<div className="space-y-4 border-t px-4 py-4">
 				<h4 className={groupHeading}>{FACTORY_WORKFLOW.heading}</h4>
 				<div className="flex flex-wrap gap-2">
@@ -596,7 +598,7 @@ export function FactoryWorkflowEditor({
 			<p role="alert" className="text-xs text-destructive">
 				{error || loadError}
 				<Button
-					variant="ghost"
+					variant="outline"
 					size="sm"
 					disabled={loading || saving}
 					onClick={() => {
@@ -610,9 +612,9 @@ export function FactoryWorkflowEditor({
 		) : null;
 	return (
 		<details className="rounded-lg border">
-			<summary className="cursor-pointer select-none px-5 py-3 text-sm font-semibold">
+			<DetailsSummary className="gap-1.5 rounded-lg px-5 py-3 text-sm font-semibold text-foreground">
 				{factoryWorkflowSummary(agents)}
-			</summary>
+			</DetailsSummary>
 			<fieldset className="space-y-4 border-t px-5 py-5">
 				{status}
 				{everyday}
@@ -922,17 +924,19 @@ export function AgentEditor({
 	const id = useId();
 	return (
 		<details className="rounded-lg border bg-background px-3 py-2">
-			<summary className="cursor-pointer select-none text-sm font-medium">
-				{label}
-				<span className="font-normal text-muted-foreground"> · </span>
-				<span className="font-normal text-muted-foreground">
-					{agent.modelSelection
-						? factoryModelLabel(agent.modelSelection)
-						: agent.profile
-							? "Profile or default model"
-							: "Default model"}
+			<DetailsSummary className="gap-1.5 text-sm font-medium text-foreground">
+				<span>
+					{label}
+					<span className="font-normal text-muted-foreground"> · </span>
+					<span className="font-normal text-muted-foreground">
+						{agent.modelSelection
+							? factoryModelLabel(agent.modelSelection)
+							: agent.profile
+								? "Profile or default model"
+								: "Default model"}
+					</span>
 				</span>
-			</summary>
+			</DetailsSummary>
 			<div className="mt-3 space-y-3">
 				<div className="flex flex-wrap items-center gap-2">
 					{showModel ? (
@@ -947,7 +951,7 @@ export function AgentEditor({
 					) : null}
 					{agent.modelSelection ? (
 						<Button
-							variant="ghost"
+							variant="outline"
 							size="sm"
 							disabled={disabled}
 							onClick={() => onChange({ ...agent, modelSelection: undefined })}

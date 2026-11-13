@@ -111,6 +111,9 @@ describe("FactoryFilingNotice", () => {
 			"Open F12",
 			"File anyway",
 		]);
+		// File anyway is a command, so it is bordered like Open, not caption-like text.
+		for (const button of buttons())
+			expect(button.classList.contains("border")).toBe(true);
 		expect(buttons()[1]?.disabled).toBe(true);
 		await act(async () => buttons()[0]?.click());
 		expect(onOpenCard).toHaveBeenCalledWith("t-12");

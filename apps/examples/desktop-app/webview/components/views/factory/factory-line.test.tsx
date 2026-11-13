@@ -73,7 +73,7 @@ describe("factoryCardStations", () => {
 });
 
 describe("FactoryStationLine", () => {
-	it("reads the card's stages as one line, its own stage marked", async () => {
+	it("draws the card's stages as a stepper, its own stage marked", async () => {
 		await act(async () =>
 			root.render(
 				<FactoryStationLine
@@ -85,18 +85,31 @@ describe("FactoryStationLine", () => {
 			),
 		);
 		const line = container.querySelector('[data-factory-line="compact"]');
-		expect(line?.textContent).toBe("Scope›Build, Stopped at Build›Review›Done");
+		expect(line?.tagName).toBe("OL");
+		expect(line?.textContent).toBe("ScopeBuild, Stopped at BuildReviewDone");
 		expect(
 			container
 				.querySelector('[aria-current="step"]')
 				?.getAttribute("data-factory-station"),
 		).toBe("build");
-		// Each chevron closes the stage before it, so a wrapped line never
-		// starts with one.
 		const items = Array.from(
-			line?.querySelectorAll("[data-factory-station]") ?? [],
+			line?.querySelectorAll("li[data-factory-station]") ?? [],
 		);
-		expect(items.at(-1)?.textContent).not.toContain("›");
+		expect(items.map((item) => item.getAttribute("data-state"))).toEqual([
+			"done",
+			"stopped",
+			"upcoming",
+			"upcoming",
+		]);
+		expect(items[1]?.querySelector("svg")?.getAttribute("class")).toContain(
+			"text-error-text",
+		);
+		// A connector trails every step but the last, so a wrapped line never
+		// starts with one.
+		const connectors = items.map(
+			(item) => item.lastElementChild?.className === "mx-1.5 h-px w-2.5 bg-border",
+		);
+		expect(connectors).toEqual([true, true, true, false]);
 		expect(items[0]?.className).toContain("whitespace-nowrap");
 	});
 });

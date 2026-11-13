@@ -21,6 +21,7 @@ import {
 	ArrowLeft,
 	ArrowUpRight,
 	CheckCircle2,
+	ChevronDown,
 	CircleSlash,
 	ClipboardCheck,
 	Clock,
@@ -58,6 +59,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FactoryLiveActivity } from "@/hooks/use-factory-live-activity";
@@ -105,6 +107,7 @@ import {
 	FactoryStationLine,
 	factoryCardStations,
 	factoryStation,
+	factoryStoppedLabel,
 } from "./factory-line";
 import {
 	activeFactorySessions,
@@ -113,6 +116,7 @@ import {
 } from "./factory-live";
 import { FactoryParentLink, type FactorySplitContext } from "./factory-split";
 import {
+	DetailsSummary,
 	FactoryIdChip,
 	FactoryPriorityGlyph,
 	FactoryRuleBadge,
@@ -1153,10 +1157,11 @@ export function FactoryTaskHeader({
 			: undefined,
 	);
 	// Where the card is on the line, in the home's vocabulary and component.
-	const stations =
+	const stationState =
 		summary.stage === undefined
 			? undefined
-			: factoryCardStations(factoryStation(task, stationOutcome, { links }));
+			: factoryStation(task, stationOutcome, { links });
+	const stations = stationState && factoryCardStations(stationState);
 	const nextAction = nextActionSentence({
 		task,
 		state,
@@ -1184,7 +1189,9 @@ export function FactoryTaskHeader({
 		!summary.stopped &&
 		!summary.question &&
 		(liveSessions.length > 0 || Boolean(live?.waiting));
-	const stopping = task.status === "in_progress" || designActive;
+	// Archiving live work stops it first, so that item is destructive.
+	const cancelsOnArchive =
+		!task.archivedAt && (task.status === "in_progress" || designActive);
 	// The headline already says how it stopped; the reason says why.
 	// A repair-limit stop names the finding it could not clear.
 	const failureReason = withoutHeadlineLead(
@@ -1241,7 +1248,7 @@ export function FactoryTaskHeader({
 							title={task.workspaceRoot}
 						>
 							<FolderGit2 className="size-3.5 shrink-0" />
-							<span className="truncate font-medium text-foreground">
+							<span className="truncate">
 								{basenamePath(task.workspaceRoot)}
 							</span>
 							<span className="sr-only">{task.workspaceRoot}</span>
@@ -1314,31 +1321,37 @@ export function FactoryTaskHeader({
 								{FACTORY_CARD_ACTION.editPlan}
 							</DropdownMenuItem>
 						) : null}
+						{cancelsOnArchive ? null : (
+							<DropdownMenuItem onSelect={onArchive}>
+								{task.archivedAt ? "Restore" : "Archive"}
+							</DropdownMenuItem>
+						)}
+						{onRate || editPlanInMore || !cancelsOnArchive ? (
+							<DropdownMenuSeparator />
+						) : null}
 						{onStop ? (
-							<DropdownMenuItem onSelect={() => setConfirming("stop")}>
+							<DropdownMenuItem
+								variant="destructive"
+								onSelect={() => setConfirming("stop")}
+							>
 								{summary.startAnyway
 									? FACTORY_SPLIT.cancelPart
 									: "Stop this work…"}
 							</DropdownMenuItem>
 						) : null}
-						<DropdownMenuItem
-							onSelect={() =>
-								!task.archivedAt && stopping
-									? setConfirming("archive")
-									: onArchive()
-							}
-						>
-							{task.archivedAt
-								? "Restore"
-								: stopping
-									? "Cancel and archive…"
-									: "Archive"}
-						</DropdownMenuItem>
+						{cancelsOnArchive ? (
+							<DropdownMenuItem
+								variant="destructive"
+								onSelect={() => setConfirming("archive")}
+							>
+								Cancel and archive…
+							</DropdownMenuItem>
+						) : null}
 						<DropdownMenuItem
 							variant="destructive"
 							onSelect={() => setDeleting(true)}
 						>
-							Delete…
+							Delete card…
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -1387,15 +1400,15 @@ export function FactoryTaskHeader({
 			<AlertDialog open={deleting} onOpenChange={setDeleting}>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete this task permanently?</AlertDialogTitle>
+						<AlertDialogTitle>Delete this card permanently?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This stops any active work and deletes the task and its run
+							This stops any active work and deletes the card and its run
 							history. Files, branches, and session transcripts are kept. You
 							cannot undo this.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel>Keep task</AlertDialogCancel>
+						<AlertDialogCancel>Keep card</AlertDialogCancel>
 						<AlertDialogAction onClick={onDelete}>
 							Delete permanently
 						</AlertDialogAction>
@@ -1518,6 +1531,7 @@ export function FactoryTaskHeader({
 				>
 					<FactoryStationLine
 						stations={stations}
+						stoppedLabel={stationState && factoryStoppedLabel(stationState)}
 						aria-label={FACTORY_CARD_ACTION.stationLine}
 					/>
 				</div>
@@ -1594,10 +1608,11 @@ function FactoryPriorityControl({ task }: { task: AgendaTaskRecord }) {
 						size="xs"
 						data-factory-priority-control
 						aria-label={`${FACTORY_PRIORITY.menu}: ${label}`}
-						className="-mx-1.5 h-6 gap-1.5 px-1.5 font-normal text-muted-foreground hover:text-foreground"
+						className="-mx-1.5 h-6 gap-1.5 px-1.5 font-normal text-foreground"
 					>
 						<FactoryPriorityGlyph level={level ?? "none"} />
 						{label}
+						<ChevronDown aria-hidden className="size-3 opacity-60" />
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start">
@@ -1808,9 +1823,7 @@ export function FactoryFindingList({
 			</ul>
 			{truncated ? (
 				<details className="text-xs">
-					<summary className="cursor-pointer text-muted-foreground">
-						{FACTORY_OPEN_FINDINGS.fullText}
-					</summary>
+					<DetailsSummary>{FACTORY_OPEN_FINDINGS.fullText}</DetailsSummary>
 					<ul className="mt-1 max-h-64 space-y-2 overflow-auto rounded bg-muted/40 p-3">
 						{findings.map((finding, index) => (
 							<li

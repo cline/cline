@@ -172,6 +172,79 @@ describe("FactoryReviewDraftPanel", () => {
 		);
 	});
 
+	it("keeps typed summary and comment edits when the card is left without leaving the field", async () => {
+		await render();
+		await act(async () =>
+			button("Edit the comment on src/upload.ts:31").click(),
+		);
+		await type("Edit the comment on src/upload.ts:31", "Log it once.");
+		await type("Summary", "Two problems.");
+		act(() => root.unmount());
+		root = createRoot(container);
+		await render();
+		expect(
+			document.querySelector<HTMLTextAreaElement>(
+				'textarea[aria-label="Summary"]',
+			)?.value,
+		).toBe("Two problems.");
+		expect(document.body.textContent).toContain("Log it once.");
+	});
+
+	it("gives the summary its hint as the field's description, outside the text", async () => {
+		await render();
+		const field = document.querySelector<HTMLTextAreaElement>(
+			'textarea[aria-label="Summary"]',
+		);
+		const hint = document.getElementById(
+			field?.getAttribute("aria-describedby") ?? "",
+		);
+		expect(hint?.textContent).toBe(
+			"Posted as the review's main comment, with its findings and questions.",
+		);
+		expect(
+			field?.compareDocumentPosition(hint as Node) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
+	it("marks the chosen verdict with a tint and a check, starting on Comment even when the draft suggests otherwise", async () => {
+		await render({ draft: { ...draft, verdict: "approve" } });
+		const verdicts = () =>
+			[
+				...document.querySelectorAll<HTMLElement>(
+					'[aria-label="Post as"] button',
+				),
+			].map((item) => ({
+				name: item.textContent?.trim(),
+				on: item.dataset.state === "on",
+				tinted: item.className.includes("data-[state=on]:bg-primary/15"),
+				check: Boolean(item.querySelector("svg")),
+			}));
+		expect(verdicts().filter((item) => item.on)).toEqual([
+			{ name: "Comment", on: true, tinted: true, check: true },
+		]);
+		expect(verdicts().filter((item) => item.check)).toHaveLength(1);
+		await act(async () => button("Request changes").click());
+		expect(
+			verdicts()
+				.filter((item) => item.check)
+				.map((item) => item.name),
+		).toEqual(["Request changes"]);
+	});
+
+	it("leaves a comment out when its text is clicked", async () => {
+		await render();
+		const text = [...document.querySelectorAll("label")].find(
+			(item) => item.textContent === "Cap the backoff.",
+		);
+		await act(async () => text?.click());
+		expect(
+			button("Include the comment on src/upload.ts:20").getAttribute(
+				"aria-checked",
+			),
+		).toBe("false");
+	});
+
 	it("offers only a comment on the person's own pull request, as GitHub names them", async () => {
 		await render({ pullRequest: { ...pullRequest, viewerLogin: "Octo" } });
 		expect(document.body.textContent).not.toContain("Request changes");

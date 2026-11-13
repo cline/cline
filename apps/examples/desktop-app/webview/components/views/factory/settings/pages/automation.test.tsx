@@ -25,6 +25,38 @@ afterEach(() => {
 	document.body.innerHTML = "";
 });
 
+describe("Automation: rows", () => {
+	it("never repeats a group heading as a row title", async () => {
+		const page = await renderSettingsPage(settingsPage, {
+			shell: { limits: limitsWith(true) },
+		});
+		const headings = [...page.container.querySelectorAll("h3")].map((heading) =>
+			heading.textContent?.trim(),
+		);
+		const titles = [...page.container.querySelectorAll('[id$="-title"]')].map(
+			(title) => title.textContent?.trim(),
+		);
+		expect(headings.length).toBeGreaterThan(0);
+		expect(titles.filter((title) => headings.includes(title))).toEqual([]);
+		await page.unmount();
+	});
+
+	it("toggles a switch from its row title", async () => {
+		const page = await renderSettingsPage(settingsPage);
+		const title = page.container.querySelector<HTMLLabelElement>(
+			"#watchPullRequest-title",
+		);
+		expect(title?.tagName).toBe("LABEL");
+		expect(title?.textContent).toBe("Keep the PR passing");
+		await click(title);
+		expect(page.shell.workflow.commit).toHaveBeenCalledWith(
+			expect.objectContaining({ watchPullRequest: false }),
+			"watchPullRequest",
+		);
+		await page.unmount();
+	});
+});
+
 describe("Automation: Check for duplicates when work is filed", () => {
 	it("reads the Hub's value and saves a change through the limits command", async () => {
 		const page = await renderSettingsPage(settingsPage, {

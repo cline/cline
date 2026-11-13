@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FACTORY_MANAGER } from "@/lib/factory-copy";
 import {
 	FactoryManagerNotice,
 	factoryManagerExampleCardId,
@@ -90,7 +91,7 @@ describe("FactoryManagerNotice", () => {
 		);
 		expect(chips()).toEqual([
 			"What needs me right now?",
-			"Retry everything that stopped today",
+			"What stopped today, and why?",
 		]);
 		expect(container.textContent).not.toContain("F12");
 		act(() => container.querySelector("button")?.click());
@@ -113,7 +114,7 @@ describe("FactoryManagerNotice", () => {
 		expect(chips()).toEqual([
 			"What needs me right now?",
 			"How is F26 going?",
-			"Retry everything that stopped today",
+			"What stopped today, and why?",
 		]);
 		act(() =>
 			[...container.querySelectorAll("button")]
@@ -121,6 +122,11 @@ describe("FactoryManagerNotice", () => {
 				?.click(),
 		);
 		expect(onPickExample).toHaveBeenCalledWith("How is F26 going?");
+	});
+
+	it("offers only questions, never an instruction that spends or changes work", () => {
+		for (const example of FACTORY_MANAGER.examples("F1"))
+			expect(example).toMatch(/\?$/);
 	});
 
 	it("shows no chips and loads no cards when nothing can receive them", async () => {

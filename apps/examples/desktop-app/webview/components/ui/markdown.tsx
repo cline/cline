@@ -22,9 +22,11 @@ import {
 } from "react";
 import {
 	type Components,
+	defaultRehypePlugins,
 	type ExtraProps,
 	type LinkSafetyModalProps,
 	Streamdown,
+	type StreamdownProps,
 } from "streamdown";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
@@ -54,6 +56,24 @@ export function createDesktopMarkdownPlugins(loader?: MermaidModuleLoader) {
 
 const streamdownPlugins = createDesktopMarkdownPlugins();
 const thirdPartyPlugins = { ...streamdownPlugins, renderers: [] };
+
+/**
+ * Streamdown's hardening blocks a link it cannot resolve, such as a bare
+ * repository path (`[Delta](delta.md)`), and by default appends " [blocked]".
+ * In the app's own Markdown (agent output, card text) such a link reads as its
+ * plain text instead, so the person reads what was written; third-party
+ * Markdown keeps the marker.
+ */
+type RehypePlugins = NonNullable<StreamdownProps["rehypePlugins"]>;
+const [hardenPlugin, hardenOptions] = defaultRehypePlugins.harden as [
+	unknown,
+	Record<string, unknown>,
+];
+const firstPartyRehypePlugins = [
+	defaultRehypePlugins.raw,
+	defaultRehypePlugins.sanitize,
+	[hardenPlugin, { ...hardenOptions, linkBlockPolicy: "text-only" }],
+] as RehypePlugins;
 
 export function MarkdownLinkSafetyModal({
 	isOpen,
@@ -467,6 +487,7 @@ export const MemoizedMarkdown = memo(
 					normalizeHtmlIndentation
 					parseIncompleteMarkdown={streaming}
 					plugins={thirdParty ? thirdPartyPlugins : streamdownPlugins}
+					rehypePlugins={thirdParty ? undefined : firstPartyRehypePlugins}
 				>
 					{content}
 				</Streamdown>

@@ -554,7 +554,7 @@ describe("FactoryTaskHeader primary action", () => {
 				?.textContent,
 		).toBe("Type check failed.");
 		expect(progress()?.textContent).not.toContain("edit the plan first");
-		expect(await menuItems()).toEqual(["Edit plan", "Archive", "Delete…"]);
+		expect(await menuItems()).toEqual(["Edit plan", "Archive", "Delete card…"]);
 	});
 
 	it("makes Edit plan the one action when only editing can fix the plan", async () => {
@@ -621,6 +621,36 @@ describe("FactoryTaskHeader primary action", () => {
 			onRate,
 		});
 		expect(await menuItems()).toContain("Leave feedback…");
+	});
+
+	it("marks every More item that stops or deletes work as destructive", async () => {
+		await render({
+			task: { ...handsOff, status: "in_progress" },
+			onStop: vi.fn(),
+		});
+		expect(await menuItems()).toEqual([
+			"Stop this work…",
+			"Cancel and archive…",
+			"Delete card…",
+		]);
+		const menu = document.querySelector('[role="menu"]');
+		// Nothing sits above them, so no separator leads the menu.
+		expect(menu?.querySelector('[role="separator"]')).toBeNull();
+		expect(
+			[...(menu?.querySelectorAll('[role="menuitem"]') ?? [])].map((item) =>
+				item.getAttribute("data-variant"),
+			),
+		).toEqual(["destructive", "destructive", "destructive"]);
+	});
+
+	it("keeps Archive unstyled above a separator before the destructive items", async () => {
+		await render({ task: { ...handsOff, status: "completed" } });
+		expect(await menuItems()).toEqual(["Archive", "Delete card…"]);
+		const items = [...document.querySelectorAll('[role="menuitem"]')];
+		expect(items[0]?.getAttribute("data-variant")).toBe("default");
+		expect(items[0]?.nextElementSibling?.getAttribute("role")).toBe(
+			"separator",
+		);
 	});
 
 	it("offers Start scoping on a card nothing will start", async () => {
@@ -737,6 +767,17 @@ describe("FactoryTaskHeader priority", () => {
 	});
 	beforeEach(() => {
 		invoke.mockReset();
+	});
+
+	it("marks the priority as a menu and leaves the project as muted metadata", async () => {
+		await render({ task: handsOff });
+		expect(control()?.getAttribute("aria-haspopup")).toBe("menu");
+		expect(control()?.lastElementChild?.tagName.toLowerCase()).toBe("svg");
+		const project = [...document.querySelectorAll("span")].find(
+			(item) => item.textContent === "repo",
+		);
+		expect(project?.closest("button")).toBeNull();
+		expect(project?.className).not.toMatch(/text-foreground|font-medium/);
 	});
 
 	it("sets a working card's priority at once through the Hub", async () => {

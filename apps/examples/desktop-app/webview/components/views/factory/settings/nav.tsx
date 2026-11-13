@@ -12,7 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { FS_GROUPS, FS_SHELL } from "@/lib/factory-settings-copy/shell";
 import { cn } from "@/lib/utils";
-import { toneText } from "../factory-ui";
+import {
+	NAV_ITEM,
+	NAV_ITEM_SELECTED,
+	SECTION_LABEL,
+	toneText,
+} from "../factory-ui";
 import type {
 	SettingsFocus,
 	SettingsGroupId,
@@ -176,15 +181,14 @@ function SettingsSearch({
 									aria-selected={index === active}
 									data-search-hit={hit.row ?? hit.page}
 									onMouseDown={(event) => event.preventDefault()}
+									onMouseEnter={() => setActive(index)}
 									onClick={() => openHit(hit)}
 									onKeyDown={(event) => {
 										if (event.key === "Enter") openHit(hit);
 									}}
 									className={cn(
 										"cursor-pointer rounded-md px-2.5 py-1.5",
-										index === active
-											? "bg-surface-hover"
-											: "hover:bg-surface-hover",
+										index === active && "bg-surface-hover",
 									)}
 								>
 									<span className="block truncate text-[13px]">
@@ -226,50 +230,58 @@ function PageGroups({
 }) {
 	return (
 		<div className="flex flex-col pb-3">
-			{GROUP_ORDER.map((group) => (
-				<div
-					key={group}
-					{...(asMenu ? { role: "group", "aria-label": FS_GROUPS[group] } : {})}
-				>
-					{asMenu ? (
-						<p
-							aria-hidden
-							className="px-4.5 pt-3 pb-1 text-[11px] font-semibold text-muted-foreground"
-						>
-							{FS_GROUPS[group]}
-						</p>
-					) : (
-						<h3 className="px-4.5 pt-3 pb-1 text-[11px] font-semibold text-muted-foreground">
-							{FS_GROUPS[group]}
-						</h3>
-					)}
-					<div className="flex flex-col gap-0.5 px-2">
-						{pages
-							.filter((page) => page.group === group)
-							.map((page) => (
-								<Button
-									key={page.id}
-									type="button"
-									variant="sidebarItem"
-									role={asMenu ? "menuitem" : undefined}
-									data-settings-page={page.id}
-									aria-current={
-										!asMenu && current === page.id ? "page" : undefined
-									}
-									onClick={() => onOpen({ page: page.id })}
-									className={cn(
-										"!h-7 !px-2.5 py-0 text-[13px] font-normal",
-										current === page.id &&
-											"bg-surface-hover font-medium text-sidebar-foreground",
-									)}
-								>
-									<span className="truncate">{page.title}</span>
-									<Badge badge={badges[page.id]} />
-								</Button>
-							))}
+			{GROUP_ORDER.map((group, index) => {
+				const labelClass = cn(
+					"px-4.5 pb-1.5",
+					index === 0 ? "pt-2" : "pt-4",
+					SECTION_LABEL,
+				);
+				return (
+					<div
+						key={group}
+						{...(asMenu
+							? { role: "group", "aria-label": FS_GROUPS[group] }
+							: {})}
+					>
+						{asMenu ? (
+							<p aria-hidden className={labelClass}>
+								{FS_GROUPS[group]}
+							</p>
+						) : (
+							<h3 className={labelClass}>{FS_GROUPS[group]}</h3>
+						)}
+						<div className="flex flex-col gap-0.5 px-2">
+							{pages
+								.filter((page) => page.group === group)
+								.map((page) => (
+									<Button
+										key={page.id}
+										type="button"
+										variant="sidebarItem"
+										role={asMenu ? "menuitem" : undefined}
+										data-settings-page={page.id}
+										aria-current={
+											!asMenu && current === page.id ? "page" : undefined
+										}
+										onClick={() => onOpen({ page: page.id })}
+										className={cn(
+											"!h-7 !px-2.5 py-0 text-[13px]",
+											NAV_ITEM,
+											current === page.id && NAV_ITEM_SELECTED,
+										)}
+									>
+										<page.icon
+											aria-hidden
+											className="size-3.5 shrink-0 opacity-70"
+										/>
+										<span className="truncate">{page.title}</span>
+										<Badge badge={badges[page.id]} />
+									</Button>
+								))}
+						</div>
 					</div>
-				</div>
-			))}
+				);
+			})}
 		</div>
 	);
 }

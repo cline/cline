@@ -1,6 +1,6 @@
 /**
- * Factory settings words: Automation. Plan approval, draft PR review and
- * pull requests keep their wording from `FACTORY_SETTINGS.general`.
+ * Factory settings words: Automation. Plan approval and draft PR review
+ * keep their wording from `FACTORY_SETTINGS.general`.
  */
 
 export const FS_AUTOMATION = {
@@ -8,6 +8,7 @@ export const FS_AUTOMATION = {
 		"For new work in every project. Work already started keeps its settings.",
 	waitsGroup: "When Factory waits for you",
 	pullRequestsGroup: "Pull requests",
+	pullRequestReady: "Draft or ready",
 	repairsGroup: "Repairs",
 	learningGroup: "Learning",
 	newWorkGroup: "New work",
@@ -35,7 +36,7 @@ export const FS_AUTOMATION = {
 	repoRules: "Suggest rules from repeated findings",
 	repoRulesHint:
 		"When reviewers flag the same thing on two cards within 30 days, Factory adds a card proposing a rule. At most 2 a week.",
-	notifications: "Notifications",
+	notifications: "How Factory alerts you",
 	notificationsHint:
 		"Questions, plans waiting for you and finished work use the app's notification settings.",
 	openNotifications: "Open notification settings",

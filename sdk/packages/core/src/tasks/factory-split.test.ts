@@ -24,7 +24,7 @@ import {
 } from "./agenda-task-manager";
 import * as factoryPullRequest from "./factory-pull-request";
 import { FACTORY_REPO_RULES_SOURCE } from "./factory-repo-rules";
-import { createFactoryStatusTool } from "./factory-tool";
+import { createFactoryStatusTool, createFactoryTool } from "./factory-tool";
 import * as factoryWorkflow from "./factory-workflow";
 import { SqliteAgendaTaskStore } from "./store/sqlite-task-store";
 
@@ -340,6 +340,52 @@ describe("offering a breakdown", () => {
 			h.store().updateTaskState(task.taskId, { lastRunId: "run_earlier" });
 		await h.designed(task);
 		expect(h.designerPrompts()[0]).not.toContain("SPLITTING");
+	});
+
+	it("keeps the breakdown of a card the manager chat filed, though its answer also rates the review", async () => {
+		const h = await harness({
+			designer: (_prompt, call) =>
+				call === 0
+					? {
+							...breakdown(),
+							reviewSelection: {
+								impact: "local",
+								size: "trivial",
+								rationale: "Small documentation changes",
+								affectedPaths: ["src/export"],
+								consumers: [],
+								planReviewerIndices: [],
+								reviewerIndices: [0],
+							},
+						}
+					: plan(),
+		});
+		const filed = await createFactoryTool({
+			manager: h.manager,
+			listProjects: async () => [h.workspaceRoot],
+			resolveSessionDefaults: async () => ({
+				modelSelection: { providerId: "anthropic", modelId: "chat-model" },
+				interactive: true,
+				manager: true,
+			}),
+		}).execute(
+			{
+				project: "repo",
+				title: "Export, footer and report link",
+				instructions:
+					"Deliver these as separate pull requests: add the CSV export, fix the footer year, then link the export from reports once the export is merged.",
+				start_scoping: false,
+			},
+			{ agentId: "manager-agent", iteration: 1, sessionId: "manager-chat" },
+		);
+		if (!filed.ok) throw new Error(filed.error.message);
+		const task = await h.designed(await h.get(filed.task.taskId));
+		expect(task.factory?.reviewMode).toBe("adaptive");
+		expect(h.designerPrompts()[0]).toContain("SPLITTING (optional)");
+		expect(h.designerPrompts()[0]).toContain("Also include reviewSelection");
+		expect(task.factoryDesignProgress?.splitWithdrawn).toBeUndefined();
+		expect(task.factoryDesignProgress?.split?.parts).toHaveLength(3);
+		expect(h.designerPrompts()).toHaveLength(1);
 	});
 });
 

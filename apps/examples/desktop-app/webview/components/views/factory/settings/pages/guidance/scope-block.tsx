@@ -433,13 +433,14 @@ export function GuidanceScopeBlock({
 						actions={
 							<>
 								<ActionButton
+									danger
 									disabled={disabled || busy}
 									onClick={() => {
 										setDiscardError(undefined);
 										setDiscarding(true);
 									}}
 								>
-									{G.discard}
+									{G.discardAction}
 								</ActionButton>
 								<ActionButton
 									primary

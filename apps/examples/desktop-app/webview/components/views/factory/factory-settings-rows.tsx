@@ -3,11 +3,11 @@
 import { formatFactoryId } from "@cline/shared/browser";
 import {
 	AlertTriangle,
+	ArrowUpRight,
 	Check,
 	ChevronDown,
 	ChevronRight,
 	Copy,
-	ExternalLink,
 	FolderOpen,
 	Info,
 } from "lucide-react";
@@ -48,7 +48,12 @@ import { parseFactoryCostInput } from "@/lib/factory-limits";
 import { FS_AUTOMATION } from "@/lib/factory-settings-copy/automation";
 import { FS_COPY, FS_SHELL } from "@/lib/factory-settings-copy/shell";
 import { cn } from "@/lib/utils";
-import { type FactoryTone, StatusPill, toneText } from "./factory-ui";
+import {
+	type FactoryTone,
+	SECTION_LABEL,
+	StatusPill,
+	toneText,
+} from "./factory-ui";
 
 export { StatusPill };
 
@@ -66,10 +71,13 @@ export function SettingRow({
 	error,
 	top = false,
 	wrap = false,
+	labelFor,
 	children,
 }: {
 	/** Prefix for the title and description ids the control points at. */
 	id: string;
+	/** The control's id: the title becomes its label (a switch row, rule E). */
+	labelFor?: string;
 	title: ReactNode;
 	description?: ReactNode;
 	/** Under the description: a note, a warning or a validation message. */
@@ -91,9 +99,19 @@ export function SettingRow({
 			)}
 		>
 			<div className="min-w-0 flex-1">
-				<p id={`${id}-title`} className="text-sm font-medium">
-					{title}
-				</p>
+				{labelFor ? (
+					<label
+						id={`${id}-title`}
+						htmlFor={labelFor}
+						className="block cursor-pointer text-sm font-medium"
+					>
+						{title}
+					</label>
+				) : (
+					<p id={`${id}-title`} className="text-sm font-medium">
+						{title}
+					</p>
+				)}
 				{description ? (
 					<p
 						id={`${id}-description`}
@@ -132,9 +150,16 @@ export function GroupHeading({
 	hint?: ReactNode;
 }) {
 	return (
-		<h3 className="mt-[18px] flex items-baseline gap-2 border-b pb-1.5 text-xs font-semibold text-muted-foreground">
+		<h3
+			className={cn(
+				"mt-6 flex items-baseline gap-2 border-b pb-1.5",
+				SECTION_LABEL,
+			)}
+		>
 			{children}
-			{hint ? <span className="font-normal">{hint}</span> : null}
+			{hint ? (
+				<span className="font-normal normal-case tracking-normal">{hint}</span>
+			) : null}
 		</h3>
 	);
 }
@@ -156,10 +181,19 @@ export function GroupHeadingRow({
 }) {
 	if (!pill && !action) return <GroupHeading hint={hint}>{title}</GroupHeading>;
 	return (
-		<div className="mt-[18px] flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b pb-1.5">
-			<h3 className="flex min-w-0 flex-1 items-baseline gap-2 text-xs font-semibold text-muted-foreground">
+		<div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b pb-1.5">
+			<h3
+				className={cn(
+					"flex min-w-0 flex-1 items-baseline gap-2",
+					SECTION_LABEL,
+				)}
+			>
 				{title}
-				{hint ? <span className="truncate font-normal">{hint}</span> : null}
+				{hint ? (
+					<span className="truncate font-normal normal-case tracking-normal">
+						{hint}
+					</span>
+				) : null}
 			</h3>
 			<div className="flex shrink-0 items-center gap-1.5">
 				{pill}
@@ -568,7 +602,7 @@ export function OpenRow({
 				aria-describedby={description ? `${id}-description` : undefined}
 				// The hover fill reaches 8px past the text on each side as two
 				// shadows, which paint without widening the row (no overflow).
-				className="flex w-full items-center justify-between gap-5 rounded-md py-3 text-left hover:bg-surface-hover hover:shadow-[-8px_0_0_var(--color-surface-hover),8px_0_0_var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+				className="flex w-full items-center justify-between gap-5 rounded-md py-3 text-left hover:bg-surface-hover-lighter hover:shadow-[-8px_0_0_var(--color-surface-hover-lighter),8px_0_0_var(--color-surface-hover-lighter)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
 			>
 				<span className="min-w-0 flex-1">
 					<span id={`${id}-title`} className="block text-sm font-medium">
@@ -606,6 +640,7 @@ export function DisclosureRow({
 	description,
 	pill,
 	label,
+	openLabel,
 	defaultOpen = false,
 	children,
 }: {
@@ -615,6 +650,8 @@ export function DisclosureRow({
 	pill?: ReactNode;
 	/** The closed button's text; "Show" by default. */
 	label?: string;
+	/** The open button's text; "Hide" by default. */
+	openLabel?: string;
 	defaultOpen?: boolean;
 	children: ReactNode;
 }) {
@@ -647,12 +684,14 @@ export function DisclosureRow({
 						className="h-[26px] gap-1 px-2 text-xs text-muted-foreground"
 						onClick={() => setOpen((value) => !value)}
 					>
-						{open ? FS_SHELL.hide : (label ?? FS_SHELL.show)}
-						{open ? (
-							<ChevronDown aria-hidden className="size-3.5" />
-						) : (
-							<ChevronRight aria-hidden className="size-3.5" />
-						)}
+						{open ? (openLabel ?? FS_SHELL.hide) : (label ?? FS_SHELL.show)}
+						<ChevronDown
+							aria-hidden
+							className={cn(
+								"size-3.5 transition-transform",
+								open && "rotate-180",
+							)}
+						/>
 					</Button>
 				</div>
 			</div>
@@ -665,9 +704,9 @@ export function DisclosureRow({
 
 /**
  * A row's action: one outline button. Verbs ending in "…" open a
- * confirmation; `danger` is the red variant; `outside` adds the
- * external-link icon (opens app Settings or the browser); `folder` the
- * Finder icon.
+ * confirmation; `danger` is red text with a red border only on hover (rule
+ * D); `outside` adds a trailing arrow and is only for browser URLs (rule G);
+ * `folder` a leading Finder icon.
  */
 export function ActionButton({
 	children,
@@ -687,8 +726,6 @@ export function ActionButton({
 	"aria-describedby"?: string;
 	"aria-label"?: string;
 }) {
-	const Icon =
-		icon === "outside" ? ExternalLink : icon === "folder" ? FolderOpen : null;
 	return (
 		<Button
 			variant={primary ? "default" : "outline"}
@@ -698,12 +735,17 @@ export function ActionButton({
 			className={cn(
 				"h-[26px] gap-1.5 px-2.5 text-xs",
 				danger &&
-					"border-destructive/60 text-error-text hover:bg-destructive/10 hover:text-error-text dark:border-destructive/60",
+					"text-error-text hover:border-destructive/60 hover:bg-destructive/10 hover:text-error-text",
 			)}
 			{...rest}
 		>
-			{Icon ? <Icon aria-hidden className="size-3.5" /> : null}
+			{icon === "folder" ? (
+				<FolderOpen aria-hidden className="size-3.5" />
+			) : null}
 			{children}
+			{icon === "outside" ? (
+				<ArrowUpRight aria-hidden className="size-3" />
+			) : null}
 		</Button>
 	);
 }

@@ -181,6 +181,37 @@ describe("Guidance: reading", () => {
 		await page.unmount();
 	});
 
+	it("says a role has your guidance rather than a bare number", async () => {
+		const page = await render({
+			data: guidance({
+				reviewer: {
+					user: {
+						status: "current",
+						content: "x".repeat(553),
+						hash: hash("e"),
+					},
+				},
+			}),
+		});
+		expect(target(page, "reviewer")?.textContent).toBe("Code reviewersYours");
+		await page.unmount();
+	});
+
+	it("marks the selected target with the accent bar, not just the hover fill", async () => {
+		const page = await render();
+		const selected = target(page, "builder")?.className.split(" ") ?? [];
+		const other =
+			page.container
+				.querySelector('[role="tab"][aria-selected="false"]')
+				?.className.split(" ") ?? [];
+		expect(selected).toContain("before:bg-primary");
+		expect(selected).toContain("bg-surface-hover");
+		expect(other).not.toContain("before:bg-primary");
+		expect(other).not.toContain("bg-surface-hover");
+		expect(other).toContain("hover:bg-surface-hover-lighter");
+		await page.unmount();
+	});
+
 	it("marks a file changed outside Factory, with Accept and Discard", async () => {
 		const page = await render();
 		const repository = block(page, "repository");
@@ -222,7 +253,9 @@ describe("Guidance: reading", () => {
 		);
 		await click(page.buttons("Write guidance, Plan checkers, Yours")[0]);
 		expect(editor(page)?.value).toBe("");
-		await click(page.buttons("Ask Factory, Plan checkers, Repository")[0]);
+		await click(
+			page.buttons("Ask Factory to write it, Plan checkers, Repository")[0],
+		);
 		expect(page.shell.askFactory).toHaveBeenCalledWith(
 			"Change the plan checker guidance for app: ",
 		);
@@ -252,7 +285,7 @@ describe("Guidance: reading", () => {
 			},
 		});
 		expect(page.text()).toContain("Update Cline to change this.");
-		expect(page.buttons("Edit")).toHaveLength(0);
+		expect(page.buttons("Edit text")).toHaveLength(0);
 		expect(deadRows(page.container)).toEqual([]);
 		await page.unmount();
 		const noHistory = await render({
@@ -394,12 +427,12 @@ describe("Guidance: editing", () => {
 
 	it("drafts a change for Ask Factory, naming the target and scope", async () => {
 		const page = await render();
-		await click(page.buttons("Change with Ask Factory, Builders, Yours")[0]);
+		await click(page.buttons("Ask Factory to change it, Builders, Yours")[0]);
 		expect(page.shell.askFactory).toHaveBeenLastCalledWith(
 			"Change the builder guidance: ",
 		);
 		await click(
-			page.buttons("Change with Ask Factory, Builders, Repository")[0],
+			page.buttons("Ask Factory to change it, Builders, Repository")[0],
 		);
 		expect(page.shell.askFactory).toHaveBeenLastCalledWith(
 			"Change the builder guidance for app: ",
@@ -452,7 +485,9 @@ describe("Guidance: changed outside Factory", () => {
 				}),
 			},
 		});
-		await click(page.buttons("Discard change")[0]);
+		const trigger = page.buttons("Discard change…")[0];
+		expect(trigger?.className).toContain("text-error-text");
+		await click(trigger);
 		expect(page.shell.client.resolveGuidance).not.toHaveBeenCalled();
 		expect(document.body.textContent).toContain(
 			"The file goes back to the version you accepted.",

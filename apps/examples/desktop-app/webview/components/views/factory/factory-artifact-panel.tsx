@@ -13,6 +13,7 @@ import { ToolActivityCode } from "@cline/ui/components/agent-chat";
 import {
 	Check,
 	CheckCircle2,
+	ChevronDown,
 	CircleAlert,
 	Clock,
 	Copy,
@@ -25,6 +26,7 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
+	useId,
 	useState,
 } from "react";
 import { Button } from "@/components/ui/button";
@@ -463,6 +465,38 @@ export function FactoryCopyPathButton({ path }: { path: string }) {
 }
 
 /** One check: result, command, and its output in the tool-output block. */
+/** Rule H: shows or hides a check's output in place. */
+function OutputToggle({
+	open,
+	controls,
+	onToggle,
+	children,
+}: {
+	open: boolean;
+	controls: string;
+	onToggle: () => void;
+	/** Follows the label, e.g. the exit code. */
+	children: ReactNode;
+}) {
+	return (
+		<Button
+			variant="ghost"
+			size="xs"
+			className="mt-1 -ml-1.5 h-6 gap-1 px-1.5 text-xs text-muted-foreground has-[>svg]:px-1.5"
+			aria-expanded={open}
+			aria-controls={controls}
+			onClick={onToggle}
+		>
+			<ChevronDown
+				aria-hidden
+				className={cn("size-3.5 transition-transform", open && "rotate-180")}
+			/>
+			{open ? FACTORY_PANEL.hideOutput : FACTORY_PANEL.showOutput}
+			{children}
+		</Button>
+	);
+}
+
 export function FactoryCheckRow({
 	check,
 	taskId,
@@ -478,24 +512,23 @@ export function FactoryCheckRow({
 }) {
 	// Failed output is what the user came for; passing output stays folded.
 	const [open, setOpen] = useState(check.status !== "passed");
+	const outputId = useId();
 	return (
 		<li className="px-4 py-3">
 			<CheckResultSummary check={check} onEditPlan={onEditPlan} />
 			<code className="mt-1 block break-all text-xs text-muted-foreground">
 				{check.command}
 			</code>
-			<Button
-				variant="link"
-				size="sm"
-				className="mt-1 h-auto p-0 text-xs text-muted-foreground"
-				aria-expanded={open}
-				onClick={() => setOpen((value) => !value)}
+			<OutputToggle
+				open={open}
+				controls={outputId}
+				onToggle={() => setOpen((value) => !value)}
 			>
-				{open ? FACTORY_PANEL.hideOutput : FACTORY_PANEL.showOutput}
 				{check.exitCode !== null ? ` · exit ${check.exitCode}` : ""}
-			</Button>
+			</OutputToggle>
 			{open ? (
 				<ToolActivityCode
+					id={outputId}
 					aria-label={`${check.name} ${FACTORY_PANEL.output.toLowerCase()}`}
 					className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs"
 					data-testid="factory-check-output"
@@ -595,6 +628,7 @@ function FactoryStageRow({
 	const [open, setOpen] = useState(
 		stage.status === "failed" || stage.status === "error",
 	);
+	const outputId = useId();
 	const outcome =
 		stage.access === "write" && stage.status === "passed"
 			? FACTORY_STAGES.changed(stage.changedPaths?.length ?? 0)
@@ -631,20 +665,18 @@ function FactoryStageRow({
 			) : null}
 			{detail ? (
 				<>
-					<Button
-						variant="link"
-						size="sm"
-						className="mt-1 h-auto p-0 text-xs text-muted-foreground"
-						aria-expanded={open}
-						onClick={() => setOpen((value) => !value)}
+					<OutputToggle
+						open={open}
+						controls={outputId}
+						onToggle={() => setOpen((value) => !value)}
 					>
-						{open ? FACTORY_PANEL.hideOutput : FACTORY_PANEL.showOutput}
 						{stage.exitCode !== undefined && stage.exitCode !== null
 							? ` · exit ${stage.exitCode}`
 							: ""}
-					</Button>
+					</OutputToggle>
 					{open ? (
 						<ToolActivityCode
+							id={outputId}
 							aria-label={`${stage.name} ${FACTORY_PANEL.output.toLowerCase()}`}
 							className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs"
 						>

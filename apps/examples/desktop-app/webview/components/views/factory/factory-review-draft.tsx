@@ -8,8 +8,8 @@ import type {
 	FactoryRunState,
 } from "@cline/shared";
 import { factoryReviewReadableText } from "@cline/shared/browser";
-import { AlertTriangle, Loader2, Pencil } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Check, Info, Loader2, Pencil } from "lucide-react";
+import { useId, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -120,10 +120,10 @@ function byFile(comments: readonly DraftComment[]) {
 }
 
 const SEVERITY_TONE: Record<DraftComment["severity"], string> = {
-	blocker: "border-destructive/40 text-error-text",
-	major: "border-amber-500/40 text-amber-700 dark:text-amber-300",
-	minor: "border-border text-muted-foreground",
-	nit: "border-border text-muted-foreground",
+	blocker: "bg-destructive/15 text-error-text",
+	major: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+	minor: "bg-muted text-muted-foreground",
+	nit: "bg-muted text-muted-foreground",
 };
 
 /**
@@ -200,6 +200,7 @@ export function FactoryReviewDraftPanel({
 	const [rerunning, setRerunning] = useState(false);
 	const [confirming, setConfirming] = useState(false);
 	const [editing, setEditing] = useState<string | null>(null);
+	const summaryHintId = useId();
 	// GitHub refuses Approve and Request changes on the viewer's own pull
 	// request; both logins are GitHub's, which matches them without case.
 	const own =
@@ -283,7 +284,7 @@ export function FactoryReviewDraftPanel({
 	const severity = (comment: DraftComment) => (
 		<span
 			className={cn(
-				"shrink-0 rounded border px-1.5 text-[11px] leading-4 font-medium",
+				"shrink-0 rounded-full px-1.5 text-[11px] leading-4 font-medium",
 				SEVERITY_TONE[comment.severity],
 			)}
 		>
@@ -376,6 +377,7 @@ export function FactoryReviewDraftPanel({
 							htmlFor={readOnly ? undefined : id}
 							className={cn(
 								"block whitespace-pre-wrap break-words text-sm",
+								!readOnly && "cursor-pointer",
 								!kept &&
 									!readOnly &&
 									"line-through decoration-muted-foreground/60",
@@ -441,7 +443,6 @@ export function FactoryReviewDraftPanel({
 					<Panel
 						aria-label={FACTORY_PR_REVIEW.summary}
 						title={FACTORY_PR_REVIEW.summary}
-						description={readOnly ? undefined : FACTORY_PR_REVIEW.summaryHint}
 					>
 						{readOnly ? (
 							// The draft as posted: inert Markdown, so no HTML is rendered,
@@ -453,16 +454,26 @@ export function FactoryReviewDraftPanel({
 								/>
 							</ThirdPartyMarkdown>
 						) : (
-							<Textarea
-								aria-label={FACTORY_PR_REVIEW.summary}
-								className="max-h-[50vh] min-h-40 text-sm leading-6"
-								maxLength={60_000}
-								disabled={inFlight}
-								value={body}
-								onChange={(change) =>
-									setEdits({ ...edits, body: change.target.value })
-								}
-							/>
+							<div className="space-y-1.5">
+								<Textarea
+									aria-label={FACTORY_PR_REVIEW.summary}
+									aria-describedby={summaryHintId}
+									className="max-h-[50vh] min-h-40 text-sm leading-6"
+									maxLength={60_000}
+									disabled={inFlight}
+									value={body}
+									onChange={(change) =>
+										setEdits({ ...edits, body: change.target.value })
+									}
+								/>
+								<p
+									id={summaryHintId}
+									className="flex items-start gap-1.5 text-xs text-muted-foreground"
+								>
+									<Info aria-hidden className="mt-0.5 size-3 shrink-0" />
+									{FACTORY_PR_REVIEW.summaryHint}
+								</p>
+							</div>
 						)}
 						{draft.notChecked.length ? (
 							<section
@@ -645,8 +656,11 @@ export function FactoryReviewDraftPanel({
 										<ToggleGroupItem
 											key={option}
 											value={option}
-											className="flex-none px-2.5 text-xs whitespace-nowrap"
+											className="flex-none gap-1 px-2.5 text-xs whitespace-nowrap data-[state=on]:bg-primary/15 data-[state=on]:text-accent-foreground data-[state=on]:hover:bg-primary/15 data-[state=on]:hover:text-accent-foreground"
 										>
+											{event === option ? (
+												<Check aria-hidden className="size-3" />
+											) : null}
 											{FACTORY_PR_REVIEW.events[option]}
 										</ToggleGroupItem>
 									),

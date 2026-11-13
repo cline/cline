@@ -20,7 +20,7 @@ import {
 	SettingSkeleton,
 	UnavailableNote,
 } from "../../factory-settings-rows";
-import { toneText } from "../../factory-ui";
+import { NAV_ITEM, NAV_ITEM_SELECTED, toneText } from "../../factory-ui";
 import { ProjectSelect } from "../shell-parts";
 import type {
 	SettingsPageDefinition,
@@ -56,13 +56,13 @@ function targetState(target: FactoryGuidanceTarget | undefined): {
 			text: target?.role === "manager" ? G.builtIn : G.none,
 			changed: false,
 		};
-	return { text: G.chars(target.user.content.length), changed: false };
+	return { text: G.yours, changed: false };
 }
 
 /**
  * Guidance: what each role is told on every card. A target list (a select
  * when folded), then the selected target's "Yours" and repository text, each
- * with Edit (diff, then Save), Change with Ask Factory and, for a file
+ * with Edit text (diff, then Save), Ask Factory to change it and, for a file
  * changed outside Factory, Accept / Discard; then its history.
  */
 function GuidancePage({ shell, headingId, focus }: SettingsPageProps) {
@@ -334,9 +334,8 @@ function GuidancePage({ shell, headingId, focus }: SettingsPageProps) {
 									onClick={() => choose(item)}
 									className={cn(
 										"flex h-[30px] w-full items-center justify-between gap-2 rounded-md px-2.5 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-										selected
-											? "bg-muted font-medium text-foreground"
-											: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+										NAV_ITEM,
+										selected && NAV_ITEM_SELECTED,
 									)}
 								>
 									<span className="truncate">{G.targets[item]}</span>

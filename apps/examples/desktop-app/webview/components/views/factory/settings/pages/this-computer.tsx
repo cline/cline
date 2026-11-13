@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	type FactoryConnections,
@@ -155,10 +156,7 @@ function HubRow({ shell }: { shell: SettingsShell }) {
 						{C.updateHub}
 					</ActionButton>
 				) : (
-					<ActionButton
-						icon="outside"
-						onClick={() => shell.openAppSettings("About")}
-					>
+					<ActionButton onClick={() => shell.openAppSettings("About")}>
 						{C.checkForUpdates}
 					</ActionButton>
 				)}
@@ -250,17 +248,10 @@ function StorageRows({ shell }: { shell: SettingsShell }) {
 	const data: FactoryStorage | undefined = storage.data;
 	if (!data)
 		return (
-			<div aria-hidden className="space-y-0">
-				{[0, 1, 2].map((index) => (
-					<div
-						key={index}
-						className="flex items-center justify-between border-b py-3"
-					>
-						<SettingSkeleton className="w-48" />
-						<SettingSkeleton />
-					</div>
-				))}
-			</div>
+			<output className="flex items-center gap-2 border-b py-3 text-xs text-muted-foreground">
+				<Loader2 aria-hidden className="size-3.5 animate-spin" />
+				{C.copiesLoading}
+			</output>
 		);
 	const { worktrees } = data;
 	const finishedSize = formatBytes(worktrees.finishedBytes);
@@ -280,7 +271,9 @@ function StorageRows({ shell }: { shell: SettingsShell }) {
 				<CopyButton
 					text={data.worktreesDir}
 					what={`${C.location.toLowerCase()} path`}
-				/>
+				>
+					{C.copyPath}
+				</CopyButton>
 			</SettingRow>
 			<SettingRow
 				id="diskUse"
@@ -316,6 +309,7 @@ function StorageRows({ shell }: { shell: SettingsShell }) {
 				error={saves.errorFor("diskUse")}
 			>
 				<ActionButton
+					danger
 					disabled={
 						shell.readOnly ||
 						worktrees.finishedCount === 0 ||
@@ -343,7 +337,9 @@ function StorageRows({ shell }: { shell: SettingsShell }) {
 					/>
 				}
 			>
-				<CopyButton text={data.artifactsDir} what="evidence path" />
+				<CopyButton text={data.artifactsDir} what="evidence path">
+					{C.copyPath}
+				</CopyButton>
 			</SettingRow>
 			<ConfirmDialog
 				open={confirm}

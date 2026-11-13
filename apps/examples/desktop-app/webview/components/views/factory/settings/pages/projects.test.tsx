@@ -158,8 +158,11 @@ describe("Project detail", () => {
 			role: "builder",
 		});
 		expect(deadRows(page.container)).toEqual([]);
-		// Back returns to the list.
-		await click(page.buttons("Back to Projects")[0]);
+		// The breadcrumb back is drawn as a link; back returns to the list.
+		const back = page.buttons("Back to Projects")[0];
+		expect(back?.className).toContain("text-primary");
+		expect(back?.className).toContain("hover:underline");
+		await click(back);
 		expect(page.row("project-sketchbook")).not.toBeNull();
 		await page.unmount();
 	});

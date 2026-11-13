@@ -73,6 +73,8 @@ function LimitsPage({ shell, headingId, focus }: SettingsPageProps) {
 				id="builtInLimits"
 				title={L.builtIn}
 				description={L.builtInHint}
+				label={L.showBuiltIn}
+				openLabel={L.hideBuiltIn}
 			>
 				<dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-xs">
 					{L.builtInItems.map(([term, value]) => (
@@ -209,7 +211,6 @@ function DailyLimitRow({
 				}
 				onCommit={(dailyCostUsd) => void limits.setDailyCostUsd(dailyCostUsd)}
 			/>
-			<span className="text-xs text-muted-foreground">{L.perDay}</span>
 		</SettingRow>
 	);
 }

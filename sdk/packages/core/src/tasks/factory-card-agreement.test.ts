@@ -94,7 +94,7 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 		"Stays stopped until someone tries again.",
 	],
 	"draft PR could not open": [
-		"Stopped",
+		"Stopped opening the draft PR",
 		"Stays stopped until someone tries again.",
 	],
 	"plan fault": ["Stopped", "Stays stopped until someone tries again."],
@@ -167,7 +167,7 @@ const NEEDS_YOU: Record<string, string | RegExp> = {
 	"scoping failed": /^stopped: Design /,
 	"run blocked before its stop is recorded": /^stopped: \S/,
 	"stopped while building": /^stopped: \S/,
-	"draft PR could not open": /^stopped: /,
+	"draft PR could not open": /^stopped: Could not open the draft PR: /,
 	"plan fault": /^stopped: /,
 	"draft PR left open with findings": "review the draft PR (open findings)",
 	"delivered, stamp required": "review the delivery",
@@ -382,7 +382,11 @@ describe("factory_status lists Needs you in the board's order", () => {
 		const tasks = fixtures.map((fixture) => fixture.task);
 		const tool = createFactoryStatusTool({
 			manager: {
-				listTasks: async () => tasks,
+				// Filtered by status as the store filters.
+				listTasks: async (input) =>
+					tasks.filter(
+						(task) => !input?.statuses || input.statuses.includes(task.status),
+					),
 				getTask: async (taskId: string) =>
 					tasks.find((task) => task.taskId === taskId),
 				getTaskRuns: (taskId: string) =>
@@ -431,6 +435,19 @@ describe("factory_status lists Needs you in the board's order", () => {
 		);
 		expect(result.needsYou?.cards.map((card) => names.get(card.id))).toEqual(
 			FACTORY_NEEDS_YOU_ORDER,
+		);
+		// Deliveries waiting on the user count too, and a live scoping
+		// session parked on a question is in Needs you, not in a slot.
+		const asks = (fixture: (typeof fixtures)[number]) =>
+			fixture.card.waitingOn === "person";
+		expect(fixtures.some((f) => asks(f) && f.task.status === "completed")).toBe(
+			true,
+		);
+		expect(fixtures.some((f) => asks(f) && f.working)).toBe(true);
+		expect(result.needsYou?.count).toBe(FACTORY_NEEDS_YOU_ORDER.length);
+		const inSlots = fixtures.filter((f) => f.working && !asks(f)).length;
+		expect(result.factory).toMatch(
+			new RegExp(`^${inSlots} of 2 slots in use,`),
 		);
 	});
 });

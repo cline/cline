@@ -8,6 +8,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -455,12 +456,15 @@ function WorkflowRow({
 									</DropdownMenuItem>
 								) : null}
 								{builtIn ? null : (
-									<DropdownMenuItem
-										variant="destructive"
-										onSelect={() => setDeleting(true)}
-									>
-										{W.menu.delete}
-									</DropdownMenuItem>
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											variant="destructive"
+											onSelect={() => setDeleting(true)}
+										>
+											{W.menu.delete}
+										</DropdownMenuItem>
+									</>
 								)}
 							</DropdownMenuContent>
 						</DropdownMenu>

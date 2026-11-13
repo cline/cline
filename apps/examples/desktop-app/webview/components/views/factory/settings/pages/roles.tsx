@@ -6,7 +6,7 @@ import {
 	factoryReviewMode,
 } from "@cline/shared/browser";
 import { Switch } from "@cline/ui";
-import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
@@ -170,11 +170,13 @@ function RolesPage({ shell, headingId, focus }: SettingsPageProps) {
 						}
 						onClick={() => toggle(role)}
 					>
-						{expanded ? (
-							<ChevronDown aria-hidden className="size-4" />
-						) : (
-							<ChevronRight aria-hidden className="size-4" />
-						)}
+						<ChevronDown
+							aria-hidden
+							className={cn(
+								"size-4 transition-transform",
+								expanded && "rotate-180",
+							)}
+						/>
 					</Button>
 				</SettingRow>
 				{expanded ? (
@@ -223,11 +225,13 @@ function RolesPage({ shell, headingId, focus }: SettingsPageProps) {
 			<GroupHeading>{R.reviewGroup}</GroupHeading>
 			<SettingRow
 				id="requireIndependentReview"
+				labelFor="requireIndependentReview-switch"
 				title={R.requireIndependent}
 				description={R.requireIndependentHint}
 				error={errorFor("requireIndependentReview")}
 			>
 				<Switch
+					id="requireIndependentReview-switch"
 					checked={requireIndependent}
 					disabled={disabled}
 					data-setting-control="requireIndependentReview"

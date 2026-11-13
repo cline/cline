@@ -56,7 +56,9 @@ export function FactoryHandsOffNotice({ className }: { className?: string }) {
 			)}
 		>
 			<Sparkles className={cn("size-4 shrink-0", toneText("accent"))} />
-			<p className="min-w-0 flex-1">{HANDS_OFF_NOTICE_TEXT}</p>
+			<p title={HANDS_OFF_NOTICE_TEXT} className="line-clamp-2 min-w-0 flex-1">
+				{HANDS_OFF_NOTICE_TEXT}
+			</p>
 			<Button
 				size="sm"
 				variant="ghost"

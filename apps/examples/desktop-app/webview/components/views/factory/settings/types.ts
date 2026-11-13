@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import type { useFactoryLimits } from "@/hooks/use-factory-limits";
 import type {
@@ -115,4 +116,6 @@ export type SettingsPageEntry = SettingsPageDefinition & {
 	id: SettingsPageId;
 	group: SettingsGroupId;
 	title: string;
+	/** The section list's leading icon for this page. */
+	icon: LucideIcon;
 };

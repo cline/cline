@@ -9,6 +9,7 @@ export const FS_COMPUTER = {
 		"Factory work runs on this computer, in its own copy of each repository, so your checkout is never touched. SSH hosts and cloud sessions set up in the app run chat sessions only.",
 	serviceGroup: "Factory service",
 	copiesGroup: "Working copies",
+	copiesLoading: "Loading working copies…",
 	helpGroup: "Help",
 
 	hub: "Hub",
@@ -37,6 +38,7 @@ export const FS_COMPUTER = {
 		"The background service is replaced with this app's version. Sessions it is serving are interrupted, and Cline restarts when it is done.",
 	updateVerb: "Update and restart",
 
+	copyPath: "Copy path",
 	location: "Location",
 	locationHint: "Each card works in its own copy of its repository, here.",
 	diskUse: "Disk use",

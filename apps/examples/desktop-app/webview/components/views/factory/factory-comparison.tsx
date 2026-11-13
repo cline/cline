@@ -9,7 +9,7 @@ import type {
 	FactoryWorkflowRecipe,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared/browser";
-import { ArrowUpRight, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -340,7 +340,7 @@ function ComparisonTable({
 										variant="outline"
 										onClick={() => onOpenTask(entry.task.taskId)}
 									>
-										Open task <ArrowUpRight className="ml-1 size-3" />
+										Open task
 									</Button>
 								) : null}
 							</td>
@@ -687,7 +687,7 @@ export function FactoryComparison({
 					) : null}
 					<Button
 						size="sm"
-						variant="ghost"
+						variant="outline"
 						disabled={loading || !sourceRunId}
 						onClick={() => setVersion((value) => value + 1)}
 					>

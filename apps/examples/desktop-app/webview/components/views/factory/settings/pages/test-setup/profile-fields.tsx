@@ -1,7 +1,9 @@
 "use client";
 
 import type { FactoryVerificationProfile } from "@cline/shared/browser";
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { type ReactNode, useId, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { FS_TEST_SETUP } from "@/lib/factory-settings-copy/test-setup";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +49,52 @@ function Code({ children }: { children: ReactNode }) {
 	);
 }
 
+/** Longer than this, a command shows its first lines until opened. */
+const LONG_COMMAND_CHARS = 160;
+const LONG_COMMAND_LINES = 3;
+
+/** A shell command as a read-only code block, long ones folded. */
+function CommandBlock({ text }: { text: string }) {
+	const [open, setOpen] = useState(false);
+	const id = useId();
+	const long =
+		text.length > LONG_COMMAND_CHARS ||
+		text.split("\n").length > LONG_COMMAND_LINES;
+	return (
+		<div data-command-block="">
+			<pre
+				id={id}
+				className={cn(
+					"rounded-md bg-muted/40 px-2 py-1 font-mono text-[12px] leading-5 whitespace-pre-wrap break-all",
+					long &&
+						(open ? "max-h-64 overflow-auto" : "max-h-[64px] overflow-hidden"),
+				)}
+			>
+				{text}
+			</pre>
+			{long ? (
+				<Button
+					variant="ghost"
+					size="xs"
+					aria-expanded={open}
+					aria-controls={id}
+					className="mt-0.5 -ml-1.5 h-6 gap-1 px-1.5 text-xs text-muted-foreground has-[>svg]:px-1.5"
+					onClick={() => setOpen((value) => !value)}
+				>
+					<ChevronDown
+						aria-hidden
+						className={cn(
+							"size-3.5 transition-transform",
+							open && "rotate-180",
+						)}
+					/>
+					{open ? T.hideCommand : T.showCommand}
+				</Button>
+			) : null}
+		</div>
+	);
+}
+
 function fieldValue(
 	profile: FactoryVerificationProfile,
 	field: FieldId,
@@ -74,6 +122,12 @@ function fieldValue(
 			) : null;
 		case "skills":
 			return profile.skills?.length ? profile.skills.join(", ") : null;
+		case "install":
+		case "start":
+		case "stop": {
+			const text = fieldText(profile, field);
+			return text ? <CommandBlock text={text} /> : null;
+		}
 		default: {
 			const text = fieldText(profile, field);
 			return text ? <Code>{text}</Code> : null;

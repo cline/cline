@@ -144,7 +144,7 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 			<GroupHeading>{A.pullRequestsGroup}</GroupHeading>
 			<SettingRow
 				id="pullRequestReady"
-				title={G.pullRequests}
+				title={A.pullRequestReady}
 				description={G.pullRequestHint[pullRequestReady]}
 				extra={
 					independent ? null : (
@@ -182,6 +182,7 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 			</SettingRow>
 			<SettingRow
 				id="watchPullRequest"
+				labelFor="watchPullRequest-switch"
 				title={A.keepPassing}
 				description={A.keepPassingHint}
 				error={errorFor("watchPullRequest")}
@@ -189,6 +190,7 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 				<Switch
 					checked={factoryWatchesPullRequest(config)}
 					disabled={disabled}
+					id="watchPullRequest-switch"
 					data-setting-control="watchPullRequest"
 					{...rowLabels("watchPullRequest")}
 					onCheckedChange={(watchPullRequest) =>
@@ -234,6 +236,7 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 			<GroupHeading>{A.learningGroup}</GroupHeading>
 			<SettingRow
 				id="repoRules"
+				labelFor="repoRules-switch"
 				title={A.repoRules}
 				description={A.repoRulesHint}
 				error={errorFor("repoRules")}
@@ -241,6 +244,7 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 				<Switch
 					checked={config.repoRules === true}
 					disabled={disabled}
+					id="repoRules-switch"
 					data-setting-control="repoRules"
 					{...rowLabels("repoRules")}
 					onCheckedChange={(repoRules) =>
@@ -258,7 +262,6 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 				description={A.notificationsHint}
 			>
 				<ActionButton
-					icon="outside"
 					aria-describedby="notifications-description"
 					onClick={() => shell.openAppSettings("General")}
 				>
@@ -307,6 +310,7 @@ function NewWorkSwitchRow({
 	return (
 		<SettingRow
 			id={setting}
+			labelFor={`${setting}-switch`}
 			title={copy.title}
 			description={copy.description}
 			error={saves.errorFor(setting)}
@@ -314,6 +318,7 @@ function NewWorkSwitchRow({
 			<Switch
 				checked={checked}
 				disabled={loading || shell.readOnly || saves.busy === setting}
+				id={`${setting}-switch`}
 				data-setting-control={setting}
 				{...rowLabels(setting)}
 				onCheckedChange={async (value) => {
@@ -351,7 +356,7 @@ export const settingsPage: SettingsPageDefinition = {
 		},
 		{
 			row: "pullRequestReady",
-			title: G.pullRequests,
+			title: A.pullRequestReady,
 			description: G.pullRequestHint.never,
 		},
 		{

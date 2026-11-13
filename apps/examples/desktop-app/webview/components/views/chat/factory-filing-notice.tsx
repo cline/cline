@@ -92,7 +92,7 @@ export function FactoryFilingNotice({
 						<button
 							type="button"
 							title={card.title}
-							className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="rounded-sm text-accent-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							onClick={() => onOpenCard(card.taskId)}
 						>
 							{name(card)}
@@ -121,7 +121,7 @@ export function FactoryFilingNotice({
 				</Button>
 				<Button
 					size="sm"
-					variant="ghost"
+					variant="outline"
 					className="h-7"
 					disabled={busy}
 					onClick={onFileAnyway}

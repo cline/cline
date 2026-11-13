@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { FactoryLimits } from "@/lib/factory-limits";
-import { useFactoryLimits } from "./use-factory-limits";
+import { SPEND_REFRESH_MS, useFactoryLimits } from "./use-factory-limits";
 
 const mocks = vi.hoisted(() => ({
 	invoke: vi.fn(
@@ -152,4 +152,60 @@ it("reads the Hub's limits again on reload, after a settings reset", async () =>
 	concurrency = 2;
 	await act(async () => current.reload());
 	expect(current.limits).toEqual({ supported: true, concurrency: 2 });
+});
+
+it("reads today's spend again once for a burst of refreshes", async () => {
+	vi.useFakeTimers();
+	try {
+		let spentTodayUsd = 7;
+		mocks.invoke.mockImplementation(async () => ({
+			supported: true,
+			concurrency: 2,
+			dailyCostUsd: 50,
+			spentTodayUsd,
+		}));
+		await act(async () => root.render(<Probe />));
+		expect(mocks.invoke).toHaveBeenCalledTimes(1);
+		spentTodayUsd = 9.5;
+		act(() => {
+			current.refreshSpend();
+			current.refreshSpend();
+			current.refreshSpend();
+		});
+		expect(mocks.invoke).toHaveBeenCalledTimes(1);
+		await act(async () => vi.advanceTimersByTimeAsync(SPEND_REFRESH_MS));
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		expect(current.limits).toMatchObject({ spentTodayUsd: 9.5 });
+	} finally {
+		vi.useRealTimers();
+	}
+});
+
+it("keeps a limit the person is saving over a spend read that lands first", async () => {
+	vi.useFakeTimers();
+	try {
+		let release: (value: FactoryLimits) => void = () => {};
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_get_limits"
+				? { supported: true, concurrency: 2, spentTodayUsd: 7 }
+				: new Promise((resolve) => {
+						release = resolve;
+					}),
+		);
+		await act(async () => root.render(<Probe />));
+		act(() => current.refreshSpend());
+		let saving: Promise<void> = Promise.resolve();
+		await act(async () => {
+			saving = current.setConcurrency(4);
+		});
+		await act(async () => vi.advanceTimersByTimeAsync(SPEND_REFRESH_MS));
+		expect(current.limits).toMatchObject({ concurrency: 4 });
+		await act(async () => {
+			release({ supported: true, concurrency: 4, spentTodayUsd: 8 });
+			await saving;
+		});
+		expect(current.limits).toMatchObject({ concurrency: 4, spentTodayUsd: 8 });
+	} finally {
+		vi.useRealTimers();
+	}
 });

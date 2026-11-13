@@ -8,7 +8,6 @@ import {
 	isUnavailable,
 } from "@/lib/factory-settings-client";
 import { FS_DATA } from "@/lib/factory-settings-copy/data-reset";
-import { fsConfirmTitle } from "@/lib/factory-settings-copy/shell";
 import {
 	ActionButton,
 	FormDialog,
@@ -24,7 +23,9 @@ export type DangerAction = {
 	row: string;
 	title: string;
 	hint: string;
+	/** Verb + object, on the row's button. */
 	label: string;
+	confirmTitle: string;
 	verb: string;
 	/** What a dry run (or the reset itself) will change / changed. */
 	count: (reply: FactoryResetResult) => string;
@@ -40,7 +41,8 @@ export const DANGER_ACTIONS: readonly DangerAction[] = [
 		row: "forgetStageApprovals",
 		title: D.forgetStages,
 		hint: D.forgetStagesHint,
-		label: D.forget,
+		label: D.forgetStagesAction,
+		confirmTitle: D.forgetStagesConfirm,
 		verb: D.forgetVerb,
 		count: (r) => D.count.stages(r.stages ?? 0, r.projects ?? 0),
 		done: (r) => D.done.stages(r.stages ?? 0, r.projects ?? 0),
@@ -50,7 +52,8 @@ export const DANGER_ACTIONS: readonly DangerAction[] = [
 		row: "forgetTestSetupApprovals",
 		title: D.forgetVerification,
 		hint: D.forgetVerificationHint,
-		label: D.forget,
+		label: D.forgetVerificationAction,
+		confirmTitle: D.forgetVerificationConfirm,
 		verb: D.forgetVerb,
 		count: (r) => D.count.verification(r.projects ?? 0),
 		done: (r) => D.done.verification(r.projects ?? 0),
@@ -60,7 +63,8 @@ export const DANGER_ACTIONS: readonly DangerAction[] = [
 		row: "clearGuidance",
 		title: D.clearGuidance,
 		hint: D.clearGuidanceHint,
-		label: D.clear,
+		label: D.clearGuidanceAction,
+		confirmTitle: D.clearGuidanceConfirm,
 		verb: D.clearVerb,
 		count: (r) => D.count.guidance(roleNames(r)),
 		done: (r) => D.done.guidance(r.roles?.length ?? 0),
@@ -70,7 +74,8 @@ export const DANGER_ACTIONS: readonly DangerAction[] = [
 		row: "resetSettings",
 		title: D.resetSettings,
 		hint: D.resetSettingsHint,
-		label: D.reset,
+		label: D.resetSettingsAction,
+		confirmTitle: D.resetSettingsConfirm,
 		verb: D.resetVerb,
 		count: (r) => D.count.settings(r.concurrency ?? 2, r.dailyCostUsd ?? 50),
 		done: () => D.done.settings,
@@ -169,7 +174,7 @@ export function DangerRow({
 					name={`reset-${action.what}`}
 					open
 					danger
-					title={fsConfirmTitle(action.title)}
+					title={action.confirmTitle}
 					description={action.hint}
 					verb={action.verb}
 					busy={busy}

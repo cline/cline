@@ -729,6 +729,8 @@ export type FactoryStationState = {
 	stage?: string;
 	/** At `delivered`, and delivered on `now`'s local calendar day. */
 	deliveredToday: boolean;
+	/** Stopped only because its draft PR could not be opened. */
+	publishFailed?: true;
 };
 
 type FactoryStationTask = FactoryCardTaskFacts &
@@ -837,6 +839,9 @@ export function factoryStation(
 		...(activeStage && !retrying ? { stage: activeStage } : {}),
 		deliveredToday:
 			station === "delivered" && !stopped && sameLocalDay(task.updatedAt, now),
+		...(stopped && card.reasonCode === "publish_failed"
+			? { publishFailed: true as const }
+			: {}),
 	};
 }
 

@@ -269,14 +269,26 @@ describe("Workflows page", () => {
 		await page.unmount();
 	});
 
+	it("sets Delete workflow apart at the end of the row menu", async () => {
+		const page = await render();
+		await openMenu(page, "Small fixes");
+		const menu = document.querySelector('[role="menu"]');
+		const last = menu?.lastElementChild;
+		expect(last?.textContent).toBe("Delete workflow…");
+		expect(last?.previousElementSibling?.getAttribute("role")).toBe(
+			"separator",
+		);
+		await page.unmount();
+	});
+
 	it("deletes a workflow after confirmation", async () => {
 		const page = await render({
 			deletePreset: async () => [careful, handsOff],
 		});
-		await choose(page, "Small fixes", "Delete…");
+		await choose(page, "Small fixes", "Delete workflow…");
 		expect(document.body.textContent).toContain("Delete “Small fixes”?");
 		expect(page.shell.client.deletePreset).not.toHaveBeenCalled();
-		await click(page.buttons("Delete")[0]);
+		await click(page.buttons("Delete workflow")[0]);
 		expect(page.shell.client.deletePreset).toHaveBeenCalledWith(
 			"Small fixes",
 			undefined,
@@ -291,7 +303,7 @@ describe("Workflows page", () => {
 
 	it("deleting the default asks which workflow becomes the default", async () => {
 		const page = await render({ deletePreset: async () => [small, handsOff] });
-		await choose(page, "Careful", "Delete…");
+		await choose(page, "Careful", "Delete workflow…");
 		const dialog = document.querySelector(
 			'[data-settings-dialog="deleteDefault"]',
 		);
@@ -305,7 +317,7 @@ describe("Workflows page", () => {
 		]);
 		const { choose: pick } = await import("../test-utils");
 		await pick(select ?? null, "Small fixes");
-		await click(page.buttons("Delete")[0]);
+		await click(page.buttons("Delete workflow")[0]);
 		expect(page.shell.client.deletePreset).toHaveBeenCalledWith(
 			"Careful",
 			"Small fixes",

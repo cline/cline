@@ -27,7 +27,7 @@ export const FS_WORKFLOWS = {
 		rename: "Rename…",
 		duplicate: "Duplicate",
 		copyJson: "Copy as JSON",
-		delete: "Delete…",
+		delete: "Delete workflow…",
 	},
 	copyFailed: "Couldn't copy the workflow. Try again.",
 	copied: (name: string) => `Copied “${name}” as JSON.`,
@@ -49,7 +49,7 @@ export const FS_WORKFLOWS = {
 		"It is the default workflow, so choose the one new work uses instead. Cards that used it keep their settings.",
 	newDefault: "New default",
 	newDefaultHint: "New work uses this from now on.",
-	deleteVerb: "Delete",
+	deleteVerb: "Delete workflow",
 	deleted: (name: string) => `Deleted “${name}”.`,
 	// Save current as
 	saveAs: "Save current as…",

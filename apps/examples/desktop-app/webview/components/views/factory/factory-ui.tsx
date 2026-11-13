@@ -14,6 +14,7 @@ import {
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronDown,
 	ClipboardCheck,
 	GitPullRequest,
 	ListTree,
@@ -94,9 +95,58 @@ const TONE_DOT: Record<FactoryTone, string> = {
 	accent: "bg-primary",
 };
 
+/** Rule A: a section label. Never interactive. */
+export const SECTION_LABEL =
+	"text-[11px] font-medium uppercase tracking-wide text-muted-foreground select-none";
+/** Rule B: an item in a vertical navigation list. */
+export const NAV_ITEM =
+	"relative text-sidebar-foreground/80 font-normal hover:bg-surface-hover-lighter hover:text-sidebar-foreground";
+export const NAV_ITEM_SELECTED =
+	"bg-surface-hover font-medium text-sidebar-foreground hover:bg-surface-hover before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary";
+
+/** Rule F: a status pill is a borderless tint, never a button-like box. */
+const TONE_PILL: Record<FactoryTone, string> = {
+	neutral: "bg-muted",
+	attention: "bg-amber-500/15",
+	working: "bg-sky-500/15",
+	success: "bg-emerald-500/15",
+	danger: "bg-destructive/15",
+	accent: "bg-primary/15",
+};
+
 export const toneText = (tone: FactoryTone) => TONE_TEXT[tone];
 export const toneSurface = (tone: FactoryTone) => TONE_SURFACE[tone];
 export const toneDot = (tone: FactoryTone) => TONE_DOT[tone];
+/** Text colour for a static status line: violet is reserved for links. */
+export const toneStatusText = (tone: FactoryTone) =>
+	tone === "accent" ? "text-foreground" : TONE_TEXT[tone];
+
+/**
+ * Rule H: the trigger of a native `<details>`, with a down chevron that
+ * turns when its own `<details>` is open (not when an enclosing one is).
+ */
+export function DetailsSummary({
+	children,
+	className,
+}: {
+	children: ReactNode;
+	className?: string;
+}) {
+	return (
+		<summary
+			className={cn(
+				"flex cursor-pointer list-none items-center gap-1 rounded-sm text-xs text-muted-foreground select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden",
+				className,
+			)}
+		>
+			<ChevronDown
+				aria-hidden
+				className="size-3.5 shrink-0 transition-transform [details[open]>summary>&]:rotate-180"
+			/>
+			{children}
+		</summary>
+	);
+}
 
 export function StatusPill({
 	tone = "neutral",
@@ -112,7 +162,12 @@ export function StatusPill({
 	return (
 		<Badge
 			variant="outline"
-			className={cn(TONE_SURFACE[tone], TONE_TEXT[tone], className)}
+			className={cn(
+				"rounded-full border-transparent px-2",
+				TONE_PILL[tone],
+				toneStatusText(tone),
+				className,
+			)}
 		>
 			{Icon ? <Icon /> : null}
 			{children}
@@ -172,9 +227,8 @@ export function FactoryRuleBadge({ className }: { className?: string }) {
 			variant="outline"
 			title={FACTORY_RULE_CARD.explanation}
 			className={cn(
-				"shrink-0",
-				TONE_SURFACE.accent,
-				TONE_TEXT.accent,
+				"shrink-0 rounded-full border-transparent bg-primary/15",
+				toneStatusText("accent"),
 				className,
 			)}
 		>
@@ -211,7 +265,7 @@ export function FactoryIdChip({
 		<span
 			data-factory-id
 			className={cn(
-				"shrink-0 rounded border border-border/70 px-1 font-mono text-[11px] font-normal leading-4 text-muted-foreground tabular-nums",
+				"shrink-0 font-mono text-[11px] font-normal leading-4 text-muted-foreground tabular-nums",
 				className,
 			)}
 		>

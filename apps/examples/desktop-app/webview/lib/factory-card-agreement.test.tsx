@@ -16,6 +16,7 @@ import {
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
+import { factoryStoppedLabel } from "@/components/views/factory/factory-line";
 import { activeFactorySessions } from "@/components/views/factory/factory-live";
 import type { FactorySplitContext } from "@/components/views/factory/factory-split";
 import { FactoryTaskHeader } from "@/components/views/factory/factory-task-header";
@@ -40,6 +41,7 @@ import {
 	factoryAttentionReasons,
 	factoryStation,
 } from "./factory-attention";
+import { FACTORY_LINE } from "./factory-copy";
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: vi.fn(), subscribe: vi.fn(() => () => {}) },
@@ -206,6 +208,12 @@ describe("the desktop agrees with factoryCardState", () => {
 				lastRun: run,
 			}).kind === "stopped";
 		expect(activity.station.stopped).toBe(stopped);
+		if (stopped)
+			expect(factoryStoppedLabel(activity.station)).toBe(
+				fixture.card.reasonCode === "publish_failed"
+					? "Stopped opening the draft PR"
+					: `Stopped at ${FACTORY_LINE.stations[activity.station.station]}`,
+			);
 		if (!BOARD_STAGE_UNKNOWN.has(name))
 			expect(activity.station.station).toBe(fixture.card.stage);
 		// The card's own line, from its run state as the header passes it.

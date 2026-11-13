@@ -439,11 +439,15 @@ export const FACTORY_MANAGER = {
 	description:
 		"Give Factory work, ask how it is going, hold or retry a card, or tell Factory how its agents should work.",
 	examplesLabel: "Example questions",
-	/** The card example appears only when there is a real card to ask about. */
+	/**
+	 * Read-only questions: a chip only fills the composer, and none of them
+	 * asks Factory to spend or change anything. The card example appears only
+	 * when there is a real card to ask about.
+	 */
 	examples: (cardId?: string): string[] => [
 		"What needs me right now?",
 		...(cardId ? [`How is ${cardId} going?`] : []),
-		"Retry everything that stopped today",
+		"What stopped today, and why?",
 	],
 	sessionTitle: "Factory manager",
 	placeholder:
@@ -858,18 +862,18 @@ export const FACTORY_COMPARE = {
 } as const;
 
 /**
- * The Factory home: four status groups (Working, Waiting, Needs you,
- * Delivered) in three columns, Waiting as the Queue under Working unless it is
- * its own column; each row has a small stage line. Stage names are shared with
+ * The Factory home: four status groups (Working, Queue, Needs you,
+ * Delivered) in three columns, the Queue under Working unless it is its own
+ * column; each row has a small stage line. Stage names are shared with
  * the card's own stage line.
  */
 export const FACTORY_LINE = {
 	/**
-	 * Where a card is. The stage line shows Scope to Done; Waiting is a
+	 * Where a card is. The stage line shows Scope to Done; the Queue is a
 	 * state, named where a card is listed rather than drawn as a stage.
 	 */
 	stations: {
-		waiting: "Waiting",
+		waiting: "Queue",
 		scope: "Scope",
 		build: "Build",
 		verify: "Verify",
@@ -878,6 +882,8 @@ export const FACTORY_LINE = {
 	},
 	skippedForCard: "Skipped for this card",
 	stoppedAt: (station: string) => `Stopped at ${station}`,
+	/** A stop whose only failure was opening the draft PR (marked at Review). */
+	stoppedOpeningPr: "Stopped opening the draft PR",
 	/** The row stage line's accessible name: "Build, stage 2 of 5". */
 	stage: (station: string, index: number, total: number) =>
 		`${station}, stage ${index} of ${total}`,
@@ -887,7 +893,7 @@ export const FACTORY_LINE = {
 	groups: {
 		needsYou: "Needs you",
 		working: "Working",
-		waiting: "Waiting",
+		waiting: "Queue",
 		delivered: "Delivered",
 	},
 	/** Beside "Delivered": how many of them were delivered today. */
@@ -934,7 +940,7 @@ export const FACTORY_FEEDBACK = {
 	evidence: "From the evidence",
 	save: "Save rule",
 	saving: "Saving…",
-	discard: "Discard",
+	discard: "Discard rule",
 	discuss: "Discuss",
 	tryAgain: "Try again",
 	saved: "Rule saved. Factory follows it from the next card.",
@@ -1042,7 +1048,7 @@ export const FACTORY_BOARD = {
 	board: "Factory board",
 	/** One line in an empty column. */
 	empty: {
-		waiting: "Nothing is waiting.",
+		waiting: "Nothing is queued.",
 		working: "Nothing is running.",
 		needsYou: "Nothing needs you.",
 		delivered: "Nothing delivered yet.",
@@ -1055,11 +1061,13 @@ export const FACTORY_BOARD = {
 	queue: "Queue",
 	/** After "Working 3 of 6" when work waits: "· 8 queued". */
 	queued: (count: number) => `${count} queued`,
-	/** Display → Columns: the queue as its own Waiting column. */
+	/** Display → Columns: why Needs you cannot be hidden. */
+	pinned: "Always shown, so nothing that needs you is hidden",
+	/** Display → Columns: the Queue as its own column. */
 	queueColumn: "Queue as its own column",
 	/** Under Delivered when older deliveries are left for All history. */
 	mostRecent: (count: number) => `${count} most recent`,
-	moreWaiting: (count: number) => `+${count} more waiting`,
+	moreWaiting: (count: number) => `+${count} more queued`,
 	/** A collapsed column's strip. */
 	showColumn: (name: string, count: number) =>
 		`Show ${name}, ${count} ${count === 1 ? "card" : "cards"}`,
@@ -1122,8 +1130,8 @@ export const FACTORY_SETTINGS = {
 		olderTitle: "Saved by an older version.",
 		/** The older-workflow note; `local` when finished work stays on a branch. */
 		olderBody: (local: boolean, setsCardLimit: boolean) =>
-			`Factory does not retry or re-scope stopped work on its own${local ? ", and finished work stays on a local branch, with no draft PR" : ""}. Update turns that on${setsCardLimit ? " and sets a $10 card limit" : ""}. The settings shown on this page stay as they are.`,
-		update: "Update",
+			`Factory does not retry or re-scope stopped work on its own${local ? ", and finished work stays on a local branch, with no draft PR" : ""}. Updating the workflow turns that on${setsCardLimit ? " and sets a $10 card limit" : ""}. The settings shown on this page stay as they are.`,
+		update: "Update the workflow",
 		draftReview: "Draft PR review",
 		draftReviewOptions: {
 			by_risk: "Only when needed",
@@ -1136,7 +1144,6 @@ export const FACTORY_SETTINGS = {
 			always: "Every draft PR waits for you to mark it as reviewed.",
 			never: "Draft PRs never wait for you.",
 		},
-		pullRequests: "Pull requests",
 		pullRequestOptions: {
 			never: "Open as draft",
 			when_no_review_required: "Mark ready when no review is needed",
@@ -1252,7 +1259,7 @@ export const FACTORY_SPLIT = {
 	creating: "Being created",
 	notCreated: "Not created",
 	removed: "Removed",
-	cancelRemaining: "Cancel remaining parts",
+	cancelRemaining: "Cancel remaining parts…",
 	cancelRemainingTitle: (count: number) =>
 		`Cancel ${count} remaining ${count === 1 ? "part" : "parts"}?`,
 	cancelRemainingDescription:

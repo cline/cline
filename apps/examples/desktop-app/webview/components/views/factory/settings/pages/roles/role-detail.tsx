@@ -104,8 +104,8 @@ export function RoleDetail(props: RoleDetailProps) {
 								className={cn(
 									"h-[26px] rounded-md px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 									i === index
-										? "bg-muted font-medium text-foreground"
-										: "text-muted-foreground hover:text-foreground",
+										? "bg-surface-hover font-medium text-foreground"
+										: "text-muted-foreground hover:bg-surface-hover-lighter hover:text-foreground",
 								)}
 							>
 								{`${copy.tab} ${i + 1}`}
@@ -125,15 +125,14 @@ export function RoleDetail(props: RoleDetailProps) {
 						</Button>
 					) : null}
 					{agent && list.length > bounds.min ? (
-						<Button
-							variant="ghost"
-							size="xs"
-							className="ml-auto h-[26px] px-2 text-xs text-muted-foreground"
-							disabled={disabled}
-							onClick={() => props.onRemove(index)}
-						>
-							{FS_ROLES.remove(agentName)}
-						</Button>
+						<div className="ml-auto">
+							<ActionButton
+								disabled={disabled}
+								onClick={() => props.onRemove(index)}
+							>
+								{FS_ROLES.remove(agentName)}
+							</ActionButton>
+						</div>
 					) : null}
 				</div>
 			) : null}
@@ -555,7 +554,7 @@ function TestSetup({
 			description={FS_ROLES.testSetupHint}
 			pill={
 				set ? (
-					<StatusPill tone="accent">{FS_ROLES.testSetupSet}</StatusPill>
+					<StatusPill tone="success">{FS_ROLES.testSetupSet}</StatusPill>
 				) : null
 			}
 		>

@@ -303,11 +303,16 @@ export function FactorySettingsPage({
 			{onAskFactory ? (
 				<Button
 					size="sm"
-					variant={askFactoryOpen ? "secondary" : "default"}
+					variant="outline"
 					aria-expanded={askFactoryOpen}
+					aria-pressed={askFactoryOpen}
 					data-ask-factory=""
 					onClick={onAskFactory}
-					className={cn("h-7 px-2.5", askFactoryOpen && "border")}
+					className={cn(
+						"h-7 px-2.5",
+						askFactoryOpen &&
+							"bg-surface-hover text-foreground dark:bg-surface-hover",
+					)}
 				>
 					<MessageSquare aria-hidden className="size-3.5" />
 					{FACTORY_MANAGER.ask}

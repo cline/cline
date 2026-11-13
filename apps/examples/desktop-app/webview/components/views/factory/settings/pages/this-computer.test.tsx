@@ -63,6 +63,16 @@ afterEach(() => {
 });
 
 describe("This computer: working copies", () => {
+	it("says the working copies are loading while they load", async () => {
+		const page = await renderSettingsPage(settingsPage, {
+			client: { ...base, getStorage: () => new Promise<never>(() => {}) },
+		});
+		expect(page.container.querySelector("output")?.textContent).toBe(
+			"Loading working copies…",
+		);
+		await page.unmount();
+	});
+
 	it("shows the numbers and removes finished copies only after a confirmation that states them", async () => {
 		const after: FactoryStorage = {
 			...storage,
@@ -91,6 +101,9 @@ describe("This computer: working copies", () => {
 		expect(page.row("evidence")?.textContent).toContain("212 MB.");
 		expect(page.row("worktreesDir")?.textContent).toContain(
 			"~/.cline/data/db/factory/factory-worktrees",
+		);
+		expect(page.buttons("Remove finished copies…")[0]?.className).toContain(
+			"text-error-text",
 		);
 		await click(page.buttons("Remove finished copies…")[0]);
 		expect(page.shell.client.cleanStorage).not.toHaveBeenCalled();
@@ -158,6 +171,12 @@ describe("This computer: working copies", () => {
 	it("has no Finder buttons; Copy puts the full path on the clipboard", async () => {
 		const page = await renderSettingsPage(settingsPage, { client: base });
 		expect(page.text()).not.toContain("Show in Finder");
+		expect(
+			[
+				...page.buttons("Copy location path"),
+				...page.buttons("Copy evidence path"),
+			].map((button) => button.textContent),
+		).toEqual(["Copy path", "Copy path"]);
 		await click(page.buttons("Copy location path")[0]);
 		expect(writeText).toHaveBeenCalledWith(storage.worktreesDir);
 		expect(page.row("worktreesDir")?.textContent).toContain("Copied");
@@ -191,6 +210,12 @@ describe("This computer: Hub", () => {
 		const page = await renderSettingsPage(settingsPage, { client: base });
 		const hub = page.row("hub")?.textContent ?? "";
 		expect(hub).toContain("Connected");
+		const pill = [...(page.row("hub")?.querySelectorAll("span") ?? [])].find(
+			(span) => span.textContent === "Connected",
+		);
+		expect(pill?.closest("button")).toBeNull();
+		expect(pill?.className).toContain("rounded-full");
+		expect(pill?.className).toContain("border-transparent");
 		expect(hub).toContain(
 			"127.0.0.1:25463 · same version as the app (0.14.2).",
 		);
@@ -229,6 +254,10 @@ describe("This computer: Hub", () => {
 			},
 		});
 		expect(page.buttons("Update Hub…")).toEqual([]);
+		// It opens the app's own settings, not the browser: no outside arrow.
+		expect(
+			page.buttons("Check for updates")[0]?.querySelector("svg"),
+		).toBeNull();
 		await click(page.buttons("Check for updates")[0]);
 		expect(page.shell.openAppSettings).toHaveBeenCalledWith("About");
 		await page.unmount();

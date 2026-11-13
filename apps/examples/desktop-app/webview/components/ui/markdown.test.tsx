@@ -32,6 +32,21 @@ const ready = true;
 		expect(html).not.toContain("<img");
 	});
 
+	test("shows a repository-relative link as its text, without a blocked marker", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content="See [Delta](delta.md) for details." />,
+		);
+		expect(html).toContain("Delta");
+		expect(html).not.toContain("[blocked]");
+		expect(html).not.toContain('href="delta.md"');
+		const thirdParty = renderToStaticMarkup(
+			<ThirdPartyMarkdown>
+				<MemoizedMarkdown content="See [Delta](delta.md) for details." />
+			</ThirdPartyMarkdown>,
+		);
+		expect(thirdParty).toContain("[blocked]");
+	});
+
 	test("renders app-local images", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
@@ -242,7 +257,7 @@ const ready = true;
 		);
 
 		expect(html).toContain("Review");
-		expect(html).toContain("blocked");
+		expect(html).not.toContain("example.com/path");
 		expect(html).not.toContain("<a");
 		expect(html).not.toContain('data-streamdown="link"');
 	});

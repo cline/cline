@@ -83,6 +83,8 @@ export const FS_TEST_SETUP = {
 	readyWhen: (seconds: number) => `answers, within ${seconds} seconds`,
 	readyTimeout: "Ready within (seconds)",
 	notSet: "Not set",
+	showCommand: "Show full command",
+	hideCommand: "Show less",
 	// Editor
 	editorTitle: "Test setup",
 	editorHint:

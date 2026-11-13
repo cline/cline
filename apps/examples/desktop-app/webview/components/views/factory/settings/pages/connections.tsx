@@ -1,8 +1,6 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
 	type FactoryConnections,
 	type FactoryMcpServers,
@@ -14,6 +12,7 @@ import {
 	FS_PAGES,
 	FS_SHELL,
 } from "@/lib/factory-settings-copy/shell";
+import { cn } from "@/lib/utils";
 import {
 	ActionButton,
 	CopyableText,
@@ -27,6 +26,7 @@ import {
 	StatusPill,
 	UnavailableNote,
 } from "../../factory-settings-rows";
+import { SECTION_LABEL } from "../../factory-ui";
 import type {
 	SettingsPageDefinition,
 	SettingsPageProps,
@@ -262,21 +262,17 @@ function ProvidersHeading({ shell }: { shell: SettingsShell }) {
 	return (
 		<div
 			data-setting="providers"
-			className="mt-[18px] flex items-center justify-between gap-2 border-b pb-1"
+			className="mt-6 flex items-center justify-between gap-2 border-b pb-1.5"
 		>
-			<h3 className="flex items-baseline gap-2 text-xs font-semibold text-muted-foreground">
+			<h3 className={cn("flex items-baseline gap-2", SECTION_LABEL)}>
 				{C.providersGroup}
-				<span className="font-normal">{C.providersHint}</span>
+				<span className="font-normal normal-case tracking-normal">
+					{C.providersHint}
+				</span>
 			</h3>
-			<Button
-				variant="ghost"
-				size="xs"
-				className="h-[22px] gap-1 px-1.5 text-xs text-muted-foreground"
-				onClick={() => shell.openAppSettings("Providers")}
-			>
-				<ExternalLink aria-hidden className="size-3.5" />
+			<ActionButton onClick={() => shell.openAppSettings("Providers")}>
 				{C.manageProviders}
-			</Button>
+			</ActionButton>
 		</div>
 	);
 }
@@ -308,9 +304,7 @@ function ProviderRows({
 							}
 						>
 							<StatusPill tone="danger">{C.notConnected}</StatusPill>
-							<ActionButton icon="outside" onClick={openProviders}>
-								{C.connect}
-							</ActionButton>
+							<ActionButton onClick={openProviders}>{C.connect}</ActionButton>
 						</SettingRow>
 					);
 				return (
@@ -403,10 +397,7 @@ function McpRow({
 				servers.filter((server) => server.disabled).length,
 			)}
 		>
-			<ActionButton
-				icon="outside"
-				onClick={() => shell.openAppSettings("Customize")}
-			>
+			<ActionButton onClick={() => shell.openAppSettings("Customize")}>
 				{C.openMcp}
 			</ActionButton>
 		</SettingRow>

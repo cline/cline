@@ -47,7 +47,7 @@ export const FS_STAGES = {
 		`Remove the “${name}” stage from ${project}.`,
 	fixDraft: (project: string, reason: string) =>
 		`Fix .cline/factory/stages.json in ${project}. It can't be read: ${reason}`,
-	change: "Change with Ask Factory",
+	change: "Ask Factory to change it",
 	remove: "Remove with Ask Factory",
 	fix: "Fix with Ask Factory",
 	moreActions: (name: string) => `More actions for ${name}`,

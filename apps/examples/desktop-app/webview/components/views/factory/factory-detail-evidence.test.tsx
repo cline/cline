@@ -209,4 +209,30 @@ describe("ReviewResult", () => {
 		await act(async () => root.unmount());
 		container.remove();
 	});
+
+	it("marks a collapsed result as opening and its session as an in-app jump", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () =>
+			root.render(
+				<ReviewResult
+					label="App test"
+					review={{ verdict: "pass", summary: "Works.", findings: [] }}
+					sessionId="s"
+					onOpenSession={vi.fn(async () => {})}
+					collapsed
+				/>,
+			),
+		);
+		const summary = container.querySelector("summary");
+		expect(summary?.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+		const open = [...container.querySelectorAll("button")].find(
+			(item) => item.textContent === "Open app test session",
+		);
+		expect(open).toBeDefined();
+		expect(open?.querySelector("svg")).toBeNull();
+		await act(async () => root.unmount());
+		container.remove();
+	});
 });

@@ -1,11 +1,6 @@
 "use client";
 
-import {
-	ArrowUpRight,
-	CheckCircle2,
-	ChevronRight,
-	Loader2,
-} from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
@@ -31,6 +26,7 @@ import {
 	formatFactoryDuration,
 	formatFactoryElapsed,
 } from "./factory-live";
+import { NAV_ITEM, NAV_ITEM_SELECTED } from "./factory-ui";
 
 const ROLE_LABEL: Record<FactoryLiveRole, string> = {
 	designer: FACTORY_ROLE_LABEL.designer,
@@ -216,7 +212,6 @@ export function FactoryLiveTranscript({
 						variant="outline"
 					>
 						Open in chat
-						<ArrowUpRight className="size-3.5" />
 					</Button>
 				) : null}
 			</div>
@@ -370,8 +365,9 @@ export function FactoryAgentLanes({
 									data-running={lane.running || undefined}
 									onClick={() => setPicked(lane.session.sessionId)}
 									className={cn(
-										"flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left text-xs hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-										isSelected && "bg-muted/60",
+										"flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+										NAV_ITEM,
+										isSelected && NAV_ITEM_SELECTED,
 									)}
 								>
 									{lane.running ? (
@@ -421,13 +417,6 @@ export function FactoryAgentLanes({
 											) : null}
 										</span>
 									)}
-									<ChevronRight
-										aria-hidden
-										className={cn(
-											"mt-0.5 size-3 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-											isSelected && "rotate-90",
-										)}
-									/>
 								</button>
 							</li>
 						);

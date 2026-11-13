@@ -6,6 +6,8 @@ import type {
 	FactoryStorage,
 } from "@/lib/factory-settings-client";
 import { FactorySettingsUnavailable } from "@/lib/factory-settings-client";
+import { searchSettings } from "../nav";
+import { SETTINGS_PAGES } from "../registry";
 import { click, deadRows, renderSettingsPage, resource } from "../test-utils";
 import { settingsPage } from "./data-reset";
 
@@ -114,34 +116,42 @@ describe("Data & reset page", () => {
 
 	it.each([
 		[
-			"Forget…",
+			"Forget stage approvals…",
+			"Forget stage approvals?",
+			"Forget approvals",
 			"forgetStageApprovals",
 			"stage_trust",
 			"3 stages in 2 projects will need your approval again.",
 			"Forgot 3 stage approvals in 2 projects.",
 		],
 		[
-			"Forget…",
+			"Forget test setup approvals…",
+			"Forget test setup approvals?",
+			"Forget approvals",
 			"forgetTestSetupApprovals",
 			"verification_trust",
 			"Test setup approvals in 2 projects will be forgotten.",
 			"Forgot test setup approvals in 2 projects.",
 		],
 		[
-			"Clear…",
+			"Clear your guidance…",
+			"Clear your guidance?",
+			"Clear guidance",
 			"clearGuidance",
 			"user_guidance",
 			"Your guidance for 2 roles will be removed: Builder, Code reviewer.",
 			"Cleared your guidance for 2 roles.",
 		],
 		[
-			"Reset…",
+			"Reset Factory settings…",
+			"Reset Factory settings?",
+			"Reset settings",
 			"resetSettings",
 			"settings",
 			"Hands-off becomes the default workflow; limits return to 2 at once and $50 a day.",
 			"Factory settings are back to their defaults.",
 		],
-	])("%s on %s confirms with the dry-run count, then resets once", async (label, row, what, count, done) => {
+	])("%s confirms with the dry-run count, then resets once", async (label, question, verbLabel, row, what, count, done) => {
 		const page = await render();
 		const before = (reset as unknown as ReturnType<typeof vi.fn>).mock.calls
 			.length;
@@ -150,11 +160,14 @@ describe("Data & reset page", () => {
 		const calls = (reset as unknown as ReturnType<typeof vi.fn>).mock.calls;
 		// Opening the confirmation only counts.
 		expect(calls.slice(before)).toEqual([[{ what, dryRun: true }]]);
+		expect(dialog()?.querySelector("h2")?.textContent).toBe(question);
 		expect(dialog()?.textContent).toContain(count);
 		expect(dialog()?.textContent).toContain(
 			"No cards or repository files are deleted.",
 		);
+		expect(document.activeElement?.textContent).toBe("Cancel");
 		const verb = [...(dialog()?.querySelectorAll("button") ?? [])].at(-1);
+		expect(verb?.textContent).toBe(verbLabel);
 		await click(verb);
 		expect(calls.slice(before)).toEqual([[{ what, dryRun: true }], [{ what }]]);
 		expect(dialog()).toBeNull();
@@ -166,6 +179,41 @@ describe("Data & reset page", () => {
 			expect(page.shell.limits.reload).toHaveBeenCalled();
 		} else expect(page.shell.projectsSummary.reload).toHaveBeenCalled();
 		await page.unmount();
+	});
+
+	it("titles each danger row with its object and gives it one red, verb + object button", async () => {
+		const page = await render();
+		const zone = page.container.querySelector("[data-danger-zone]");
+		const rows = [...(zone?.querySelectorAll("[data-setting]") ?? [])];
+		expect(
+			rows.map((row) => row.querySelector('[id$="-title"]')?.textContent),
+		).toEqual([
+			"Stage approvals",
+			"Test setup approvals",
+			"Your guidance",
+			"Factory settings",
+		]);
+		const buttons = rows.map((row) => row.querySelectorAll("button"));
+		expect(buttons.map((list) => list.length)).toEqual([1, 1, 1, 1]);
+		const labels = buttons.map((list) => list[0]?.textContent ?? "");
+		expect(new Set(labels).size).toBe(4);
+		for (const [index, label] of labels.entries()) {
+			expect(label).toMatch(/^\w+ \w.*…$/);
+			const button = buttons[index]?.[0];
+			expect(button?.className).toContain("text-error-text");
+			expect(button?.className).not.toMatch(/(^|\s)border-destructive/);
+		}
+		await page.unmount();
+	});
+
+	it("finds both approval rows when searching for forget", () => {
+		const entry = SETTINGS_PAGES.find(
+			(page) => page.Page === settingsPage.Page,
+		);
+		const rows = searchSettings(entry ? [entry] : [], "forget").map(
+			(hit) => hit.row,
+		);
+		expect(rows).toEqual(["forgetStageApprovals", "forgetTestSetupApprovals"]);
 	});
 
 	it("Cancel resets nothing", async () => {
@@ -192,7 +240,7 @@ describe("Data & reset page", () => {
 		await click(page.row("resetSettings")?.querySelector("button"));
 		expect(dialog()?.textContent).toContain("Factory could not reset: busy");
 		const verb = [...(dialog()?.querySelectorAll("button") ?? [])].at(-1);
-		expect(verb?.textContent).toBe("Reset");
+		expect(verb?.textContent).toBe("Reset settings");
 		expect(verb?.hasAttribute("disabled")).toBe(true);
 		await page.unmount();
 	});
