@@ -53,6 +53,7 @@ export type ApiProvider =
 	| "tencent-tokenhub"
 	| "chutes"
 	| "aiand"
+	| "uberllm"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
