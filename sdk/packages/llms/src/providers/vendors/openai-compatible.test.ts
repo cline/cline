@@ -5,6 +5,7 @@ import type {
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { isOpenAIReasoningEraModelId } from "../model-facts";
+import { composeAiSdkProviderOptions } from "../routing/provider-options";
 import {
 	createOpenAICompatibleProviderModule,
 	withMaxCompletionTokensForReasoningModels,
@@ -174,6 +175,57 @@ describe("createOpenAICompatibleProviderModule wire format", () => {
 			max_tokens: 8_192,
 		});
 		expect(requestBody()).not.toHaveProperty("max_completion_tokens");
+	});
+
+	it("forwards OpenRouter provider sorting in the HTTP request body", async () => {
+		const modelId = "z-ai/glm-5.3-flash";
+		const fetchMock = createFetchMock(jsonCompletionResponse(modelId));
+		const providerConfig = config({
+			providerId: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			options: { openRouterProviderSorting: "price" },
+			fetch: fetchMock as unknown as typeof fetch,
+		});
+		const providerContext = {
+			provider: {
+				id: "openrouter",
+				name: "OpenRouter",
+				defaultModelId: modelId,
+				models: [],
+			},
+			model: { providerId: "openrouter", id: modelId, name: modelId },
+			config: providerConfig,
+		} as GatewayProviderContext;
+		const provider = await createOpenAICompatibleProviderModule(
+			providerConfig,
+			providerContext,
+		);
+		const model = provider.operations.language(modelId) as LanguageModelV4;
+		const providerOptions = composeAiSdkProviderOptions(
+			{
+				providerId: "openrouter",
+				modelId,
+				messages: [
+					{
+						id: "msg-1",
+						role: "user",
+						content: [{ type: "text", text: "hi" }],
+						createdAt: 0,
+					},
+				],
+			},
+			providerContext,
+		);
+
+		await model.doGenerate({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			providerOptions,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(capturedBody(fetchMock)).toMatchObject({
+			provider: { sort: "price" },
+		});
 	});
 
 	// Regression test for cline/cline#13119: LiteLLM's Anthropic passthrough

@@ -270,6 +270,67 @@ describe("Routed Anthropic provider failover", () => {
 	});
 });
 
+describe("OpenRouter provider sorting", () => {
+	it.each(["price", "throughput", "latency"])(
+		"forwards the %s preference to the request provider options",
+		(sort) => {
+			const selection = {
+				providerId: "openrouter",
+				modelId: "z-ai/glm-5.3-flash",
+			};
+			const context = makeContext(selection);
+			context.config.options = { openRouterProviderSorting: sort };
+			const options = composeAiSdkProviderOptions(
+				makeRequest(selection),
+				context,
+			);
+			expect(options.openrouter).toMatchObject({ provider: { sort } });
+		},
+	);
+
+	it("omits provider sorting when unset or using another provider", () => {
+		const openRouterSelection = {
+			providerId: "openrouter",
+			modelId: "z-ai/glm-5.3-flash",
+		};
+		const unsetOptions = composeAiSdkProviderOptions(
+			makeRequest(openRouterSelection),
+			makeContext(openRouterSelection),
+		);
+		expect(unsetOptions.openrouter ?? {}).not.toHaveProperty("provider.sort");
+
+		const otherSelection = {
+			providerId: "openai-compatible",
+			modelId: "z-ai/glm-5.3-flash",
+		};
+		const otherContext = makeContext(otherSelection);
+		otherContext.config.options = { openRouterProviderSorting: "price" };
+		const otherOptions = composeAiSdkProviderOptions(
+			makeRequest(otherSelection),
+			otherContext,
+		);
+		for (const bucket of Object.values(otherOptions)) {
+			expect(bucket).not.toHaveProperty("provider.sort");
+		}
+	});
+
+	it("preserves Anthropic failover when provider sorting is configured", () => {
+		const selection = {
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4-5",
+		};
+		const context = makeContext(selection);
+		context.config.options = { openRouterProviderSorting: "price" };
+		const options = composeAiSdkProviderOptions(
+			makeRequest(selection),
+			context,
+		);
+		expect(options.openrouter).toMatchObject({
+			provider: { allow_fallbacks: true, sort: "price" },
+		});
+	});
+});
+
 function budgetOptions(min: number, max?: number): ModelReasoningOption[] {
 	return [
 		{ type: "budget_tokens", min, ...(max === undefined ? {} : { max }) },
