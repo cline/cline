@@ -11,6 +11,7 @@ export { CHARS_PER_TOKEN, estimateTokens };
 
 import type { CoreCompactionSummarizerConfig } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
+import { extractPatchFilePaths } from "../tools/executors/apply-patch";
 
 export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 /** Estimate the usable input share when only a context window is reported. */
@@ -413,21 +414,15 @@ export function collectPaths(value: unknown): string[] {
 		for (const key of [
 			"path",
 			"file_path",
+			"filePath",
 			"target_file",
 			"new_file_path",
 			"old_file_path",
+			"files",
+			"file_paths",
+			"paths",
 		]) {
 			paths.push(...collectPaths(record[key]));
-		}
-		if (Array.isArray(record.files)) {
-			for (const item of record.files) {
-				if (item && typeof item === "object") {
-					paths.push(...collectPaths((item as Record<string, unknown>).path));
-				}
-			}
-		}
-		if (Array.isArray(record.file_paths)) {
-			paths.push(...collectPaths(record.file_paths));
 		}
 		return paths;
 	}
@@ -589,7 +584,7 @@ export function summarizeToolActivity(
 	const readFiles: string[] = [];
 	const editedFiles: string[] = [];
 	const commands: string[] = [];
-	const editorPathsByToolUseId = new Map<string, string>();
+	const pendingEdits = new Map<string, { paths: string[]; isPatch: boolean }>();
 	for (const message of messages) {
 		if (!Array.isArray(message.content)) {
 			continue;
@@ -600,7 +595,9 @@ export function summarizeToolActivity(
 				if (block.name === "read_files") {
 					if (Array.isArray(input.files)) {
 						for (const file of input.files) {
-							if (file && typeof file === "object") {
+							if (typeof file === "string") {
+								pushUniqueEntry(readFiles, file);
+							} else if (file && typeof file === "object") {
 								const entry = formatReadFileEntry(
 									file as Record<string, unknown>,
 								);
@@ -610,16 +607,26 @@ export function summarizeToolActivity(
 							}
 						}
 					} else {
-						for (const path of collectPaths(input)) {
+						for (const path of collectPaths(block.input)) {
 							pushUniqueEntry(readFiles, path);
 						}
 					}
 					continue;
 				}
-				if (block.name === "editor" || block.name === "apply_patch") {
+				if (block.name === "apply_patch") {
+					const patch =
+						typeof block.input === "string" ? block.input : input.input;
+					const paths =
+						typeof patch === "string"
+							? extractPatchFilePaths(patch)
+							: collectPaths(input).slice(0, 1);
+					pendingEdits.set(block.id, { paths, isPatch: true });
+					continue;
+				}
+				if (block.name === "editor") {
 					const path = collectPaths(input)[0];
 					if (path) {
-						editorPathsByToolUseId.set(block.id, path);
+						pendingEdits.set(block.id, { paths: [path], isPatch: false });
 					}
 					continue;
 				}
@@ -639,22 +646,31 @@ export function summarizeToolActivity(
 				continue;
 			}
 			if (block.type === "tool_result") {
-				const path = editorPathsByToolUseId.get(block.tool_use_id);
-				if (!path) {
+				const edit = pendingEdits.get(block.tool_use_id);
+				if (!edit) {
 					continue;
 				}
-				const range = extractDiffLineRange(block.content);
-				pushUniqueEntry(
-					editedFiles,
-					range ? `${path}:${range.start}-${range.end}` : path,
-				);
-				editorPathsByToolUseId.delete(block.tool_use_id);
+				pendingEdits.delete(block.tool_use_id);
+				if (edit.isPatch && block.is_error) {
+					continue;
+				}
+				const range = edit.isPatch
+					? undefined
+					: extractDiffLineRange(block.content);
+				for (const path of edit.paths) {
+					pushUniqueEntry(
+						editedFiles,
+						range ? `${path}:${range.start}-${range.end}` : path,
+					);
+				}
 			}
 		}
 	}
-	// Editor calls whose results fell outside the span still count as edits.
-	for (const path of editorPathsByToolUseId.values()) {
-		pushUniqueEntry(editedFiles, path);
+	// Edit calls whose results fell outside the span still contribute their paths.
+	for (const { paths } of pendingEdits.values()) {
+		for (const path of paths) {
+			pushUniqueEntry(editedFiles, path);
+		}
 	}
 	return { readFiles, editedFiles, commands };
 }
