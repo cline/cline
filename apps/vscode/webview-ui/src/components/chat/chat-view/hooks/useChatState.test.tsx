@@ -49,4 +49,47 @@ describe("useChatState draft snapshots", () => {
 
 		expect(result.current.inputValue).toBe("same text")
 	})
+
+	it("consumes an acknowledged snapshot while preserving images", () => {
+		const { result } = renderHook(() => useChatState([]))
+
+		act(() => {
+			result.current.setInputValue("feedback")
+			result.current.setActiveQuote("selected context")
+			result.current.setSelectedImages(["image.png"])
+			result.current.setSelectedFiles(["notes.md"])
+		})
+
+		const snapshot = result.current.getDraftSnapshot()
+
+		act(() => result.current.consumeDraftSnapshot(snapshot, { preserveImages: true }))
+
+		expect(result.current.inputValue).toBe("")
+		expect(result.current.activeQuote).toBeNull()
+		expect(result.current.selectedImages).toEqual(["image.png"])
+		expect(result.current.selectedFiles).toEqual([])
+	})
+
+	it("preserves a newer draft when selective consumption uses an older snapshot", () => {
+		const { result } = renderHook(() => useChatState([]))
+
+		act(() => {
+			result.current.setInputValue("submitted feedback")
+			result.current.setSelectedImages(["old.png"])
+		})
+
+		const submitted = result.current.getDraftSnapshot()
+
+		act(() => {
+			result.current.setInputValue("new feedback")
+			result.current.setSelectedImages(["new.png"])
+			result.current.setSelectedFiles(["new.md"])
+		})
+
+		act(() => result.current.consumeDraftSnapshot(submitted, { preserveImages: true }))
+
+		expect(result.current.inputValue).toBe("new feedback")
+		expect(result.current.selectedImages).toEqual(["new.png"])
+		expect(result.current.selectedFiles).toEqual(["new.md"])
+	})
 })
