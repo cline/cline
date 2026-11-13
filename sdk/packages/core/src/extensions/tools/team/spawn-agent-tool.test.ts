@@ -44,6 +44,106 @@ describe("createSpawnAgentTool", () => {
 		vi.clearAllMocks();
 	});
 
+	it.each([
+		{ systemPrompt: "test", task: {} },
+		{ systemPrompt: "test", task: 42 },
+		{ systemPrompt: "test", task: null },
+		{ systemPrompt: "test" },
+		{ systemPrompt: {}, task: "test" },
+		{ task: "test" },
+		undefined,
+	])("rejects malformed input before creating a child: %j", async (input) => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		const createSubAgentTools = vi.fn();
+		const onSubAgentStart = vi.fn();
+		const spawn = createSpawnAgentTool({
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "test",
+				modelId: "test",
+			}),
+			createSubAgentTools,
+			onSubAgentStart,
+		});
+		await expect(
+			spawn.execute(
+				input as unknown as import("./spawn-agent-tool").SpawnAgentInput,
+				{ agentId: "lead", iteration: 1 },
+			),
+		).rejects.toThrow("Invalid input");
+		expect(createSubAgentTools).not.toHaveBeenCalled();
+		expect(agentConstructorSpy).not.toHaveBeenCalled();
+		expect(onSubAgentStart).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"handleSubAgentStart",
+		"handleSubAgentEnd",
+	])("contains a rejected backend observer: %s", async (method) => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		const { createSessionSubAgentLifecycleCallbacks } = await import(
+			"../../../runtime/host/local/spawn-tool.js"
+		);
+		const invokeBackendOptional = vi.fn((name: string) => {
+			const result =
+				name === method
+					? Promise.reject(new Error("observer failed"))
+					: Promise.resolve();
+			// Also observe it here so the pre-fix regression fails an assertion,
+			// rather than leaking an unhandled rejection into unrelated tests.
+			void result.catch(() => {});
+			return result;
+		});
+		const lifecycle = createSessionSubAgentLifecycleCallbacks(
+			{
+				getSession: () => undefined,
+				subAgentStarts: new Map(),
+				onAgentEvent: vi.fn(),
+				invokeBackendOptional,
+			},
+			{
+				providerId: "test",
+				modelId: "test",
+				cwd: "/tmp",
+				systemPrompt: "test",
+				enableTools: true,
+				enableSpawnAgent: true,
+				enableAgentTeams: false,
+			},
+			"lead",
+		);
+		const callback = vi.spyOn(
+			lifecycle,
+			method === "handleSubAgentStart" ? "onSubAgentStart" : "onSubAgentEnd",
+		);
+		runMock.mockResolvedValue({
+			text: "done",
+			iterations: 1,
+			finishReason: "completed",
+			usage: { inputTokens: 0, outputTokens: 0 },
+		});
+		const spawn = createSpawnAgentTool({
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "test",
+				modelId: "test",
+			}),
+			...lifecycle,
+		});
+		await expect(
+			spawn.execute(
+				{ systemPrompt: "test", task: "test" },
+				{ agentId: "lead", iteration: 1 },
+			),
+		).resolves.toMatchObject({ text: "done" });
+		await expect(callback.mock.results[0]?.value).rejects.toThrow(
+			"observer failed",
+		);
+		expect(invokeBackendOptional).toHaveBeenCalledWith(
+			method,
+			"lead",
+			expect.any(Object),
+		);
+	});
+
 	it("runs UX verification through the existing child runtime and lifecycle", async () => {
 		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
 		const input = {
