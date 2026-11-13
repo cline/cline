@@ -123,6 +123,13 @@ export function createSpawnAgentTool(
 		description: `Spawn a sub-agent with custom instructions for a specialized task. Waits for the sub-agent to finish and returns its result before your next step.`,
 		inputSchema: zodToJsonSchema(SpawnAgentInputSchema),
 		execute: async (input, context) => {
+			const parsed = SpawnAgentInputSchema.safeParse(input);
+			if (!parsed.success) {
+				throw new Error(
+					`Invalid input for spawn_agent: ${parsed.error.message}`,
+				);
+			}
+			input = parsed.data;
 			const tools = config.createSubAgentTools
 				? await config.createSubAgentTools(input, context)
 				: (config.subAgentTools ?? []);
