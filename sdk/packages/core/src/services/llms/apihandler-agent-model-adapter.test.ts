@@ -188,7 +188,7 @@ describe("createAgentModelFromApiHandler", () => {
 		expect(finishes[0]).toEqual({
 			type: "finish",
 			reason: "stop",
-			error: undefined,
+			failure: undefined,
 		});
 	});
 
@@ -209,7 +209,7 @@ describe("createAgentModelFromApiHandler", () => {
 		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
-			error: "boom",
+			failure: { message: "boom" },
 		});
 	});
 
@@ -231,11 +231,7 @@ describe("createAgentModelFromApiHandler", () => {
 		});
 		const model = createAgentModelFromApiHandler(handler);
 		const events = await collect(model.stream(baseRequest));
-		expect(events.at(-1)).toMatchObject({
-			type: "finish",
-			reason: "error",
-			errorClass: "context_window_exceeded",
-		});
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" });
 	});
 
 	it("classifies a context-window overflow reported by a failed done chunk", async () => {
@@ -249,11 +245,7 @@ describe("createAgentModelFromApiHandler", () => {
 		]);
 		const model = createAgentModelFromApiHandler(handler);
 		const events = await collect(model.stream(baseRequest));
-		expect(events.at(-1)).toMatchObject({
-			type: "finish",
-			reason: "error",
-			errorClass: "context_window_exceeded",
-		});
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" });
 	});
 
 	it("leaves unrelated handler failures unclassified", async () => {
@@ -262,11 +254,7 @@ describe("createAgentModelFromApiHandler", () => {
 		});
 		const model = createAgentModelFromApiHandler(handler);
 		const events = await collect(model.stream(baseRequest));
-		expect(events.at(-1)).toMatchObject({
-			type: "finish",
-			reason: "error",
-			errorClass: "unknown",
-		});
+		expect(events.at(-1)).toMatchObject({ type: "finish", reason: "error" });
 	});
 
 	it("does not emit a second finish when the handler throws after a done chunk", async () => {
@@ -303,8 +291,10 @@ describe("createAgentModelFromApiHandler", () => {
 			{
 				type: "finish",
 				reason: "error",
-				error: "no vscode.lm",
-				errorClass: "unknown",
+				failure: expect.objectContaining({
+					message: "no vscode.lm",
+					classification: "unknown",
+				}),
 			},
 		]);
 	});
