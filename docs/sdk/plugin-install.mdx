@@ -8,13 +8,21 @@ The Cline CLI provides a `plugin install` command to install plugins from variou
 
 ## CLI Installation
 
-Use the `cline plugin install` command to install plugins from file URLs, npm, git repositories, or local paths.
+Use the `cline plugin install` command to install plugins from Cline's official plugins, file URLs, npm, git repositories, or local paths.
 
 ```sh
 cline plugin install <source> [options]
 ```
 
 The shorthand `cline plugin i` works as well.
+
+### Install an Official Plugin
+
+```sh
+cline plugin install weather-metrics
+```
+
+A plain name installs that plugin from Cline's [official plugins repository](https://github.com/cline/plugins).
 
 ### Install from a File URL
 
@@ -29,18 +37,20 @@ Installs a single `.ts` or `.js` plugin file from an HTTPS URL. GitHub `blob` UR
 
 ```sh
 cline plugin install --npm @scope/plugin-name
+cline plugin install npm:@scope/plugin-name
 ```
 
-Installs the package from the npm registry into the Cline plugin directory.
+Installs the package from the npm registry into the Cline plugin directory. Without `--npm` or the `npm:` prefix, a plain name is read as an official plugin.
 
 ### Install from Git
 
 ```sh
-cline plugin install --git https://github.com/owner/repo.git
+cline plugin install https://github.com/owner/repo.git
+cline plugin install https://github.com/owner/repo.git@v1.2.0
 cline plugin install --git github.com/owner/repo
 ```
 
-Clones the repository (shallow, with blobless filter for speed) and installs its dependencies. The `.git` directory is excluded from the final install.
+Clones the repository (shallow, with blobless filter for speed) and installs its dependencies. The `.git` directory is excluded from the final install. Append `@ref` to install a branch or tag. A repository written without a scheme, such as `github.com/owner/repo`, needs `--git`.
 
 ### Install from Local Source
 
@@ -59,11 +69,14 @@ Supports both files and directories. Local installs copy the source, filter out 
 | `--git` | Treat the source as a git repository URL |
 | `--force` | Overwrite an existing plugin at the same path |
 | `--json` | Output results as JSON (useful for scripting) |
-| `--cwd` | Install to `<path>/.cline/plugins` and resolve relative local paths from `<path>` |
+| `--cwd <path>` | Install to `<path>/.cline/plugins` and resolve relative local paths from `<path>` |
 
 ### Examples
 
 ```sh
+# Install an official plugin
+cline plugin install web-search
+
 # Install a local plugin directory
 cline plugin install ./my-custom-plugin
 
@@ -71,7 +84,7 @@ cline plugin install ./my-custom-plugin
 cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts
 
 # Install an npm package as a plugin
-cline plugin install --npm @cline/plugin-sql
+cline plugin install --npm @scope/plugin-name
 
 # Install from a GitHub repo
 cline plugin install --git https://github.com/my-org/my-plugin.git
@@ -83,13 +96,21 @@ cline plugin install --force --npm @scope/plugin-name
 cline plugin i --git github.com/owner/repo
 ```
 
-### Listing Installed Plugins
+### Listing and Removing Plugins
 
-Installed plugins appear in the `plugins` section of your CLI config:
+List the plugins Cline finds:
 
 ```sh
-cline config
+cline config plugins
 ```
+
+Remove a plugin by its name, its installed folder name, or its path:
+
+```sh
+cline plugin uninstall web-search
+```
+
+`cline plugin remove` does the same. Add `--cwd <path>` to look in `<path>/.cline/plugins` first.
 
 ### Find All Your Plugins from your file system
 
@@ -110,7 +131,7 @@ To add a single-file plugin to a project, install it with `--cwd`:
 cline plugin install https://github.com/owner/repo/blob/main/plugins/my-plugin.ts --cwd .
 ```
 
-Global plugins are discovered from `~/.cline/plugins/`, and Cline may also discover plugins from the system Plugins folder. Use `--cwd .` when you want plugins to stay with a specific project.
+Global plugins are discovered from `~/.cline/plugins/` and `~/Documents/Cline/Plugins/`. Use `--cwd .` when you want plugins to stay with a specific project.
 
 ## Programmatic Installation
 
