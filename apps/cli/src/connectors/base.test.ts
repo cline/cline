@@ -228,3 +228,26 @@ describe("ConnectorBase background launch", () => {
 		expect(clearBindings).toHaveBeenCalledWith({ pid: 42 });
 	});
 });
+
+describe("parseOptionalInteger", () => {
+	class ExposedConnector extends TestConnector {
+		parse(value: string | undefined): number | undefined {
+			return this.parseOptionalInteger(value, "port");
+		}
+	}
+
+	const connector = new ExposedConnector();
+
+	it("accepts integer values", () => {
+		expect(connector.parse("8080")).toBe(8080);
+		expect(connector.parse(" 8080 ")).toBe(8080);
+		expect(connector.parse(undefined)).toBeUndefined();
+	});
+
+	it.each(["8080x", "8o80", "-1", "1.5", "", "0x10"])(
+		"rejects malformed values like %j instead of reading a numeric prefix",
+		(value) => {
+			expect(() => connector.parse(value)).toThrow(`invalid port "${value}"`);
+		},
+	);
+});
