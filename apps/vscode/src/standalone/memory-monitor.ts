@@ -1,9 +1,16 @@
+import { telemetryService } from "@/services/telemetry"
+import { coreConnectionBacklog } from "./core-connection-backlog"
 import { log } from "./utils"
 
 const MEMORY_LOG_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+// Matches the default metric export interval: a core that fills its heap in a
+// couple of minutes (cline/cline#15427) still gets a backlog sample out before it
+// aborts, where a five-minute window would usually miss the whole burst.
+const BACKLOG_REPORT_INTERVAL_MS = 60 * 1000
 const BYTES_TO_MB = 1024 * 1024
 
 let memoryMonitorInterval: ReturnType<typeof setInterval> | null = null
+let backlogReportInterval: ReturnType<typeof setInterval> | null = null
 
 /**
  * Logs current memory usage in a structured, grep-friendly format.
@@ -28,10 +35,32 @@ function logMemoryUsage(): void {
 }
 
 /**
+ * Reports the peak depth of each host-bound response stream's forward queue
+ * since the previous report: a queue that keeps growing is the memory, before
+ * the heap number shows it.
+ */
+function reportStreamBacklog(): void {
+	for (const [qualifiedMethod, peak] of coreConnectionBacklog.takePeaks()) {
+		const dot = qualifiedMethod.lastIndexOf(".")
+		// A gauge series keeps exporting its last value until it is cleared, so a
+		// method's first quiet window retires its series rather than reporting 0.
+		telemetryService.captureGrpcStreamBacklog(
+			peak > 0 ? peak : null,
+			qualifiedMethod.slice(0, dot),
+			qualifiedMethod.slice(dot + 1),
+		)
+		if (peak > 2) {
+			log(`[BACKLOG] ${qualifiedMethod} peak=${peak} queued responses`)
+		}
+	}
+}
+
+/**
  * Starts periodic memory usage logging.
  *
  * Logs immediately on start to capture a baseline, then repeats every
- * MEMORY_LOG_INTERVAL_MS (5 minutes). The timer is unref'd so it won't
+ * MEMORY_LOG_INTERVAL_MS (5 minutes); the stream backlog is reported every
+ * BACKLOG_REPORT_INTERVAL_MS. Both timers are unref'd so they won't
  * prevent Node.js from exiting when all other work is done.
  */
 export function startMemoryMonitoring(): void {
@@ -43,16 +72,18 @@ export function startMemoryMonitoring(): void {
 	logMemoryUsage()
 
 	memoryMonitorInterval = setInterval(logMemoryUsage, MEMORY_LOG_INTERVAL_MS)
+	backlogReportInterval = setInterval(reportStreamBacklog, BACKLOG_REPORT_INTERVAL_MS)
 
-	// IMPORTANT: unref() tells Node.js that this timer is "optional" — it
-	// should not keep the event loop alive by itself. Without this call,
+	// IMPORTANT: unref() tells Node.js that these timers are "optional" — they
+	// should not keep the event loop alive by themselves. Without this call,
 	// the process could never exit cleanly because it would always be
-	// waiting for the next 5-minute interval tick. Node.js exits when
-	// there are no more active handles (timers, sockets, etc.) keeping
-	// the event loop alive. unref() removes this timer from that count.
+	// waiting for the next interval tick. Node.js exits when there are no
+	// more active handles (timers, sockets, etc.) keeping the event loop
+	// alive. unref() removes these timers from that count.
 	memoryMonitorInterval.unref()
+	backlogReportInterval.unref()
 
-	log("[MEMORY] Periodic memory monitoring started (interval: 5m)")
+	log("[MEMORY] Periodic memory monitoring started (memory: 5m, stream backlog: 1m)")
 }
 
 /**
@@ -65,5 +96,10 @@ export function stopMemoryMonitoring(): void {
 		clearInterval(memoryMonitorInterval)
 		memoryMonitorInterval = null
 		log("[MEMORY] Periodic memory monitoring stopped")
+	}
+	if (backlogReportInterval) {
+		reportStreamBacklog()
+		clearInterval(backlogReportInterval)
+		backlogReportInterval = null
 	}
 }
