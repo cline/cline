@@ -69,6 +69,10 @@ export enum BUILT_IN_PROVIDER {
 	SAPAICORE = "sapaicore",
 	// Aggregators
 	OPENROUTER = "openrouter",
+	// Free model providers
+	FREETHEAI = "freetheai",
+	BAZAARLINK = "bazaarlink",
+	COMPLETIONS_ME = "completions-me",
 }
 
 /**
