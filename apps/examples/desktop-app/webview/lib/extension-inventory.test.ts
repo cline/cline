@@ -10,10 +10,19 @@ import {
 	subscribeToExtensionInventoryInvalidation,
 } from "./extension-inventory";
 
-const { invoke, subscribe } = vi.hoisted(() => ({
-	invoke: vi.fn(),
-	subscribe: vi.fn(() => () => {}),
-}));
+const { invoke, subscribe, subscribers } = vi.hoisted(() => {
+	const subscribers = new Map<string, () => void>();
+	return {
+		invoke: vi.fn(),
+		subscribers,
+		subscribe: vi.fn((event: string, listener: () => void) => {
+			subscribers.set(event, listener);
+			return () => {
+				if (subscribers.get(event) === listener) subscribers.delete(event);
+			};
+		}),
+	};
+});
 vi.mock("./desktop-client", () => ({ desktopClient: { invoke, subscribe } }));
 
 function deferred<T>() {
@@ -47,11 +56,13 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("shared customization inventory", () => {
-	it("observes settings for subscribers before any inventory read and distinguishes invalidations", () => {
+	it("observes external changes before any inventory read and distinguishes invalidations", () => {
 		const listener = vi.fn();
 		const unsubscribe = subscribeToExtensionInventoryInvalidation(listener);
 		try {
-			expect(subscribe).toHaveBeenCalledOnce();
+			expect(subscribe).toHaveBeenCalledTimes(2);
+			expect(subscribers.has("settings.changed")).toBe(true);
+			expect(subscribers.has("cloud_sessions_changed")).toBe(true);
 			expect(invoke).not.toHaveBeenCalled();
 			invalidateExtensionInventoryCache();
 			commitExtensionInventoryResponse(firstInventory);
@@ -61,14 +72,13 @@ describe("shared customization inventory", () => {
 				["inventory"],
 				["inventory"],
 			]);
-			const onSettingsChanged = (
-				subscribe.mock.calls as unknown as Array<[string, () => void]>
-			)[0][1];
-			onSettingsChanged();
+			subscribers.get("settings.changed")?.();
+			subscribers.get("cloud_sessions_changed")?.();
 			expect(listener.mock.calls).toEqual([
 				["inventory"],
 				["inventory"],
 				["inventory"],
+				["settings"],
 				["settings"],
 			]);
 			expect(getCachedExtensionInventory()).toBeNull();

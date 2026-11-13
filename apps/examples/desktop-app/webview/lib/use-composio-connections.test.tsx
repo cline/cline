@@ -4,15 +4,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	fetchComposioStatus,
-	getCachedComposioStatus,
-	invalidateComposioCache,
+	getComposioStatusSnapshot,
 	resetComposioCacheForTesting,
 } from "./composio";
 import type { ComposioStatusResponse } from "./composio-types";
-import {
-	type ComposioConnectionAction,
-	useComposioConnections,
-} from "./use-composio-connections";
+import { useComposioConnections } from "./use-composio-connections";
+
+type ConnectionAction = "connect" | "cancel" | "disconnect";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), subscribe: vi.fn() }));
 vi.mock("./desktop-client", () => ({ desktopClient: mocks }));
@@ -42,6 +40,14 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 
+function emitDesktopEvent(name: string) {
+	const callback = mocks.subscribe.mock.calls.find(
+		([eventName]) => eventName === name,
+	)?.[1] as (() => void) | undefined;
+	expect(callback).toBeTypeOf("function");
+	callback?.();
+}
+
 let root: Root;
 let container: HTMLDivElement;
 function Probe() {
@@ -62,6 +68,9 @@ function Probe() {
 			</button>
 			<button onClick={() => void connections.connect("gmail")} type="button">
 				Connect
+			</button>
+			<button onClick={() => void connections.connect("github")} type="button">
+				Connect GitHub
 			</button>
 			<button
 				onClick={() => void connections.cancelConnect("gmail")}
@@ -135,7 +144,7 @@ describe("connector connection state across navigation", () => {
 	});
 
 	it.each<{
-		operation: ComposioConnectionAction;
+		operation: ConnectionAction;
 		label: string;
 		connection: "connected" | "not_connected" | "pending";
 	}>([
@@ -160,7 +169,6 @@ describe("connector connection state across navigation", () => {
 			),
 		).toEqual({
 			toolkit: "gmail",
-			operation,
 			message: "Request was rejected",
 		});
 		expect(container.querySelector("[data-busy]")?.textContent).toBe("");
@@ -236,7 +244,37 @@ describe("connector connection state across navigation", () => {
 		).toEqual(["not_connected", "not_connected"]);
 	});
 
-	it("reloads mounted consumers after settings invalidation without restoring old account data", async () => {
+	it("queues distinct connector mutations and deduplicates repeated clicks", async () => {
+		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
+		await act(async () => root.render(<Probe />));
+		const connection = deferred<{ status: ComposioStatusResponse }>();
+		mocks.invoke
+			.mockReturnValueOnce(connection.promise)
+			.mockResolvedValueOnce({ status: status("pending") });
+		const buttons = [...container.querySelectorAll("button")];
+		const connect = buttons.find((button) => button.textContent === "Connect");
+		const connectGitHub = buttons.find(
+			(button) => button.textContent === "Connect GitHub",
+		);
+		await act(async () => {
+			connect?.click();
+			connect?.click();
+			connectGitHub?.click();
+			connectGitHub?.click();
+			await Promise.resolve();
+		});
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		expect(container.querySelector("[data-busy]")?.textContent).toBe("gmail");
+		await act(async () => connection.resolve({ status: status("pending") }));
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
+		expect(mocks.invoke).toHaveBeenLastCalledWith(
+			"composio_integrations",
+			{ operation: "connect", toolkit: "github" },
+			{ timeoutMs: 60_000 },
+		);
+	});
+
+	it("reloads mounted consumers after account invalidation without restoring old account data", async () => {
 		mocks.invoke.mockResolvedValueOnce(status());
 		await act(async () => root.render(<Probe />));
 		const old = deferred<ComposioStatusResponse>();
@@ -245,10 +283,10 @@ describe("connector connection state across navigation", () => {
 			.mockReturnValueOnce(old.promise)
 			.mockReturnValueOnce(current.promise);
 		await act(async () => container.querySelector("button")?.click());
-		await act(async () => invalidateComposioCache());
+		await act(async () => emitDesktopEvent("cloud_sessions_changed"));
 		expect(container.querySelector("output")?.textContent).toBe("loading");
 		await act(async () => old.resolve(status()));
-		expect(getCachedComposioStatus()).toBeNull();
+		expect(getComposioStatusSnapshot().status).toBeNull();
 		await act(async () => current.resolve(status("not_connected")));
 		expect(container.querySelector("output")?.textContent).toBe(
 			"not_connected",

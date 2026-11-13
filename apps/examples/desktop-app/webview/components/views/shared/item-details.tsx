@@ -9,16 +9,13 @@ import { cn } from "@/lib/utils";
 import styles from "./item-details.module.css";
 import { findScrollViewport, followScroll } from "./page-scroll";
 
-const ACTION_FOCUS_TARGETS =
-	'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 export type ItemDetailsProps = {
 	title: string;
 	renderHeader: (
 		titleRef: RefObject<HTMLHeadingElement | null>,
 		headerActions: ReactNode,
 	) => ReactNode;
-	/** Actions beside the heading that remain available in the compact scroll header. */
+	/** Actions rendered once beside the editable heading. */
 	headerActions?: ReactNode;
 	actions?: ReactNode;
 	leadingActions?: ReactNode;
@@ -43,17 +40,8 @@ export function ItemDetails({
 	const layoutRef = useRef<HTMLDivElement>(null);
 	const titleRef = useRef<HTMLHeadingElement>(null);
 	const scrollHeaderRef = useRef<HTMLDivElement>(null);
-	const inlineActionsRef = useRef<HTMLDivElement>(null);
-	const stickyActionsRef = useRef<HTMLDivElement>(null);
 	const scrollTitleVisibleRef = useRef(false);
-	const pendingActionFocusRef = useRef<{
-		source: HTMLElement;
-		index: number;
-		sticky: boolean;
-	} | null>(null);
 	const [showScrollTitle, setShowScrollTitle] = useState(false);
-	const hasHeaderActions = Boolean(headerActions);
-	const stickyActionsActive = showScrollTitle;
 	useLayoutEffect(() => {
 		const layout = layoutRef.current;
 		const heading = titleRef.current;
@@ -81,23 +69,6 @@ export function ItemDetails({
 			const nextVisible = heading.getBoundingClientRect().bottom <= titleBottom;
 			if (nextVisible === scrollTitleVisibleRef.current) return undefined;
 			return () => {
-				const source = nextVisible
-					? inlineActionsRef.current
-					: stickyActionsRef.current;
-				const focused = document.activeElement;
-				pendingActionFocusRef.current = null;
-				if (focused instanceof HTMLElement && source?.contains(focused)) {
-					const index = Array.from(
-						source.querySelectorAll<HTMLElement>(ACTION_FOCUS_TARGETS),
-					).indexOf(focused);
-					if (index >= 0) {
-						pendingActionFocusRef.current = {
-							source: focused,
-							index,
-							sticky: nextVisible,
-						};
-					}
-				}
 				scrollTitleVisibleRef.current = nextVisible;
 				setShowScrollTitle(nextVisible);
 			};
@@ -128,34 +99,9 @@ export function ItemDetails({
 			}
 		};
 	}, []);
-	useLayoutEffect(() => {
-		const pending = pendingActionFocusRef.current;
-		pendingActionFocusRef.current = null;
-		if (
-			!pending ||
-			pending.sticky !== stickyActionsActive ||
-			(document.activeElement !== pending.source &&
-				document.activeElement !== document.body)
-		) {
-			return;
-		}
-		const destination = stickyActionsActive
-			? stickyActionsRef.current
-			: inlineActionsRef.current;
-		destination
-			?.querySelectorAll<HTMLElement>(ACTION_FOCUS_TARGETS)
-			[pending.index]?.focus({ preventScroll: true });
-	}, [stickyActionsActive]);
 
-	const inlineHeaderActions = hasHeaderActions ? (
-		<div
-			ref={inlineActionsRef}
-			className={styles.headerActions}
-			data-item-header-actions="inline"
-			data-active={!stickyActionsActive}
-			inert={stickyActionsActive}
-			aria-hidden={stickyActionsActive || undefined}
-		>
+	const inlineHeaderActions = headerActions ? (
+		<div className={styles.headerActions} data-item-header-actions="inline">
 			{headerActions}
 		</div>
 	) : null;
@@ -170,10 +116,7 @@ export function ItemDetails({
 				className,
 			)}
 		>
-			<div
-				className={styles.scrollHeaderAnchor}
-				aria-hidden={!hasHeaderActions || !stickyActionsActive || undefined}
-			>
+			<div className={styles.scrollHeaderAnchor} aria-hidden="true">
 				<div
 					ref={scrollHeaderRef}
 					className={styles.scrollHeader}
@@ -191,17 +134,6 @@ export function ItemDetails({
 					>
 						{title}
 					</div>
-					{hasHeaderActions ? (
-						<div
-							ref={stickyActionsRef}
-							className={styles.headerActions}
-							data-item-header-actions="sticky"
-							inert={!stickyActionsActive}
-							aria-hidden={!stickyActionsActive || undefined}
-						>
-							{headerActions}
-						</div>
-					) : null}
 				</div>
 			</div>
 			<header className={styles.header} data-tauri-drag-region="deep">

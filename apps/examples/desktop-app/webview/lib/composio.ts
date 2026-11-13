@@ -28,6 +28,13 @@ let statusRequest: {
 	refresh: boolean;
 } | null = null;
 let catalogRequest: Promise<ComposioCatalogResponse> | null = null;
+type StatusMutation = {
+	generation: number;
+	revision: number;
+	promise: Promise<unknown>;
+	readStatus: (result: unknown) => ComposioStatusResponse;
+};
+let statusMutation: StatusMutation | null = null;
 
 export type ComposioStatusSnapshot = {
 	status: ComposioStatusResponse | null;
@@ -42,23 +49,6 @@ const EMPTY_STATUS_SNAPSHOT: ComposioStatusSnapshot = {
 };
 let statusSnapshot = EMPTY_STATUS_SNAPSHOT;
 const statusListeners = new Set<() => void>();
-let statusPoll: ReturnType<typeof setInterval> | undefined;
-
-function updateStatusPolling() {
-	const pending = statusSnapshot.status?.integrations.some(
-		(integration) => integration.status === "pending",
-	);
-	if (statusListeners.size === 0 || !pending) {
-		clearInterval(statusPoll);
-		statusPoll = undefined;
-	} else if (statusPoll === undefined) {
-		// OAuth completes outside the app. Keep one poller for all active data
-		// consumers, including result models whose cards are currently unmounted.
-		statusPoll = setInterval(() => {
-			if (!statusRequest) void fetchComposioStatus().catch(() => {});
-		}, CONNECT_POLL_INTERVAL_MS);
-	}
-}
 
 export type ComposioCatalogSnapshot = {
 	catalog: ComposioCatalogResponse | null;
@@ -88,11 +78,31 @@ export const getComposioCatalogSnapshot = () => catalogSnapshot;
 export const getServerComposioCatalogSnapshot = () => EMPTY_CATALOG_SNAPSHOT;
 
 export function subscribeComposioCatalog(listener: () => void) {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	catalogListeners.add(listener);
 	return () => {
 		catalogListeners.delete(listener);
 	};
+}
+
+const inventoryChangeListeners = new Set<() => void>();
+let inventorySignature: string | null = null;
+let statusPoll: ReturnType<typeof setInterval> | undefined;
+
+function updateStatusPolling() {
+	const pending = statusSnapshot.status?.integrations.some(
+		(integration) => integration.status === "pending",
+	);
+	if (!pending) {
+		clearInterval(statusPoll);
+		statusPoll = undefined;
+	} else if (statusPoll === undefined) {
+		// OAuth completes outside the app. Keep one poller for all active data
+		// consumers, including result models whose cards are currently unmounted.
+		statusPoll = setInterval(() => {
+			if (!statusRequest) void fetchComposioStatus().catch(() => {});
+		}, CONNECT_POLL_INTERVAL_MS);
+	}
 }
 
 function publishStatus(next: ComposioStatusSnapshot) {
@@ -107,24 +117,34 @@ function publishStatus(next: ComposioStatusSnapshot) {
 	for (const listener of statusListeners) listener();
 }
 
-function inventorySignature(status: ComposioStatusResponse) {
-	return JSON.stringify(
-		status.integrations.map(({ toolkit, status }) => [toolkit, status]).sort(),
-	);
+function getInventorySignature(status: ComposioStatusResponse) {
+	return JSON.stringify([
+		status.configured,
+		status.integrations
+			.filter((integration) => integration.status === "connected")
+			.map((integration) => integration.toolkit)
+			.sort(),
+	]);
 }
 
-/** Connection changes affect extension tools even when their cards are unmounted. */
-function commitStatus(status: ComposioStatusResponse, mutation = false) {
-	const previous = statusSnapshot.status;
+function publishInventoryChange() {
+	invalidateExtensionInventoryCache();
+	for (const listener of inventoryChangeListeners) listener();
+}
+
+function commitStatus(
+	status: ComposioStatusResponse,
+	options?: { mutation?: boolean },
+) {
+	const nextInventorySignature = getInventorySignature(status);
+	const connectionsChanged =
+		inventorySignature !== null &&
+		inventorySignature !== nextInventorySignature;
+	inventorySignature = nextInventorySignature;
 	statusCache = { value: status, fetchedAt: Date.now() };
 	publishAvailability(status.configured);
 	publishStatus({ status, loading: false, error: null });
-	if (
-		mutation ||
-		(previous && inventorySignature(previous) !== inventorySignature(status))
-	) {
-		invalidateExtensionInventoryCache();
-	}
+	if (options?.mutation || connectionsChanged) publishInventoryChange();
 }
 
 export const getComposioStatusSnapshot = () => statusSnapshot;
@@ -143,11 +163,26 @@ export function subscribeComposioStatus(listener: () => void) {
 	};
 }
 
+/**
+ * Observe changes that can alter the extension inventory. Unlike a UI status
+ * subscription, this keeps pending OAuth polling alive after its initiating
+ * control unmounts.
+ */
+export function subscribeComposioInventoryChanges(listener: () => void) {
+	inventoryChangeListeners.add(listener);
+	void fetchComposioStatus().catch(() => {});
+	updateStatusPolling();
+	return () => {
+		inventoryChangeListeners.delete(listener);
+		updateStatusPolling();
+	};
+}
+
 // Availability is UI state, not authorization. Retain it across page mounts;
 // the sidecar still checks account access for every connector operation.
 let availability: boolean | null = null;
 let availabilityGeneration = 0;
-let unsubscribeSettings: (() => void) | null = null;
+let unsubscribeInvalidations: (() => void) | null = null;
 const availabilityListeners = new Set<() => void>();
 
 /** Retain expired snapshots for rendering while the next read refreshes them. */
@@ -166,18 +201,23 @@ export function invalidateComposioCache() {
 	catalogCache = null;
 	statusRequest = null;
 	catalogRequest = null;
+	statusMutation = null;
+	inventorySignature = null;
 	publishAvailability(null);
 	publishStatus(EMPTY_STATUS_SNAPSHOT);
 	publishCatalog(EMPTY_CATALOG_SNAPSHOT);
-	if (statusListeners.size > 0) void fetchComposioStatus().catch(() => {});
+	if (statusListeners.size > 0 || inventoryChangeListeners.size > 0) {
+		void fetchComposioStatus().catch(() => {});
+	}
 }
 
 export function resetComposioCacheForTesting() {
-	unsubscribeSettings?.();
-	unsubscribeSettings = null;
+	unsubscribeInvalidations?.();
+	unsubscribeInvalidations = null;
 	availabilityListeners.clear();
 	statusListeners.clear();
 	catalogListeners.clear();
+	inventoryChangeListeners.clear();
 	invalidateComposioCache();
 }
 
@@ -187,14 +227,22 @@ function publishAvailability(next: boolean | null) {
 	for (const listener of availabilityListeners) listener();
 }
 
-function observeAvailabilitySettings() {
-	if (unsubscribeSettings) return;
-	// Keep observing while pages are unmounted so signing out elsewhere also
-	// invalidates the cached value. This subscription lives with the client.
-	unsubscribeSettings = desktopClient.subscribe(
+function observeAccountChanges() {
+	if (unsubscribeInvalidations) return;
+	// Keep observing while pages are unmounted so account, organization, and
+	// settings changes cannot leave connector data from the previous session.
+	const unsubscribeSettings = desktopClient.subscribe(
 		"settings.changed",
 		invalidateComposioCache,
 	);
+	const unsubscribeCloudSessions = desktopClient.subscribe(
+		"cloud_sessions_changed",
+		invalidateComposioCache,
+	);
+	unsubscribeInvalidations = () => {
+		unsubscribeSettings();
+		unsubscribeCloudSessions();
+	};
 }
 
 export function getComposioAvailability(): boolean | null {
@@ -202,17 +250,42 @@ export function getComposioAvailability(): boolean | null {
 }
 
 export function subscribeComposioAvailability(listener: () => void) {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	availabilityListeners.add(listener);
 	return () => {
 		availabilityListeners.delete(listener);
 	};
 }
 
+function resolveCurrentStatus(
+	excludedMutation?: StatusMutation,
+): Promise<ComposioStatusResponse> {
+	if (statusRequest) return statusRequest.promise;
+	const mutation = statusMutation;
+	if (mutation && mutation !== excludedMutation) {
+		return mutation.promise.then(
+			(result) => {
+				if (
+					mutation.generation !== availabilityGeneration ||
+					mutation.revision !== statusRevision
+				) {
+					return resolveCurrentStatus(mutation);
+				}
+				return mutation.readStatus(result);
+			},
+			() => resolveCurrentStatus(mutation),
+		);
+	}
+	if (statusCache) return Promise.resolve(statusCache.value);
+	if (statusMutation === excludedMutation) statusMutation = null;
+	return fetchComposioStatus();
+}
+
 export function fetchComposioStatus(options?: {
 	refresh?: boolean;
 }): Promise<ComposioStatusResponse> {
-	observeAvailabilitySettings();
+	observeAccountChanges();
+	if (statusMutation) return resolveCurrentStatus();
 	const pendingConnection = statusCache?.value.integrations.some(
 		(entry) => entry.status === "pending",
 	);
@@ -230,35 +303,42 @@ export function fetchComposioStatus(options?: {
 	}
 	const generation = availabilityGeneration;
 	const revision = statusRevision;
-	const promise = desktopClient
-		.invoke<ComposioStatusResponse>("composio_integrations", {
+	const request = desktopClient.invoke<ComposioStatusResponse>(
+		"composio_integrations",
+		{
 			operation: "status",
 			refresh,
-		})
-		.then((status) => {
-			if (
-				generation === availabilityGeneration &&
-				revision === statusRevision &&
-				statusRequest?.promise === promise
-			) {
+		},
+	);
+	const promise = request
+		.then(
+			(status) => {
+				if (
+					generation !== availabilityGeneration ||
+					revision !== statusRevision ||
+					statusRequest?.promise !== promise
+				) {
+					return resolveCurrentStatus();
+				}
 				commitStatus(status);
-			}
-			return status;
-		})
-		.catch((error: unknown) => {
-			if (
-				generation === availabilityGeneration &&
-				revision === statusRevision &&
-				statusRequest?.promise === promise
-			) {
+				return status;
+			},
+			(error: unknown) => {
+				if (
+					generation !== availabilityGeneration ||
+					revision !== statusRevision ||
+					statusRequest?.promise !== promise
+				) {
+					return resolveCurrentStatus();
+				}
 				publishStatus({
 					status: getCachedComposioStatus(),
 					loading: false,
 					error: error instanceof Error ? error.message : String(error),
 				});
-			}
-			throw error;
-		})
+				throw error;
+			},
+		)
 		.finally(() => {
 			if (statusRequest?.promise === promise) statusRequest = null;
 		});
@@ -271,35 +351,55 @@ export function fetchComposioStatus(options?: {
 	return promise;
 }
 
+function resolveCurrentCatalog(
+	excludedRequest?: Promise<ComposioCatalogResponse>,
+): Promise<ComposioCatalogResponse> {
+	if (catalogRequest && catalogRequest !== excludedRequest)
+		return catalogRequest;
+	if (catalogCache) return Promise.resolve(catalogCache.value);
+	if (catalogRequest === excludedRequest) catalogRequest = null;
+	return fetchComposioToolkitCatalog();
+}
+
 export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> {
-	observeAvailabilitySettings();
+	observeAccountChanges();
 	if (catalogRequest) return catalogRequest;
 	if (catalogCache && Date.now() - catalogCache.fetchedAt < CATALOG_TTL_MS)
 		return Promise.resolve(catalogCache.value);
 	const generation = availabilityGeneration;
-	const promise = desktopClient
-		.invoke<ComposioCatalogResponse>(
-			"composio_integrations",
-			{ operation: "listToolkits" },
-			{ timeoutMs: CONNECT_TIMEOUT_MS },
-		)
-		.then((catalog) => {
-			if (generation === availabilityGeneration && catalogRequest === promise) {
+	const request = desktopClient.invoke<ComposioCatalogResponse>(
+		"composio_integrations",
+		{ operation: "listToolkits" },
+		{ timeoutMs: CONNECT_TIMEOUT_MS },
+	);
+	const promise = request
+		.then(
+			(catalog) => {
+				if (
+					generation !== availabilityGeneration ||
+					catalogRequest !== promise
+				) {
+					return resolveCurrentCatalog(promise);
+				}
 				catalogCache = { value: catalog, fetchedAt: Date.now() };
 				publishCatalog({ catalog, loading: false, error: null });
-			}
-			return catalog;
-		})
-		.catch((error: unknown) => {
-			if (generation === availabilityGeneration && catalogRequest === promise) {
+				return catalog;
+			},
+			(error: unknown) => {
+				if (
+					generation !== availabilityGeneration ||
+					catalogRequest !== promise
+				) {
+					return resolveCurrentCatalog(promise);
+				}
 				publishCatalog({
 					catalog: getCachedComposioToolkitCatalog(),
 					loading: false,
 					error: error instanceof Error ? error.message : String(error),
 				});
-			}
-			throw error;
-		})
+				throw error;
+			},
+		)
 		.finally(() => {
 			if (catalogRequest === promise) catalogRequest = null;
 		});
@@ -312,62 +412,77 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 	return promise;
 }
 
-function beginStatusMutation() {
-	observeAvailabilitySettings();
+function runStatusMutation<T>(
+	load: () => Promise<T>,
+	readStatus: (result: T) => ComposioStatusResponse,
+): Promise<T> {
+	observeAccountChanges();
 	statusRevision++;
 	statusRequest = null;
 	publishStatus({ ...statusSnapshot, loading: false });
-	return availabilityGeneration;
+	let mutation: StatusMutation;
+	const promise = Promise.resolve()
+		.then(load)
+		.then((result) => {
+			if (
+				statusMutation === mutation &&
+				mutation.generation === availabilityGeneration &&
+				mutation.revision === statusRevision
+			) {
+				commitStatus(readStatus(result), { mutation: true });
+			}
+			return result;
+		})
+		.finally(() => {
+			if (statusMutation === mutation) statusMutation = null;
+		});
+	mutation = {
+		generation: availabilityGeneration,
+		revision: statusRevision,
+		promise,
+		readStatus: (result) => readStatus(result as T),
+	};
+	statusMutation = mutation;
+	return promise;
 }
 
-function cacheMutationStatus(
-	status: ComposioStatusResponse,
-	generation: number,
-) {
-	if (generation !== availabilityGeneration) return;
-	// Discard reads begun both before and during the mutation.
-	statusRevision++;
-	statusRequest = null;
-	commitStatus(status, true);
-}
-
-export async function connectComposioIntegration(
+export function connectComposioIntegration(
 	toolkit: ComposioToolkitSlug,
 ): Promise<ComposioConnectResponse> {
-	const generation = beginStatusMutation();
-	const result = await desktopClient.invoke<ComposioConnectResponse>(
-		"composio_integrations",
-		{ operation: "connect", toolkit },
-		{ timeoutMs: CONNECT_TIMEOUT_MS },
+	return runStatusMutation(
+		() =>
+			desktopClient.invoke<ComposioConnectResponse>(
+				"composio_integrations",
+				{ operation: "connect", toolkit },
+				{ timeoutMs: CONNECT_TIMEOUT_MS },
+			),
+		(result) => result.status,
 	);
-	cacheMutationStatus(result.status, generation);
-	return result;
 }
 
-export async function cancelComposioConnect(
+export function cancelComposioConnect(
 	toolkit: ComposioToolkitSlug,
 ): Promise<ComposioStatusResponse> {
-	const generation = beginStatusMutation();
-	const status = await desktopClient.invoke<ComposioStatusResponse>(
-		"composio_integrations",
-		{
-			operation: "cancelConnect",
-			toolkit,
-		},
+	return runStatusMutation(
+		() =>
+			desktopClient.invoke<ComposioStatusResponse>("composio_integrations", {
+				operation: "cancelConnect",
+				toolkit,
+			}),
+		(status) => status,
 	);
-	cacheMutationStatus(status, generation);
-	return status;
 }
 
-export async function disconnectComposioIntegration(
+export function disconnectComposioIntegration(
 	toolkit: ComposioToolkitSlug,
 ): Promise<ComposioStatusResponse> {
-	const generation = beginStatusMutation();
-	const status = await desktopClient.invoke<ComposioStatusResponse>(
-		"composio_integrations",
-		{ operation: "disconnect", toolkit },
-		{ timeoutMs: CONNECT_TIMEOUT_MS },
+	return runStatusMutation(
+		() =>
+			desktopClient.invoke<ComposioStatusResponse>(
+				"composio_integrations",
+				{ operation: "disconnect", toolkit },
+				{ timeoutMs: CONNECT_TIMEOUT_MS },
+			),
+		(status) => status,
 	);
-	cacheMutationStatus(status, generation);
-	return status;
 }

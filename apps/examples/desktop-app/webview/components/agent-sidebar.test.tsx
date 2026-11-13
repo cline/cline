@@ -1271,7 +1271,9 @@ describe("AgentSidebar session organization", () => {
 		await click(buttonWithText("Session", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
-		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith("Schedules");
+		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
+			"Schedules",
+		);
 		expect(setView).not.toHaveBeenCalled();
 		await click(buttonWithText("Customize", actionsNav as ParentNode));
 		expect(onOpenCustomize).toHaveBeenCalledOnce();
@@ -1324,7 +1326,7 @@ describe("AgentSidebar session organization", () => {
 		}
 		const row = sessionRow("alpha session 1");
 		const viewport = row.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing session list viewport");
 		viewport.scrollTop = 180;
@@ -1353,7 +1355,7 @@ describe("AgentSidebar session organization", () => {
 			container.querySelector('[aria-label="Settings"]')?.className.split(" "),
 		).not.toContain("bg-surface-hover");
 		expect(sessionRow("alpha session 1")).toBe(row);
-		expect(row.closest("[data-radix-scroll-area-viewport]")).toBe(viewport);
+		expect(row.closest('[data-slot="scroll-area-viewport"]')).toBe(viewport);
 		expect(viewport.scrollTop).toBe(180);
 		if (sortMode === "project") {
 			expect(
@@ -1633,7 +1635,9 @@ describe("AgentSidebar session organization", () => {
 			scheduleButton.className.split(" ").includes("bg-surface-hover"),
 		).toBe(false);
 		await click(scheduleButton);
-		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith("Schedules");
+		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
+			"Schedules",
+		);
 		expect(setView).not.toHaveBeenCalled();
 	});
 

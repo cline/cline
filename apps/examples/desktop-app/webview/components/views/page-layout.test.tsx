@@ -57,7 +57,7 @@ function pageRoot() {
 
 function pageViewport() {
 	const element = pageRoot().querySelector<HTMLElement>(
-		"[data-radix-scroll-area-viewport]",
+		'[data-slot="scroll-area-viewport"]',
 	);
 	if (!element) throw new Error("Missing page viewport");
 	return element;
@@ -88,8 +88,16 @@ describe("PageFrame", () => {
 		);
 
 		const heading = container.querySelector("h1");
+		const frame = container.querySelector(".legacy-frame");
+		const description = Array.from(container.querySelectorAll("p")).find(
+			(element) => element.textContent === "Manage existing items.",
+		);
 		expect(heading?.textContent).toBe("Items");
-		expect(heading?.classList.contains("text-2xl")).toBe(true);
+		expect(heading?.classList.contains("text-3xl")).toBe(true);
+		expect(heading?.classList.contains("font-semibold")).toBe(true);
+		expect(description?.classList.contains("text-base")).toBe(true);
+		expect(frame?.classList.contains("py-10")).toBe(true);
+		expect(frame?.classList.contains("pt-4")).toBe(false);
 		expect(heading?.closest(".legacy-header")).not.toBeNull();
 		expect(heading?.closest(".legacy-content")).not.toBeNull();
 		expect(heading?.closest(".legacy-frame")).not.toBeNull();
@@ -99,7 +107,7 @@ describe("PageFrame", () => {
 		expect(container.textContent).toContain("Page content");
 
 		await scroll(pageViewport(), 100);
-		expect(heading?.classList.contains("text-2xl")).toBe(true);
+		expect(heading?.classList.contains("text-3xl")).toBe(true);
 	});
 
 	it("measures the header and viewport without navigation and updates on resize", async () => {
@@ -188,7 +196,7 @@ describe("PageFrame", () => {
 
 		const heading = container.querySelector("h1");
 		const nestedViewport = pageViewport().querySelector<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		expect(nestedViewport).not.toBeNull();
 		if (!nestedViewport) throw new Error("Missing nested viewport");

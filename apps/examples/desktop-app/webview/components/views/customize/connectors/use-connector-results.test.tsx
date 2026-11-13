@@ -148,10 +148,11 @@ it("refreshes extension inventory when the last connector disappears without a r
 	expect(installed.summary.count).toBe(0);
 	expect(available.summary.count).toBe(2);
 	expect(invalidated).toHaveBeenCalledOnce();
-	// The invalidation's status recheck has the same inventory and must settle.
+	// The mutation already publishes the complete shared status, so its
+	// inventory invalidation must not duplicate the status request.
 	expect(
 		mocks.invoke.mock.calls.filter(([, args]) => args.operation === "status"),
-	).toHaveLength(2);
+	).toHaveLength(1);
 	unsubscribe();
 });
 

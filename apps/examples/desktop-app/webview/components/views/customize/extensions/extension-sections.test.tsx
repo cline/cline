@@ -671,10 +671,9 @@ describe("host-owned customization search", () => {
 
 describe("CustomizationSectionView Agent Plugin inventory", () => {
 	function pluginDetails() {
-		const back = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Back to Manage"]',
+		const details = container.querySelector<HTMLElement>(
+			"[data-detail-content]",
 		);
-		const details = back?.closest("nav")?.parentElement;
 		if (!details) throw new Error("Expected the plugin details page");
 		expect(document.querySelector('[role="dialog"]')).toBeNull();
 		return details;
@@ -736,7 +735,7 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 			),
 		).toHaveLength(1);
 		await act(async () =>
-			details
+			container
 				.querySelector<HTMLButtonElement>('[aria-label="Back to Manage"]')
 				?.click(),
 		);

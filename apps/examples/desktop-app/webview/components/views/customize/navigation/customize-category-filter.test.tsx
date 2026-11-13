@@ -399,7 +399,7 @@ describe("shared Customize category filter", () => {
 		);
 		expect(trigger, `Missing ${name} details trigger`).not.toBeNull();
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (viewport) viewport.scrollTop = 320;
 		await act(async () => trigger?.click());
@@ -420,7 +420,9 @@ describe("shared Customize category filter", () => {
 			expect(pluginNavigation).toBeNull();
 		}
 		const details =
-			type === "Plugins" ? pluginNavigation?.parentElement : dialog;
+			type === "Plugins"
+				? container.querySelector("[data-detail-content]")
+				: dialog;
 		const category = details?.querySelector<HTMLButtonElement>(
 			'button[title="Filter by Productivity"]',
 		);
@@ -447,7 +449,7 @@ describe("shared Customize category filter", () => {
 			`button[aria-label="View ${name} details"], button[aria-label="Open ${name} details"], button[aria-label="Expand ${name}"]`,
 		);
 		expect(
-			returnedCard?.closest<HTMLElement>("[data-radix-scroll-area-viewport]")
+			returnedCard?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
 				?.scrollTop,
 		).toBe(0);
 		await openType("All");

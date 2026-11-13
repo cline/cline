@@ -51,7 +51,7 @@ let geometry: {
 function Harness({ mode = "browse" }: { mode?: "browse" | "manage" }) {
 	const { contentRef, categoriesRef } = useCustomizeStickyHeaders();
 	return (
-		<div data-radix-scroll-area-viewport="">
+		<div data-slot="scroll-area-viewport">
 			<header data-page-header="">
 				<div data-geometry="header-content" style={{ columnGap: 24 }}>
 					<h1>
@@ -275,7 +275,7 @@ describe("Customize sticky toolbar sizing", () => {
 
 		geometry.toolbarTop = 0;
 		await act(async () => {
-			element("[data-radix-scroll-area-viewport]").dispatchEvent(
+			element('[data-slot="scroll-area-viewport"]').dispatchEvent(
 				new Event("scroll"),
 			);
 		});

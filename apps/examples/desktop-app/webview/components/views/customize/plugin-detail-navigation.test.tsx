@@ -183,7 +183,7 @@ describe("Plugin detail navigation", () => {
 		await render(section);
 		const trigger = button("View agent-browser details");
 		const viewport = trigger.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing list scroll viewport");
 		viewport.scrollTop = 384;
@@ -242,7 +242,7 @@ describe("Plugin detail navigation", () => {
 		const trigger = button("View agent-browser details");
 		const card = trigger.closest('[data-slot="item-card"]');
 		const viewport = trigger.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!card || !viewport) throw new Error("Missing installed plugin card");
 		viewport.scrollTop = 512;

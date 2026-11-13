@@ -211,7 +211,7 @@ describe("Rule detail navigation", () => {
 		await render();
 		const trigger = button("View details for Code conventions");
 		const viewport = trigger.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing list scroll viewport");
 		viewport.scrollTop = 384;
@@ -242,7 +242,7 @@ describe("Rule detail navigation", () => {
 		await act(async () => root.render(<HostedCustomizeHarness />));
 		const trigger = button("View details for Code conventions");
 		const viewport = trigger.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing list scroll viewport");
 		viewport.scrollTop = 384;

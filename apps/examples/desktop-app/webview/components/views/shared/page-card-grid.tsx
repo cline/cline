@@ -1,5 +1,23 @@
-import { Children, type ComponentPropsWithoutRef } from "react";
+import {
+	Children,
+	type ComponentPropsWithoutRef,
+	Fragment,
+	isValidElement,
+	type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
+
+function hasRenderableChildren(children: ReactNode): boolean {
+	return Children.toArray(children).some((child) => {
+		if (
+			isValidElement<{ children?: ReactNode }>(child) &&
+			child.type === Fragment
+		) {
+			return hasRenderableChildren(child.props.children);
+		}
+		return true;
+	});
+}
 
 /** Size card columns to the available content area, including beside a detail pane. */
 export function PageCardGrid({
@@ -8,7 +26,7 @@ export function PageCardGrid({
 	gridClassName,
 	...props
 }: ComponentPropsWithoutRef<"div"> & { gridClassName?: string }) {
-	if (Children.toArray(children).length === 0) return null;
+	if (!hasRenderableChildren(children)) return null;
 
 	return (
 		<div {...props} className={cn("@container/page-cards min-w-0", className)}>

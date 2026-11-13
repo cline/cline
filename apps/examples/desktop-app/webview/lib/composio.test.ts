@@ -19,6 +19,14 @@ function deferred<T>() {
 	return { promise, resolve };
 }
 
+function emitDesktopEvent(name: string) {
+	const callback = mocks.subscribe.mock.calls.find(
+		([eventName]) => eventName === name,
+	)?.[1] as (() => void) | undefined;
+	expect(callback).toBeTypeOf("function");
+	callback?.();
+}
+
 function status(
 	connection: "connected" | "not_connected" | "pending" = "connected",
 ): ComposioStatusResponse {
@@ -45,7 +53,11 @@ describe("connector availability cache", () => {
 		unsubscribe();
 		api.subscribeComposioAvailability(vi.fn());
 		expect(api.getComposioAvailability()).toBe(true);
-		expect(mocks.subscribe).toHaveBeenCalledTimes(1);
+		expect(mocks.subscribe).toHaveBeenCalledTimes(2);
+		expect(mocks.subscribe).toHaveBeenCalledWith(
+			"cloud_sessions_changed",
+			expect.any(Function),
+		);
 		mocks.invoke.mockRejectedValueOnce(new Error("offline"));
 		await expect(api.fetchComposioStatus({ refresh: true })).rejects.toThrow(
 			"offline",
@@ -56,50 +68,30 @@ describe("connector availability cache", () => {
 		expect(api.getComposioAvailability()).toBe(false);
 	});
 
-	it("invalidates while unmounted and ignores pre-change requests", async () => {
+	it("invalidates on account changes while unmounted and ignores pre-change requests", async () => {
 		const api = await import("./composio");
 		const unsubscribe = api.subscribeComposioAvailability(vi.fn());
 		mocks.invoke.mockResolvedValueOnce({ configured: true, integrations: [] });
 		await api.fetchComposioStatus();
 		unsubscribe();
-		let complete!: (value: unknown) => void;
-		mocks.invoke.mockReturnValueOnce(
-			new Promise((resolve) => {
-				complete = resolve;
-			}),
-		);
+		const oldAccount = deferred<ComposioStatusResponse>();
+		const currentAccount = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(oldAccount.promise)
+			.mockReturnValueOnce(currentAccount.promise);
 		const stale = api.fetchComposioStatus({ refresh: true });
-		mocks.subscribe.mock.calls[0][1]();
+		emitDesktopEvent("cloud_sessions_changed");
 		expect(api.getComposioAvailability()).toBeNull();
-		complete({ configured: true, integrations: [] });
-		await stale;
-		expect(api.getComposioAvailability()).toBeNull();
+		oldAccount.resolve(status());
+		await Promise.resolve();
+		const current = { configured: false, integrations: [] };
+		currentAccount.resolve(current);
+		expect(await stale).toBe(current);
+		expect(api.getComposioAvailability()).toBe(false);
 	});
 });
 
 describe("shared connector data cache", () => {
-	it("invalidates extension inventory only for accepted connection changes, not metadata refreshes", async () => {
-		const api = await import("./composio");
-		const inventory = await import("./extension-inventory");
-		const invalidated = vi.fn();
-		const unsubscribe =
-			inventory.subscribeToExtensionInventoryInvalidation(invalidated);
-		mocks.invoke.mockResolvedValueOnce(status());
-		await api.fetchComposioStatus();
-		expect(invalidated).not.toHaveBeenCalled();
-		const renamed = status();
-		renamed.integrations[0].name = "Renamed Gmail";
-		mocks.invoke.mockResolvedValueOnce(renamed);
-		await api.fetchComposioStatus({ refresh: true });
-		expect(invalidated).not.toHaveBeenCalled();
-		mocks.invoke.mockResolvedValue(status("not_connected"));
-		await api.fetchComposioStatus({ refresh: true });
-		expect(invalidated).toHaveBeenCalledOnce();
-		await api.fetchComposioStatus({ refresh: true });
-		expect(invalidated).toHaveBeenCalledOnce();
-		unsubscribe();
-	});
-
 	it("reconciles remote connections on a cold read and then reuses fresh status", async () => {
 		const api = await import("./composio");
 		mocks.invoke.mockResolvedValueOnce(status());
@@ -121,7 +113,9 @@ describe("shared connector data cache", () => {
 		expect(api.fetchComposioStatus()).toBe(read);
 		first.resolve(status());
 		await read;
-		expect(await api.fetchComposioStatus()).toBe(api.getCachedComposioStatus());
+		expect(await api.fetchComposioStatus()).toBe(
+			api.getComposioStatusSnapshot().status,
+		);
 		expect(mocks.invoke).toHaveBeenCalledTimes(1);
 		now.mockReturnValue(61_001);
 		const second = deferred<ComposioStatusResponse>();
@@ -131,14 +125,14 @@ describe("shared connector data cache", () => {
 			operation: "status",
 			refresh: true,
 		});
-		expect(api.getCachedComposioStatus()?.integrations[0]?.status).toBe(
-			"connected",
-		);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("connected");
 		second.resolve(status("not_connected"));
 		await revalidation;
-		expect(api.getCachedComposioStatus()?.integrations[0]?.status).toBe(
-			"not_connected",
-		);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("not_connected");
 	});
 
 	it("forces explicit refreshes and prevents an older ordinary read from replacing them", async () => {
@@ -153,13 +147,14 @@ describe("shared connector data cache", () => {
 		const read = api.fetchComposioStatus();
 		const refresh = api.fetchComposioStatus({ refresh: true });
 		expect(api.fetchComposioStatus({ refresh: true })).toBe(refresh);
-		forced.resolve(status("not_connected"));
+		const refreshed = status("not_connected");
+		forced.resolve(refreshed);
 		await refresh;
 		ordinary.resolve(status());
-		await read;
-		expect(api.getCachedComposioStatus()?.integrations[0]?.status).toBe(
-			"not_connected",
-		);
+		expect(await read).toBe(refreshed);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("not_connected");
 		expect(mocks.invoke).toHaveBeenCalledTimes(3);
 		expect(mocks.invoke).toHaveBeenLastCalledWith("composio_integrations", {
 			operation: "status",
@@ -179,12 +174,31 @@ describe("shared connector data cache", () => {
 			operation: "status",
 			refresh: false,
 		});
-		expect(api.getCachedComposioStatus()?.integrations[0]?.status).toBe(
-			"connected",
-		);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("connected");
 	});
 
-	it("shares catalog reads and clears both snapshots when settings change while unmounted", async () => {
+	it("publishes mutations and later OAuth completion to persistent inventory subscribers", async () => {
+		const api = await import("./composio");
+		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
+		const onInventoryChanged = vi.fn();
+		const unsubscribe =
+			api.subscribeComposioInventoryChanges(onInventoryChanged);
+		await api.fetchComposioStatus();
+		expect(onInventoryChanged).not.toHaveBeenCalled();
+
+		mocks.invoke.mockResolvedValueOnce({ status: status("pending") });
+		await api.connectComposioIntegration("gmail");
+		expect(onInventoryChanged).toHaveBeenCalledTimes(1);
+
+		mocks.invoke.mockResolvedValueOnce(status());
+		await api.fetchComposioStatus();
+		expect(onInventoryChanged).toHaveBeenCalledTimes(2);
+		unsubscribe();
+	});
+
+	it("shares catalog reads and invalidates status and catalog caches on settings changes", async () => {
 		const api = await import("./composio");
 		const catalog = { configured: true, toolkits: [] };
 		const first = deferred<typeof catalog>();
@@ -197,12 +211,15 @@ describe("shared connector data cache", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(1);
 		mocks.invoke.mockResolvedValueOnce(status());
 		await api.fetchComposioStatus();
-		mocks.subscribe.mock.calls[0][1]();
-		expect(api.getCachedComposioStatus()).toBeNull();
-		expect(api.getCachedComposioToolkitCatalog()).toBeNull();
+		emitDesktopEvent("settings.changed");
+		expect(api.getComposioStatusSnapshot().status).toBeNull();
+		const current = { configured: false, toolkits: [] };
+		mocks.invoke.mockResolvedValueOnce(current);
+		expect(await api.fetchComposioToolkitCatalog()).toBe(current);
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
 	});
 
-	it("retains an expired catalog during revalidation and rejects old-account completion", async () => {
+	it("rejects old-account catalog completion during revalidation", async () => {
 		const api = await import("./composio");
 		const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		const catalog = { configured: true, toolkits: [] };
@@ -212,26 +229,33 @@ describe("shared connector data cache", () => {
 		const next = deferred<typeof catalog>();
 		mocks.invoke.mockReturnValueOnce(next.promise);
 		const read = api.fetchComposioToolkitCatalog();
-		expect(api.getCachedComposioToolkitCatalog()).toBe(catalog);
-		api.invalidateComposioCache();
+		emitDesktopEvent("settings.changed");
+		const current = {
+			configured: false,
+			toolkits: [
+				{ slug: "current", name: "Current account", recommended: false },
+			],
+		};
+		const replacement = deferred<typeof current>();
+		mocks.invoke.mockReturnValueOnce(replacement.promise);
 		next.resolve(catalog);
-		await read;
-		expect(api.getCachedComposioToolkitCatalog()).toBeNull();
+		await Promise.resolve();
+		replacement.resolve(current);
+		expect(await read).toBe(current);
+		expect(await api.fetchComposioToolkitCatalog()).toBe(current);
 	});
 
 	it.each([
 		"connect",
 		"cancel",
 		"disconnect",
-	])("publishes %s mutation status and ignores reads begun before or during it", async (operation) => {
+	])("publishes %s mutation status to reads begun before or during it", async (operation) => {
 		const api = await import("./composio");
 		const before = deferred<ComposioStatusResponse>();
-		const during = deferred<ComposioStatusResponse>();
 		const mutation = deferred<unknown>();
 		mocks.invoke
 			.mockReturnValueOnce(before.promise)
-			.mockReturnValueOnce(mutation.promise)
-			.mockReturnValueOnce(during.promise);
+			.mockReturnValueOnce(mutation.promise);
 		const beforeRead = api.fetchComposioStatus();
 		const change =
 			operation === "connect"
@@ -244,9 +268,14 @@ describe("shared connector data cache", () => {
 		mutation.resolve(operation === "connect" ? { status: next } : next);
 		await change;
 		before.resolve(status());
-		during.resolve(status());
-		await Promise.all([beforeRead, duringRead]);
-		expect(api.getCachedComposioStatus()).toBe(next);
+		const [beforeResult, duringResult] = await Promise.all([
+			beforeRead,
+			duringRead,
+		]);
+		expect(beforeResult).toBe(next);
+		expect(duringResult).toBe(next);
+		expect(api.getComposioStatusSnapshot().status).toBe(next);
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
 	});
 
 	it("does not publish a mutation response after an account/settings change", async () => {
@@ -254,10 +283,10 @@ describe("shared connector data cache", () => {
 		const mutation = deferred<ComposioStatusResponse>();
 		mocks.invoke.mockReturnValueOnce(mutation.promise);
 		const change = api.disconnectComposioIntegration("gmail");
-		api.invalidateComposioCache();
+		emitDesktopEvent("settings.changed");
 		mutation.resolve(status("not_connected"));
 		await change;
-		expect(api.getCachedComposioStatus()).toBeNull();
+		expect(api.getComposioStatusSnapshot().status).toBeNull();
 		expect(api.getComposioAvailability()).toBeNull();
 	});
 });

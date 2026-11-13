@@ -522,7 +522,7 @@ describe("CustomizePage navigation", () => {
 			(button) => button.textContent?.trim() === "Add MCP server",
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!trigger || !viewport) throw new Error("Missing MCP creation action");
 		await act(async () => {
@@ -607,7 +607,7 @@ describe("CustomizePage navigation", () => {
 			'[aria-label="View Installed MCP details"]',
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!trigger || !viewport) throw new Error("Missing MCP card");
 		await act(async () => {
@@ -713,7 +713,7 @@ describe("CustomizePage navigation", () => {
 			'[aria-label="View Installed skill details"]',
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!trigger || !viewport) throw new Error("Missing installed skill card");
 		// Global and project installations can share the same visible name.
@@ -834,7 +834,7 @@ describe("CustomizePage navigation", () => {
 			'input[aria-label="Search customizations"]',
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport || !trigger) throw new Error("Missing Browse content");
 		viewport.scrollTop = 240;
@@ -872,7 +872,7 @@ describe("CustomizePage navigation", () => {
 			`[aria-label="View Browse ${label} details"]`,
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport || !trigger) throw new Error("Missing Browse content");
 		viewport.scrollTop = 240;
@@ -920,7 +920,7 @@ describe("CustomizePage navigation", () => {
 			`[aria-label="View ${name} details"]`,
 		);
 		const viewport = trigger?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!trigger || !viewport) throw new Error("Missing Manage content");
 		viewport.scrollTop = 320;
@@ -989,7 +989,7 @@ describe("CustomizePage navigation", () => {
 		expect(
 			container
 				.querySelector(`[data-testid="${view}-content"]`)
-				?.closest<HTMLElement>("[data-radix-scroll-area-viewport]")?.scrollTop,
+				?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')?.scrollTop,
 		).toBe(0);
 	});
 
@@ -1031,7 +1031,7 @@ describe("CustomizePage navigation", () => {
 			.querySelector(
 				'[data-testid$="-content"], [data-testid="customization-search-results"]',
 			)
-			?.closest<HTMLElement>("[data-radix-scroll-area-viewport]");
+			?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
 		if (!viewport) throw new Error("Missing customization results viewport");
 		viewport.scrollTop = 320;
 		await clickButton(name);
@@ -1070,7 +1070,7 @@ describe("CustomizePage navigation", () => {
 		const browse = container.querySelector('[data-testid="browse-content"]');
 		expect(browse?.closest("[hidden]")).toBeNull();
 		expect(
-			browse?.closest<HTMLElement>("[data-radix-scroll-area-viewport]")
+			browse?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
 				?.scrollTop,
 		).toBe(0);
 		const selectedType = browse?.querySelector(
@@ -1147,7 +1147,7 @@ describe("CustomizePage navigation", () => {
 		);
 		const heading = container.querySelector("header h1");
 		const viewport = heading?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing shared page viewport");
 		expect(heading?.classList.contains("text-2xl")).toBe(true);

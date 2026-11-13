@@ -29,11 +29,19 @@ export function DetailPage({
 	children,
 }: DetailPageProps) {
 	const backRef = useRef<HTMLButtonElement>(null);
+	const titleRef = useRef<HTMLHeadingElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
 	// Only the first render decides where focus starts.
 	const shouldFocusBack = useRef(focusBackOnMount).current;
+	const focusedOnMount = useRef(false);
 	useLayoutEffect(() => {
-		if (shouldFocusBack) backRef.current?.focus({ preventScroll: true });
-	}, [shouldFocusBack]);
+		if (!shouldFocusBack || focusedOnMount.current) return;
+		focusedOnMount.current = true;
+		const target = backDisabled
+			? (titleRef.current ?? contentRef.current)
+			: backRef.current;
+		target?.focus({ preventScroll: true });
+	}, [backDisabled, shouldFocusBack]);
 	return (
 		<PageFrame
 			className={styles.frame}
@@ -42,30 +50,43 @@ export function DetailPage({
 		>
 			{/* Share the existing header row with window dragging. Tauri's deep
 			    regions leave buttons, links, and editable controls interactive. */}
-			<nav
-				aria-label={navigationLabel}
+			<div
 				className={styles.navigation}
+				data-detail-navigation=""
 				data-tauri-drag-region="deep"
 			>
 				{title ? (
-					<h1 className="font-cline-ui-medium text-foreground text-xl">
+					<h1
+						ref={titleRef}
+						tabIndex={-1}
+						className="font-cline-ui-medium text-foreground text-xl outline-none"
+					>
 						{title}
 					</h1>
 				) : null}
-				<Button
-					ref={backRef}
-					aria-label={`Back to ${backLabel}`}
-					className="-ml-3 gap-2.5"
-					onClick={onBack}
-					disabled={backDisabled}
-					tone="neutral"
-					variant="ghost"
-					leadingIcon={ArrowLeft}
-				>
-					{backLabel}
-				</Button>
-			</nav>
-			<div className={cn(styles.content, contentClassName)}>{children}</div>
+				<nav aria-label={navigationLabel}>
+					<Button
+						ref={backRef}
+						aria-label={`Back to ${backLabel}`}
+						className="-ml-3 gap-2.5"
+						onClick={onBack}
+						disabled={backDisabled}
+						tone="neutral"
+						variant="ghost"
+						leadingIcon={ArrowLeft}
+					>
+						{backLabel}
+					</Button>
+				</nav>
+			</div>
+			<div
+				ref={contentRef}
+				tabIndex={-1}
+				data-detail-content=""
+				className={cn(styles.content, "outline-none", contentClassName)}
+			>
+				{children}
+			</div>
 		</PageFrame>
 	);
 }

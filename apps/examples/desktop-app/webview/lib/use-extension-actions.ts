@@ -46,6 +46,18 @@ function subscribe(listener: () => void) {
 	};
 }
 
+let extensionInventoryMutationQueue = Promise.resolve();
+function enqueueExtensionInventoryMutation<T>(
+	mutation: () => Promise<T>,
+): Promise<T> {
+	const result = extensionInventoryMutationQueue.then(mutation);
+	extensionInventoryMutationQueue = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	return result;
+}
+
 async function run(
 	key: string,
 	action: ExtensionAction,
@@ -65,31 +77,35 @@ async function run(
 }
 
 function toggleSkill(skill: SkillItem) {
-	return run(extensionActionKey("skill", skill.path), "toggle", async () => {
-		const current =
-			getCachedExtensionInventory()?.skills.find(
-				(item) => item.path === skill.path,
-			) ?? skill;
-		const response = await desktopClient.invoke<UserInstructionListsResponse>(
-			"set_skill_disabled",
-			{ path: current.path, disabled: current.enabled !== false },
-		);
-		commitExtensionInventoryResponse(response);
-	});
+	return run(extensionActionKey("skill", skill.path), "toggle", () =>
+		enqueueExtensionInventoryMutation(async () => {
+			const current =
+				getCachedExtensionInventory()?.skills.find(
+					(item) => item.path === skill.path,
+				) ?? skill;
+			const response = await desktopClient.invoke<UserInstructionListsResponse>(
+				"set_skill_disabled",
+				{ path: current.path, disabled: current.enabled !== false },
+			);
+			commitExtensionInventoryResponse(response);
+		}),
+	);
 }
 
 function togglePlugin(plugin: PluginItem) {
-	return run(extensionActionKey("plugin", plugin.path), "toggle", async () => {
-		const current =
-			getCachedExtensionInventory()?.plugins.find(
-				(item) => item.path === plugin.path,
-			) ?? plugin;
-		const response = await desktopClient.invoke<UserInstructionListsResponse>(
-			"set_plugin_disabled",
-			{ path: current.path, disabled: current.enabled },
-		);
-		commitExtensionInventoryResponse(response);
-	});
+	return run(extensionActionKey("plugin", plugin.path), "toggle", () =>
+		enqueueExtensionInventoryMutation(async () => {
+			const current =
+				getCachedExtensionInventory()?.plugins.find(
+					(item) => item.path === plugin.path,
+				) ?? plugin;
+			const response = await desktopClient.invoke<UserInstructionListsResponse>(
+				"set_plugin_disabled",
+				{ path: current.path, disabled: current.enabled },
+			);
+			commitExtensionInventoryResponse(response);
+		}),
+	);
 }
 
 function uninstallSkill(skill: SkillItem | undefined, entry: MarketplaceEntry) {

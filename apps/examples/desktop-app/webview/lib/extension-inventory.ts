@@ -240,22 +240,26 @@ const mcpServersCache = createInventoryCache(() =>
 );
 
 export const getCachedExtensionInventory = inventoryCache.get;
-let observingSettings = false;
-function observeSettingsChanges() {
-	if (observingSettings) return;
-	observingSettings = true;
-	desktopClient.subscribe("settings.changed", () => {
+let observingInventoryInvalidations = false;
+function observeInventoryInvalidations() {
+	if (observingInventoryInvalidations) return;
+	observingInventoryInvalidations = true;
+	const invalidate = () => {
 		clearInventoryCaches("settings");
-	});
+	};
+	// These subscriptions live with the shared client so changes made while
+	// Customize is unmounted cannot leave a populated inventory cache stale.
+	desktopClient.subscribe("settings.changed", invalidate);
+	desktopClient.subscribe("cloud_sessions_changed", invalidate);
 }
 
 export function fetchExtensionInventory(options: { force?: boolean } = {}) {
-	observeSettingsChanges();
+	observeInventoryInvalidations();
 	return inventoryCache.fetch(options);
 }
 export const getCachedMcpServers = mcpServersCache.get;
 export function fetchMcpServers(options: { force?: boolean } = {}) {
-	observeSettingsChanges();
+	observeInventoryInvalidations();
 	return mcpServersCache.fetch(options);
 }
 
@@ -281,7 +285,7 @@ export function invalidateExtensionInventoryCache() {
 export function subscribeToExtensionInventoryInvalidation(
 	listener: (reason: ExtensionInventoryInvalidationReason) => void,
 ): () => void {
-	observeSettingsChanges();
+	observeInventoryInvalidations();
 	invalidationListeners.add(listener);
 	return () => {
 		invalidationListeners.delete(listener);

@@ -160,7 +160,7 @@ describe("Workflow detail navigation", () => {
 		await render();
 		const trigger = button("View address-pr-comments details");
 		const viewport = trigger.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		if (!viewport) throw new Error("Missing list scroll viewport");
 		viewport.scrollTop = 384;

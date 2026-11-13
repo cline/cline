@@ -173,7 +173,13 @@ async function loadMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 			if (!response.ok) {
 				throw new Error(`Failed to fetch marketplace: ${response.status}`);
 			}
-			data = await response.json();
+			const candidate: unknown = await response.json();
+			const candidateError =
+				candidate && typeof candidate === "object"
+					? (candidate as Record<string, unknown>).error
+					: undefined;
+			if (typeof candidateError === "string") throw new Error(candidateError);
+			data = candidate;
 			break;
 		} catch (error) {
 			lastError = error;
@@ -187,9 +193,6 @@ async function loadMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	}
 	const payload: Record<string, unknown> =
 		data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-	// The sidecar returns an empty fallback with an error when its upstream
-	// fails. Do not retain that fallback as a successful catalog for the TTL.
-	if (typeof payload.error === "string") throw new Error(payload.error);
 
 	const baseUrl =
 		typeof payload.baseUrl === "string" ? payload.baseUrl : undefined;

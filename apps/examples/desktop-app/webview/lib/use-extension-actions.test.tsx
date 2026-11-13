@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
 	commitExtensionInventoryResponse,
 	getCachedExtensionInventory,
+	type PluginItem,
 	type SkillItem,
 } from "./extension-inventory";
 import {
@@ -23,6 +24,27 @@ const skill: SkillItem = {
 	instructions: "Review the changes.",
 	enabled: true,
 };
+const firstPlugin: PluginItem = {
+	id: "first",
+	name: "First",
+	path: "/plugins/first",
+	enabled: true,
+};
+const secondPlugin: PluginItem = {
+	id: "second",
+	name: "Second",
+	path: "/plugins/second",
+	enabled: true,
+};
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+}
+
 let container: HTMLDivElement;
 let root: Root;
 const consumers = new Map<string, ReturnType<typeof useExtensionActions>>();
@@ -103,6 +125,62 @@ it("locks the same installed item across consumers and preserves pending work ac
 		path: skill.path,
 		disabled: false,
 	});
+});
+
+it("serializes full-inventory mutations so older replies cannot undo newer toggles", async () => {
+	commitExtensionInventoryResponse({
+		skills: [skill],
+		plugins: [firstPlugin, secondPlugin],
+	});
+	await act(async () => root.render(<Consumer name="list" />));
+	const firstResponse = deferred<unknown>();
+	const secondResponse = deferred<unknown>();
+	invoke
+		.mockReturnValueOnce(firstResponse.promise)
+		.mockReturnValueOnce(secondResponse.promise);
+
+	let firstPending!: ReturnType<
+		ReturnType<typeof useExtensionActions>["togglePlugin"]
+	>;
+	let secondPending!: ReturnType<
+		ReturnType<typeof useExtensionActions>["togglePlugin"]
+	>;
+	await act(async () => {
+		firstPending = consumer("list").togglePlugin(firstPlugin);
+		secondPending = consumer("list").togglePlugin(secondPlugin);
+		await Promise.resolve();
+	});
+	expect(invoke).toHaveBeenCalledExactlyOnceWith("set_plugin_disabled", {
+		path: firstPlugin.path,
+		disabled: true,
+	});
+
+	await act(async () => {
+		firstResponse.resolve({
+			skills: [skill],
+			plugins: [{ ...firstPlugin, enabled: false }, secondPlugin],
+		});
+		await firstPending;
+	});
+	expect(invoke).toHaveBeenCalledTimes(2);
+	expect(invoke).toHaveBeenLastCalledWith("set_plugin_disabled", {
+		path: secondPlugin.path,
+		disabled: true,
+	});
+
+	await act(async () => {
+		secondResponse.resolve({
+			skills: [skill],
+			plugins: [
+				{ ...firstPlugin, enabled: false },
+				{ ...secondPlugin, enabled: false },
+			],
+		});
+		await secondPending;
+	});
+	expect(
+		getCachedExtensionInventory()?.plugins.map(({ enabled }) => enabled),
+	).toEqual([false, false]);
 });
 
 it("shares failure feedback and clears it when another consumer retries", async () => {

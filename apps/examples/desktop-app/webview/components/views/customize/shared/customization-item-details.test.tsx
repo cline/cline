@@ -7,7 +7,7 @@ import { CustomizationItemDetails } from "./customization-item-details";
 
 vi.mock("@/components/ui/scroll-area", () => ({
 	ScrollArea: ({ children }: { children: ReactNode }) => (
-		<div data-radix-scroll-area-viewport="">{children}</div>
+		<div data-slot="scroll-area-viewport">{children}</div>
 	),
 }));
 
@@ -32,7 +32,7 @@ class ResizeObserverStub {
 
 function Harness({ title = "Browser tools" }: { title?: string }) {
 	return (
-		<div data-radix-scroll-area-viewport="" data-test-viewport="">
+		<div data-slot="scroll-area-viewport" data-test-viewport="">
 			<CustomizationItemDetails
 				title={title}
 				header={(titleRef) => (

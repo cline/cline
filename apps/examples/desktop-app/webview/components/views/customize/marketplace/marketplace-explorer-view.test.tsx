@@ -293,9 +293,7 @@ function addSkillButton() {
 
 /** The detail page the host opens for a catalog entry. */
 function detailPage() {
-	const page = container
-		.querySelector('[aria-label="Back to Browse"]')
-		?.closest("nav")?.parentElement;
+	const page = container.querySelector<HTMLElement>("[data-detail-content]");
 	if (!page) throw new Error("Expected the entry's detail page");
 	return page;
 }

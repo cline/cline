@@ -7,11 +7,14 @@ import { useScrollHeaderFade } from "./use-scroll-header-fade";
 
 class ResizeObserverStub {
 	static instances: ResizeObserverStub[] = [];
+	readonly observed = new Set<Element>();
 	readonly disconnect = vi.fn();
 	constructor(readonly callback: ResizeObserverCallback) {
 		ResizeObserverStub.instances.push(this);
 	}
-	observe() {}
+	observe(target: Element) {
+		this.observed.add(target);
+	}
 	resize() {
 		this.callback([], this as unknown as ResizeObserver);
 	}
@@ -21,14 +24,28 @@ let container: HTMLDivElement;
 let root: Root;
 let headerTop: number;
 
-function Harness({ enabled = true }: { enabled?: boolean }) {
+function Harness({
+	enabled = true,
+	show = true,
+	version = 0,
+}: {
+	enabled?: boolean;
+	show?: boolean;
+	version?: number;
+}) {
 	const headerRef = useRef<HTMLElement>(null);
 	useScrollHeaderFade(headerRef, enabled);
 	return (
-		<div data-radix-scroll-area-viewport="">
-			<header ref={headerRef} style={{ position: "sticky", top: 60 }}>
-				Section
-			</header>
+		<div data-slot="scroll-area-viewport">
+			{show ? (
+				<header
+					key={version}
+					ref={headerRef}
+					style={{ position: "sticky", top: 60 }}
+				>
+					Section
+				</header>
+			) : null}
 		</div>
 	);
 }
@@ -60,13 +77,15 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 });
 
-async function render(enabled = true) {
-	await act(async () => root.render(<Harness enabled={enabled} />));
+async function render(enabled = true, show = true, version = 0) {
+	await act(async () =>
+		root.render(<Harness enabled={enabled} show={show} version={version} />),
+	);
 	const header = container.querySelector("header");
 	const viewport = container.querySelector<HTMLElement>(
-		"[data-radix-scroll-area-viewport]",
+		'[data-slot="scroll-area-viewport"]',
 	);
-	if (!header || !viewport) throw new Error("Missing scroll header fixture");
+	if (!viewport) throw new Error("Missing scroll viewport fixture");
 	return { header, viewport };
 }
 
@@ -79,6 +98,7 @@ async function scroll(viewport: HTMLElement, top: number) {
 
 it("fades only while a scrolled header is pinned to its viewport edge", async () => {
 	const { header, viewport } = await render();
+	if (!header) throw new Error("Missing scroll header fixture");
 	expect(header.dataset.scrollFade).toBe("false");
 
 	headerTop = 120;
@@ -100,8 +120,12 @@ it("fades only while a scrolled header is pinned to its viewport edge", async ()
 
 it("updates pinning after layout changes without another scroll", async () => {
 	const { header, viewport } = await render();
+	if (!header) throw new Error("Missing scroll header fixture");
 	await scroll(viewport, 80);
 	expect(header.dataset.scrollFade).toBe("true");
+	expect(ResizeObserverStub.instances[0].observed).toEqual(
+		new Set([viewport, header, header.parentElement]),
+	);
 
 	headerTop = 100;
 	await act(async () => ResizeObserverStub.instances[0].resize());
@@ -114,6 +138,7 @@ it("updates pinning after layout changes without another scroll", async () => {
 
 it("cleans up the fade and subscriptions when disabled or unmounted", async () => {
 	const { header, viewport } = await render(false);
+	if (!header) throw new Error("Missing scroll header fixture");
 	await scroll(viewport, 80);
 	expect(header.dataset.scrollFade).toBeUndefined();
 	expect(ResizeObserverStub.instances).toHaveLength(0);
@@ -133,4 +158,24 @@ it("cleans up the fade and subscriptions when disabled or unmounted", async () =
 	expect(header.dataset.scrollFade).toBeUndefined();
 	await scroll(viewport, 120);
 	expect(header.dataset.scrollFade).toBeUndefined();
+});
+
+it("subscribes when a header mounts late and follows replacement nodes", async () => {
+	const { viewport } = await render(true, false);
+	expect(ResizeObserverStub.instances).toHaveLength(0);
+
+	const { header: first } = await render(true, true);
+	if (!first) throw new Error("Missing first header");
+	expect(first.dataset.scrollFade).toBe("false");
+	const firstObserver = ResizeObserverStub.instances[0];
+	expect(firstObserver.observed.has(first)).toBe(true);
+
+	const { header: replacement } = await render(true, true, 1);
+	if (!replacement) throw new Error("Missing replacement header");
+	expect(replacement).not.toBe(first);
+	expect(firstObserver.disconnect).toHaveBeenCalledOnce();
+	expect(ResizeObserverStub.instances[1].observed.has(replacement)).toBe(true);
+
+	await scroll(viewport, 80);
+	expect(replacement.dataset.scrollFade).toBe("true");
 });

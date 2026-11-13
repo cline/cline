@@ -11,7 +11,7 @@
 }
 
 /* Keep keyboard-focused controls clear of the opaque sticky header. */
-[data-radix-scroll-area-viewport]:has(.page) {
+[data-slot="scroll-area-viewport"]:has(.page) {
 	scroll-padding-top: var(
 		--item-details-scroll-header-height,
 		calc(2rem + var(--text-xl--line-height))
@@ -61,14 +61,6 @@
 	align-items: center;
 	justify-content: flex-end;
 	gap: 0.5rem;
-}
-
-.headerActions[data-item-header-actions="inline"][data-active="false"] {
-	visibility: hidden;
-}
-
-.scrollHeader > .headerActions {
-	margin-left: auto;
 }
 
 .header {

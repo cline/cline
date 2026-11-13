@@ -362,7 +362,7 @@ describe("MCP item cards", () => {
 	])("uses one counted MCP heading with refresh and creation controls (shared: %s)", async (shared) => {
 		await renderServers(shared);
 		expect(
-			container.querySelector("[data-radix-scroll-area-viewport]"),
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
 		).toBeNull();
 		const heading = container.querySelector('[data-slot="section-heading"]');
 		expect(heading?.querySelector("h3")?.textContent).toBe("MCP");
@@ -1355,7 +1355,7 @@ describe("host-owned MCP search", () => {
 		);
 		expect(container.textContent).toContain("local-tools");
 		expect(
-			container.querySelector("[data-radix-scroll-area-viewport]"),
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
 		).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Edit local-tools"]'),

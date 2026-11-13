@@ -39,7 +39,7 @@ describe("DetailPage window drag area", () => {
 	it.each([
 		{ page: "Customize", title: "Customize", backLabel: "Manage" },
 		{ page: "Schedule", title: undefined, backLabel: "Schedule" },
-	])("lets the $page title-bar spacing scroll away while keeping navigation interactive", async ({
+	])("keeps the $page title-bar and navigation structurally separate", async ({
 		title,
 		backLabel,
 	}) => {
@@ -52,13 +52,15 @@ describe("DetailPage window drag area", () => {
 			),
 		);
 
-		const dragArea = element("nav");
+		const dragArea = element("[data-detail-navigation]");
+		const navigation = element("nav");
 		const titleBar = element("[data-page-title-bar]");
-		const viewport = element("[data-radix-scroll-area-viewport]");
+		const viewport = element('[data-slot="scroll-area-viewport"]');
 		const back = element(`button[aria-label="Back to ${backLabel}"]`);
 		const content = element('[data-testid="detail-content"]');
 		expect(dragArea.getAttribute("data-tauri-drag-region")).toBe("deep");
 		expect(titleBar.getAttribute("data-tauri-drag-region")).toBe("deep");
+		expect(navigation.getAttribute("aria-label")).toBe("Detail navigation");
 		expect(viewport.contains(titleBar)).toBe(true);
 		expect(titleBar.contains(back)).toBe(false);
 		expect(viewport.contains(content)).toBe(true);
@@ -66,18 +68,36 @@ describe("DetailPage window drag area", () => {
 		expect(content.closest("[data-tauri-drag-region]")).toBeNull();
 		// Tauri's deep region exempts buttons unless they explicitly opt in.
 		expect(back.hasAttribute("data-tauri-drag-region")).toBe(false);
-		expect(container.querySelector("h1")?.textContent).toBe(title);
-		expect(document.activeElement).toBe(back);
-
-		await act(async () => {
-			viewport.scrollTop = 400;
-			viewport.dispatchEvent(new Event("scroll"));
-		});
-		expect(element("nav")).toBe(dragArea);
-		expect(dragArea.getAttribute("data-tauri-drag-region")).toBe("deep");
+		const heading = container.querySelector("h1");
+		expect(heading?.textContent).toBe(title);
+		expect(heading?.closest("nav") ?? null).toBeNull();
 		expect(document.activeElement).toBe(back);
 
 		await act(async () => back.click());
 		expect(onBack).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		{ title: "Customize", target: "h1" },
+		{ title: undefined, target: "[data-detail-content]" },
+	])("uses $target as the focus fallback when Back is disabled", async ({
+		title,
+		target,
+	}) => {
+		await act(async () =>
+			root.render(
+				<DetailPage
+					key={target}
+					title={title}
+					backLabel="Manage"
+					backDisabled
+					onBack={() => {}}
+				>
+					Content
+				</DetailPage>,
+			),
+		);
+
+		expect(document.activeElement).toBe(element(target));
 	});
 });

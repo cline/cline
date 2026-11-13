@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	cancelComposioConnect,
 	connectComposioIntegration,
@@ -12,8 +12,6 @@ import type {
 } from "./composio-types";
 import { useComposioStatus } from "./use-composio-status";
 
-export type ComposioConnectionAction = "connect" | "cancel" | "disconnect";
-
 /**
  * Shared state machine for Composio connections, used by both the Customize >
  * Connectors tab and the Marketplace connector browser.
@@ -21,11 +19,7 @@ export type ComposioConnectionAction = "connect" | "cancel" | "disconnect";
  * Status, errors, and pending OAuth polling belong to the shared status store;
  * action feedback remains scoped to the control that started the request.
  */
-export function useComposioConnections({
-	onChanged,
-}: {
-	onChanged?: () => void;
-} = {}) {
+export function useComposioConnections() {
 	const {
 		status,
 		loading: refreshing,
@@ -36,69 +30,69 @@ export function useComposioConnections({
 	// failure is never rendered as another connector's error.
 	const [actionError, setActionError] = useState<{
 		toolkit: ComposioToolkitSlug;
-		operation: ComposioConnectionAction;
 		message: string;
 	} | null>(null);
 	const [busyToolkit, setBusyToolkit] = useState<ComposioToolkitSlug | null>(
 		null,
 	);
+	const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingActionsRef = useRef(
+		new Map<ComposioToolkitSlug, Promise<void>>(),
+	);
 
-	const onChangedRef = useRef(onChanged);
-	useEffect(() => {
-		onChangedRef.current = onChanged;
-	}, [onChanged]);
-
-	useEffect(() => {
-		if (status) onChangedRef.current?.();
-	}, [status]);
-
-	const connect = useCallback(async (toolkit: ComposioToolkitSlug) => {
-		setBusyToolkit(toolkit);
-		setActionError(null);
-		try {
-			await connectComposioIntegration(toolkit);
-		} catch (error) {
-			setActionError({
-				toolkit,
-				operation: "connect",
-				message: error instanceof Error ? error.message : String(error),
+	const runAction = useCallback(
+		(toolkit: ComposioToolkitSlug, action: () => Promise<unknown>) => {
+			const existing = pendingActionsRef.current.get(toolkit);
+			if (existing) return existing;
+			const run = async () => {
+				// Connector mutations return complete status snapshots. Serialize them so
+				// an older response cannot replace a newer mutation's shared snapshot.
+				setBusyToolkit(toolkit);
+				setActionError(null);
+				try {
+					await action();
+				} catch (error) {
+					setActionError({
+						toolkit,
+						message: error instanceof Error ? error.message : String(error),
+					});
+				} finally {
+					setBusyToolkit(null);
+				}
+			};
+			const pending = actionQueueRef.current.then(run, run);
+			pendingActionsRef.current.set(toolkit, pending);
+			actionQueueRef.current = pending;
+			void pending.then(() => {
+				if (pendingActionsRef.current.get(toolkit) === pending) {
+					pendingActionsRef.current.delete(toolkit);
+				}
 			});
-		} finally {
-			setBusyToolkit(null);
-		}
-	}, []);
+			return pending;
+		},
+		[],
+	);
 
-	const cancelConnect = useCallback(async (toolkit: ComposioToolkitSlug) => {
-		setBusyToolkit(toolkit);
-		setActionError(null);
-		try {
-			await cancelComposioConnect(toolkit);
-		} catch (error) {
-			setActionError({
-				toolkit,
-				operation: "cancel",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		} finally {
-			setBusyToolkit(null);
-		}
-	}, []);
+	const connect = useCallback(
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => connectComposioIntegration(toolkit));
+		},
+		[runAction],
+	);
 
-	const disconnect = useCallback(async (toolkit: ComposioToolkitSlug) => {
-		setBusyToolkit(toolkit);
-		setActionError(null);
-		try {
-			await disconnectComposioIntegration(toolkit);
-		} catch (error) {
-			setActionError({
-				toolkit,
-				operation: "disconnect",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		} finally {
-			setBusyToolkit(null);
-		}
-	}, []);
+	const cancelConnect = useCallback(
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => cancelComposioConnect(toolkit));
+		},
+		[runAction],
+	);
+
+	const disconnect = useCallback(
+		(toolkit: ComposioToolkitSlug) => {
+			return runAction(toolkit, () => disconnectComposioIntegration(toolkit));
+		},
+		[runAction],
+	);
 
 	const statusBySlug = useMemo(() => {
 		const map = new Map<

@@ -548,31 +548,24 @@ describe("MCP server editor page", () => {
 	it.each([
 		false,
 		true,
-	])("submits the current draft from sticky Save (new: %s)", async (isNew) => {
+	])("submits the current draft from header Save after scrolling (new: %s)", async (isNew) => {
 		const onBack = isNew ? await mountNew() : await mount();
 		await changeField("mcp-name", "saved-tools");
 		await changeField("mcp-command", "node");
-		const inlineSave = button("Save");
-		expect(
-			inlineSave.closest('[data-item-header-actions="inline"]'),
-		).not.toBeNull();
+		const save = button("Save");
+		expect(save.closest('[data-item-header-actions="inline"]')).not.toBeNull();
 		titleBottom = 0;
 		const viewport = container
 			.querySelector("form")
-			?.closest("[data-radix-scroll-area-viewport]");
+			?.closest('[data-slot="scroll-area-viewport"]');
 		expect(viewport).not.toBeNull();
 		await act(async () => viewport?.dispatchEvent(new Event("scroll")));
-		const stickySave = button("Save");
-		expect(stickySave).not.toBe(inlineSave);
-		expect(
-			stickySave.closest('[data-item-header-actions="sticky"]'),
-		).not.toBeNull();
-		expect(inlineSave.closest("[inert]")).not.toBeNull();
-		expect(stickySave.form).toBe(container.querySelector("form"));
+		expect(button("Save")).toBe(save);
+		expect(save.form).toBe(container.querySelector("form"));
 		invoke.mockResolvedValueOnce(
 			inventory([{ ...localServer, name: "saved-tools", command: "node" }]),
 		);
-		await act(async () => stickySave.click());
+		await act(async () => save.click());
 		expect(saveCalls()[0]?.[1]).toMatchObject({
 			input: { name: "saved-tools", command: "node" },
 		});

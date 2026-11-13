@@ -445,7 +445,7 @@ describe("Manage categories", () => {
 			),
 		).toHaveLength(1);
 		const viewports = container.querySelectorAll(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		expect(viewports).toHaveLength(1);
 		expect(
@@ -454,7 +454,7 @@ describe("Manage categories", () => {
 		for (const section of container.querySelectorAll(
 			'[aria-label="Managed content"]',
 		)) {
-			expect(section.closest("[data-radix-scroll-area-viewport]")).toBe(
+			expect(section.closest('[data-slot="scroll-area-viewport"]')).toBe(
 				viewports[0],
 			);
 		}
@@ -470,18 +470,18 @@ describe("Manage categories", () => {
 			);
 		});
 		const viewports = container.querySelectorAll(
-			"[data-radix-scroll-area-viewport]",
+			'[data-slot="scroll-area-viewport"]',
 		);
 		expect(viewports).toHaveLength(1);
 		expect(
 			container
 				.querySelector('[aria-label="Manage categories"]')
-				?.closest("[data-radix-scroll-area-viewport]"),
+				?.closest('[data-slot="scroll-area-viewport"]'),
 		).toBe(viewports[0]);
 		for (const section of container.querySelectorAll(
 			'[aria-label="Managed content"]',
 		)) {
-			expect(section.closest("[data-radix-scroll-area-viewport]")).toBe(
+			expect(section.closest('[data-slot="scroll-area-viewport"]')).toBe(
 				viewports[0],
 			);
 		}
@@ -493,7 +493,7 @@ describe("Manage categories", () => {
 		await act(async () => skills.click());
 		expect(managedContent()).toEqual(["Skills"]);
 		expect(
-			container.querySelectorAll("[data-radix-scroll-area-viewport]"),
+			container.querySelectorAll('[data-slot="scroll-area-viewport"]'),
 		).toHaveLength(1);
 	});
 
@@ -504,7 +504,7 @@ describe("Manage categories", () => {
 		});
 		expect(container.querySelector("h1")).toBeNull();
 		expect(
-			container.querySelectorAll("[data-radix-scroll-area-viewport]"),
+			container.querySelectorAll('[data-slot="scroll-area-viewport"]'),
 		).toHaveLength(0);
 		expect(managedContent()).toEqual(INSTALLED_CATEGORY_LABELS);
 	});
@@ -667,7 +667,7 @@ describe("Installed Customize search", () => {
 		expect(managedContent()).toEqual(["Connectors", "Skills", "Tools"]);
 		expect(categoryPills()).toHaveLength(0);
 		expect(
-			container.querySelectorAll("[data-radix-scroll-area-viewport]"),
+			container.querySelectorAll('[data-slot="scroll-area-viewport"]'),
 		).toHaveLength(0);
 		for (const label of ["Connectors", "Skills", "Tools"]) {
 			expect(mocks.children[label]).toMatchObject({
