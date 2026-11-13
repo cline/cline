@@ -104,13 +104,10 @@ describe("ApiOptions Component", () => {
 		expect(modelIdInput).toBeInTheDocument()
 	})
 
-	it.each([
-		["openai-native", "OpenAI"],
-		["openai-codex", "Sign in to OpenAI Codex"],
-	])("renders only the dedicated form for %s", (provider, dedicatedFormText) => {
+	it("renders only the dedicated form for openai-codex", () => {
 		mockExtensionState({
-			planModeApiProvider: provider as any,
-			actModeApiProvider: provider as any,
+			planModeApiProvider: "openai-codex",
+			actModeApiProvider: "openai-codex",
 		})
 
 		render(
@@ -119,7 +116,24 @@ describe("ApiOptions Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 
-		expect(screen.getByText(dedicatedFormText)).toBeInTheDocument()
+		expect(screen.getByText("Sign in to OpenAI Codex")).toBeInTheDocument()
+		expect(screen.queryByTestId("generic-provider-settings")).not.toBeInTheDocument()
+		expect(screen.queryByText("Custom Headers")).not.toBeInTheDocument()
+	})
+
+	it("renders OpenAI through the generic provider form, not the OpenAI-compatible form", () => {
+		mockExtensionState({
+			planModeApiProvider: "openai-native",
+			actModeApiProvider: "openai-native",
+		})
+
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={false} />
+			</ExtensionStateContextProvider>,
+		)
+
+		expect(screen.getByTestId("generic-provider-settings")).toHaveTextContent("OpenAI")
 		expect(screen.queryByText("Custom Headers")).not.toBeInTheDocument()
 	})
 

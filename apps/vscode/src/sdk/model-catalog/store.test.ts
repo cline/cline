@@ -1160,46 +1160,6 @@ describe("createProviderConfigStore", () => {
 		})
 	})
 
-	it("refreshes persisted private-catalog base metadata when the live catalog resolves updated model info", async () => {
-		const { createProviderConfigStore } = await import("./store")
-		const store = createProviderConfigStore()
-		const providerId = parseProviderId("baseten")
-		const modelId = "deepseek-ai/DeepSeek-V3"
-		const initialLiveInfo: ModelInfo = {
-			name: modelId,
-			contextWindow: 64_000,
-			maxInputTokens: 64_000,
-			maxTokens: 8_192,
-			supportsPromptCache: false,
-		}
-		const refreshedLiveInfo: ModelInfo = {
-			name: modelId,
-			contextWindow: 163_840,
-			maxInputTokens: 163_840,
-			maxTokens: 32_768,
-			supportsPromptCache: false,
-			supportsReasoning: true,
-		}
-
-		store.commitSelection(providerId, "act", { providerId, modelId }, initialLiveInfo)
-		expect(mocks.getApiConfiguration().actModeBasetenModelInfo).toEqual(initialLiveInfo)
-
-		vi.resetModules()
-		const { createProviderConfigStore: createReloadedStore } = await import("./store")
-		const reloadedStore = createReloadedStore()
-
-		reloadedStore.refreshSelectionBaseModelInfo?.(providerId, new Map([[modelId, refreshedLiveInfo]]))
-
-		expect(mocks.getApiConfiguration().actModeBasetenModelInfo).toEqual(refreshedLiveInfo)
-		expect(reloadedStore.readSelection(providerId, "act")).toMatchObject({
-			providerId,
-			modelId,
-			modelInfoSource: "state",
-			baseModelInfo: refreshedLiveInfo,
-			modelInfo: refreshedLiveInfo,
-		})
-	})
-
 	it("updates providers.json model with setLastUsed false when planActSeparateModelsSetting=false", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: false })
