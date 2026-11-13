@@ -127,6 +127,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "aiand",
 	},
 	{
+		modelsDevKey: "inferall",
+		generatedProviderId: "inferall",
+		runtimeProviderId: "inferall",
+	},
+	{
 		modelsDevKey: "aihubmix",
 		generatedProviderId: "aihubmix",
 		runtimeProviderId: "aihubmix",
