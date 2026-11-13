@@ -1099,6 +1099,10 @@
 			"destination": "/provider-config/other-30-plus-providers#qwen-code"
 		},
 		{
+			"source": "/provider-config/rapid-router",
+			"destination": "/provider-config/other-30-plus-providers#rapid-router"
+		},
+		{
 			"source": "/provider-config/requesty",
 			"destination": "/provider-config/other-30-plus-providers#requesty"
 		},
