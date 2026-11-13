@@ -171,21 +171,30 @@ describe("FileFactoryDefaultsStore", () => {
 		await expect(store.getDefaultWorkflow()).resolves.toEqual(recipe);
 	});
 
-	it("stores the daily spending limit, rejects invalid amounts and clears it with null", async () => {
+	it("stores the daily spending limit, rejects invalid amounts and stores null (or 0) as no daily limit", async () => {
 		const path = join(tempRoot(), FACTORY_DEFAULTS_FILE_NAME);
 		const store = new FileFactoryDefaultsStore(path);
+		// Never set: the default applies.
 		await expect(store.getDailyCostUsd()).resolves.toBeUndefined();
 		await expect(store.setDailyCostUsd(25.5)).resolves.toBe(25.5);
 		await expect(
 			new FileFactoryDefaultsStore(path).getDailyCostUsd(),
 		).resolves.toBe(25.5);
-		for (const invalid of [0, -1, Number.NaN, "5", 200_000])
+		for (const invalid of [-1, Number.NaN, "5", 200_000, undefined])
 			await expect(store.setDailyCostUsd(invalid)).rejects.toThrow(
 				"daily spending limit",
 			);
 		await expect(store.getDailyCostUsd()).resolves.toBe(25.5);
-		await expect(store.setDailyCostUsd(null)).resolves.toBeUndefined();
-		await expect(store.getDailyCostUsd()).resolves.toBeUndefined();
+		// "No daily limit" is stored and survives a restart; 0 means the same.
+		for (const none of [null, 0]) {
+			await store.setDailyCostUsd(25.5);
+			await expect(store.setDailyCostUsd(none)).resolves.toBeNull();
+			await expect(
+				new FileFactoryDefaultsStore(path).getDailyCostUsd(),
+			).resolves.toBeNull();
+		}
+		// The default comes back only by sending it.
+		await expect(store.setDailyCostUsd(50)).resolves.toBe(50);
 	});
 
 	it("keeps the default in memory without a path", async () => {

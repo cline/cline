@@ -20,21 +20,33 @@ export type FactoryBoardRow = {
 };
 
 /**
- * A board column is plain, serialisable data: an id, a title, an optional
- * tone, and a predicate from a closed set of kinds (`any` matches every
- * card). It is never a function, so a user-defined column later is one more
- * entry of this shape in the saved view, and the built-in groupings below
- * produce the same shape.
+ * A board column is plain data: an id, a title, an optional tone, and a
+ * predicate from a closed set of kinds. The built-in groupings below produce
+ * it; the saved view keeps only each column's id and the person's flags.
  */
 export type FactoryBoardColumn = {
 	id: string;
 	title: string;
 	tone?: FactoryTone;
-	match: { kind: "status" | "stage" | "project" | "any"; values: string[] };
+	match: FactoryBoardMatch;
+	/**
+	 * Parts of the column below its main cards, each under a quiet divider:
+	 * the cards the section matches, after the rest. Working's queue is one.
+	 */
+	sections?: { id: string; title: string; match: FactoryBoardMatch }[];
 };
 
-/** A column as the saved view keeps it: the column and the person's flags. */
-export type FactoryBoardViewColumn = FactoryBoardColumn & {
+export type FactoryBoardMatch = {
+	kind: "status" | "stage" | "project";
+	values: string[];
+};
+
+/**
+ * A column as the saved view keeps it: its id and the person's flags. A
+ * user-defined column later is one more entry here, with its own fields.
+ */
+export type FactoryBoardViewColumn = {
+	id: string;
 	hidden?: boolean;
 	/** The person's collapse (true) or expand (false) of this column. */
 	collapsed?: boolean;
@@ -46,23 +58,34 @@ export type FactoryBoardGrouping = "status" | "stage" | "project";
  * The saved board view (localStorage, `FACTORY_BOARD_VIEW_KEY`): the grouping
  * and its columns in the person's order with their flags. `collapsedTier` is
  * the width tier the collapse flags were set at; they lapse when the width
- * changes tier. Versioned and validated on read, so adding user-defined
- * columns later is an addition to `match.kind`, not a migration.
+ * changes tier. Versioned and validated on read; older saved columns that
+ * also carried a title, tone and predicate still load (those are ignored).
  */
 export type FactoryBoardView = {
 	version: 1;
 	grouping: FactoryBoardGrouping;
 	columns: FactoryBoardViewColumn[];
 	collapsedTier?: FactoryBoardTier;
+	/**
+	 * Status grouping: the queue as its own Waiting column (four columns)
+	 * instead of the lower part of Working (three, the default).
+	 */
+	queueColumn?: boolean;
 };
 
-/** The order the status columns read in, left to right. */
+/**
+ * The order the status columns read in, left to right, with the queue as its
+ * own column; by default Waiting is the lower part of Working instead.
+ */
 export const FACTORY_BOARD_STATUSES: readonly FactoryBoardStatus[] = [
 	"waiting",
 	"working",
 	"needsYou",
 	"delivered",
 ];
+
+/** Working's lower part by default: the cards waiting to start. */
+export const FACTORY_BOARD_QUEUE_ID = "queue";
 
 /** Inside a stage or project column: what needs you first, then the rest. */
 const STATUS_PRIORITY: Record<FactoryBoardStatus, number> = {
@@ -87,7 +110,10 @@ export const FACTORY_BOARD_GROUPINGS: Record<
 	FactoryBoardGrouping,
 	{
 		label: string;
-		columns: (rows: readonly FactoryBoardRow[]) => FactoryBoardColumn[];
+		columns: (
+			rows: readonly FactoryBoardRow[],
+			view: Pick<FactoryBoardView, "queueColumn">,
+		) => FactoryBoardColumn[];
 		/** Keeps the order rows come in instead of needs-you first. */
 		keepOrder?: boolean;
 	}
@@ -95,13 +121,33 @@ export const FACTORY_BOARD_GROUPINGS: Record<
 	status: {
 		label: FACTORY_BOARD.groupings.status,
 		keepOrder: true,
-		columns: () =>
-			FACTORY_BOARD_STATUSES.map((status) => ({
-				id: status,
-				title: FACTORY_LINE.groups[status],
-				tone: STATUS_TONE[status],
-				match: { kind: "status", values: [status] },
-			})),
+		columns: (_rows, { queueColumn }) =>
+			FACTORY_BOARD_STATUSES.flatMap((status): FactoryBoardColumn[] => {
+				const column: FactoryBoardColumn = {
+					id: status,
+					title: FACTORY_LINE.groups[status],
+					tone: STATUS_TONE[status],
+					match: { kind: "status", values: [status] },
+				};
+				if (queueColumn) return [column];
+				if (status === "waiting") return [];
+				// Running cards on top, the queue below them.
+				return status === "working"
+					? [
+							{
+								...column,
+								match: { kind: "status", values: ["working", "waiting"] },
+								sections: [
+									{
+										id: FACTORY_BOARD_QUEUE_ID,
+										title: FACTORY_BOARD.queue,
+										match: { kind: "status", values: ["waiting"] },
+									},
+								],
+							},
+						]
+					: [column];
+			}),
 	},
 	stage: {
 		label: FACTORY_BOARD.groupings.stage,
@@ -139,12 +185,23 @@ export function factoryBoardMatches(
 	row: FactoryBoardRow,
 ): boolean {
 	const { kind, values } = column.match;
-	return kind === "any" || values.includes(row[kind]);
+	return values.includes(row[kind]);
 }
 
-export type FactoryBoardResolvedColumn = FactoryBoardViewColumn & {
-	rows: FactoryBoardRow[];
-};
+export type FactoryBoardResolvedColumn = Omit<
+	FactoryBoardColumn,
+	"match" | "sections"
+> &
+	FactoryBoardViewColumn & {
+		/** Every card of the column: its main cards, then each section's. */
+		rows: FactoryBoardRow[];
+		sections: {
+			id: string;
+			title: string;
+			match: FactoryBoardMatch;
+			rows: FactoryBoardRow[];
+		}[];
+	};
 
 /**
  * Resolves a saved view into the board's columns, in order, each card in
@@ -159,7 +216,7 @@ export function resolveFactoryBoard(
 	rows: readonly FactoryBoardRow[],
 ): FactoryBoardResolvedColumn[] {
 	const grouping = FACTORY_BOARD_GROUPINGS[view.grouping];
-	const defaults = grouping.columns(rows);
+	const defaults = grouping.columns(rows, view);
 	const byId = new Map(defaults.map((column) => [column.id, column]));
 	const saved = view.columns.flatMap((column) => {
 		const current = byId.get(column.id);
@@ -170,7 +227,7 @@ export function resolveFactoryBoard(
 			: [];
 	});
 	const named = new Set(saved.map((column) => column.id));
-	const listed: FactoryBoardViewColumn[] = [
+	const listed: (FactoryBoardColumn & FactoryBoardViewColumn)[] = [
 		...saved,
 		...defaults.filter((column) => !named.has(column.id)),
 	];
@@ -180,42 +237,61 @@ export function resolveFactoryBoard(
 			? false
 			: column.hidden,
 		rows: [],
+		sections: (column.sections ?? []).map((section) => ({
+			...section,
+			rows: [],
+		})),
 	}));
 	const other: FactoryBoardResolvedColumn = {
 		id: FACTORY_BOARD_OTHER_ID,
 		title: FACTORY_BOARD.other,
-		match: { kind: "any", values: [] },
 		rows: [],
+		sections: [],
 	};
 	const ordered = grouping.keepOrder
 		? rows
 		: [...rows].sort(
 				(a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status],
 			);
-	for (const row of ordered)
+	for (const row of ordered) {
+		const column =
+			columns.find((item) => factoryBoardMatches(item, row)) ?? other;
 		(
-			columns.find((column) => factoryBoardMatches(column, row)) ?? other
+			column.sections.find((section) => factoryBoardMatches(section, row)) ??
+			column
 		).rows.push(row);
+	}
+	// Main cards first, then each section's, so every card is in `rows` once.
+	for (const column of columns)
+		column.rows.push(...column.sections.flatMap((section) => section.rows));
 	return other.rows.length ? [...columns, other] : columns;
 }
 
-/** Width tiers of the board, from the spec's breakpoints. */
+/** Width tiers of the board. */
 export type FactoryBoardTier = "wide" | "medium" | "narrow" | "tight";
 
-/** A width of 0 is not measured yet (or jsdom): treated as wide. */
+/**
+ * A width of 0 is not measured yet (or jsdom): treated as wide. Three
+ * 220px columns with their gaps fit from 700px; four from 920px.
+ */
 export function factoryBoardTier(width: number): FactoryBoardTier {
 	if (width <= 0 || width >= 920) return "wide";
-	if (width >= 736) return "medium";
+	if (width >= 700) return "medium";
 	if (width >= 552) return "narrow";
 	return "tight";
 }
 
-/** Columns the width collapses to strips: only in the Status grouping. */
+/**
+ * Columns the width collapses to strips, only in the Status grouping:
+ * Delivered first, then (with the queue as its own column) Waiting. Needs
+ * you and Working never collapse on their own.
+ */
 export function factoryBoardAutoCollapsed(
-	grouping: FactoryBoardGrouping,
+	view: Pick<FactoryBoardView, "grouping" | "queueColumn">,
 	tier: FactoryBoardTier,
 ): ReadonlySet<string> {
-	if (grouping !== "status" || tier === "wide") return new Set();
+	if (view.grouping !== "status" || tier === "wide") return new Set();
+	if (!view.queueColumn) return new Set(tier === "medium" ? [] : ["delivered"]);
 	return new Set(tier === "medium" ? ["waiting"] : ["waiting", "delivered"]);
 }
 
@@ -237,42 +313,19 @@ export const DEFAULT_FACTORY_BOARD_VIEW: FactoryBoardView = {
 
 const GROUPINGS = new Set<unknown>(["status", "stage", "project"]);
 const TIERS = new Set<unknown>(["wide", "medium", "narrow", "tight"]);
-const TONES = new Set<unknown>([
-	"neutral",
-	"attention",
-	"working",
-	"success",
-	"danger",
-	"accent",
-]);
-const KINDS = new Set<unknown>(["status", "stage", "project", "any"]);
-
 function parseColumn(value: unknown): FactoryBoardViewColumn | undefined {
 	if (!value || typeof value !== "object") return undefined;
 	const column = value as Record<string, unknown>;
-	const match = column.match as Record<string, unknown> | undefined;
 	if (
 		typeof column.id !== "string" ||
-		typeof column.title !== "string" ||
-		(column.tone !== undefined && !TONES.has(column.tone)) ||
-		!match ||
-		!KINDS.has(match.kind) ||
-		!Array.isArray(match.values) ||
-		!match.values.every((item) => typeof item === "string") ||
 		(column.hidden !== undefined && typeof column.hidden !== "boolean") ||
 		(column.collapsed !== undefined && typeof column.collapsed !== "boolean")
 	)
 		return undefined;
 	return {
 		id: column.id,
-		title: column.title,
-		tone: column.tone as FactoryTone | undefined,
-		match: {
-			kind: match.kind as FactoryBoardColumn["match"]["kind"],
-			values: match.values as string[],
-		},
-		hidden: column.hidden as boolean | undefined,
-		collapsed: column.collapsed as boolean | undefined,
+		...(column.hidden === undefined ? {} : { hidden: column.hidden }),
+		...(column.collapsed === undefined ? {} : { collapsed: column.collapsed }),
 	};
 }
 
@@ -287,7 +340,9 @@ export function parseFactoryBoardView(text: string | null): FactoryBoardView {
 			value.version !== 1 ||
 			!GROUPINGS.has(value.grouping) ||
 			!Array.isArray(value.columns) ||
-			(value.collapsedTier !== undefined && !TIERS.has(value.collapsedTier))
+			(value.collapsedTier !== undefined && !TIERS.has(value.collapsedTier)) ||
+			(value.queueColumn !== undefined &&
+				typeof value.queueColumn !== "boolean")
 		)
 			return DEFAULT_FACTORY_BOARD_VIEW;
 		const columns = value.columns.map(parseColumn);
@@ -298,6 +353,7 @@ export function parseFactoryBoardView(text: string | null): FactoryBoardView {
 			grouping: value.grouping as FactoryBoardGrouping,
 			columns: columns as FactoryBoardViewColumn[],
 			collapsedTier: value.collapsedTier as FactoryBoardTier | undefined,
+			...(value.queueColumn === true ? { queueColumn: true } : {}),
 		};
 	} catch {
 		return DEFAULT_FACTORY_BOARD_VIEW;
@@ -329,7 +385,7 @@ function saveColumns(
 ): FactoryBoardViewColumn[] {
 	return columns
 		.filter((column) => column.id !== FACTORY_BOARD_OTHER_ID)
-		.map(({ rows: _rows, ...column }) => column);
+		.map(({ id, hidden, collapsed }) => ({ id, hidden, collapsed }));
 }
 
 /** Switches the grouping; its columns start from the grouping's defaults. */
@@ -339,7 +395,30 @@ export function groupFactoryBoard(
 ): FactoryBoardView {
 	return grouping === view.grouping
 		? view
-		: { version: 1, grouping, columns: [] };
+		: {
+				version: 1,
+				grouping,
+				columns: [],
+				...(view.queueColumn ? { queueColumn: true } : {}),
+			};
+}
+
+/**
+ * Shows the queue as its own Waiting column, first, or as Working's lower
+ * part. The other columns keep their order and flags.
+ */
+export function setFactoryBoardQueueColumn(
+	view: FactoryBoardView,
+	queueColumn: boolean,
+): FactoryBoardView {
+	const { queueColumn: _previous, ...rest } = view;
+	const columns = view.columns.filter((column) => column.id !== "waiting");
+	if (!queueColumn) return { ...rest, columns };
+	return {
+		...rest,
+		queueColumn: true,
+		columns: columns.length ? [{ id: "waiting" }, ...columns] : columns,
+	};
 }
 
 /** Shows or hides one column. Needs you, by status, always shows. */
@@ -405,7 +484,5 @@ export function factoryBoardCollapsed(
 ): boolean {
 	if (factoryBoardPinned(view.grouping, column.id)) return false;
 	const chosen = view.collapsedTier === tier ? column.collapsed : undefined;
-	return (
-		chosen ?? factoryBoardAutoCollapsed(view.grouping, tier).has(column.id)
-	);
+	return chosen ?? factoryBoardAutoCollapsed(view, tier).has(column.id);
 }

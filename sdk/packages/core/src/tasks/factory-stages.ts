@@ -165,6 +165,14 @@ export interface FactoryStageTrustStore {
 	): Promise<FactoryStageTrustRecord>;
 	/** Forgets the decision, so the stage is undecided again. */
 	remove(workspaceRoot: string, stageId: string): Promise<void>;
+	/**
+	 * Forgets every decision in one project, or in all of them; with
+	 * `dryRun`, only counts what would be forgotten.
+	 */
+	forget?(
+		workspaceRoot?: string,
+		dryRun?: boolean,
+	): Promise<{ stages: number; projects: number }>;
 }
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -208,6 +216,38 @@ export class FileFactoryStageTrustStore implements FactoryStageTrustStore {
 			const { [key]: _workspace, ...others } = workspaces;
 			return Object.keys(rest).length ? { ...others, [key]: rest } : others;
 		});
+	}
+
+	async forget(
+		workspaceRoot?: string,
+		dryRun = false,
+	): Promise<{ stages: number; projects: number }> {
+		const key = workspaceRoot ? path.resolve(workspaceRoot) : undefined;
+		const count = (workspaces: StoredFactoryStageTrust["workspaces"]) => {
+			const roots = Object.keys(workspaces).filter(
+				(root) => key === undefined || root === key,
+			);
+			return {
+				stages: roots.reduce(
+					(total, root) => total + Object.keys(workspaces[root] ?? {}).length,
+					0,
+				),
+				projects: roots.length,
+			};
+		};
+		if (dryRun) {
+			await this.writes.catch(() => undefined);
+			return count(await this.read());
+		}
+		let forgotten = { stages: 0, projects: 0 };
+		await this.update((workspaces) => {
+			forgotten = count(workspaces);
+			if (!forgotten.projects) return workspaces;
+			if (key === undefined) return {};
+			const { [key]: _removed, ...rest } = workspaces;
+			return rest;
+		});
+		return forgotten;
 	}
 
 	/** Unreadable or corrupt files read as empty; malformed entries are dropped. */

@@ -57,6 +57,7 @@ import {
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntimeResult,
+	type CreateFactoryStatusToolOptions,
 	createFactoryGuidanceTool,
 	createFactoryListTool,
 	createFactoryManagerGuidanceExtension,
@@ -73,6 +74,7 @@ import {
 	FACTORY_TOOL_NAME,
 	type FactoryGuidanceConfirmationRequest,
 	FactoryGuidanceStore,
+	type FactoryPriorityConfirmationRequest,
 	type FactoryRoleGuidanceRole,
 	type FactorySessionDefaults,
 	type FactoryStagesConfirmationRequest,
@@ -469,6 +471,8 @@ export class HubServerTransport implements NativeHubTransport {
 				factoryDefaults.getDefaultsReceived(),
 			// And the Hub-wide daily spending limit (task.factory.limits.set).
 			resolveFactoryDailyCostUsd: () => factoryDefaults.getDailyCostUsd(),
+			// And whether new filings are checked for duplicates.
+			resolveFactoryDuplicateCheck: () => factoryDefaults.getDuplicateCheck(),
 			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
@@ -652,10 +656,6 @@ export class HubServerTransport implements NativeHubTransport {
 				this.publish(buildHubEvent(event, payload, sessionId));
 			},
 		});
-		this.taskCommands = new HubAgendaTaskCommandService(
-			this.tasks,
-			factoryDefaults,
-		);
 		const projectWorkspace = (workspaceRoot: string) =>
 			!isChatWorkspacePath(workspaceRoot) &&
 			resolve(workspaceRoot) !== resolve(resolveAgentSchedulesDir())
@@ -686,10 +686,17 @@ export class HubServerTransport implements NativeHubTransport {
 					.map((session) => session.workspaceRoot),
 			];
 		};
+		// Factory settings name a project only among these same projects.
+		this.taskCommands = new HubAgendaTaskCommandService(
+			this.tasks,
+			factoryDefaults,
+			{ listProjects },
+		);
 		const factoryTools = (
 			resolveSessionDefaults: (
 				sessionId: string,
 			) => Promise<FactorySessionDefaults | undefined>,
+			confirmPriority?: CreateFactoryStatusToolOptions["confirmPriority"],
 		): AgentTool[] => [
 			createFactoryTool({
 				manager: this.tasks,
@@ -708,6 +715,7 @@ export class HubServerTransport implements NativeHubTransport {
 				manager: this.tasks,
 				resolveSessionDefaults,
 				listProjects,
+				confirmPriority,
 			}) as AgentTool,
 		];
 		const scheduledRuntime = options.runtimeHandlers;
@@ -902,6 +910,31 @@ export class HubServerTransport implements NativeHubTransport {
 				policy: { autoApprove: false },
 			});
 		};
+		// Urgent, or changing a priority the user set, only after they confirm.
+		const confirmFactoryPriority = async (
+			request: FactoryPriorityConfirmationRequest,
+		) => {
+			if (!canConfirm()) return noAppToConfirm;
+			return requestToolApprovalHandler(this.ctx, {
+				sessionId: request.sessionId,
+				agentId: request.agentId,
+				conversationId: request.conversationId ?? request.sessionId,
+				iteration: request.iteration,
+				toolCallId: request.toolCallId,
+				toolName: FACTORY_STATUS_TOOL_NAME,
+				input: {
+					action: "priority",
+					question: `Change ${request.card}'s priority?`,
+					taskId: request.taskId,
+					title: request.title,
+					from: request.from,
+					...(request.fromBy ? { fromBy: request.fromBy } : {}),
+					to: request.to,
+					summary: request.summary,
+				},
+				policy: { autoApprove: false },
+			});
+		};
 		this.sessionExtensions.push(
 			createTasksPromptExtension({ todoEnabled: AGENDA_TODO_TOOL_ENABLED }),
 			factoryPrompt,
@@ -951,7 +984,7 @@ export class HubServerTransport implements NativeHubTransport {
 						session.metadata?.[FACTORY_INTAKE_METADATA_KEY],
 					),
 				};
-			}),
+			}, confirmFactoryPriority),
 		);
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
@@ -1012,12 +1045,19 @@ export class HubServerTransport implements NativeHubTransport {
 		run: AgendaTaskRunRecord | undefined,
 		requestedByClientId?: string,
 		unattended = false,
-		factoryRole?: "builder" | "reviewer" | "designer" | "verifier" | "analyst",
+		factoryRole?:
+			| "builder"
+			| "reviewer"
+			| "designer"
+			| "verifier"
+			| "analyst"
+			| "judge",
 		factoryAgent?: FactoryAgent,
 		requestedSessionId?: string,
 		// The feedback analyst gets no guidance: it judges the guidance itself.
+		// Neither does the duplicate check's judge: it only compares cards.
 		guidanceRole: FactoryRoleGuidanceRole | undefined = factoryRole ===
-		"analyst"
+			"analyst" || factoryRole === "judge"
 			? undefined
 			: factoryRole,
 		// A repository stage's session: the role's tools, but no role
@@ -1040,14 +1080,16 @@ export class HubServerTransport implements NativeHubTransport {
 		const roleTools =
 			!factoryRole || factoryRole === "builder"
 				? undefined
-				: factoryRole === "analyst"
-					? ["read_files", "search_codebase"]
-					: [
-							"read_files",
-							"search_codebase",
-							"skills",
-							...(factoryRole === "verifier" ? ["run_commands"] : []),
-						];
+				: factoryRole === "judge"
+					? []
+					: factoryRole === "analyst"
+						? ["read_files", "search_codebase"]
+						: [
+								"read_files",
+								"search_codebase",
+								"skills",
+								...(factoryRole === "verifier" ? ["run_commands"] : []),
+							];
 		const allowedTools = allowedProfileTools
 			? allowedProfileTools.filter(
 					(name) =>

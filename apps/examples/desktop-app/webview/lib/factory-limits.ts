@@ -20,6 +20,9 @@ export const FACTORY_CONCURRENCY_MAX = 8;
  * machine (`null` = no limit) and `spentTodayUsd` what Factory has spent
  * today. Both are absent from a Hub that predates the daily limit, which reads
  * as unsupported (see `factoryDailyCostSupported`).
+ *
+ * `duplicateCheck` is whether new work is checked against open cards when it
+ * is filed (on unless turned off); absent from a Hub that predates it.
  */
 export type FactoryLimits =
 	| {
@@ -28,6 +31,7 @@ export type FactoryLimits =
 			paused?: boolean;
 			dailyCostUsd?: number | null;
 			spentTodayUsd?: number;
+			duplicateCheck?: boolean;
 	  }
 	| { supported: false };
 
@@ -116,7 +120,7 @@ export type FactoryAgentModel = { key: string; label: string };
 /**
  * The model a participant runs on as far as the app knows: a chosen model, a
  * profile's model, the profile itself when its model is not resolved yet, or
- * the Factory feature model.
+ * the Factory default model.
  */
 export function factoryAgentModel(agent: FactoryAgent): FactoryAgentModel {
 	if (agent.modelSelection)
@@ -135,7 +139,7 @@ export function factoryAgentModel(agent: FactoryAgent): FactoryAgentModel {
 			key: `profile:${agent.profile}`,
 			label: `${agent.profile} profile`,
 		};
-	return { key: "feature", label: "feature model" };
+	return { key: "feature", label: "default model" };
 }
 
 export type FactoryReviewCoverage = {

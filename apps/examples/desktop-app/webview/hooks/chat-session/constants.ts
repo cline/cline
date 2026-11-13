@@ -43,9 +43,13 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 
 export function getInitialChatConfig(
 	environmentId: string,
-	options?: { executionTarget?: ExecutionTarget },
+	options?: {
+		executionTarget?: ExecutionTarget;
+		/** The Factory manager's own remembered model instead of Local's. */
+		modelScope?: "factory-manager";
+	},
 ): ChatSessionConfig {
-	const selection = readModelSelectionStorageFromWindow();
+	const selection = readModelSelectionStorageFromWindow(options?.modelScope);
 	const workspaceSelection = readWorkspaceSelectionFromWindow(environmentId);
 	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider

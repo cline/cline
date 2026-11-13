@@ -42,16 +42,21 @@ export function parseFactoryConcurrency(value: unknown): number {
 	return value;
 }
 
-/** Accepts a positive, finite USD amount up to 100,000. */
-export function parseFactoryDailyCostUsd(value: unknown): number {
+/**
+ * Accepts a positive, finite USD amount up to 100,000, or "no daily limit":
+ * `null`, or `0` as its alias, both returned as `null`. To return to the
+ * default, send FACTORY_DAILY_COST_DEFAULT_USD.
+ */
+export function parseFactoryDailyCostUsd(value: unknown): number | null {
+	if (value === null || value === 0) return null;
 	if (
 		typeof value !== "number" ||
 		!Number.isFinite(value) ||
-		value <= 0 ||
+		value < 0 ||
 		value > 100_000
 	)
 		throw new Error(
-			"The Factory daily spending limit must be a positive amount in USD (at most 100000), or null to restore the default",
+			"The Factory daily spending limit must be a positive amount in USD (at most 100000), or null (or 0) for no daily limit",
 		);
 	return value;
 }
@@ -98,10 +103,17 @@ export interface FactoryDefaultsStore {
 	getPaused(): Promise<boolean>;
 	/** Stores whether new work is paused. */
 	setPaused(paused: boolean): Promise<boolean>;
-	/** The stored daily spending limit in USD, or undefined when none was set. */
-	getDailyCostUsd?(): Promise<number | undefined>;
-	/** Validates and stores the daily limit; null clears it. */
-	setDailyCostUsd?(value: unknown): Promise<number | undefined>;
+	/**
+	 * The stored daily spending limit in USD; null when the person chose no
+	 * daily limit; undefined when none was set (the default applies).
+	 */
+	getDailyCostUsd?(): Promise<number | null | undefined>;
+	/** Validates and stores the daily limit; null (or 0) stores "no daily limit". */
+	setDailyCostUsd?(value: unknown): Promise<number | null>;
+	/** Whether new filings are checked for duplicates; true when never set. */
+	getDuplicateCheck?(): Promise<boolean>;
+	/** Stores whether new filings are checked for duplicates. */
+	setDuplicateCheck?(enabled: boolean): Promise<boolean>;
 }
 
 /**
@@ -125,8 +137,13 @@ interface StoredFactoryDefaults {
 	paused?: boolean;
 	/** A host set or cleared the default workflow at least once. */
 	defaultsReceived?: boolean;
-	/** Hub-wide daily spending limit in USD; absent means the default. */
-	dailyCostUsd?: number;
+	/**
+	 * Hub-wide daily spending limit in USD; null means no daily limit;
+	 * absent means the default.
+	 */
+	dailyCostUsd?: number | null;
+	/** The duplicate check is off; absent means on. */
+	duplicateCheck?: false;
 }
 
 type StoredDefaults = Omit<StoredFactoryDefaults, "version">;
@@ -167,9 +184,10 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 		}
 	}
 
-	async getDailyCostUsd(): Promise<number | undefined> {
+	async getDailyCostUsd(): Promise<number | null | undefined> {
 		await this.writes.catch(() => undefined);
 		const { dailyCostUsd } = await this.read();
+		if (dailyCostUsd === null) return null;
 		return typeof dailyCostUsd === "number" &&
 			Number.isFinite(dailyCostUsd) &&
 			dailyCostUsd > 0
@@ -177,11 +195,9 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 			: undefined;
 	}
 
-	async setDailyCostUsd(value: unknown): Promise<number | undefined> {
-		const parsed = value === null ? undefined : parseFactoryDailyCostUsd(value);
-		await this.update(({ dailyCostUsd: _daily, ...rest }) =>
-			parsed === undefined ? rest : { ...rest, dailyCostUsd: parsed },
-		);
+	async setDailyCostUsd(value: unknown): Promise<number | null> {
+		const parsed = parseFactoryDailyCostUsd(value);
+		await this.update((stored) => ({ ...stored, dailyCostUsd: parsed }));
 		return parsed;
 	}
 
@@ -219,6 +235,18 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 	async getDefaultsReceived(): Promise<boolean> {
 		await this.writes.catch(() => undefined);
 		return (await this.read()).defaultsReceived === true;
+	}
+
+	async getDuplicateCheck(): Promise<boolean> {
+		await this.writes.catch(() => undefined);
+		return (await this.read()).duplicateCheck !== false;
+	}
+
+	async setDuplicateCheck(enabled: boolean): Promise<boolean> {
+		await this.update(({ duplicateCheck: _check, ...rest }) =>
+			enabled ? rest : { ...rest, duplicateCheck: false },
+		);
+		return enabled;
 	}
 
 	async getPaused(): Promise<boolean> {
@@ -280,6 +308,9 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 						: {}),
 					...(parsed.dailyCostUsd !== undefined
 						? { dailyCostUsd: parsed.dailyCostUsd }
+						: {}),
+					...(parsed.duplicateCheck === false
+						? { duplicateCheck: false as const }
 						: {}),
 				},
 				corrupt: false,

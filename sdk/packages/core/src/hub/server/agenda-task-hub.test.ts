@@ -1725,7 +1725,7 @@ describe("Factory role guidance", () => {
 				factory: factoryTaskConfigSchema.parse({}),
 			};
 			const start = async (
-				role: "reviewer" | "builder" | "designer",
+				role: "reviewer" | "builder" | "designer" | "judge",
 				guidanceRole?: "plan_reviewer",
 				input: Record<string, unknown> = task,
 			) => {
@@ -1810,6 +1810,16 @@ describe("Factory role guidance", () => {
 			);
 			// Guidance never changes the session's tools, approval or settings.
 			expect(guided.toolPolicies).toEqual(plain.toolPolicies);
+			// The duplicate check's judge gets no guidance and no tool at all.
+			const judge = await start("judge");
+			expect(judge.config.systemPrompt).toBe("You review the candidate.");
+			expect(judge.sessionMetadata?.factoryRole).toBe("judge");
+			expect(judge.toolPolicies?.["*"]).toMatchObject({ enabled: false });
+			expect(
+				Object.entries(judge.toolPolicies ?? {}).filter(
+					([, policy]) => policy?.enabled !== false,
+				),
+			).toEqual([]);
 			expect(guided.config.mode).toBe(plain.config.mode);
 			expect(guided.config.maxIterations).toBe(plain.config.maxIterations);
 

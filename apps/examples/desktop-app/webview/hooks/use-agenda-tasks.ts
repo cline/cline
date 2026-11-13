@@ -4,9 +4,10 @@ import type {
 	AgendaAutomationPolicy,
 	AgendaTaskListInput,
 	AgendaTaskRecord,
-	AgendaTaskStatus,
 	HubTaskCreateInput,
+	HubTaskCreateOutput,
 } from "@cline/shared";
+import { compareAgendaTasks } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
 
@@ -20,33 +21,8 @@ const TASK_EVENTS = [
 	"task.automation.updated",
 ] as const;
 
-const STATUS_ORDER: Record<AgendaTaskStatus, number> = {
-	in_progress: 0,
-	pending_approval: 1,
-	approved: 2,
-	failed: 3,
-	completed: 4,
-	expired: 5,
-	cancelled: 6,
-};
-
 export function sortAgendaTasks(tasks: AgendaTaskRecord[]): AgendaTaskRecord[] {
-	return [...tasks].sort((left, right) => {
-		const statusDifference =
-			STATUS_ORDER[left.status] - STATUS_ORDER[right.status];
-		if (statusDifference !== 0) return statusDifference;
-		const priorityDifference = left.priority - right.priority;
-		if (priorityDifference !== 0) return priorityDifference;
-		const availabilityDifference =
-			Date.parse(left.availableAt) - Date.parse(right.availableAt);
-		if (
-			Number.isFinite(availabilityDifference) &&
-			availabilityDifference !== 0
-		) {
-			return availabilityDifference;
-		}
-		return Date.parse(left.createdAt) - Date.parse(right.createdAt);
-	});
+	return [...tasks].sort(compareAgendaTasks);
 }
 
 export function isAgendaTaskExpired(
@@ -66,7 +42,7 @@ export type UseAgendaTasksResult = {
 	error: string | null;
 	pendingTaskIds: ReadonlySet<string>;
 	refresh: () => Promise<void>;
-	createTask: (input: HubTaskCreateInput) => Promise<AgendaTaskRecord>;
+	createTask: (input: HubTaskCreateInput) => Promise<HubTaskCreateOutput>;
 	approveTask: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
 	cancelTask: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
 	runTask: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
@@ -282,15 +258,16 @@ export function useAgendaTasks(
 		async (input: HubTaskCreateInput) => {
 			setError(null);
 			try {
-				const created = await desktopClient.createAgendaTask(input);
+				const reply = await desktopClient.createAgendaTask(input);
+				const { task: stored } = reply;
 				setTasks((current) =>
 					sortAgendaTasks([
-						created,
-						...current.filter((task) => task.taskId !== created.taskId),
+						stored,
+						...current.filter((task) => task.taskId !== stored.taskId),
 					]),
 				);
 				void refresh();
-				return created;
+				return reply;
 			} catch (cause) {
 				const message =
 					cause instanceof Error ? cause.message : "Unable to create the task.";

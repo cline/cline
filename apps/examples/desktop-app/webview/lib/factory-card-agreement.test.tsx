@@ -8,6 +8,7 @@
 import {
 	type AgendaTaskRecord,
 	type AgendaTaskRunRecord,
+	compareFactoryNeedsYou,
 	factoryCardState,
 	factoryPlanApprovalBlocker,
 } from "@cline/shared";
@@ -19,10 +20,13 @@ import { FactoryTaskHeader } from "@/components/views/factory/factory-task-heade
 import {
 	factoryActivity,
 	factoryNeedsYou,
+	factoryUrgency,
 } from "@/components/views/factory/factory-ui";
 import type { FactoryAttention } from "@/hooks/use-factory-attention";
 import {
+	FACTORY_BOARD_FIXTURES,
 	FACTORY_CARD_FIXTURES,
+	FACTORY_NEEDS_YOU_ORDER,
 	type FactoryCardFixture,
 	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
 } from "../../../../../sdk/packages/shared/src/__tests__/factory-card-fixtures";
@@ -61,7 +65,7 @@ const HEADLINE: Record<string, string> = {
 	verifying: "Testing the running app",
 	reviewing: "Reviewing code",
 	publishing: "Opening draft PR",
-	"run blocked before its stop is recorded": "Blocked",
+	"run blocked before its stop is recorded": "Review findings were not cleared",
 	"stopped while building": "Stopped",
 	"draft PR could not open": "Could not open the draft PR",
 	"plan fault": "Stopped",
@@ -234,5 +238,29 @@ describe("the desktop agrees with factoryCardState", () => {
 					: {}),
 			}),
 		).toMatchObject(fixture.card);
+	});
+});
+
+describe("the board's Needs you order", () => {
+	it("is factory_status' order for the same cards", () => {
+		// The board's own sort: factory-view.tsx's needsYou.
+		const order = FACTORY_BOARD_FIXTURES.flatMap((fixture) => {
+			const activity = factoryActivity(
+				fixture.task,
+				attentionOf(fixture.task, fixture.run),
+			);
+			return factoryNeedsYou(activity)
+				? [
+						{
+							fixture,
+							task: fixture.task,
+							urgency: factoryUrgency(activity.label),
+						},
+					]
+				: [];
+		})
+			.sort(compareFactoryNeedsYou)
+			.map(({ fixture }) => fixture.name);
+		expect(order).toEqual(FACTORY_NEEDS_YOU_ORDER);
 	});
 });

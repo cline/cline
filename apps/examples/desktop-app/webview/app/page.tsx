@@ -6,7 +6,7 @@ import {
 	type ProviderAuthInfo,
 } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
-import { Loader2, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Loader2, LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -30,6 +30,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -40,7 +41,10 @@ import {
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
-import { FactoryIntakeNotice } from "@/components/views/chat/factory-intake-notice";
+import {
+	FactoryFilingNotice,
+	latestFactoryFiling,
+} from "@/components/views/chat/factory-filing-notice";
 import { FactoryManagerNotice } from "@/components/views/chat/factory-manager-notice";
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
@@ -48,7 +52,10 @@ import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice
 import type { FactoryDraft } from "@/components/views/factory/factory-detail";
 import { FactoryBackChip } from "@/components/views/factory/factory-live";
 import { FactoryManagerDock } from "@/components/views/factory/factory-manager-dock";
-import { FACTORY_AGENDA_FILTERS } from "@/components/views/factory/factory-ui";
+import {
+	FACTORY_ACTIVITY_REQUEST,
+	FACTORY_AGENDA_FILTERS,
+} from "@/components/views/factory/factory-ui";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -94,17 +101,16 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
-import { FACTORY_FEEDBACK, FACTORY_MANAGER } from "@/lib/factory-copy";
+import {
+	FACTORY_DUPLICATES,
+	FACTORY_FEEDBACK,
+	FACTORY_MANAGER,
+} from "@/lib/factory-copy";
 import {
 	factoryProposedRule,
 	subscribeFactoryDiscussion,
 	withFactoryDiscussionDraft,
 } from "@/lib/factory-feedback";
-import {
-	type FactoryIntakeStart,
-	type ImportedFactoryIssue,
-	prepareFactoryIntake,
-} from "@/lib/factory-intake";
 import {
 	readFactoryManagerPanelOpen,
 	readFactoryManagerSessionId,
@@ -800,7 +806,6 @@ export default function Home() {
 		if (
 			activeThread?.historySession ||
 			activeThread?.hasStarted ||
-			activeThread?.factoryIntake ||
 			activeThread?.factoryManager
 		) {
 			selectEnvironmentDraft(activeEnvironmentId);
@@ -830,7 +835,6 @@ export default function Home() {
 		activeThread !== undefined &&
 		!activeThread.hasStarted &&
 		!activeThread.historySession &&
-		!activeThread.factoryIntake &&
 		!activeThread.factoryManager;
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
@@ -1223,7 +1227,6 @@ export default function Home() {
 		return {
 			presentation,
 			environmentId: thread.environmentId,
-			factoryIntake: thread.factoryIntake === true,
 			factoryManager: thread.factoryManager === true,
 			onOpenFactoryTask: handleOpenFactoryTask,
 			environmentProfiles: remoteEnvironmentProfiles,
@@ -1302,6 +1305,7 @@ export default function Home() {
 								canNavigateForward={navigation.forward.length > 0}
 								factoryBoard={factoryBoard}
 								onOpenFactoryTask={handleOpenFactoryTask}
+								factoryManagerActive={activeThread?.factoryManager === true}
 							/>
 							<SidebarRail />
 						</Sidebar>
@@ -1337,6 +1341,7 @@ export default function Home() {
 												}
 												onAskFactory={handleAskFactory}
 												askFactoryOpen={managerPanelOpen}
+												onOpenAppSettings={handleSettingsSectionChange}
 												onSelectedTaskChange={setSelectedFactoryCard}
 											/>
 										}
@@ -1465,7 +1470,6 @@ function ChatThreadPane({
 	threadId,
 	promptDrafts,
 	environmentId,
-	factoryIntake,
 	factoryManager,
 	onOpenFactoryTask,
 	environmentProfiles,
@@ -1500,8 +1504,6 @@ function ChatThreadPane({
 	threadId: string;
 	promptDrafts: Map<string, string>;
 	environmentId: string;
-	/** The first prompt starts a Factory intake instead of an ordinary chat. */
-	factoryIntake: boolean;
 	/** The first prompt starts the Factory manager (Ask Factory). */
 	factoryManager: boolean;
 	onOpenFactoryTask: (taskId: string) => void;
@@ -1573,7 +1575,9 @@ function ChatThreadPane({
 		hydrateSession,
 	} = useChatSession(
 		environmentId,
-		factoryIntake || factoryManager ? { executionTarget: "local" } : undefined,
+		factoryManager
+			? { executionTarget: "local", modelScope: "factory-manager" }
+			: undefined,
 	);
 	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
 	// the sidebar) can close this pane even when it was not opened from history.
@@ -1590,15 +1594,6 @@ function ChatThreadPane({
 		handlePromptInputChange,
 	} = usePromptDraft(promptDrafts, threadId);
 	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
-	const factoryIntakeSubmitting = useRef(false);
-	const [factoryIntakePreparing, setFactoryIntakePreparing] = useState(false);
-	const factoryIntakeMounted = useRef(true);
-	useEffect(() => {
-		factoryIntakeMounted.current = true;
-		return () => {
-			factoryIntakeMounted.current = false;
-		};
-	}, []);
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1621,7 +1616,6 @@ function ChatThreadPane({
 		boolean | null
 	>(null);
 	const cloudAgentsEnabled =
-		!factoryIntake &&
 		!factoryManager &&
 		cloudAgentsFlagEnabled === true &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
@@ -1686,10 +1680,9 @@ function ChatThreadPane({
 	// for the local environment. The choice also only holds while the
 	// workspace is a git repo; a plain folder (or pending discovery) silently
 	// falls back to running locally.
-	// Factory makes its own worktrees after approval; intake and the Factory
-	// manager run in the repository.
+	// Factory makes its own worktrees after approval; the Factory manager runs
+	// in the repository.
 	const canWorkInWorktree =
-		!factoryIntake &&
 		!factoryManager &&
 		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
 		config.executionTarget !== "cloud" &&
@@ -2353,67 +2346,19 @@ function ChatThreadPane({
 			if (isCloudSession && !sessionId && !config.repoUrl?.trim()) {
 				return;
 			}
-			let promptToSend = withOpenCardLine(
+			const promptToSend = withOpenCardLine(
 				trimmed,
 				isFactoryPanel ? contextCard?.shortId : undefined,
 			);
-			let intakeStart: FactoryIntakeStart | undefined;
-			let restoreIntakePrompt: ((value: string) => boolean) | undefined;
-			if (factoryIntake && isNewThread) {
-				if (factoryIntakeSubmitting.current) return;
-				factoryIntakeSubmitting.current = true;
-				setFactoryIntakePreparing(true);
-				restoreIntakePrompt = clearPromptForSend();
-				// The composer clears its local value before this callback. Keep the
-				// request in the thread cache while an import can still be cancelled.
-				promptDrafts.set(threadId, trimmed);
-				let prepared: Awaited<ReturnType<typeof prepareFactoryIntake>>;
-				try {
-					prepared = await prepareFactoryIntake({
-						prompt: trimmed,
-						workspaceRoot: config.workspaceRoot,
-						hasAttachments: pendingAttachments.length > 0,
-						importIssue: (args) =>
-							desktopClient.invoke<ImportedFactoryIssue>(
-								"factory_import_issue",
-								args,
-							),
-					});
-				} catch (error) {
-					if (factoryIntakeMounted.current) {
-						restoreIntakePrompt?.(trimmed);
-						toast({
-							title: "Couldn't import the issue",
-							description:
-								error instanceof Error ? error.message : String(error),
-							variant: "destructive",
-						});
-					}
-					return;
-				} finally {
-					factoryIntakeSubmitting.current = false;
-					if (factoryIntakeMounted.current) setFactoryIntakePreparing(false);
-				}
-				if (!factoryIntakeMounted.current) return;
-				if (prepared.kind === "existing") {
-					promptDrafts.delete(threadId);
-					onOpenFactoryTask(prepared.taskId);
-					return;
-				}
-				promptToSend = prepared.prompt;
-				intakeStart = prepared.intake;
-			}
 			onThreadStarted?.(threadId);
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
 			// composer remounts (e.g. a transport blip re-showing the loader).
-			const restorePrompt = restoreIntakePrompt ?? clearPromptForSend();
-			if (restoreIntakePrompt) promptDrafts.delete(threadId);
+			const restorePrompt = clearPromptForSend();
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
 			const promptTaken = await sendPrompt(promptToSend, toSend, {
 				inNewWorktree: workIn === "worktree" && isNewThread,
-				factoryIntake: intakeStart,
 				factoryManager: factoryManager && isNewThread ? true : undefined,
 			});
 			// The prompt never reached the runtime (e.g. the provider connection
@@ -2426,18 +2371,14 @@ function ChatThreadPane({
 		[
 			clearPromptForSend,
 			config.repoUrl,
-			config.workspaceRoot,
 			contextCard?.shortId,
-			factoryIntake,
 			factoryManager,
 			handleAttachFiles,
 			isCloudSession,
 			isFactoryPanel,
 			isNewThread,
-			onOpenFactoryTask,
 			onThreadStarted,
 			pendingAttachments,
-			promptDrafts,
 			sendPrompt,
 			sessionId,
 			setPendingAttachments,
@@ -2879,6 +2820,12 @@ function ChatThreadPane({
 		displayedStatus === "starting" ||
 		displayedStatus === "running" ||
 		displayedStatus === "stopping";
+	// Ask Factory: what this turn's filing came to (a card that
+	// already covers it, or the related cards a new one was linked to).
+	const factoryFiling = useMemo(
+		() => (factoryManager ? latestFactoryFiling(displayedMessages) : undefined),
+		[factoryManager, displayedMessages],
+	);
 	const derivedAgentActivity = useMemo(
 		() =>
 			buildSessionAgentActivity(displayedMessages, {
@@ -3019,18 +2966,29 @@ function ChatThreadPane({
 	// The docked panel never shows the welcome hero: an empty conversation
 	// shows what the manager can do above the composer instead.
 	const showWelcomeHero = isWelcomeState && !isFactoryPanel;
-	// Add work or Ask Factory. The manager works across all projects, so its
-	// screens drop the workspace, branch, pull request and diff affordances.
-	const factoryMode = factoryIntake
-		? ("intake" as const)
-		: factoryManager
-			? ("manager" as const)
-			: undefined;
+	// Ask Factory on its own page: the way back to the board, in the title
+	// bar, whether or not the conversation has started.
+	const backToFactory =
+		factoryManager && !isFactoryPanel ? (
+			<Button
+				variant="ghost"
+				size="sm"
+				className="shrink-0 text-muted-foreground"
+				data-factory-manager-back=""
+				onClick={() => onOpenFactoryTask(FACTORY_ACTIVITY_REQUEST)}
+			>
+				<ArrowLeft className="mr-1 size-4" />
+				Back to Factory
+			</Button>
+		) : null;
+	// Ask Factory. The manager works across all projects, so its screens drop
+	// the workspace, branch, pull request and diff affordances.
+	const factoryMode = factoryManager ? ("manager" as const) : undefined;
 
 	const composer = (
 		<ChatInputBar
 			factory={factoryMode}
-			readOnly={isCloudSessionExpired || factoryIntakePreparing}
+			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			environmentId={environmentId}
 			hasRunningAgents={agentActivity.running > 0}
@@ -3106,30 +3064,42 @@ function ChatThreadPane({
 				}
 				onAttachFiles={handleAttachFiles}
 			>
+				{isWelcomeState && backToFactory ? (
+					<WindowTitleBarContent>
+						<div className="flex h-full items-center px-3">{backToFactory}</div>
+					</WindowTitleBarContent>
+				) : null}
 				{!isWelcomeState && !isFactoryPanel ? (
 					<WindowTitleBarContent>
-						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-							<AgentHeader
-								agentActivity={isCloudSession ? undefined : agentActivity}
-								agents={isCloudSession ? undefined : agents}
-								agentsError={agentsError}
-								agentsLoading={agentsLoading}
-								onAgentsOpenChange={setAgentPanelOpen}
-								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={onOpenAgentSession}
-								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={Boolean(activeSessionForTitle)}
-								canDeleteSession={Boolean(activeSessionToDelete)}
-								deletingSession={deletingSession}
-								diff={isCloudSession || factoryManager ? undefined : headerDiff}
-								onDeleteSession={requestDeleteSession}
-								onNewThread={onNewThread}
-								onOpenDiff={handleOpenDiff}
-								onRenameTitle={handleRenameTitle}
-								renamingTitle={renamingSession}
-								status={headerStatus}
-								title={threadTitle}
-							/>
+						<div className="cline-view-enter z-20 flex items-center border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							{backToFactory}
+							<div className="min-w-0 flex-1">
+								<AgentHeader
+									agentActivity={isCloudSession ? undefined : agentActivity}
+									agents={isCloudSession ? undefined : agents}
+									agentsError={agentsError}
+									agentsLoading={agentsLoading}
+									onAgentsOpenChange={setAgentPanelOpen}
+									onOpenAgentSession={onOpenAgentSession}
+									onOpenParentSession={onOpenAgentSession}
+									parentSession={
+										hideDeletedSessionUi ? undefined : parentSession
+									}
+									canEditTitle={Boolean(activeSessionForTitle)}
+									canDeleteSession={Boolean(activeSessionToDelete)}
+									deletingSession={deletingSession}
+									diff={
+										isCloudSession || factoryManager ? undefined : headerDiff
+									}
+									onDeleteSession={requestDeleteSession}
+									onNewThread={onNewThread}
+									onOpenDiff={handleOpenDiff}
+									onRenameTitle={handleRenameTitle}
+									renamingTitle={renamingSession}
+									status={headerStatus}
+									title={threadTitle}
+								/>
+							</div>
 						</div>
 					</WindowTitleBarContent>
 				) : null}
@@ -3138,9 +3108,10 @@ function ChatThreadPane({
 					active={showWelcomeHero}
 					body={
 						factoryPanelEmpty ? (
-							<div className="h-full overflow-y-auto pb-4">
+							<div className="flex h-full flex-col overflow-y-auto pb-4">
 								{setupNotice ?? (
 									<FactoryManagerNotice
+										docked
 										onPickExample={handlePickFactoryExample}
 									/>
 								)}
@@ -3213,9 +3184,25 @@ function ChatThreadPane({
 							/>
 						)
 					}
-					composer={composer}
+					composer={
+						factoryFiling && !isWelcomeState ? (
+							<>
+								<FactoryFilingNotice
+									filing={factoryFiling}
+									busy={isSessionActive}
+									onOpenCard={onOpenFactoryTask}
+									onFileAnyway={() =>
+										handleSendPrompt(FACTORY_DUPLICATES.fileAnywayPrompt)
+									}
+								/>
+								{composer}
+							</>
+						) : (
+							composer
+						)
+					}
 					environmentSelector={
-						factoryIntake || factoryManager ? null : (
+						factoryManager ? null : (
 							<EnvironmentSelector
 								activeEnvironmentId={environmentId}
 								cloudEnabled={cloudAgentsEnabled}
@@ -3230,17 +3217,8 @@ function ChatThreadPane({
 					}
 					gitBranch={gitBranch}
 					notice={
-						factoryIntakePreparing ? (
-							<p
-								role="status"
-								className="mt-6 text-center text-sm text-muted-foreground"
-							>
-								Preparing request…
-							</p>
-						) : setupNotice ? (
+						setupNotice ? (
 							setupNotice
-						) : factoryIntake ? (
-							<FactoryIntakeNotice />
 						) : factoryManager ? (
 							<FactoryManagerNotice onPickExample={handlePickFactoryExample} />
 						) : undefined

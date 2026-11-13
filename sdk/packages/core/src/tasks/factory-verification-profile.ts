@@ -449,6 +449,14 @@ export interface FactoryVerificationProfileStore {
 	/** Marks the stored profile proven; false when the stored hash differs or none is stored. */
 	markProven(workspaceRoot: string, hash: string): Promise<boolean>;
 	remove(workspaceRoot: string): Promise<void>;
+	/**
+	 * Forgets the approval of one project, or of all; with `dryRun`, only
+	 * counts the projects that would be forgotten.
+	 */
+	forget?(
+		workspaceRoot?: string,
+		dryRun?: boolean,
+	): Promise<{ projects: number }>;
 }
 
 export class FileFactoryVerificationProfileStore
@@ -504,6 +512,30 @@ export class FileFactoryVerificationProfileStore
 	async remove(workspaceRoot: string): Promise<void> {
 		const key = workspaceKey(workspaceRoot);
 		await this.update(({ [key]: _removed, ...rest }) => rest);
+	}
+
+	async forget(
+		workspaceRoot?: string,
+		dryRun = false,
+	): Promise<{ projects: number }> {
+		const key = workspaceRoot ? workspaceKey(workspaceRoot) : undefined;
+		const count = (
+			profiles: Record<string, FactoryVerificationProfileRecord>,
+		) =>
+			key === undefined ? Object.keys(profiles).length : profiles[key] ? 1 : 0;
+		if (dryRun) {
+			await this.writes.catch(() => undefined);
+			return { projects: count(await this.read()) };
+		}
+		let projects = 0;
+		await this.update((profiles) => {
+			projects = count(profiles);
+			if (!projects) return profiles;
+			if (key === undefined) return {};
+			const { [key]: _removed, ...rest } = profiles;
+			return rest;
+		});
+		return { projects };
 	}
 
 	/** Unreadable or corrupt files read as empty; an entry whose hash does not match its profile is dropped. */

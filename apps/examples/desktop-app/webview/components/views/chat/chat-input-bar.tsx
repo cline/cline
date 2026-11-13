@@ -47,7 +47,7 @@ import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
-import { FACTORY_INTAKE, FACTORY_MANAGER } from "@/lib/factory-copy";
+import { FACTORY_MANAGER, factoryShortModel } from "@/lib/factory-copy";
 import {
 	buildModelPickerData,
 	type ModelPickerData,
@@ -57,6 +57,7 @@ import {
 	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
 import {
+	type ModelSelectionScope,
 	readModelSelectionStorageFromWindow,
 	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -310,14 +311,13 @@ type ChatInputBarProps = {
 	environmentId: string;
 	variant?: "conversation" | "welcome";
 	/**
-	 * The composer talks to Factory: Add work ("intake") runs on its
-	 * workflow's models, so the model and thinking pickers hide; Ask Factory
-	 * ("manager") keeps them, labelled as the manager's model, and drops
+	 * The composer talks to Factory: Ask Factory ("manager") keeps the model
+	 * and thinking pickers, labelled as the manager's model, and drops
 	 * everything tied to one workspace (pull request bar, workspace and branch,
-	 * @-file mentions): it works across all projects. Both get their own
+	 * @-file mentions): it works across all projects. It gets its own
 	 * placeholder and a visible focus style on the welcome composer.
 	 */
-	factory?: "intake" | "manager";
+	factory?: "manager";
 	readOnly?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
@@ -1135,7 +1135,18 @@ function ChatInputBarImpl({
 			}
 			onProviderChange={onProviderChange}
 			persistSelection={executionTarget !== "cloud"}
+			// Ask Factory remembers its own model, apart from other chats'.
+			selectionScope={factory === "manager" ? "factory-manager" : "local"}
 			provider={provider}
+			// Ask Factory: one compact button with the short model name; the
+			// provider is in its popover and the full id in its tooltip.
+			compactLabel={
+				factory === "manager"
+					? model
+						? factoryShortModel(model)
+						: FACTORY_MANAGER.modelLabel
+					: undefined
+			}
 		/>
 	);
 
@@ -1144,9 +1155,14 @@ function ChatInputBarImpl({
 			className={
 				// The welcome composer has no focus style of its own; Factory's
 				// screens take the conversation composer's.
-				factory && variant === "welcome"
-					? "focus-within:border-cline-ui-primary/50 focus-within:ring-1 focus-within:ring-cline-ui-primary/20"
-					: undefined
+				cn(
+					factory &&
+						variant === "welcome" &&
+						"focus-within:border-cline-ui-primary/50 focus-within:ring-1 focus-within:ring-cline-ui-primary/20",
+					// Ask Factory sits in a narrow panel: its controls follow the
+					// composer's width, not the window's.
+					factory === "manager" && "@container/composer",
+				) || undefined
 			}
 			data-factory-composer={factory}
 			variant={variant}
@@ -1415,15 +1431,13 @@ function ChatInputBarImpl({
 											? promptsInQueue.length > 0
 												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
 												: "Agent is working... submit to queue another message"
-											: factory === "intake"
-												? FACTORY_INTAKE.placeholder
-												: factory === "manager"
-													? FACTORY_MANAGER.placeholder
-													: executionTarget === "cloud"
-														? "Describe what Cline should do in this repository."
-														: variant === "welcome"
-															? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-															: "Enter your question or type / for commands or @ for context"
+											: factory === "manager"
+												? FACTORY_MANAGER.placeholder
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
@@ -1601,10 +1615,7 @@ function ChatInputBarImpl({
 							{FACTORY_MANAGER.modelLabel}
 						</span>
 					) : null}
-					{/* Add work runs on its workflow's models, so the picker is not
-					    shown; it stays mounted (display: none) so the intake chat's
-					    model is still checked and corrected as usual. Ask Factory
-					    names it as the manager's model. */}
+					{/* Ask Factory names the model as the manager's. */}
 					{factory === "manager" ? (
 						<fieldset
 							aria-label={FACTORY_MANAGER.modelLabel}
@@ -1614,45 +1625,46 @@ function ChatInputBarImpl({
 							{modelSelector}
 						</fieldset>
 					) : (
-						<div
-							className={factory === "intake" ? "hidden" : "min-w-0"}
-							data-composer-model-picker=""
-						>
+						<div className="min-w-0" data-composer-model-picker="">
 							{modelSelector}
 						</div>
 					)}
-					{factory === "intake" ? null : (
-						<Select
-							disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
-							onValueChange={handleEffortChange}
-							value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+					<Select
+						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
+						onValueChange={handleEffortChange}
+						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+					>
+						<SelectTrigger
+							aria-label="Thinking level"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+							size="sm"
+							title={
+								cloudSettingsLocked
+									? "Thinking level is fixed when a cloud session starts"
+									: modelSupportsReasoning === false
+										? "The selected model does not report reasoning support"
+										: undefined
+							}
 						>
-							<SelectTrigger
-								aria-label="Thinking level"
-								className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
-								size="sm"
-								title={
-									cloudSettingsLocked
-										? "Thinking level is fixed when a cloud session starts"
-										: modelSupportsReasoning === false
-											? "The selected model does not report reasoning support"
-											: undefined
+							<Brain className="size-3" />
+							<span
+								className={
+									factory === "manager"
+										? "@max-[440px]/composer:sr-only max-[560px]:sr-only"
+										: "max-[560px]:sr-only"
 								}
 							>
-								<Brain className="size-3" />
-								<span className="max-[560px]:sr-only">
-									<SelectValue>{effortLabel}</SelectValue>
-								</span>
-							</SelectTrigger>
-							<SelectContent align="start">
-								{EFFORT_LEVELS.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
+								<SelectValue>{effortLabel}</SelectValue>
+							</span>
+						</SelectTrigger>
+						<SelectContent align="start">
+							{EFFORT_LEVELS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</AgentComposerSettingsGroup>
 
 				{/* Reserve room for the model and thinking controls so a long
@@ -1715,6 +1727,7 @@ export const ModelSelector = memo(function ModelSelector({
 	autoCorrectModel = true,
 	includeCloudModels = false,
 	persistSelection = true,
+	selectionScope = "local",
 	provider,
 	model,
 	isBusy,
@@ -1735,6 +1748,8 @@ export const ModelSelector = memo(function ModelSelector({
 	autoCorrectModel?: boolean;
 	includeCloudModels?: boolean;
 	persistSelection?: boolean;
+	/** Where the remembered selection is read and written (Local by default). */
+	selectionScope?: Exclude<ModelSelectionScope, "cloud">;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1770,7 +1785,7 @@ export const ModelSelector = memo(function ModelSelector({
 	const [lastSelection, setLastSelection] = useState(() =>
 		includeCloudModels
 			? { lastProvider: "", lastModelByProvider: {} }
-			: readModelSelectionStorageFromWindow(),
+			: readModelSelectionStorageFromWindow(selectionScope),
 	);
 	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
@@ -2125,14 +2140,22 @@ export const ModelSelector = memo(function ModelSelector({
 		[persistSelection],
 	);
 
+	// Ask Factory's own key is written only once a model is picked for it, so
+	// until then it keeps following the chats' remembered model.
+	const initialSelection = useRef(lastSelection);
 	useEffect(() => {
 		if (!persistSelection) return;
+		if (
+			selectionScope === "factory-manager" &&
+			lastSelection === initialSelection.current
+		)
+			return;
 		try {
-			writeModelSelectionStorageToWindow(lastSelection);
+			writeModelSelectionStorageToWindow(lastSelection, selectionScope);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection, persistSelection]);
+	}, [lastSelection, persistSelection, selectionScope]);
 
 	useEffect(() => {
 		if (providers.length === 0) {

@@ -1,6 +1,9 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
 	type ChatModelModalities,
+	FACTORY_PRIORITIES,
+	FACTORY_PRIORITY_LABEL,
+	factoryPriorityRank,
 	formatFactoryId,
 	isChatCompatibleModel,
 	parseFactoryId,
@@ -24,5 +27,11 @@ describe("browser entry point Factory ids", () => {
 	it("exports the short card id helpers", () => {
 		expect(formatFactoryId(7)).toBe("F7");
 		expect(parseFactoryId("#7")).toBe(7);
+	});
+
+	it("exports the priority labels and order", () => {
+		expect(FACTORY_PRIORITIES).toEqual(["urgent", "high", "medium", "low"]);
+		expect(FACTORY_PRIORITY_LABEL.none).toBe("No priority");
+		expect(factoryPriorityRank({})).toBe(2);
 	});
 });

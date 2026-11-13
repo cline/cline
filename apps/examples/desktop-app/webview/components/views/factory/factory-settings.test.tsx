@@ -8,8 +8,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { desktopClient } from "@/lib/desktop-client";
-import { FACTORY_SETTINGS } from "@/lib/factory-copy";
+import { FS_LIMITS } from "@/lib/factory-settings-copy/limits";
+import { FS_PAGES, FS_SHELL } from "@/lib/factory-settings-copy/shell";
 import { FactorySettingsPage } from "./factory-settings";
+import { deadRows } from "./settings/test-utils";
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke: vi.fn() },
@@ -17,70 +19,14 @@ vi.mock("@/lib/desktop-client", () => ({
 const invoke = vi.mocked(desktopClient.invoke);
 
 const layout = vi.hoisted(() => ({ width: 0 }));
-vi.mock("./use-element-width", () => ({
-	useElementWidth: () => [() => {}, layout.width],
+vi.mock("./use-element-size", () => ({
+	useElementSize: () => [() => {}, { width: layout.width, height: 0 }],
 }));
 
 // The app's Radix select, as a native one: the trigger's labels go on it.
-vi.mock("@/components/ui/select", async () => {
-	const React = await import("react");
-	type Ctx = {
-		value?: string;
-		disabled?: boolean;
-		onValueChange: (value: string) => void;
-		trigger: Record<string, unknown>;
-	};
-	const Context = React.createContext<Ctx | null>(null);
-	return {
-		Select: ({
-			value,
-			disabled,
-			onValueChange,
-			children,
-		}: Omit<Ctx, "trigger"> & { children: React.ReactNode }) => (
-			<Context.Provider value={{ value, disabled, onValueChange, trigger: {} }}>
-				{children}
-			</Context.Provider>
-		),
-		SelectTrigger: ({
-			children: _children,
-			className: _className,
-			size: _size,
-			...props
-		}: Record<string, unknown>) => {
-			const context = React.useContext(Context);
-			if (context) Object.assign(context.trigger, props);
-			return null;
-		},
-		SelectValue: () => null,
-		SelectContent: ({ children }: { children: React.ReactNode }) => {
-			const context = React.useContext(Context);
-			return (
-				<select
-					{...(context?.trigger ?? {})}
-					value={context?.value ?? ""}
-					disabled={context?.disabled}
-					onChange={(event) => context?.onValueChange(event.target.value)}
-				>
-					{children}
-				</select>
-			);
-		},
-		SelectItem: ({
-			value,
-			disabled,
-			children,
-		}: {
-			value: string;
-			disabled?: boolean;
-			children: React.ReactNode;
-		}) => (
-			<option value={value} disabled={disabled}>
-				{children}
-			</option>
-		),
-	};
-});
+vi.mock("@/components/ui/select", async () =>
+	(await import("./settings/test-utils")).nativeSelectModule(),
+);
 
 // The app's model picker: one button that picks the next model.
 vi.mock("../chat/chat-input-bar", () => ({
@@ -138,6 +84,10 @@ let saved: {
 }[];
 let saveFails: string | undefined;
 let stages: { status: string; stage: Record<string, unknown> }[];
+let limitsReply: Record<string, unknown>;
+let hubStatus: string;
+/** `factory_get_projects`; undefined: this build has no such command. */
+let projectsReply: unknown;
 
 function serve(config: FactoryWorkflowConfig, name = "Hands-off") {
 	let presets = [{ name, revision: hash, config }];
@@ -146,21 +96,15 @@ function serve(config: FactoryWorkflowConfig, name = "Hands-off") {
 		switch (command) {
 			case "get_desktop_settings":
 				return { factoryPresets: presets, factoryDefaultPreset: name };
+			case "get_process_context":
+				return {
+					hub: { status: hubStatus, url: "ws://127.0.0.1:1", error: null },
+				};
 			case "factory_get_limits":
-				return {
-					supported: true,
-					concurrency: 3,
-					dailyCostUsd: 50,
-					spentTodayUsd: 12.5,
-				};
+				return limitsReply;
 			case "factory_set_limits":
-				return {
-					supported: true,
-					concurrency: 3,
-					dailyCostUsd: 50,
-					spentTodayUsd: 12.5,
-					...input,
-				};
+				limitsReply = { ...limitsReply, ...input };
+				return limitsReply;
 			case "factory_save_preset": {
 				saved.push(input as (typeof saved)[number]);
 				if (saveFails) throw new Error(saveFails);
@@ -173,6 +117,11 @@ function serve(config: FactoryWorkflowConfig, name = "Hands-off") {
 				];
 				return presets;
 			}
+			case "factory_get_projects":
+				if (projectsReply === undefined) break;
+				return typeof projectsReply === "function"
+					? projectsReply()
+					: projectsReply;
 			case "factory_get_stages":
 				return {
 					file: "present",
@@ -189,9 +138,20 @@ function serve(config: FactoryWorkflowConfig, name = "Hands-off") {
 					stages: stages.map((entry) => ({ ...entry, hash })),
 				};
 		}
-		throw new Error(`Unexpected command ${command}`);
+		throw new Error(`unsupported desktop command: ${command}`);
 	});
 }
+
+/** One project's summary, as `factory_get_projects` gives it. */
+const summary = (workspaceRoot: string, awaiting = 0, extra = {}) => ({
+	workspaceRoot,
+	name: workspaceRoot.split("/").at(-1),
+	stages: { file: "present", total: awaiting, inUse: 0, awaiting },
+	verification: "none",
+	guidance: { roles: [], changed: [] },
+	taskFiles: 0,
+	...extra,
+});
 
 async function render(
 	props: Partial<Parameters<typeof FactorySettingsPage>[0]> = {},
@@ -215,10 +175,14 @@ const control = <T extends Element = HTMLSelectElement>(id: string) => {
 	if (!element) throw new Error(`No control for ${id}`);
 	return element as unknown as T;
 };
+const toggle = (id: string) =>
+	container.querySelector(
+		`[data-setting="${id}"] [role="switch"]`,
+	) as HTMLInputElement;
 const row = (id: string) =>
 	container.querySelector(`[data-setting="${id}"]`) as HTMLElement;
 const buttons = (name: string | RegExp) =>
-	[...container.querySelectorAll("button")].filter((button) =>
+	[...document.querySelectorAll("button")].filter((button) =>
 		typeof name === "string"
 			? (button.getAttribute("aria-label") ?? button.textContent) === name
 			: name.test(
@@ -246,18 +210,30 @@ async function type(input: HTMLInputElement, value: string) {
 		input.dispatchEvent(new Event("input", { bubbles: true }));
 	});
 }
+async function key(element: Element, name: string) {
+	await act(async () =>
+		element.dispatchEvent(
+			new KeyboardEvent("keydown", { key: name, bubbles: true }),
+		),
+	);
+	await act(async () => {});
+}
 async function blur(input: HTMLElement) {
 	await act(async () => input.blur());
 	await act(async () => {});
 }
-async function click(element: Element | undefined) {
+async function click(element: Element | null | undefined) {
 	await act(async () => (element as HTMLElement | undefined)?.click());
 	await act(async () => {});
 }
-async function openSection(id: "general" | "models" | "projects") {
-	await click(container.querySelector(`[data-section="${id}"]`) ?? undefined);
+const navItem = (page: string) =>
+	container.querySelector<HTMLElement>(`nav [data-settings-page="${page}"]`);
+async function openPage(page: string) {
+	await click(navItem(page));
 }
 const lastSaved = () => saved.at(-1)?.config;
+const searchField = () =>
+	container.querySelector<HTMLInputElement>('input[type="search"]');
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -273,6 +249,15 @@ beforeEach(() => {
 	saved = [];
 	saveFails = undefined;
 	stages = [];
+	hubStatus = "connected";
+	projectsReply = undefined;
+	limitsReply = {
+		supported: true,
+		concurrency: 3,
+		paused: false,
+		dailyCostUsd: 50,
+		spentTodayUsd: 12.5,
+	};
 	layout.width = 0;
 	sessionStorage.clear();
 });
@@ -281,7 +266,7 @@ afterEach(async () => {
 	container.remove();
 });
 
-describe("FactorySettingsPage", () => {
+describe("FactorySettingsPage shell", () => {
 	it("has one way back and no Save button", async () => {
 		serve(handsOff());
 		const back = vi.fn();
@@ -291,12 +276,178 @@ describe("FactorySettingsPage", () => {
 				(element) => element.getAttribute("aria-label") === "Back to Factory",
 			),
 		).toHaveLength(1);
-		expect(buttons(FACTORY_SETTINGS.title)).toHaveLength(0);
 		expect(buttons(/^Save/)).toHaveLength(0);
 		await click(buttons("Back to Factory")[0]);
 		expect(back).toHaveBeenCalledOnce();
 	});
 
+	it("lists five groups and eleven pages, Automation first", async () => {
+		serve(handsOff());
+		await render();
+		const nav = container.querySelector('nav[aria-label="Factory settings"]');
+		expect(
+			[...(nav?.querySelectorAll("h3") ?? [])].map((h) => h.textContent),
+		).toEqual([
+			"Factory",
+			"Workers",
+			"Pipeline",
+			"Where work runs",
+			"Advanced",
+		]);
+		const items = [...(nav?.querySelectorAll("[data-settings-page]") ?? [])];
+		expect(items.map((item) => item.textContent)).toEqual(
+			Object.values(FS_PAGES),
+		);
+		expect(navItem("automation")?.getAttribute("aria-current")).toBe("page");
+		expect(container.querySelector("h2")?.textContent).toBe("Automation");
+		await openPage("limits");
+		expect(container.querySelector("h2")?.textContent).toBe(
+			"Limits & spending",
+		);
+		expect(sessionStorage.getItem("factory.settingsSection")).toBe("limits");
+	});
+
+	it.each([
+		["general", "Automation"],
+		["models", "Roles & models"],
+		["limits", "Limits & spending"],
+	])("maps the saved section %s to its page", async (saved, heading) => {
+		sessionStorage.setItem("factory.settingsSection", saved);
+		serve(handsOff());
+		await render();
+		expect(container.querySelector("h2")?.textContent).toBe(heading);
+	});
+
+	it("opens a deep link on its row, and the spending banner's link on the daily limit", async () => {
+		serve(handsOff());
+		await render({ focus: "dailyCostUsd" });
+		expect(container.querySelector("h2")?.textContent).toBe(
+			"Limits & spending",
+		);
+		expect(document.activeElement).toBe(control("dailyCostUsd"));
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await render({ focus: { page: "automation", row: "maxRepairRounds" } });
+		// Its field is disabled until the workflow is read; focus follows.
+		await act(async () => new Promise((done) => setTimeout(done, 150)));
+		expect(document.activeElement).toBe(control("maxRepairRounds"));
+	});
+
+	it("searches row titles and descriptions; Enter opens the page and focuses the row", async () => {
+		serve(handsOff());
+		await render();
+		const search = searchField();
+		if (!search) throw new Error("No search field");
+		await type(search, "daily");
+		const hits = [...container.querySelectorAll('[role="option"]')];
+		expect(hits.map((hit) => hit.getAttribute("data-search-hit"))).toEqual([
+			"dailyCostUsd",
+		]);
+		expect(container.querySelector("nav [data-settings-page]")).toBeNull();
+		await key(search, "Enter");
+		expect(container.querySelector("h2")?.textContent).toBe(
+			"Limits & spending",
+		);
+		expect(document.activeElement).toBe(control("dailyCostUsd"));
+		// Esc clears and the page list returns.
+		await type(search, "nothing matches this");
+		expect(container.textContent).toContain(
+			FS_SHELL.noResults("nothing matches this"),
+		);
+		await key(search, "Escape");
+		expect(search.value).toBe("");
+		expect(navItem("automation")).not.toBeNull();
+	});
+
+	it.each([
+		{ width: 440, menu: true },
+		{ width: 719, menu: true },
+		{ width: 780, menu: false },
+		{ width: 0, menu: false },
+	])("folds the section list into a page menu under 720px ($width)", async ({
+		width,
+		menu,
+	}) => {
+		layout.width = width;
+		serve(handsOff());
+		await render();
+		const button = container.querySelector<HTMLElement>(
+			"[data-settings-page-menu]",
+		);
+		expect(button !== null).toBe(menu);
+		expect(
+			container.querySelector('nav[aria-label="Factory settings"]') !== null,
+		).toBe(!menu);
+		if (!menu) return;
+		expect(button?.getAttribute("aria-haspopup")).toBe("menu");
+		expect(button?.textContent).toContain("Automation");
+		await click(button);
+		const items = [...container.querySelectorAll('[role="menuitem"]')];
+		expect(items).toHaveLength(11);
+		await click(items.find((item) => item.textContent === "Limits & spending"));
+		expect(container.querySelector('[role="menu"]')).toBeNull();
+		expect(container.querySelector("h2")?.textContent).toBe(
+			"Limits & spending",
+		);
+	});
+
+	it("counts what waits for a decision from the projects summary", async () => {
+		projectsReply = {
+			projects: [
+				summary("/work/app", 2, {
+					verification: "proposed",
+					guidance: { roles: ["builder"], changed: ["builder"] },
+				}),
+			],
+			userGuidanceChanged: ["reviewer"],
+		};
+		serve(handsOff());
+		await render();
+		const badge = (page: string) =>
+			navItem(page)?.querySelector("[data-settings-badge]")?.textContent;
+		expect(badge("stages")).toBe("2 (2 stages need approval)");
+		expect(badge("verification")).toBe("1 (1 test setup needs approval)");
+		expect(badge("guidance")).toBe(
+			"2 (2 guidance files changed outside Factory)",
+		);
+		expect(badge("automation")).toBeUndefined();
+	});
+
+	it("shows the last known values, read-only, while the Hub can't be reached", async () => {
+		hubStatus = "disconnected";
+		serve(handsOff());
+		await render();
+		expect(container.textContent).toContain(FS_SHELL.hubUnreachable);
+		expect(control("approval").disabled).toBe(true);
+		hubStatus = "connected";
+		await click(buttons(FS_SHELL.retry)[0]);
+		expect(container.textContent).not.toContain(FS_SHELL.hubUnreachable);
+		expect(control("approval").disabled).toBe(false);
+	});
+
+	it("opens the app's notification settings", async () => {
+		serve(handsOff());
+		const openAppSettings = vi.fn();
+		await render({ onOpenAppSettings: openAppSettings });
+		await click(buttons("Open notification settings")[0]);
+		expect(openAppSettings).toHaveBeenCalledWith("General");
+	});
+
+	it("never asks for ratings or feedback, and has no dead rows", async () => {
+		serve(handsOff());
+		await render();
+		let text = "";
+		for (const page of Object.keys(FS_PAGES)) {
+			await openPage(page);
+			text += container.textContent ?? "";
+			if (page === "automation" || page === "limits")
+				expect(deadRows(container)).toEqual([]);
+		}
+		expect(text).not.toMatch(/rating|rate this|feedback|thumbs/i);
+	});
+});
+
+describe("Automation", () => {
 	describe("plan approval mapping", () => {
 		it.each([
 			{
@@ -393,7 +544,6 @@ describe("FactorySettingsPage", () => {
 			expect(
 				container.querySelector('[data-testid="factory-settings-older"]'),
 			).toBeNull();
-			// Nothing on the page moved.
 			expect(control("humanStamp").value).toBe("always");
 		});
 	});
@@ -404,7 +554,7 @@ describe("FactorySettingsPage", () => {
 		expect(control("humanStamp").value).toBe("by_risk");
 		await choose("humanStamp", "always");
 		expect(saved).toHaveLength(1);
-		expect(container.textContent).toContain(FACTORY_SETTINGS.saved);
+		expect(container.textContent).toContain(FS_SHELL.saved);
 		saveFails = "Settings file is read-only.";
 		await choose("humanStamp", "never");
 		expect(saved).toHaveLength(2);
@@ -415,9 +565,80 @@ describe("FactorySettingsPage", () => {
 		expect(row("approval").querySelector('[role="alert"]')).toBeNull();
 	});
 
-	it("commits spending fields on blur or Enter, with validation", async () => {
+	it("writes Keep the PR passing, suggested rules, fix rounds and retries", async () => {
 		serve(handsOff());
 		await render();
+		// Unset is on for hands-off work.
+		expect(toggle("watchPullRequest").checked).toBe(true);
+		await click(toggle("watchPullRequest"));
+		expect(saved).toHaveLength(1);
+		expect(lastSaved()?.watchPullRequest).toBe(false);
+		expect(toggle("repoRules").checked).toBe(false);
+		await click(toggle("repoRules"));
+		expect(lastSaved()?.repoRules).toBe(true);
+		const rounds = control<HTMLInputElement>("maxRepairRounds");
+		expect(rounds.value).toBe("2");
+		await type(rounds, "11");
+		await blur(rounds);
+		expect(row("maxRepairRounds").textContent).toContain(
+			"Enter a whole number from 0 to 10.",
+		);
+		expect(saved).toHaveLength(2);
+		await type(rounds, "4");
+		await key(rounds, "Enter");
+		expect(lastSaved()?.maxRepairRounds).toBe(4);
+		const retries = control<HTMLInputElement>("maxRuntimeRetries");
+		await type(retries, "0");
+		await blur(retries);
+		expect(lastSaved()?.maxRuntimeRetries).toBe(0);
+		expect(saved).toHaveLength(4);
+	});
+
+	it("marks pull requests ready only with an independent reviewer", async () => {
+		serve(handsOff({ agents: DEFAULT_FACTORY_AGENTS }));
+		const open = vi.fn();
+		await render();
+		const option = () =>
+			control("pullRequestReady").querySelector<HTMLOptionElement>(
+				'option[value="when_no_review_required"]',
+			);
+		expect(control("pullRequestReady").value).toBe("never");
+		expect(option()?.disabled).toBe(true);
+		expect(row("pullRequestReady").textContent).toContain(
+			"needs a reviewer on a different model. Set one in Roles & models.",
+		);
+		await click(buttons("Set one in Roles & models")[0]);
+		expect(container.querySelector("h2")?.textContent).toBe("Roles & models");
+		expect(open).not.toHaveBeenCalled();
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		sessionStorage.clear();
+		serve(handsOff());
+		await render();
+		expect(option()?.disabled).toBe(false);
+		await choose("pullRequestReady", "when_no_review_required");
+		expect(lastSaved()?.pullRequestReady).toBe("when_no_review_required");
+		expect(row("pullRequestReady").textContent).toContain(
+			"Factory never merges.",
+		);
+	});
+
+	it("names the default workflow in the scope line and opens Workflows from it", async () => {
+		serve(handsOff(), "Careful");
+		await render();
+		const scope = container.querySelector("[data-page-scope]");
+		expect(scope?.textContent).toBe(
+			"For new work in every project. Work already started keeps its settings. Saved to the default workflow, Careful.",
+		);
+		await click(scope?.querySelector("button"));
+		expect(container.querySelector("h2")?.textContent).toBe("Workflows");
+	});
+});
+
+describe("Limits & spending", () => {
+	it("commits spending fields on blur or Enter, with validation", async () => {
+		serve(handsOff());
+		await render({ focus: { page: "limits" } });
 		const card = control<HTMLInputElement>("maxCostUsd");
 		expect(card.value).toBe("10.00");
 		await type(card, "2000");
@@ -429,19 +650,16 @@ describe("FactorySettingsPage", () => {
 		await blur(card);
 		expect(lastSaved()?.maxCostUsd).toBe(25);
 		await type(card, "");
-		await act(async () =>
-			card.dispatchEvent(
-				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-			),
-		);
-		await act(async () => {});
+		await key(card, "Enter");
 		expect(saved).toHaveLength(2);
 		expect(lastSaved()?.maxCostUsd).toBeUndefined();
 		// Hands-off work still stops at the built-in limit.
 		expect(row("maxCostUsd").textContent).toContain("built-in $10");
 
 		const daily = control<HTMLInputElement>("dailyCostUsd");
-		expect(row("dailyCostUsd").textContent).toContain("Spent today: $12.50");
+		expect(row("dailyCostUsd").textContent).toContain(
+			FS_LIMITS.spentToday("$12.50"),
+		);
 		await type(daily, "80");
 		expect(invoke).not.toHaveBeenCalledWith(
 			"factory_set_limits",
@@ -451,49 +669,68 @@ describe("FactorySettingsPage", () => {
 		expect(invoke).toHaveBeenCalledWith("factory_set_limits", {
 			dailyCostUsd: 80,
 		});
+		expect(container.textContent).toContain(FS_SHELL.saved);
+		// Empty is no limit, said in amber.
+		await type(daily, "");
+		await blur(daily);
+		expect(invoke).toHaveBeenLastCalledWith("factory_set_limits", {
+			dailyCostUsd: null,
+		});
+		expect(row("dailyCostUsd").textContent).toContain(FS_LIMITS.noDailyLimit);
+	});
+
+	it("changes work at once at once", async () => {
+		serve(handsOff());
+		await render({ focus: { page: "limits" } });
+		expect(control("concurrency").value).toBe("3");
+		await choose("concurrency", "5");
+		expect(invoke).toHaveBeenCalledWith("factory_set_limits", {
+			concurrency: 5,
+		});
+		expect(control("concurrency").value).toBe("5");
 	});
 
 	it("disables work at once with a note when the Hub has no limit setting", async () => {
+		limitsReply = { supported: false };
 		serve(handsOff());
-		const served = invoke.getMockImplementation();
-		invoke.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) =>
-				command === "factory_get_limits"
-					? { supported: false }
-					: served?.(command, args),
-		);
-		await render();
+		await render({ focus: { page: "limits" } });
 		expect(control("concurrency").disabled).toBe(true);
-		expect(row("concurrency").textContent).toContain(
-			FACTORY_SETTINGS.general.workAtOnceUnsupported,
-		);
+		expect(row("concurrency").textContent).toContain(FS_SHELL.hubTooOld);
 		expect(row("concurrency").querySelector('[role="alert"]')).toBeNull();
 	});
 
-	it("marks pull requests ready only with an independent reviewer", async () => {
-		serve(handsOff({ agents: DEFAULT_FACTORY_AGENTS }));
-		await render();
-		const option = () =>
-			control("pullRequestReady").querySelector<HTMLOptionElement>(
-				'option[value="when_no_review_required"]',
-			);
-		expect(control("pullRequestReady").value).toBe("never");
-		expect(option()?.disabled).toBe(true);
-		expect(row("pullRequestReady").textContent).toContain(
-			"Needs a reviewer on a different model (Models)",
-		);
+	it("shows Resume only while new work is paused", async () => {
+		serve(handsOff());
+		await render({ focus: { page: "limits" } });
+		expect(container.textContent).not.toContain(FS_LIMITS.pausedTitle);
+		expect(buttons(/^Pause/)).toHaveLength(0);
 		await act(async () => root.unmount());
 		root = createRoot(container);
-		serve(handsOff());
-		await render();
-		expect(option()?.disabled).toBe(false);
-		await choose("pullRequestReady", "when_no_review_required");
-		expect(lastSaved()?.pullRequestReady).toBe("when_no_review_required");
-		expect(row("pullRequestReady").textContent).toContain(
-			"Factory never merges.",
-		);
+		limitsReply = { ...limitsReply, paused: true };
+		await render({ focus: { page: "limits" } });
+		expect(container.textContent).toContain(FS_LIMITS.pausedTitle);
+		await click(buttons(FS_LIMITS.resume)[0]);
+		expect(invoke).toHaveBeenCalledWith("factory_set_limits", {
+			paused: false,
+		});
+		expect(container.textContent).not.toContain(FS_LIMITS.pausedTitle);
 	});
 
+	it("reveals the built-in limits on request", async () => {
+		serve(handsOff());
+		await render({ focus: { page: "limits" } });
+		const toggle = row("builtInLimits").querySelector("button[aria-expanded]");
+		expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+		expect(row("builtInLimits").textContent).not.toContain("Quick plan check");
+		await click(toggle);
+		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(row("builtInLimits").textContent).toContain(
+			"20 steps, 5 minutes, for plans that arrive already scoped",
+		);
+	});
+});
+
+describe("Interim pages", () => {
 	it("changes each role's model through the model picker", async () => {
 		serve(
 			handsOff({
@@ -504,60 +741,17 @@ describe("FactorySettingsPage", () => {
 				},
 			}),
 		);
-		await render();
-		await openSection("models");
+		await render({ focus: { page: "roles" } });
 		await click(
-			row("implementers").querySelector('[data-testid="model-picker"]') ??
-				undefined,
+			row("implementers").querySelector('[data-testid="model-picker"]'),
 		);
 		expect(lastSaved()?.agents?.implementers[0]?.modelSelection).toEqual({
 			providerId: "openai-native",
 			modelId: "gpt-next",
 		});
-		// At the minimum there is nothing to remove; plan checkers may be none.
-		expect(buttons("Remove builder 1")).toHaveLength(0);
-		expect(buttons("Remove plan checker 1")).toHaveLength(1);
-		expect(buttons("Add builder")).toHaveLength(1);
-		await click(control("verifier"));
-		expect(lastSaved()?.agents?.verifier).toBeUndefined();
-		expect(
-			row("verifier").querySelector('[data-testid="model-picker"]'),
-		).toBeNull();
 	});
 
-	it("imports a workflow file only when it is valid and its name is free", async () => {
-		serve(handsOff());
-		await render();
-		await openSection("models");
-		const json = container.querySelector<HTMLTextAreaElement>(
-			'[aria-label="Workflow JSON"]',
-		);
-		if (!json) throw new Error("Missing workflow JSON");
-		const importAs = async (text: string) => {
-			await act(async () => {
-				Object.getOwnPropertyDescriptor(
-					HTMLTextAreaElement.prototype,
-					"value",
-				)?.set?.call(json, text);
-				json.dispatchEvent(new Event("input", { bubbles: true }));
-			});
-			await click(buttons("Import workflow")[0]);
-		};
-		await importAs("{");
-		expect(row("workflowFile").textContent).toContain("valid JSON");
-		const recipe = (name: string, revision: string) =>
-			JSON.stringify({ schemaVersion: 1, name, revision, config: {} });
-		await importAs(recipe("Hands-off", "b".repeat(64)));
-		expect(row("workflowFile").textContent).toContain(
-			"A different saved workflow is named",
-		);
-		expect(saved).toEqual([]);
-		await importAs(recipe("Shared", "b".repeat(64)));
-		expect(saved.map((item) => item.name)).toEqual(["Shared"]);
-		expect(saved[0]?.useByDefault).toBeUndefined();
-	});
-
-	it("lists a project's stages with one decision each and counts those awaiting one", async () => {
+	it("lists a project's stages with one decision each, and refreshes the count", async () => {
 		stages = [
 			{
 				status: "approved",
@@ -579,25 +773,21 @@ describe("FactorySettingsPage", () => {
 				},
 			},
 		];
+		projectsReply = () => ({
+			projects: [
+				summary(
+					"/work/app",
+					stages.filter((entry) => entry.status === "needs_approval").length,
+				),
+			],
+			userGuidanceChanged: [],
+		});
 		serve(handsOff());
 		await render();
-		const projects = container.querySelector('[data-section="projects"]');
-		expect(projects?.textContent).toContain("1");
-		await openSection("projects");
-		const actions = (status: string) =>
-			[
-				...(container
-					.querySelector(`[data-status="${status}"]`)
-					?.querySelectorAll("button:not([aria-expanded])") ?? []),
-			].map((button) => button.textContent);
+		expect(navItem("stages")?.textContent).toContain("1");
+		await openPage("stages");
 		const waiting = container.querySelector('[data-status="needs_approval"]');
 		expect(waiting?.textContent).toContain("Update docs/ only.");
-		expect(actions("needs_approval")).toEqual(["Approve"]);
-		expect(actions("approved")).toEqual(["Stop using"]);
-		// The list and the count are one read.
-		expect(
-			invoke.mock.calls.filter(([command]) => command === "factory_get_stages"),
-		).toHaveLength(1);
 		await click(buttons("Approve")[0]);
 		expect(invoke).toHaveBeenCalledWith("factory_decide_stage", {
 			workspaceRoot: "/work/app",
@@ -605,40 +795,38 @@ describe("FactorySettingsPage", () => {
 			expectedHash: hash,
 			decision: "approved",
 		});
-		expect(projects?.textContent).not.toContain("1");
+		expect(
+			navItem("stages")?.querySelector("[data-settings-badge]"),
+		).toBeNull();
 	});
 
-	it.each([
-		{ width: 440, tabs: true },
-		{ width: 780, tabs: false },
-		{ width: 0, tabs: false },
-	])("lays sections out as tabs only under 720px ($width)", async ({
-		width,
-		tabs,
-	}) => {
-		layout.width = width;
+	it("opens project pages on the first project waiting for a decision, shared across pages", async () => {
+		projectsReply = {
+			projects: [summary("/work/api"), summary("/work/app", 1)],
+			userGuidanceChanged: [],
+		};
 		serve(handsOff());
-		await render();
-		expect(container.querySelector('[role="tablist"]') !== null).toBe(tabs);
-		expect(
-			container.querySelector('nav[aria-label="Factory settings sections"]') !==
-				null,
-		).toBe(!tabs);
-		expect(
-			container
-				.querySelector('[data-section="general"]')
-				?.getAttribute(tabs ? "aria-selected" : "aria-current"),
-		).toBe(tabs ? "true" : "page");
+		await render({
+			projects: ["/work/api", "/work/app"],
+			focus: { page: "stages" },
+		});
+		expect(control("settings-project").value).toBe("/work/app");
+		await choose("settings-project", "/work/api");
+		expect(sessionStorage.getItem("factory.settingsProject")).toBe("/work/api");
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await render({ projects: ["/work/api", "/work/app"] });
+		await openPage("stages");
+		expect(control("settings-project").value).toBe("/work/api");
 	});
 
-	it("never asks for ratings or feedback", async () => {
+	it("opens a project Factory knows that has no card on the board", async () => {
+		projectsReply = {
+			projects: [summary("/work/app"), summary("/work/lib")],
+			userGuidanceChanged: [],
+		};
 		serve(handsOff());
-		await render();
-		let text = container.textContent ?? "";
-		for (const section of ["models", "projects"] as const) {
-			await openSection(section);
-			text += container.textContent ?? "";
-		}
-		expect(text).not.toMatch(/rating|rate this|feedback|thumbs/i);
+		await render({ focus: { page: "stages", project: "/work/lib" } });
+		expect(control("settings-project").value).toBe("/work/lib");
 	});
 });

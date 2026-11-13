@@ -94,6 +94,24 @@ export function ToolApprovalPanel({
 	);
 }
 
+/**
+ * Ask Factory's priority change that needs the user's word (Urgent, or a
+ * priority the user set): the Hub's question and its from → to line.
+ */
+function factoryPriorityApproval(
+	item: ToolApprovalRequestItem,
+): { question: string; summary: string } | undefined {
+	if (item.toolName !== "factory_status") return undefined;
+	const input = item.input as Record<string, unknown> | null | undefined;
+	if (
+		input?.action !== "priority" ||
+		typeof input.question !== "string" ||
+		typeof input.summary !== "string"
+	)
+		return undefined;
+	return { question: input.question, summary: input.summary };
+}
+
 function GenericToolApprovalPanel({
 	items,
 	pendingActions,
@@ -130,7 +148,10 @@ function GenericToolApprovalPanel({
 										: ""}
 								</>
 							}
-							detail={formatApprovalInput(item.input)}
+							detail={
+								factoryPriorityApproval(item)?.summary ??
+								formatApprovalInput(item.input)
+							}
 							error={error}
 							key={item.requestId}
 							meta={
@@ -148,7 +169,7 @@ function GenericToolApprovalPanel({
 										? "reject"
 										: undefined
 							}
-							title={item.toolName}
+							title={factoryPriorityApproval(item)?.question ?? item.toolName}
 						/>
 					);
 				})}

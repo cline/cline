@@ -1545,6 +1545,7 @@ describe("AgentSidebar Factory entry", () => {
 		factoryBoard: FactoryBoardData,
 		onOpenFactoryTask = vi.fn(),
 		threads: SessionThread[] = [],
+		factoryManagerActive = false,
 	) {
 		await act(async () => {
 			root.render(
@@ -1553,6 +1554,7 @@ describe("AgentSidebar Factory entry", () => {
 						factoryBoard={factoryBoard}
 						onHome={vi.fn()}
 						onOpenFactoryTask={onOpenFactoryTask}
+						factoryManagerActive={factoryManagerActive}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(threads, vi.fn())}
 						setView={vi.fn()}
@@ -1666,6 +1668,29 @@ describe("AgentSidebar Factory entry", () => {
 		).toBeNull();
 		await click(entry() as HTMLButtonElement);
 		expect(onOpen).toHaveBeenCalledWith(FACTORY_ACTIVITY_REQUEST);
+	});
+
+	it("counts a card that could not be read, as the board's Needs you column lists it", async () => {
+		await renderSidebar(
+			board(
+				[factoryTask("failed", { status: "failed" }), factoryTask("broken")],
+				[
+					{
+						taskId: "broken",
+						questions: [],
+						needsAttention: false,
+						unreadable: { reason: "intake.key: Required" },
+					} as unknown as FactoryBoardData["attention"]["items"][number],
+				],
+			),
+		);
+		expect(entry()?.getAttribute("aria-label")).toBe("Factory, 2 need you");
+		expect(entry()?.getAttribute("aria-current")).toBeNull();
+	});
+
+	it("marks Factory as the current place while Ask Factory is open on its own page", async () => {
+		await renderSidebar(board([]), vi.fn(), [], true);
+		expect(entry()?.getAttribute("aria-current")).toBe("page");
 	});
 
 	it("shows a spinner while work runs and nothing needs the person, and nothing when idle", async () => {

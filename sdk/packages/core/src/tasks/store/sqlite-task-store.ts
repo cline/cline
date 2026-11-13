@@ -12,15 +12,23 @@ import type {
 	AgendaTaskUpdateInput,
 	FactoryDesignProgress,
 	FactoryDesignReview,
+	FactoryDuplicateReports,
+	FactoryPriorityState,
 	FactoryQuestion,
 	FactoryRunState,
 	FactoryTaskConfig,
 	GatewayModelSelection,
 } from "@cline/shared";
 import {
+	FACTORY_DUPLICATE_REPORT_KEYS_MAX,
+	FACTORY_DUPLICATE_REPORTS_RECENT,
+	FACTORY_PRIORITY_NONE_RANK,
+	FACTORY_PRIORITY_RANK,
 	factoryCheckResultSchema,
 	factoryDesignProgressSchema,
 	factoryDesignReviewSchema,
+	factoryDuplicateReportsSchema,
+	factoryPriorityStateSchema,
 	factoryQuestionSchema,
 	factoryReviewSchema,
 	factoryRunStateSchema,
@@ -120,18 +128,59 @@ function toInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
-/** Task columns plus the card's Factory queue stage, read with every task. */
+/**
+ * Task columns plus the card's Factory queue stage and enqueue time, read
+ * with every task.
+ */
 const SELECT_TASKS = `SELECT agenda_tasks.*, (SELECT stage FROM factory_queue
-	WHERE factory_queue.task_id = agenda_tasks.task_id) AS factory_queue_stage
+	WHERE factory_queue.task_id = agenda_tasks.task_id) AS factory_queue_stage,
+	(SELECT created_at FROM factory_queue
+	WHERE factory_queue.task_id = agenda_tasks.task_id) AS factory_queued_at
 	FROM agenda_tasks`;
+
+/** factoryPriorityRank in SQL, from the same table. */
+const FACTORY_PRIORITY_RANK_SQL = `CASE json_extract(agenda_tasks.factory_priority_json, '$.level')
+	${Object.entries(FACTORY_PRIORITY_RANK)
+		.map(([level, rank]) => `WHEN '${level}' THEN ${rank}`)
+		.join(" ")}
+	ELSE ${FACTORY_PRIORITY_NONE_RANK} END`;
+
+/** A stored priority that no longer parses reads as none rather than hiding the card. */
+function parseFactoryPriority(
+	value: unknown,
+): FactoryPriorityState | undefined {
+	const parsed = factoryPriorityStateSchema.safeParse(
+		parseJson<unknown>(value),
+	);
+	return parsed.success ? parsed.data : undefined;
+}
+
+/** Reports that no longer parse read as none rather than hiding the card. */
+function parseFactoryDuplicateReports(
+	value: unknown,
+): FactoryDuplicateReports | undefined {
+	const parsed = factoryDuplicateReportsSchema.safeParse(
+		parseJson<unknown>(value),
+	);
+	return parsed.success ? parsed.data : undefined;
+}
 
 function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	const queued = row.factory_queue_stage;
 	const factoryNumber = toInteger(row.factory_number);
+	const factoryPriority = parseFactoryPriority(row.factory_priority_json);
+	const factoryDuplicateReports = parseFactoryDuplicateReports(
+		row.factory_duplicate_reports_json,
+	);
 	return {
+		...(factoryDuplicateReports ? { factoryDuplicateReports } : {}),
 		...(queued === "design" || queued === "run"
-			? { factoryQueued: queued }
+			? {
+					factoryQueued: queued,
+					factoryQueuedAt: asString(row.factory_queued_at),
+				}
 			: {}),
+		...(factoryPriority ? { factoryPriority } : {}),
 		...(factoryNumber ? { factoryNumber } : {}),
 		factoryDesignProgress:
 			row.factory_design_progress_json == null
@@ -376,10 +425,11 @@ export class SqliteAgendaTaskStore {
 					model_selection_json, mode, system_prompt, max_iterations,
 					timeout_seconds, available_at, expires_at, automation_eligible,
 					revision, approved_revision, created_by_json, updated_by_json, origin_session_id,
-					origin_task_id, spec_path, created_at, updated_at, factory_json
+					origin_task_id, spec_path, created_at, updated_at, factory_json,
+					factory_priority_json
 				) VALUES (
 					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?
+					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 				)`,
 				)
 				.run(
@@ -413,6 +463,14 @@ export class SqliteAgendaTaskStore {
 					now,
 					input.factory
 						? JSON.stringify(factoryTaskConfigSchema.parse(input.factory))
+						: null,
+					input.factory && input.factoryPriority
+						? JSON.stringify(
+								factoryPriorityStateSchema.parse({
+									...input.factoryPriority,
+									at: now,
+								}),
+							)
 						: null,
 				);
 			if (input.factory) numberFactoryCards(this.db);
@@ -804,6 +862,61 @@ export class SqliteAgendaTaskStore {
 		return this.getTask(taskId);
 	}
 
+	/**
+	 * Writes only the Factory priority column: never the revision, approval,
+	 * status or `updated_at` (Delivered sorts by it). Null clears it.
+	 */
+	public setFactoryPriority(
+		taskId: string,
+		priority: FactoryPriorityState | null,
+	): AgendaTaskRecord | undefined {
+		this.db
+			.prepare(
+				"UPDATE agenda_tasks SET factory_priority_json = ? WHERE task_id = ?",
+			)
+			.run(
+				priority
+					? JSON.stringify(factoryPriorityStateSchema.parse(priority))
+					: null,
+				taskId,
+			);
+		return this.getTask(taskId);
+	}
+
+	/**
+	 * Records a later filing matched to this card as a repeat. Writes only
+	 * the reports column: never the revision, approval, status or
+	 * `updated_at`. `recent` keeps the last FACTORY_DUPLICATE_REPORTS_RECENT;
+	 * `keys` remembers each blocked `[source, key]`, oldest dropped first.
+	 */
+	public recordFactoryDuplicateReport(
+		taskId: string,
+		report: FactoryDuplicateReports["recent"][number],
+	): AgendaTaskRecord | undefined {
+		const current = this.getTask(taskId);
+		if (!current) return undefined;
+		const previous = current.factoryDuplicateReports;
+		const keys = (previous?.keys ?? []).filter(
+			([source, key]) => source !== report.source || key !== report.key,
+		);
+		if (report.source && report.key) keys.push([report.source, report.key]);
+		const next: FactoryDuplicateReports = {
+			count: (previous?.count ?? 0) + 1,
+			recent: [...(previous?.recent ?? []), report].slice(
+				-FACTORY_DUPLICATE_REPORTS_RECENT,
+			),
+			...(keys.length
+				? { keys: keys.slice(-FACTORY_DUPLICATE_REPORT_KEYS_MAX) }
+				: {}),
+		};
+		this.db
+			.prepare(
+				"UPDATE agenda_tasks SET factory_duplicate_reports_json = ? WHERE task_id = ?",
+			)
+			.run(JSON.stringify(factoryDuplicateReportsSchema.parse(next)), taskId);
+		return this.getTask(taskId);
+	}
+
 	public deleteTask(taskId: string): boolean {
 		return (
 			(this.db.prepare("DELETE FROM agenda_tasks WHERE task_id = ?").run(taskId)
@@ -1026,6 +1139,11 @@ export class SqliteAgendaTaskStore {
 			);
 	}
 
+	/**
+	 * Queue entries in start order: the card's priority rank, then when it was
+	 * queued, then task id. Read each time, so a re-prioritised card moves on
+	 * the next pump.
+	 */
 	public listFactoryQueue(): Array<{
 		taskId: string;
 		expectedRevision: number;
@@ -1034,7 +1152,11 @@ export class SqliteAgendaTaskStore {
 		stage?: "design" | "run";
 	}> {
 		return this.db
-			.prepare("SELECT * FROM factory_queue ORDER BY created_at, task_id")
+			.prepare(
+				`SELECT factory_queue.* FROM factory_queue
+				LEFT JOIN agenda_tasks ON agenda_tasks.task_id = factory_queue.task_id
+				ORDER BY ${FACTORY_PRIORITY_RANK_SQL}, factory_queue.created_at, factory_queue.task_id`,
+			)
 			.all()
 			.map((row) => ({
 				stage: z.enum(["design", "run"]).parse(row.stage),

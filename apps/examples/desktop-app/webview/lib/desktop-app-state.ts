@@ -16,8 +16,6 @@ export type DesktopThread = {
 	sessionId?: string;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
-	/** Opened from Factory → Add work; its first prompt starts a Factory intake. */
-	factoryIntake?: true;
 	/** Opened from Factory → Ask Factory; its first prompt starts the Factory manager. */
 	factoryManager?: true;
 };
@@ -41,7 +39,6 @@ export type DesktopAppAction<SettingsSection extends string> =
 			type: "new-thread";
 			threadId: string;
 			environmentId: string;
-			factoryIntake?: true;
 	  }
 	| {
 			/** Returns to an unstarted Factory manager thread, or opens one. */
@@ -144,11 +141,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				threads: [
 					...state.threads,
-					{
-						id: action.threadId,
-						environmentId: action.environmentId,
-						...(action.factoryIntake ? { factoryIntake: true as const } : {}),
-					},
+					{ id: action.threadId, environmentId: action.environmentId },
 				],
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
@@ -267,7 +260,6 @@ export function desktopAppReducer<SettingsSection extends string>(
 						thread.environmentId === action.environmentId &&
 						!thread.hasStarted &&
 						!thread.historySession &&
-						!thread.factoryIntake &&
 						!thread.factoryManager,
 				);
 			const targetThreadId = existingDraft?.id ?? action.threadId;

@@ -168,8 +168,7 @@ describe("Verification setup", () => {
 				/>,
 			),
 		);
-	const block = () =>
-		container.querySelector('[aria-label="Verification setup"]');
+	const block = () => container.querySelector('[aria-label="Test setup"]');
 
 	it("shows where the setup came from, its commands, short hash and collapsed exercise notes", async () => {
 		await show(withProfile("repository"), {
@@ -227,7 +226,7 @@ describe("Verification setup", () => {
 			}),
 		);
 		expect(block()?.textContent).toContain(
-			"overrides the repository's verification setup",
+			"overrides the repository's test setup",
 		);
 		await show(withProfile("repository", { agents: { verifier: {} } }));
 		expect(block()?.textContent).not.toContain("overrides");
@@ -235,9 +234,9 @@ describe("Verification setup", () => {
 
 	it("keeps the no-verification note and says Factory proposes one when needed", async () => {
 		await show(factoryTaskConfigSchema.parse({}), undefined, false);
-		expect(container.textContent).toContain("No app verification configured.");
+		expect(container.textContent).toContain("No test setup.");
 		expect(container.textContent).toContain(
-			"Factory proposes a verification setup when a plan needs one.",
+			"Factory proposes a test setup when a plan needs one.",
 		);
 		await show(factoryTaskConfigSchema.parse({}), undefined, true);
 		expect(container.textContent).toBe("");

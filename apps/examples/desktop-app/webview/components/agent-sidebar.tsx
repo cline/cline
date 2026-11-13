@@ -86,7 +86,7 @@ import {
 	type FactoryBoardData,
 	factoryActivity,
 	factoryCurrentAttention,
-	factoryNeedsYou,
+	factoryInNeedsYouColumn,
 	toneText,
 } from "@/components/views/factory/factory-ui";
 import {
@@ -288,6 +288,7 @@ export function AgentSidebar({
 	sessionHistory,
 	factoryBoard,
 	onOpenFactoryTask,
+	factoryManagerActive = false,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -308,6 +309,8 @@ export function AgentSidebar({
 	factoryBoard?: FactoryBoardData;
 	/** Opens a card in Factory, or Activity for `FACTORY_ACTIVITY_REQUEST`. */
 	onOpenFactoryTask?: (taskId: string) => void;
+	/** Ask Factory is open on its own page: it belongs to the Factory entry. */
+	factoryManagerActive?: boolean;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -322,6 +325,8 @@ export function AgentSidebar({
 	const factoryStatus = factoryBoard
 		? factorySidebarStatus(factoryBoard)
 		: undefined;
+	const factoryActive =
+		view === "factory" || (view === "chat" && factoryManagerActive);
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
@@ -957,11 +962,10 @@ export function AgentSidebar({
 							<span className="truncate">Session</span>
 						</Button>
 						<Button
-							aria-current={view === "factory" ? "page" : undefined}
+							aria-current={factoryActive ? "page" : undefined}
 							aria-label={FACTORY_MASTER_DETAIL.sidebarEntry(factoryStatus)}
 							className={cn(
-								view === "factory" &&
-									"bg-surface-hover text-sidebar-foreground",
+								factoryActive && "bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={() => {
 								// Factory always opens its home, which lists the cards.
@@ -1398,7 +1402,7 @@ export function factorySidebarStatus(board: FactoryBoardData): {
 		factoryActivity(task, attention.get(task.taskId)),
 	);
 	return {
-		needsYou: activities.filter(factoryNeedsYou).length,
+		needsYou: activities.filter(factoryInNeedsYouColumn).length,
 		working: activities.some((activity) => activity.column === "Working"),
 	};
 }

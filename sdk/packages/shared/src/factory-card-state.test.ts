@@ -507,7 +507,8 @@ const CASES: Case[] = [
 			task: card({
 				status: "completed",
 				approvedRevision: 2,
-				factory: handsOff,
+				// PR follow-up turned off; unset is on for hands-off work.
+				factory: { ...handsOff, watchPullRequest: false },
 			}),
 			lastRun: run(
 				{ phase: "ready", pullRequestUrl: PR, reviewSelection: localSelection },

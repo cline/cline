@@ -118,6 +118,10 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 		["agenda_tasks", "factory_design_progress_json", "TEXT"],
 		["factory_queue", "stage", "TEXT NOT NULL DEFAULT 'run'"],
 		["agenda_tasks", "factory_number", "INTEGER"],
+		// The Factory priority, written only by setFactoryPriority and creation.
+		["agenda_tasks", "factory_priority_json", "TEXT"],
+		// Repeats matched to the card, written only by recordFactoryDuplicateReport.
+		["agenda_tasks", "factory_duplicate_reports_json", "TEXT"],
 	]) {
 		const present = () =>
 			db

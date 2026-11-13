@@ -102,6 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export * from "./factory";
 export * from "./factory-card-state";
+export * from "./factory-priority";
 export {
 	FEATURE_FLAGS,
 	FeatureFlag,

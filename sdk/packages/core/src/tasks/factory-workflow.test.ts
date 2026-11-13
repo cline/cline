@@ -11,6 +11,7 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+	AgendaTaskCreateInput,
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	FactoryAppEnvironment,
@@ -26,6 +27,7 @@ import {
 	FACTORY_VERIFICATION_PROFILE_PATH,
 	factoryTaskConfigSchema,
 	factoryVerificationProfileSchema,
+	factoryWatchesPullRequest,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HubAgendaTaskCommandService } from "../hub/server/task-command-service";
@@ -53,6 +55,7 @@ import {
 	FACTORY_RULE_NOMINATION_INSTRUCTION,
 	formatFactoryKnownRuleKeys,
 } from "./factory-repo-rules";
+import { describeFactoryCard } from "./factory-tool";
 import {
 	factoryVerificationProfileFileContent,
 	factoryVerificationProfileHash,
@@ -5162,14 +5165,16 @@ describe("hands-off Factory", () => {
 		);
 	});
 
-	it("defaults publishing on and PR watching off, keeping explicit choices", async () => {
+	it("defaults publishing and PR follow-up on, keeping explicit choices", async () => {
 		const h = harness();
 		const defaults = await submit(h, {}, false);
 		expect(defaults.factory).toMatchObject({
 			autonomy: "hands_off",
 			publishPullRequest: true,
-			watchPullRequest: false,
 		});
+		// Unset reads as on for hands-off work (the one default).
+		expect(defaults.factory?.watchPullRequest).toBeUndefined();
+		expect(factoryWatchesPullRequest(defaults.factory)).toBe(true);
 		const optedOut = await submit(
 			h,
 			{ publishPullRequest: false, watchPullRequest: true },
@@ -5741,6 +5746,129 @@ describe("Factory working limit", () => {
 			(await restarted.manager.getTask(queuedAgain.taskId))?.factoryQueued,
 		).toBe("design");
 	});
+
+	it("starts queued cards by priority under a limit of 1, moves a re-prioritised card up the line and never stops the running card", async () => {
+		const h = harness({ factoryConcurrency: 1 });
+		const tracker = trackWorking(h);
+		const order: string[] = [];
+		const design = h.runtime.runDesignSession;
+		if (!design) throw new Error("Missing design runtime");
+		h.runtime.runDesignSession = vi.fn(async (id, task, ...rest) => {
+			if (!order.includes(task.taskId)) order.push(task.taskId);
+			return design(id, task, ...rest);
+		});
+		await h.manager.start();
+		// Plans wait for approval, so only scoping competes for the slot.
+		const submit = async (
+			title: string,
+			factoryPriority?: AgendaTaskCreateInput["factoryPriority"],
+		) => {
+			const task = await h.manager.createTask({
+				title,
+				type: "follow-up",
+				instructions: "Acceptance: feature.txt contains after.",
+				scope: "workspace",
+				workspaceRoot: h.repo,
+				expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+				createdBy: { kind: "user" },
+				factory: factoryTaskConfigSchema.parse({ approval: "required" }),
+				factoryPriority,
+			});
+			// Distinct enqueue times keep first-in-first-out deterministic.
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			return task;
+		};
+		const running = await submit("Running");
+		await vi.waitFor(() => expect(tracker.working()).toEqual([running.taskId]));
+		const low = await submit("Low", { level: "low", by: "person" });
+		const first = await submit("First");
+		const second = await submit("Second");
+		const last = await submit("Filed last");
+		const inLine = async () =>
+			describeFactoryCard(
+				(await h.manager.getTask(last.taskId)) as AgendaTaskRecord,
+				[],
+				h.manager.getFactoryQueueState(),
+			).queue;
+		// The running card's scoping entry stays queued until scoping ends.
+		expect(await inLine()).toBe("4th in line (1 of 1 slots in use)");
+		await h.manager.setFactoryPriority(last.taskId, "urgent", "person");
+		expect(await inLine()).toBe("1st in line (1 of 1 slots in use)");
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(tracker.working()).toEqual([running.taskId]);
+		expect(h.runtime.abortSession).not.toHaveBeenCalled();
+		tracker.ungate();
+		await vi.waitFor(() => expect(order).toHaveLength(5), { timeout: 20000 });
+		expect(order).toEqual([
+			running.taskId,
+			last.taskId,
+			first.taskId,
+			second.taskId,
+			low.taskId,
+		]);
+		expect(tracker.peak()).toBe(1);
+	}, 30000);
+});
+
+describe("Factory priority", () => {
+	it("changes without revising the plan: an approved card stays approved, a running card keeps running, and agents and the scoper are capped", async () => {
+		const h = harness({ hold: true });
+		const task = await h.create();
+		const approved = await h.manager.approveTask(
+			task.taskId,
+			{ kind: "user" },
+			task.revision,
+		);
+		const marked = await h.manager.setFactoryPriority(
+			task.taskId,
+			"high",
+			"person",
+		);
+		expect(marked).toMatchObject({
+			status: "approved",
+			revision: approved.revision,
+			approvedRevision: approved.revision,
+			updatedAt: approved.updatedAt,
+			factoryPriority: { level: "high", by: "person" },
+		});
+		await h.manager.runTask(
+			task.taskId,
+			{ kind: "user" },
+			marked.revision,
+			"test",
+		);
+		await vi.waitFor(async () =>
+			expect((await h.manager.getTask(task.taskId))?.status).toBe(
+				"in_progress",
+			),
+		);
+		await vi.waitFor(() => expect(h.builds()).toBe(1));
+		await expect(
+			h.manager.setFactoryPriority(task.taskId, "urgent", "agent"),
+		).resolves.toMatchObject({
+			status: "in_progress",
+			factoryPriority: { level: "high", by: "agent" },
+		});
+		// The scoper never replaces a person's or an agent's value.
+		await expect(
+			h.manager.setFactoryPriority(task.taskId, "low", "scoper", "Minor"),
+		).resolves.toMatchObject({
+			factoryPriority: { level: "high", by: "agent" },
+		});
+		expect(h.runtime.abortSession).not.toHaveBeenCalled();
+		const plain = await h.manager.createTask({
+			title: "Note",
+			type: "todo",
+			instructions: "Not Factory work",
+			scope: "workspace",
+			workspaceRoot: h.repo,
+			expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+			createdBy: { kind: "user" },
+		});
+		await expect(
+			h.manager.setFactoryPriority(plain.taskId, "high", "person"),
+		).rejects.toThrow("Only Factory cards have a priority");
+	});
 });
 
 describe("Factory backlog adoption", () => {
@@ -5852,10 +5980,11 @@ describe("Factory backlog adoption", () => {
 			approval: "automatic",
 			// Adoption keeps the card's stored publish setting (off here).
 			publishPullRequest: false,
-			watchPullRequest: false,
 			maxRepairRounds: 2,
 			adoptedPolicy: { source: "built_in" },
 		});
+		// PR follow-up stays unset: its one default applies.
+		expect(done?.factory?.watchPullRequest).toBeUndefined();
 		expect(h.builds()).toBe(1);
 		// Held and archived cards are left exactly as they were.
 		const stillHeld = await h.manager.getTask(hold.taskId);
@@ -6004,7 +6133,6 @@ describe("Factory backlog adoption", () => {
 			autonomy: "hands_off",
 			approval: "required",
 			publishPullRequest: true,
-			watchPullRequest: false,
 			maxCostUsd: 10,
 			adoptedPolicy: { source: "built_in", at },
 		});

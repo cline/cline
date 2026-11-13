@@ -1,16 +1,16 @@
 import { factoryRunStateSchema, factoryTaskConfigSchema } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	forgetFactoryRuns,
 	handleFactoryCommand,
 	handleFactoryLimitsCommand,
+	handleFactorySettingsCommand,
 	handleFactoryStagesCommand,
 	oncePerConnection,
 } from "./factory-commands";
-import { readFactoryIssue } from "./factory-issue-import";
 import { readFactoryDiff } from "./factory-review";
 import type { SidecarContext } from "./types";
 
-vi.mock("./factory-issue-import", () => ({ readFactoryIssue: vi.fn() }));
 vi.mock("./factory-review", () => ({ readFactoryDiff: vi.fn() }));
 
 const ctx: Pick<SidecarContext, "pendingQuestions"> = {
@@ -36,6 +36,7 @@ const ready = factoryRunStateSchema.parse({
 beforeEach(() => {
 	vi.clearAllMocks();
 	ctx.pendingQuestions.clear();
+	forgetFactoryRuns();
 });
 
 describe("Factory commands", () => {
@@ -396,6 +397,59 @@ describe("Factory commands", () => {
 		).toBeUndefined();
 	});
 
+	it("reads a finished card's runs once across sweeps until a task event names it", async () => {
+		const cards = Array.from({ length: 20 }, (_, index) => ({
+			taskId: `done-${index}`,
+			status: "completed",
+			lastRunId: `run-done-${index}`,
+			instructions: "Search notes by title.",
+			revision: 2,
+			factory,
+		}));
+		const readTask = vi.fn<Parameters<typeof handleFactoryCommand>[3]>(
+			async (command, args) =>
+				command === "task.list"
+					? {
+							tasks: [
+								...cards,
+								{
+									taskId: "live",
+									status: "in_progress",
+									currentRunId: "run-live",
+									instructions: "Search notes by title.",
+									revision: 2,
+									factory,
+								},
+							],
+						}
+					: {
+							runs: [
+								{
+									runId: `run-${args.taskId}`,
+									taskRevision: 2,
+									status: args.taskId === "live" ? "running" : "completed",
+									factory: ready,
+								},
+							],
+						},
+		);
+		const gets = () =>
+			readTask.mock.calls.filter(([command]) => command === "task.get").length;
+		const sweep = () =>
+			handleFactoryCommand(ctx, "factory_attention", undefined, readTask);
+		await sweep();
+		expect(gets()).toBe(21);
+		// Several views refreshing at once share the sweeps.
+		await Promise.all([sweep(), sweep(), sweep()]);
+		expect(readTask.mock.calls.filter(([c]) => c === "task.list")).toHaveLength(
+			3,
+		);
+		expect(gets()).toBe(23);
+		forgetFactoryRuns("done-3");
+		await sweep();
+		expect(gets()).toBe(25);
+	});
+
 	it("lists running role sessions from the run it already reads, with one read per card", async () => {
 		const attempt = (
 			sessionId: string,
@@ -648,47 +702,6 @@ describe("Factory commands", () => {
 		expect(item?.outcome?.pullRequestReady).toBe(true);
 	});
 
-	it("identifies an already imported issue only within the selected workspace", async () => {
-		const issue = {
-			title: "Feature",
-			description: "Acceptance",
-			source: {
-				provider: "github",
-				id: "I_example",
-				url: "https://github.com/example/repo/issues/1",
-			},
-		} as const;
-		vi.mocked(readFactoryIssue).mockResolvedValue(issue);
-		const readTask = vi.fn().mockResolvedValue({
-			tasks: [
-				{
-					taskId: "other",
-					workspaceRoot: "/other",
-					instructions: "Feature",
-					revision: 1,
-					status: "pending_approval",
-					factory: { ...factory, sourceIssue: issue.source },
-				},
-				{
-					taskId: "existing",
-					workspaceRoot: "/repo",
-					instructions: "Feature",
-					revision: 1,
-					status: "pending_approval",
-					factory: { ...factory, sourceIssue: issue.source },
-				},
-			],
-		});
-		expect(
-			await handleFactoryCommand(
-				ctx,
-				"factory_import_issue",
-				{ url: issue.source.url, cwd: "/repo" },
-				readTask,
-			),
-		).toEqual({ ...issue, existingTaskId: "existing" });
-	});
-
 	it("reports a card whose data fails validation as unreadable and keeps every other card", async () => {
 		const log = vi.fn();
 		const readTask = vi.fn<Parameters<typeof handleFactoryCommand>[3]>(
@@ -850,6 +863,45 @@ describe("handleFactoryLimitsCommand", () => {
 		).rejects.toThrow();
 	});
 
+	it("passes the Hub's duplicate check switch through on read and sets it alone", async () => {
+		const read = vi.fn(async () => ({
+			ok: true,
+			payload: { concurrency: 2, duplicateCheck: true },
+		}));
+		await expect(
+			handleFactoryLimitsCommand("factory_get_limits", undefined, read),
+		).resolves.toEqual({
+			supported: true,
+			concurrency: 2,
+			duplicateCheck: true,
+		});
+		const set = vi.fn(async () => ({
+			ok: true,
+			payload: { concurrency: 2, duplicateCheck: false },
+		}));
+		await expect(
+			handleFactoryLimitsCommand(
+				"factory_set_limits",
+				{ duplicateCheck: false },
+				set,
+			),
+		).resolves.toEqual({
+			supported: true,
+			concurrency: 2,
+			duplicateCheck: false,
+		});
+		expect(set).toHaveBeenCalledWith("task.factory.limits.set", {
+			duplicateCheck: false,
+		});
+		await expect(
+			handleFactoryLimitsCommand(
+				"factory_set_limits",
+				{ duplicateCheck: "off" },
+				vi.fn(),
+			),
+		).rejects.toThrow();
+	});
+
 	it.each([
 		0,
 		9,
@@ -967,19 +1019,21 @@ describe("handleFactoryLimitsCommand spending", () => {
 	});
 
 	it.each([
-		25,
-		0,
-		null,
-	])("sends dailyCostUsd %s alone to the Hub", async (dailyCostUsd) => {
+		[25, 25],
+		// One meaning end to end: empty (null) and 0 are "no daily limit",
+		// sent as null; the Hub stores it and reads it back as null.
+		[0, null],
+		[null, null],
+	])("sends dailyCostUsd %s as %s alone to the Hub", async (dailyCostUsd, sent) => {
 		const send = vi.fn(async () => ({
 			ok: true,
-			payload: { concurrency: 2, dailyCostUsd },
+			payload: { concurrency: 2, dailyCostUsd: sent },
 		}));
 		await expect(
 			handleFactoryLimitsCommand("factory_set_limits", { dailyCostUsd }, send),
-		).resolves.toEqual({ supported: true, concurrency: 2, dailyCostUsd });
+		).resolves.toEqual({ supported: true, concurrency: 2, dailyCostUsd: sent });
 		expect(send).toHaveBeenCalledWith("task.factory.limits.set", {
-			dailyCostUsd,
+			dailyCostUsd: sent,
 		});
 	});
 
@@ -1165,5 +1219,236 @@ describe("Factory repository stages", () => {
 			readTask,
 		)) as Array<{ outcome?: { activeStage?: string } }>;
 		expect(item?.outcome?.activeStage).toBe("No TODO left");
+	});
+});
+
+describe("Factory settings commands", () => {
+	const guidance = {
+		maxChars: 8000,
+		userScope: true,
+		managerReadmeDefault: "# Factory manager readme",
+		workspaceRoot: "/repo",
+		targets: [
+			{
+				role: "builder",
+				user: { status: "none", content: "", hash: "e3b0c44298fc1c14" },
+				repository: {
+					status: "changed",
+					content: "## Lint\nRun it.\n",
+					hash: "1234567890abcdef",
+					path: "/repo/.cline/factory/guidance/builder.md",
+					accepted: false,
+					inUse: false,
+					needsAcceptance: true,
+				},
+			},
+		],
+	};
+
+	it("passes each read to its Hub command and validates the reply", async () => {
+		const send = vi.fn(async () => ({ ok: true, payload: guidance }));
+		await expect(
+			handleFactorySettingsCommand(
+				"factory_get_guidance",
+				{ workspaceRoot: "/repo" },
+				send,
+			),
+		).resolves.toEqual({ supported: true, ...guidance });
+		expect(send).toHaveBeenCalledWith("task.factory.guidance.get", {
+			workspaceRoot: "/repo",
+		});
+		// A reply the webview cannot rely on is an error, not data.
+		await expect(
+			handleFactorySettingsCommand(
+				"factory_get_guidance",
+				{},
+				vi.fn(async () => ({ ok: true, payload: { targets: "x" } })),
+			),
+		).rejects.toThrow();
+	});
+
+	it("keeps the card number of a guidance change made from feedback", async () => {
+		const entry = {
+			id: "x",
+			time: "2026-11-12T00:00:00.000Z",
+			role: "builder",
+			scope: "user",
+			note: "From feedback",
+			hashBefore: "1234567890abcdef",
+			hashAfter: "fedcba0987654321",
+			before: "a",
+			after: "b",
+			source: { kind: "feedback", taskId: "task-12", factoryNumber: 12 },
+		};
+		await expect(
+			handleFactorySettingsCommand(
+				"factory_get_guidance_history",
+				{ role: "builder" },
+				async () => ({ ok: true, payload: { entries: [entry], more: false } }),
+			),
+		).resolves.toEqual({ supported: true, entries: [entry], more: false });
+	});
+
+	it("reports an older Hub as unsupported for every settings command", async () => {
+		const old = vi.fn(async () => ({
+			ok: false,
+			error: { code: "unsupported_command", message: "unknown" },
+		}));
+		for (const [command, args] of [
+			["factory_get_guidance", {}],
+			["factory_get_guidance_history", { role: "builder" }],
+			["factory_get_verification", { workspaceRoot: "/repo" }],
+			["factory_get_storage", {}],
+			["factory_get_projects", {}],
+			["factory_reset", { what: "user_guidance", dryRun: true }],
+		] as const)
+			await expect(
+				handleFactorySettingsCommand(command, args, old),
+			).resolves.toEqual({ supported: false });
+	});
+
+	it("returns a write's refusal with its code and current hash, and throws other failures", async () => {
+		const edit = {
+			role: "builder",
+			scope: "repository",
+			workspaceRoot: "/repo",
+			expectedHash: "1234567890abcdef",
+			content: "## Lint\nRun it twice.\n",
+		};
+		await expect(
+			handleFactorySettingsCommand("factory_set_guidance", edit, async () => ({
+				ok: false,
+				error: {
+					code: "factory_guidance_stale",
+					message: "This guidance changed while you were editing.",
+					details: { currentHash: "fedcba0987654321" },
+				},
+			})),
+		).resolves.toEqual({
+			supported: true,
+			ok: false,
+			error: {
+				code: "factory_guidance_stale",
+				message: "This guidance changed while you were editing.",
+				currentHash: "fedcba0987654321",
+			},
+		});
+		await expect(
+			handleFactorySettingsCommand("factory_set_guidance", edit, async () => ({
+				ok: false,
+				error: { code: "task_command_failed", message: "disk full" },
+			})),
+		).rejects.toThrow("Factory could not save the guidance: disk full");
+		const entry = {
+			id: "x",
+			time: "2026-11-12T00:00:00.000Z",
+			role: "builder",
+			scope: "repository",
+			workspaceRoot: "/repo",
+			note: "Edited in Factory settings",
+			hashBefore: "1234567890abcdef",
+			hashAfter: "fedcba0987654321",
+			before: "a",
+			after: "b",
+			source: { kind: "settings" },
+		};
+		await expect(
+			handleFactorySettingsCommand("factory_set_guidance", edit, async () => ({
+				ok: true,
+				payload: { target: guidance.targets[0], entry },
+			})),
+		).resolves.toMatchObject({ supported: true, ok: true, entry });
+	});
+
+	it("never sends invalid input, a free path or user guidance tied to a project", async () => {
+		const send = vi.fn();
+		for (const [command, args] of [
+			[
+				"factory_set_guidance",
+				{
+					role: "builder",
+					scope: "user",
+					workspaceRoot: "/repo",
+					expectedHash: "1234567890abcdef",
+					content: "x",
+				},
+			],
+			[
+				"factory_set_guidance",
+				{
+					role: "builder",
+					scope: "repository",
+					expectedHash: "1234567890abcdef",
+					content: "x",
+				},
+			],
+			[
+				"factory_set_guidance",
+				{
+					role: "operator",
+					scope: "user",
+					expectedHash: "1234567890abcdef",
+					content: "x",
+				},
+			],
+			[
+				"factory_resolve_guidance",
+				{
+					role: "builder",
+					scope: "user",
+					decision: "keep",
+					expectedHash: "1234567890abcdef",
+				},
+			],
+			[
+				"factory_set_verification",
+				{ workspaceRoot: "/repo", decision: "approve", expectedHash: "abc" },
+			],
+			["factory_get_storage", { path: "/" }],
+			["factory_clean_storage", { what: "everything" }],
+			["factory_reset", { what: "cards" }],
+			["factory_get_projects", { workspaceRoot: "/" }],
+		] as const)
+			await expect(
+				handleFactorySettingsCommand(command, args as never, send),
+			).rejects.toThrow();
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("removes finished working copies with the default what", async () => {
+		const storage = {
+			dataDir: "/data",
+			worktreesDir: "/data/factory/factory-worktrees",
+			artifactsDir: "/data/factory/factory-artifacts",
+			logsDir: "/data/factory/factory-app-logs",
+			worktrees: {
+				count: 1,
+				bytes: 10,
+				finishedCount: 0,
+				finishedBytes: 0,
+				unknownCount: 0,
+			},
+			artifactsBytes: 0,
+			logsBytes: 0,
+			approximate: false,
+			measuredAt: "2026-11-12T00:00:00.000Z",
+		};
+		const send = vi.fn(async () => ({
+			ok: true,
+			payload: { removed: 2, bytes: 2048, skipped: [], storage },
+		}));
+		await expect(
+			handleFactorySettingsCommand("factory_clean_storage", {}, send),
+		).resolves.toEqual({
+			supported: true,
+			ok: true,
+			removed: 2,
+			bytes: 2048,
+			skipped: [],
+			storage,
+		});
+		expect(send).toHaveBeenCalledWith("task.factory.storage.clean", {
+			what: "finished_worktrees",
+		});
 	});
 });

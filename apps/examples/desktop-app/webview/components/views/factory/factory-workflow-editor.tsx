@@ -57,8 +57,9 @@ const groupHeading =
 	"border-t pt-4 text-sm font-medium text-foreground first:border-t-0 first:pt-0";
 /**
  * Turns hands-off on or off. A hands-off run ends in a draft PR, so turning it
- * on also publishes (and babysits, unless the card chose otherwise); turning
- * it off leaves the card's PR settings alone.
+ * on also publishes; keeping the PR passing follows `watchPullRequest`, unset
+ * meaning on for hands-off (`factoryWatchesPullRequest`). Turning it off
+ * leaves the card's PR settings alone.
  */
 export function withHandsOff(
 	config: FactoryTaskConfig,
@@ -66,12 +67,7 @@ export function withHandsOff(
 ): FactoryTaskConfig {
 	const { autonomy: _autonomy, ...manual } = config;
 	return handsOff
-		? {
-				...config,
-				autonomy: "hands_off",
-				publishPullRequest: true,
-				watchPullRequest: config.watchPullRequest ?? true,
-			}
+		? { ...config, autonomy: "hands_off", publishPullRequest: true }
 		: manual;
 }
 function applyPreset(
@@ -104,6 +100,23 @@ const ROLE_COPY = {
 	reviewers: { label: FACTORY_ROLE_LABEL.reviewer, role: "reviewer" },
 } as const;
 
+/**
+ * A card's agents with every role list present: a stored `agents` block
+ * that lacks one (older or partial data) reads as no agents in that role
+ * rather than failing to render.
+ */
+export function factoryWorkflowAgents(
+	agents: FactoryTaskConfig["agents"],
+): NonNullable<FactoryTaskConfig["agents"]> {
+	if (!agents) return DEFAULT_FACTORY_AGENTS;
+	return {
+		...agents,
+		planReviewers: agents.planReviewers ?? [],
+		implementers: agents.implementers ?? [],
+		reviewers: agents.reviewers ?? [],
+	};
+}
+
 /** "Workflow · 1 builder · 2 plan checkers · 1 code reviewer · agent testing". */
 export function factoryWorkflowSummary(
 	agents: NonNullable<FactoryTaskConfig["agents"]>,
@@ -128,7 +141,7 @@ export function FactoryWorkflowEditor({
 	disabled: boolean;
 	onChange: (config: FactoryTaskConfig) => void;
 }) {
-	const agents = config.agents ?? DEFAULT_FACTORY_AGENTS;
+	const agents = factoryWorkflowAgents(config.agents);
 	const id = useId();
 	const advancedRef = useRef<HTMLDetailsElement>(null);
 	const participantsRef = useRef<HTMLHeadingElement>(null);
@@ -916,8 +929,8 @@ export function AgentEditor({
 					{agent.modelSelection
 						? factoryModelLabel(agent.modelSelection)
 						: agent.profile
-							? "Profile or feature model"
-							: "Feature model"}
+							? "Profile or default model"
+							: "Default model"}
 				</span>
 			</summary>
 			<div className="mt-3 space-y-3">
@@ -940,8 +953,8 @@ export function AgentEditor({
 							onClick={() => onChange({ ...agent, modelSelection: undefined })}
 						>
 							{agent.profile
-								? "Use profile or feature model"
-								: "Use feature model"}
+								? "Use profile or default model"
+								: "Use default model"}
 						</Button>
 					) : null}
 				</div>

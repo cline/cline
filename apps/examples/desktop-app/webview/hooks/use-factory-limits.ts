@@ -27,7 +27,10 @@ export function useFactoryLimits({
 		"read" | "concurrency" | "dailyCostUsd" | null
 	>(null);
 	const latest = useRef(0);
+	// Bumped by `reload`, after something else changed the Hub's limits.
+	const [version, setVersion] = useState(0);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `version` re-reads after `reload`.
 	useEffect(() => {
 		if (!enabled) {
 			setLoading(false);
@@ -55,11 +58,16 @@ export function useFactoryLimits({
 		return () => {
 			active = false;
 		};
-	}, [enabled]);
+	}, [enabled, version]);
+
+	/** Reads the limits again (after a settings reset). */
+	const reload = useCallback(() => setVersion((value) => value + 1), []);
 
 	const update = useCallback(
 		async (
-			change: Partial<Pick<SupportedLimits, "concurrency" | "dailyCostUsd">>,
+			change: Partial<
+				Pick<SupportedLimits, "concurrency" | "dailyCostUsd" | "paused">
+			>,
 			failure: string,
 		) => {
 			const previous = limits;
@@ -109,6 +117,16 @@ export function useFactoryLimits({
 		[update],
 	);
 
+	/** Pauses or resumes new work. Applies immediately. */
+	const setPaused = useCallback(
+		(paused: boolean) =>
+			update(
+				{ paused },
+				paused ? "Unable to pause new work." : "Unable to resume new work.",
+			),
+		[update],
+	);
+
 	return {
 		limits,
 		loading,
@@ -117,5 +135,7 @@ export function useFactoryLimits({
 		errorFor,
 		setConcurrency,
 		setDailyCostUsd,
+		setPaused,
+		reload,
 	};
 }

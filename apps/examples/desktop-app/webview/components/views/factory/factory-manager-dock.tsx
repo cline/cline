@@ -1,19 +1,18 @@
 "use client";
 
 import { ArrowLeft, Maximize2, SquarePen, X } from "lucide-react";
-import {
-	type KeyboardEvent,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEvent, type ReactNode, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanelFrame } from "@/components/views/chat/workspace-panel-frame";
 import { FACTORY_MANAGER } from "@/lib/factory-copy";
+import { useElementSize } from "./use-element-size";
 
-/** Below this Factory-area width the panel takes the whole area. */
-const NARROW_WIDTH = 1040;
+/**
+ * Below this Factory-area width the panel takes the whole area. From 920px
+ * (a 1180px window) the board keeps at least 560px beside a 360px panel:
+ * Working and Needs you, with Delivered a strip (factory-board-view.ts).
+ */
+export const FACTORY_MANAGER_NARROW_WIDTH = 920;
 
 export const FACTORY_MANAGER_DOCK = {
 	back: "Back to Factory",
@@ -62,21 +61,9 @@ export function FactoryManagerDock({
 	main: ReactNode;
 	panel: ReactNode;
 }) {
-	const host = useRef<HTMLDivElement>(null);
-	const [narrow, setNarrow] = useState(false);
-	useEffect(() => {
-		const element = host.current;
-		if (!element) return;
-		const measure = () => {
-			const width = element.getBoundingClientRect().width;
-			if (width > 0) setNarrow(width < NARROW_WIDTH);
-		};
-		measure();
-		if (typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, []);
+	const [host, { width }] = useElementSize();
+	// 0 is "not measured" (jsdom, first paint): the docked layout.
+	const narrow = width > 0 && width < FACTORY_MANAGER_NARROW_WIDTH;
 	const takeover = open && narrow;
 	const header = useRef<HTMLElement>(null);
 	// Esc closes from the header, or anywhere but a text field while the panel
@@ -116,32 +103,18 @@ export function FactoryManagerDock({
 						ref={header}
 						className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-2"
 					>
+						{/* The title and its tools on the left; Close alone at the right
+						    edge, where the Ask Factory toggle was before the panel
+						    opened, so a second click there closes it. */}
 						{takeover ? (
 							<Button variant="ghost" size="sm" onClick={onClose}>
 								<ArrowLeft className="mr-1 size-4" />
 								{FACTORY_MANAGER_DOCK.back}
 							</Button>
-						) : (
-							<h2 className="truncate px-1 text-sm font-semibold">
-								{FACTORY_MANAGER.title}
-							</h2>
-						)}
-						{contextCard ? (
-							<span className="ml-1 inline-flex shrink-0 items-center gap-0.5 rounded-full border bg-card py-0.5 pr-0.5 pl-2 text-xs text-muted-foreground">
-								{FACTORY_MANAGER_DOCK.about(contextCard.shortId)}
-								<button
-									type="button"
-									aria-label={FACTORY_MANAGER_DOCK.dismissContext(
-										contextCard.shortId,
-									)}
-									className="rounded-full p-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-									onClick={onDismissContext}
-								>
-									<X className="size-3" />
-								</button>
-							</span>
 						) : null}
-						<span className="flex-1" />
+						<h2 className="truncate px-1 text-sm font-semibold">
+							{FACTORY_MANAGER.title}
+						</h2>
 						<Button
 							variant="ghost"
 							size="icon"
@@ -162,6 +135,24 @@ export function FactoryManagerDock({
 						>
 							<Maximize2 className="size-4" />
 						</Button>
+						{contextCard ? (
+							<span className="ml-1 inline-flex min-w-0 shrink items-center gap-0.5 rounded-full border bg-card py-0.5 pr-0.5 pl-2 text-xs text-muted-foreground">
+								<span className="truncate">
+									{FACTORY_MANAGER_DOCK.about(contextCard.shortId)}
+								</span>
+								<button
+									type="button"
+									aria-label={FACTORY_MANAGER_DOCK.dismissContext(
+										contextCard.shortId,
+									)}
+									className="rounded-full p-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									onClick={onDismissContext}
+								>
+									<X className="size-3" />
+								</button>
+							</span>
+						) : null}
+						<span className="flex-1" />
 						{takeover ? null : (
 							<Button
 								variant="ghost"

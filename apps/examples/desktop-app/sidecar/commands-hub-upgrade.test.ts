@@ -107,6 +107,7 @@ describe("Factory Hub command routing", () => {
 		"task.factory.audit",
 		"task.factory.audit.resolve",
 		"task.factory.stamp",
+		"task.factory.priority",
 	])("routes trusted %s and rejects untrusted requests before dispatch", async (name) => {
 		const { handleCommand } = await import("./commands");
 		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
@@ -132,5 +133,67 @@ describe("Factory Hub command routing", () => {
 			handleCommand(ctx, name, args, { connection: connection(true) }),
 		).resolves.toEqual({ task: { taskId: "feature" } });
 		expect(command).toHaveBeenCalledWith(name, args);
+	});
+});
+
+describe("Factory settings command routing", () => {
+	it.each([
+		["factory_get_guidance", "task.factory.guidance.get", {}],
+		[
+			"factory_set_guidance",
+			"task.factory.guidance.set",
+			{
+				role: "builder",
+				scope: "user",
+				expectedHash: "0".repeat(16),
+				content: "## A\nB\n",
+			},
+		],
+		[
+			"factory_set_verification",
+			"task.factory.verification.set",
+			{ workspaceRoot: "/repo", decision: "remove" },
+		],
+		[
+			"factory_clean_storage",
+			"task.factory.storage.clean",
+			{ what: "finished_worktrees" },
+		],
+		[
+			"factory_reset",
+			"task.factory.reset",
+			{ what: "stage_trust", dryRun: true },
+		],
+	])("routes trusted %s to %s and rejects untrusted requests before dispatch", async (name, hubCommand, args) => {
+		const { handleCommand } = await import("./commands");
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const command = vi.spyOn(client, "command").mockResolvedValue({
+			version: "v1",
+			ok: false,
+			error: { code: "unsupported_command", message: "old" },
+		});
+		vi.mocked(ensureSharedHubClient).mockResolvedValue(client);
+		const ctx = createContext();
+		await expect(
+			handleCommand(ctx, name, args, { connection: connection(false) }),
+		).rejects.toThrow("trusted desktop connection");
+		expect(command).not.toHaveBeenCalled();
+		await expect(
+			handleCommand(ctx, name, args, { connection: connection(true) }),
+		).resolves.toEqual({ supported: false });
+		expect(command).toHaveBeenCalledWith(hubCommand, args);
+	});
+
+	it.each([
+		["factory_delete_preset", { name: "Mine" }],
+		["factory_rename_preset", { name: "Mine", newName: "Ours" }],
+		["factory_get_connections", {}],
+	])("rejects untrusted %s", async (name, args) => {
+		const { handleCommand } = await import("./commands");
+		await expect(
+			handleCommand(createContext(), name, args, {
+				connection: connection(false),
+			}),
+		).rejects.toThrow("trusted desktop connection");
 	});
 });

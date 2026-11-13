@@ -49,6 +49,7 @@ import {
 	factoryVerificationProfileSchema,
 	factoryVerificationReviewSchema,
 	factoryVerifierNeeded,
+	factoryWatchesPullRequest,
 	factoryWorkflowConfigSchema,
 	factoryWorkflowRecipeSchema,
 	formatFactoryId,
@@ -488,23 +489,47 @@ describe("Factory hands-off autonomy", () => {
 		expect(isFactoryHandsOff(undefined)).toBe(false);
 	});
 
-	it("defaults publishing on and PR watching off for hands-off raw configs only", () => {
+	it("defaults publishing on for hands-off raw configs and leaves PR watching to its one default", () => {
 		const raw = { autonomy: "hands_off", title: "x" };
 		const applied = applyFactoryAutonomyDefaults(raw);
 		expect(applied).toEqual({
 			autonomy: "hands_off",
 			title: "x",
 			publishPullRequest: true,
-			watchPullRequest: false,
 		});
 		expect(raw).not.toHaveProperty("publishPullRequest");
 		const parsed = factoryTaskConfigSchema.parse(applied);
 		expect(parsed.publishPullRequest).toBe(true);
-		expect(parsed.watchPullRequest).toBe(false);
-		// Watching is on only when asked for.
+		// Unset, so the card's workflow revision matches its workflow's; it
+		// reads as on for hands-off work.
+		expect(parsed.watchPullRequest).toBeUndefined();
+		expect(factoryWatchesPullRequest(parsed)).toBe(true);
 		expect(
-			applyFactoryAutonomyDefaults({ ...raw, watchPullRequest: true }),
-		).toMatchObject({ watchPullRequest: true });
+			applyFactoryAutonomyDefaults({ ...raw, watchPullRequest: false }),
+		).toMatchObject({ watchPullRequest: false });
+	});
+
+	it("has one PR follow-up default: an explicit choice, else on for hands-off only", () => {
+		expect(factoryWatchesPullRequest({ autonomy: "hands_off" })).toBe(true);
+		expect(
+			factoryWatchesPullRequest({
+				autonomy: "hands_off",
+				watchPullRequest: false,
+			}),
+		).toBe(false);
+		expect(factoryWatchesPullRequest({ approval: "automatic" } as never)).toBe(
+			false,
+		);
+		expect(factoryWatchesPullRequest({ watchPullRequest: true })).toBe(true);
+		expect(factoryWatchesPullRequest(undefined)).toBe(false);
+		// A workflow carries the choice; leaving it out keeps old revisions.
+		expect(
+			factoryWorkflowConfigSchema.parse({ watchPullRequest: false })
+				.watchPullRequest,
+		).toBe(false);
+		expect(factoryWorkflowConfigSchema.parse({})).not.toHaveProperty(
+			"watchPullRequest",
+		);
 	});
 
 	it("keeps explicit false choices", () => {
@@ -534,9 +559,10 @@ describe("Factory hands-off autonomy", () => {
 	it("returns non-hands-off input unchanged", () => {
 		const raw = { publishPullRequest: false };
 		expect(applyFactoryAutonomyDefaults(raw)).toBe(raw);
-		expect(
-			applyFactoryAutonomyDefaults({ approval: "automatic" }),
-		).toMatchObject({ publishPullRequest: true, watchPullRequest: false });
+		expect(applyFactoryAutonomyDefaults({ approval: "automatic" })).toEqual({
+			approval: "automatic",
+			publishPullRequest: true,
+		});
 		expect(
 			applyFactoryAutonomyDefaults({
 				approval: "automatic",

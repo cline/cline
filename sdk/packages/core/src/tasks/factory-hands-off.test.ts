@@ -881,6 +881,13 @@ describe("run completion", () => {
 		await runCard("First", ["no-floating-promises"]);
 		expect(await ruleCards()).toHaveLength(0);
 		const second = await runCard("Second", ["no-floating-promises"]);
+		// The rule card is filed as the run completes and scoped in the
+		// background; wait for that scoping to stop rather than assume it has
+		// (under a loaded suite it may still be retrying the designer).
+		await vi.waitFor(
+			async () => expect((await ruleCards())[0]?.status).toBe("failed"),
+			{ timeout: 10_000 },
+		);
 		const filed = await ruleCards();
 		expect(filed).toHaveLength(1);
 		expect(filed[0]).toMatchObject({
@@ -1104,6 +1111,25 @@ describe("safety gates", () => {
 			logs.some(([m]) => m.startsWith("factory daily spending limit reached")),
 		).toBe(true);
 		h.manager.setFactoryDailyCostUsd(5);
+		await vi.waitFor(() =>
+			expect(h.runtime.startDesignSession).toHaveBeenCalled(),
+		);
+	});
+
+	it("starts queued work whatever today's spend once the person chose no daily limit", async () => {
+		const h = await harness({ approval: "automatic" });
+		const spent = await h.create("Spent today");
+		h.patch(spent.taskId, {
+			factoryDesignSessionIds: [`factory_design_${Date.now()}_abcde`],
+		});
+		h.runtime.getSessionUsage = vi.fn(async () => usage(300));
+		h.manager.setFactoryDailyCostUsd(2);
+		expect(h.manager.setFactoryDailyCostUsd(null)).toBeNull();
+		expect(h.manager.getFactoryDailyCostUsd()).toBeNull();
+		await h.manager.start();
+		expect(await h.manager.getFactorySpentTodayUsd()).toBe(300);
+		const waiting = await h.create("Waiting");
+		await h.manager.queueFactoryScoping(waiting.taskId);
 		await vi.waitFor(() =>
 			expect(h.runtime.startDesignSession).toHaveBeenCalled(),
 		);

@@ -11,6 +11,7 @@ import {
 	factoryCheckConfigurationFindings,
 	factoryPlanHoldReason,
 	factoryRepositoryRelative,
+	factoryWatchesPullRequest,
 	isFactoryHandsOff,
 } from "./factory";
 import type { AgendaTaskRecord, AgendaTaskRunStatus } from "./tasks";
@@ -709,7 +710,8 @@ function deriveFactoryCardState({
 				reasonText: stamp.reason,
 			});
 		const watched =
-			task.factory?.watchPullRequest && !state?.pullRequestWatch?.paused;
+			factoryWatchesPullRequest(task.factory) &&
+			!state?.pullRequestWatch?.paused;
 		return delivered({
 			waitingOn: "nobody",
 			reasonCode:
@@ -839,4 +841,27 @@ function deriveFactoryCardState({
 		);
 	if (queued) return waitInQueue();
 	return notStarted();
+}
+
+/**
+ * How urgent the person's decision on a card is, lower first: stopped work,
+ * a question, a plan or conclusion to confirm, a delivery to review, a
+ * proposed rule. Undefined unless the card waits on a person. The board and
+ * `factory_status` both order Needs you by it (`compareFactoryNeedsYou`).
+ */
+export function factoryNeedsYouUrgency(
+	card: Pick<FactoryCardState, "kind" | "waitingOn" | "reasonCode">,
+): number | undefined {
+	if (card.waitingOn !== "person") return undefined;
+	switch (card.kind) {
+		case "stopped":
+			return 0;
+		case "scoping":
+			return 1;
+		case "awaiting_approval":
+		case "concluded":
+			return 2;
+		default:
+			return card.reasonCode === "rule_proposed" ? 4 : 3;
+	}
 }

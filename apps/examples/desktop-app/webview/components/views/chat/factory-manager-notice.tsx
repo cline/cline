@@ -1,11 +1,14 @@
 "use client";
 
 import { formatFactoryId } from "@cline/shared/browser";
+import { AgentWelcomeHero } from "@cline/ui";
 import { MessageSquare } from "lucide-react";
 import { useMemo } from "react";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { FACTORY_MANAGER } from "@/lib/factory-copy";
+import { cn } from "@/lib/utils";
 import { FACTORY_AGENDA_FILTERS } from "../factory/factory-ui";
+import { FactoryHardHat } from "./factory-hard-hat";
 
 type CardLike = {
 	factoryNumber?: number;
@@ -56,8 +59,14 @@ export function factoryManagerExampleCardId(
  */
 export function FactoryManagerNotice({
 	onPickExample,
+	docked = false,
 }: {
 	onPickExample?: (prompt: string) => void;
+	/**
+	 * In the docked panel: the mascot in its hard hat sits above the notice, as
+	 * on the full page, and the title is left to the panel's own header.
+	 */
+	docked?: boolean;
 }) {
 	const { tasks } = useAgendaTasks(
 		FACTORY_AGENDA_FILTERS,
@@ -69,18 +78,40 @@ export function FactoryManagerNotice({
 	);
 	return (
 		<div
-			className="mx-auto mt-6 max-w-2xl px-4 text-center"
+			className={cn(
+				"mx-auto max-w-2xl px-4 text-center",
+				// Docked: centred in the empty panel, like the full page's hero.
+				docked ? "my-auto w-full" : "mt-6",
+			)}
 			data-factory-notice="manager"
 		>
-			<p className="flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
-				<span
+			{docked ? (
+				// The welcome hero is drawn for a full page; scaled and clipped
+				// here so the same mascot fits the panel's width.
+				<div
 					aria-hidden
-					className="flex size-5 items-center justify-center rounded-md border bg-card text-foreground"
+					// The hero's grid fades out at both sides, so no box edge shows.
+					className="relative -mx-4 mb-2 h-[170px] overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_14%,black_86%,transparent)]"
+					data-factory-mascot=""
 				>
-					<MessageSquare className="size-3" />
-				</span>
-				{FACTORY_MANAGER.title}
-			</p>
+					<div className="absolute inset-x-0 top-5 origin-top scale-[0.7]">
+						<div className="relative">
+							<AgentWelcomeHero />
+							<FactoryHardHat />
+						</div>
+					</div>
+				</div>
+			) : (
+				<p className="flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
+					<span
+						aria-hidden
+						className="flex size-5 items-center justify-center rounded-md border bg-card text-foreground"
+					>
+						<MessageSquare className="size-3" />
+					</span>
+					{FACTORY_MANAGER.title}
+				</p>
+			)}
 			<p className="mt-1 text-sm text-muted-foreground">
 				{FACTORY_MANAGER.description}
 			</p>

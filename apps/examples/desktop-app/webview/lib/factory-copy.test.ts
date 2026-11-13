@@ -22,6 +22,7 @@ import {
 	factoryReviewRequest,
 	factoryRoleCount,
 	factoryWorkingLimit,
+	factoryWorkingOverLimit,
 } from "./factory-copy";
 
 describe("Factory copy", () => {
@@ -42,8 +43,9 @@ describe("Factory copy", () => {
 	});
 
 	it("states the working limit, and when it is lowered below the running work", () => {
-		expect(factoryWorkingLimit(2, 3)).toBe("of 3");
-		expect(factoryWorkingLimit(15, 3)).toBe("(limit 3, no new work starts)");
+		expect(factoryWorkingLimit(3)).toBe("of 3");
+		expect(factoryWorkingOverLimit(2, 3)).toBeUndefined();
+		expect(factoryWorkingOverLimit(15, 3)).toMatch(/limit of 3/);
 	});
 
 	it("describes feedback and finished work without engine terms", () => {
@@ -91,7 +93,7 @@ describe("Factory copy", () => {
 			"a possible security issue, kept off the PR",
 		);
 		expect(factoryReviewReason("verification profile changed")).toBe(
-			"changes the verification setup",
+			"changes the test setup",
 		);
 		expect(factoryReviewReason("something new")).toBe("something new");
 		expect(factoryReviewRequest("shared contract")).toBe(

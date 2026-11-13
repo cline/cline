@@ -8,7 +8,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgendaTaskRecord, FactoryReviewSelection } from "@cline/shared";
-import { factoryTaskConfigSchema } from "@cline/shared";
+import {
+	FACTORY_PRIORITY_RANK,
+	factoryPriorityRank,
+	factoryTaskConfigSchema,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HubAgendaTaskCommandService } from "../hub/server/task-command-service";
 import {
@@ -1590,5 +1594,102 @@ describe("Factory design review", () => {
 		expect(rescoping).toContain("New user scope");
 		expect(rescoping).not.toContain("Specify empty-input behavior");
 		expect((await h.current()).revision).toBeGreaterThan(edited.revision);
+	});
+});
+
+describe("Factory scoper priority estimate", () => {
+	const designWith = (
+		h: Awaited<ReturnType<typeof harness>>,
+		priority: unknown,
+	) =>
+		vi
+			.mocked(h.runtime.runDesignSession)
+			.mockImplementation(async (sessionId, task) => ({
+				status: "completed",
+				summary:
+					sessionId === "designer"
+						? JSON.stringify({
+								instructions: `Proposed brief for ${task.revision}`,
+								checks: task.factory?.checks,
+								acceptanceCriteria: criteria,
+								priority,
+							})
+						: pass,
+			}));
+	const scope = async (h: Awaited<ReturnType<typeof harness>>) => {
+		const before = (await h.current()).revision;
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () => {
+			const current = await h.current();
+			expect(current.revision).toBeGreaterThan(before);
+			expect(current.factoryDesignProgress?.phase).toBe("complete");
+		});
+		return h.current();
+	};
+	const designerPrompt = (h: Awaited<ReturnType<typeof harness>>) =>
+		vi
+			.mocked(h.runtime.runDesignSession)
+			.mock.calls.filter(([id]) => id === "designer")
+			.at(-1)?.[1].instructions;
+
+	it("stores the estimate with its reason as the scoper's, and a re-scope refreshes it", async () => {
+		const h = await harness();
+		designWith(h, { level: "high", reason: "Checkout fails for every user" });
+		await expect(scope(h)).resolves.toMatchObject({
+			factoryPriority: {
+				level: "high",
+				by: "scoper",
+				reason: "Checkout fails for every user",
+			},
+		});
+		expect(designerPrompt(h)).toContain('Optionally include "priority"');
+		const current = await h.current();
+		const edited = await h.manager.updateTask({
+			taskId: current.taskId,
+			expectedRevision: current.revision,
+			instructions: "Checkout fails for one customer",
+			updatedBy: { kind: "user" },
+		});
+		expect(edited.factoryPriority?.level).toBe("high");
+		designWith(h, { level: "low", reason: "One customer" });
+		await expect(scope(h)).resolves.toMatchObject({
+			factoryPriority: { level: "low", by: "scoper", reason: "One customer" },
+		});
+	});
+
+	it("never replaces a person's priority and does not ask for an estimate then", async () => {
+		const h = await harness();
+		await h.manager.setFactoryPriority(h.task.taskId, "low", "person");
+		designWith(h, { level: "high", reason: "Sounds bad" });
+		await expect(scope(h)).resolves.toMatchObject({
+			factoryPriority: { level: "low", by: "person" },
+		});
+		expect(designerPrompt(h)).not.toContain('"priority"');
+	});
+
+	it("keeps a person's No priority through a later scoping", async () => {
+		const h = await harness();
+		await h.manager.setFactoryPriority(h.task.taskId, "high", "scoper");
+		await h.manager.setFactoryPriority(h.task.taskId, null, "person");
+		designWith(h, { level: "high", reason: "Sounds bad" });
+		const scoped = await scope(h);
+		expect(scoped.factoryPriority).toMatchObject({
+			level: "none",
+			by: "person",
+		});
+		expect(factoryPriorityRank(scoped)).toBe(FACTORY_PRIORITY_RANK.medium);
+		expect(designerPrompt(h)).not.toContain('"priority"');
+	});
+
+	it.each([
+		["urgent", { level: "urgent", reason: "Outage" }],
+		["malformed", "soon"],
+	])("drops the %s estimate without failing scoping", async (_name, priority) => {
+		const h = await harness();
+		designWith(h, priority);
+		const scoped = await scope(h);
+		expect(scoped.instructions).toBe(`Proposed brief for ${h.task.revision}`);
+		expect(scoped.factoryPriority).toBeUndefined();
+		expect(scoped.error).toBeUndefined();
 	});
 });

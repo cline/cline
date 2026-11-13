@@ -1,7 +1,41 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { formatFactoryId } from "@cline/shared/browser";
+import {
+	AlertTriangle,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	ExternalLink,
+	FolderOpen,
+	Info,
+} from "lucide-react";
+import { type ReactNode, type RefObject, useEffect, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "@/components/ui/input-group";
 import {
 	Select,
 	SelectContent,
@@ -11,8 +45,12 @@ import {
 } from "@/components/ui/select";
 import { FACTORY_SETTINGS } from "@/lib/factory-copy";
 import { parseFactoryCostInput } from "@/lib/factory-limits";
+import { FS_AUTOMATION } from "@/lib/factory-settings-copy/automation";
+import { FS_COPY, FS_SHELL } from "@/lib/factory-settings-copy/shell";
 import { cn } from "@/lib/utils";
-import type { DefaultWorkflow } from "./factory-settings";
+import { type FactoryTone, StatusPill, toneText } from "./factory-ui";
+
+export { StatusPill };
 
 /**
  * The app's settings row, compact variant (as in notification settings):
@@ -98,6 +136,36 @@ export function GroupHeading({
 			{children}
 			{hint ? <span className="font-normal">{hint}</span> : null}
 		</h3>
+	);
+}
+
+/**
+ * A group heading with its hint, and a pill or one button at the right
+ * ("Repository stages · cline · .cline/factory/stages.json [Add stage]").
+ */
+export function GroupHeadingRow({
+	title,
+	hint,
+	pill,
+	action,
+}: {
+	title: ReactNode;
+	hint?: ReactNode;
+	pill?: ReactNode;
+	action?: ReactNode;
+}) {
+	if (!pill && !action) return <GroupHeading hint={hint}>{title}</GroupHeading>;
+	return (
+		<div className="mt-[18px] flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b pb-1.5">
+			<h3 className="flex min-w-0 flex-1 items-baseline gap-2 text-xs font-semibold text-muted-foreground">
+				{title}
+				{hint ? <span className="truncate font-normal">{hint}</span> : null}
+			</h3>
+			<div className="flex shrink-0 items-center gap-1.5">
+				{pill}
+				{action}
+			</div>
+		</div>
 	);
 }
 
@@ -205,45 +273,775 @@ export function useCostText(
 	});
 }
 
-/** Section title, scope line and, on a load failure, the way to retry. */
-export function SectionTitle({
+/**
+ * A page's title, its scope line and, on pages that edit the default
+ * workflow, "Saved to the default workflow, {name}." with the name opening
+ * Workflows. `action` sits at the right of the title (a project select,
+ * "Check again"); `alert` under the scope (a load failure).
+ */
+export function PageTitle({
 	id,
 	title,
 	scope,
-	workflow,
+	savedTo,
 	action,
+	alert,
 }: {
 	id: string;
-	title: string;
-	scope: string;
-	workflow?: Pick<DefaultWorkflow, "presets">;
+	title: ReactNode;
+	scope: ReactNode;
+	savedTo?: { name: string; onOpen: () => void };
 	action?: ReactNode;
+	alert?: ReactNode;
 }) {
-	const loadError = workflow?.presets.error;
 	return (
-		<>
-			<div className="flex items-end gap-3">
+		<div className="mb-1">
+			<div className="flex min-h-[30px] items-center gap-3">
 				<h2 id={id} className="text-base leading-[22px] font-semibold">
 					{title}
 				</h2>
-				{action ? <div className="ml-auto">{action}</div> : null}
+				{action ? (
+					<div className="ml-auto flex shrink-0 items-center gap-2">
+						{action}
+					</div>
+				) : null}
 			</div>
-			<p className="mt-0.5 text-[12.5px] leading-[18px] text-muted-foreground">
+			<p
+				data-page-scope=""
+				className="mt-1 max-w-[640px] text-[12.5px] leading-[18px] text-muted-foreground"
+			>
 				{scope}
+				{savedTo ? (
+					<>
+						{" "}
+						{FS_SHELL.savedTo}{" "}
+						<button
+							type="button"
+							className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							onClick={savedTo.onOpen}
+						>
+							{savedTo.name}
+						</button>
+						.
+					</>
+				) : null}
 			</p>
-			{loadError ? (
-				<p role="alert" className="mt-2 text-xs text-destructive">
-					{FACTORY_SETTINGS.loadFailed} {loadError}{" "}
+			{alert}
+		</div>
+	);
+}
+
+/**
+ * A card's short id ("F12") as a link: leaves settings and opens the card.
+ * A card without a number reads "a card".
+ */
+export function CardLink({
+	card,
+	onOpen,
+}: {
+	card: { taskId: string; factoryNumber?: number };
+	onOpen: (taskId: string) => void;
+}) {
+	return (
+		<button
+			type="button"
+			data-card-link={card.taskId}
+			className="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			onClick={() => onOpen(card.taskId)}
+		>
+			{card.factoryNumber
+				? formatFactoryId(card.factoryNumber)
+				: FS_SHELL.aCard}
+		</button>
+	);
+}
+
+/** A whole number field that commits on blur or Enter. */
+export function NumberField({
+	id,
+	value,
+	min,
+	max,
+	disabled,
+	onCommit,
+	className,
+	label,
+}: {
+	/** The row id: the field is labelled by its title and description. */
+	id: string;
+	value: number;
+	min: number;
+	max: number;
+	disabled?: boolean;
+	onCommit: (value: number) => void;
+	className?: string;
+	/** An own name, where one row has two fields (steps, minutes). */
+	label?: string;
+}) {
+	const field = useCommittedText<number>(value, {
+		parse: (text) => {
+			const trimmed = text.trim();
+			const number = Number(trimmed);
+			return /^\d+$/.test(trimmed) && number >= min && number <= max
+				? { ok: true, value: number }
+				: { ok: false };
+		},
+		format: String,
+	});
+	const commit = () => {
+		const change = field.changed();
+		if (change) onCommit(change.value);
+	};
+	return (
+		<div className="flex flex-col items-end gap-1">
+			<Input
+				type="number"
+				min={min}
+				max={max}
+				step={1}
+				data-setting-control={id}
+				className={cn(
+					"h-[30px] w-[46px] px-2 text-[13px] tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+					className,
+				)}
+				aria-invalid={!field.valid || undefined}
+				disabled={disabled}
+				value={field.text}
+				{...(label ? { "aria-label": label } : rowLabels(id))}
+				onChange={(event) => field.setText(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") commit();
+				}}
+			/>
+			{field.valid ? null : (
+				<p role="alert" className="text-xs text-destructive">
+					{FS_AUTOMATION.numberInvalid(min, max)}
+				</p>
+			)}
+		</div>
+	);
+}
+
+/** A whole number that may be empty (no value); saves on blur or Enter. */
+export function OptionalNumber({
+	id,
+	label,
+	value,
+	min,
+	max,
+	placeholder,
+	disabled,
+	onCommit,
+}: {
+	id: string;
+	label: string;
+	value: number | null;
+	min: number;
+	max: number;
+	placeholder: string;
+	disabled: boolean;
+	onCommit: (value: number | null) => void;
+}) {
+	const field = useCommittedText<number | null>(value, {
+		parse: (text) => {
+			const trimmed = text.trim();
+			if (!trimmed) return { ok: true, value: null };
+			const number = Number(trimmed);
+			return /^\d+$/.test(trimmed) && number >= min && number <= max
+				? { ok: true, value: number }
+				: { ok: false };
+		},
+		format: (number) => (number === null ? "" : String(number)),
+	});
+	const commit = () => {
+		const change = field.changed();
+		if (change) onCommit(change.value);
+	};
+	return (
+		<span className="flex flex-col items-end gap-1">
+			<Input
+				type="number"
+				min={min}
+				max={max}
+				step={1}
+				data-setting-control={id}
+				aria-label={label}
+				aria-describedby={`${id}-description`}
+				aria-invalid={!field.valid || undefined}
+				placeholder={placeholder}
+				className="h-[30px] w-[62px] px-2 text-[13px] tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+				disabled={disabled}
+				value={field.text}
+				onChange={(event) => field.setText(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") commit();
+				}}
+			/>
+			{field.valid ? null : (
+				<span role="alert" className="text-xs text-destructive">
+					{FS_SHELL.numberOrEmptyInvalid(min, max)}
+				</span>
+			)}
+		</span>
+	);
+}
+
+/** "$ [10.00]": a dollar field that commits on blur or Enter; empty is null. */
+export function CostField({
+	id,
+	field,
+	disabled,
+	onCommit,
+	inputRef,
+}: {
+	id: string;
+	field: ReturnType<typeof useCostText>;
+	disabled: boolean;
+	onCommit: (value: number | null) => void;
+	inputRef?: RefObject<HTMLInputElement | null>;
+}) {
+	const commit = () => {
+		const change = field.changed();
+		if (change) onCommit(change.value);
+	};
+	return (
+		<InputGroup
+			className="h-[30px] w-[78px]"
+			data-disabled={disabled || undefined}
+		>
+			<InputGroupAddon className="pr-0 pl-2.5 text-xs">$</InputGroupAddon>
+			<InputGroupInput
+				ref={inputRef}
+				id={`${id}-input`}
+				data-setting-control={id}
+				type="number"
+				inputMode="decimal"
+				step={0.01}
+				placeholder={FACTORY_SETTINGS.general.noLimitPlaceholder}
+				className="h-full [appearance:textfield] pr-2 pl-1 text-[13px] tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+				aria-invalid={!field.valid || undefined}
+				disabled={disabled}
+				value={field.text}
+				{...rowLabels(id)}
+				onChange={(event) => field.setText(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") commit();
+				}}
+			/>
+		</InputGroup>
+	);
+}
+
+/**
+ * A row that opens another settings page (or a project in one): the whole
+ * row is one button named by its title and status, with a pill and a
+ * chevron at the right.
+ */
+export function OpenRow({
+	id,
+	title,
+	description,
+	pill,
+	label,
+	disabled,
+	onOpen,
+}: {
+	id: string;
+	title: ReactNode;
+	description?: ReactNode;
+	/** A status pill: `{ tone, text }`. */
+	pill?: { tone: FactoryTone; text: string };
+	/** Text before the chevron ("Open", "Roles & models"). */
+	label?: string;
+	disabled?: boolean;
+	onOpen: () => void;
+}) {
+	return (
+		<div data-setting={id} data-row-kind="open" className="border-b">
+			<button
+				type="button"
+				disabled={disabled}
+				onClick={onOpen}
+				aria-describedby={description ? `${id}-description` : undefined}
+				// The hover fill reaches 8px past the text on each side as two
+				// shadows, which paint without widening the row (no overflow).
+				className="flex w-full items-center justify-between gap-5 rounded-md py-3 text-left hover:bg-surface-hover hover:shadow-[-8px_0_0_var(--color-surface-hover),8px_0_0_var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+			>
+				<span className="min-w-0 flex-1">
+					<span id={`${id}-title`} className="block text-sm font-medium">
+						{title}
+						{pill ? <span className="sr-only">{`, ${pill.text}`}</span> : null}
+					</span>
+					{description ? (
+						<span
+							id={`${id}-description`}
+							className="mt-0.5 block max-w-[490px] text-xs text-muted-foreground"
+						>
+							{description}
+						</span>
+					) : null}
+				</span>
+				<span aria-hidden className="flex shrink-0 items-center gap-2">
+					{pill ? <StatusPill tone={pill.tone}>{pill.text}</StatusPill> : null}
+					{label ? (
+						<span className="text-xs text-muted-foreground">{label}</span>
+					) : null}
+					<ChevronRight className="size-3.5 text-muted-foreground" />
+				</span>
+			</button>
+		</div>
+	);
+}
+
+/**
+ * A row whose content is revealed under it: "Show" / "Hide" and a chevron
+ * on the right, a button with `aria-expanded` and `aria-controls`.
+ */
+export function DisclosureRow({
+	id,
+	title,
+	description,
+	pill,
+	label,
+	defaultOpen = false,
+	children,
+}: {
+	id: string;
+	title: ReactNode;
+	description?: ReactNode;
+	pill?: ReactNode;
+	/** The closed button's text; "Show" by default. */
+	label?: string;
+	defaultOpen?: boolean;
+	children: ReactNode;
+}) {
+	const [open, setOpen] = useState(defaultOpen);
+	const contentId = `${id}-content`;
+	return (
+		<div data-setting={id} data-row-kind="disclosure" className="border-b">
+			<div className="flex items-center justify-between gap-5 py-3">
+				<div className="min-w-0 flex-1">
+					<p id={`${id}-title`} className="text-sm font-medium">
+						{title}
+					</p>
+					{description ? (
+						<p
+							id={`${id}-description`}
+							className="mt-0.5 max-w-[490px] text-xs text-muted-foreground"
+						>
+							{description}
+						</p>
+					) : null}
+				</div>
+				<div className="flex shrink-0 items-center gap-2">
+					{pill}
 					<Button
 						variant="ghost"
 						size="xs"
-						disabled={workflow?.presets.loading}
-						onClick={workflow?.presets.reload}
+						aria-expanded={open}
+						aria-controls={contentId}
+						aria-describedby={`${id}-title`}
+						className="h-[26px] gap-1 px-2 text-xs text-muted-foreground"
+						onClick={() => setOpen((value) => !value)}
 					>
-						{FACTORY_SETTINGS.reload}
+						{open ? FS_SHELL.hide : (label ?? FS_SHELL.show)}
+						{open ? (
+							<ChevronDown aria-hidden className="size-3.5" />
+						) : (
+							<ChevronRight aria-hidden className="size-3.5" />
+						)}
 					</Button>
-				</p>
+				</div>
+			</div>
+			<div id={contentId} hidden={!open} className="pb-3">
+				{open ? children : null}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * A row's action: one outline button. Verbs ending in "…" open a
+ * confirmation; `danger` is the red variant; `outside` adds the
+ * external-link icon (opens app Settings or the browser); `folder` the
+ * Finder icon.
+ */
+export function ActionButton({
+	children,
+	onClick,
+	disabled,
+	danger,
+	icon,
+	primary,
+	...rest
+}: {
+	children: ReactNode;
+	onClick: () => void;
+	disabled?: boolean;
+	danger?: boolean;
+	primary?: boolean;
+	icon?: "outside" | "folder";
+	"aria-describedby"?: string;
+	"aria-label"?: string;
+}) {
+	const Icon =
+		icon === "outside" ? ExternalLink : icon === "folder" ? FolderOpen : null;
+	return (
+		<Button
+			variant={primary ? "default" : "outline"}
+			size="xs"
+			disabled={disabled}
+			onClick={onClick}
+			className={cn(
+				"h-[26px] gap-1.5 px-2.5 text-xs",
+				danger &&
+					"border-destructive/60 text-error-text hover:bg-destructive/10 hover:text-error-text dark:border-destructive/60",
+			)}
+			{...rest}
+		>
+			{Icon ? <Icon aria-hidden className="size-3.5" /> : null}
+			{children}
+		</Button>
+	);
+}
+
+/**
+ * A modal confirmation: title, what happens, the count affected, and Cancel
+ * (focused first) beside the verb. Focus returns to the button that opened
+ * it.
+ */
+export function ConfirmDialog({
+	open,
+	title,
+	body,
+	detail,
+	verb,
+	danger = true,
+	busy,
+	error,
+	onConfirm,
+	onCancel,
+}: {
+	open: boolean;
+	title: string;
+	body: ReactNode;
+	/** The count affected ("3 stages in 2 projects"). */
+	detail?: ReactNode;
+	verb: string;
+	danger?: boolean;
+	busy?: boolean;
+	error?: string;
+	onConfirm: () => void;
+	onCancel: () => void;
+}) {
+	return (
+		<AlertDialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next) onCancel();
+			}}
+		>
+			<AlertDialogContent data-settings-confirm="">
+				<AlertDialogHeader>
+					<AlertDialogTitle>{title}</AlertDialogTitle>
+					<AlertDialogDescription asChild>
+						<div className="space-y-2">
+							<p>{body}</p>
+							{detail ? (
+								<p className="font-medium text-foreground">{detail}</p>
+							) : null}
+						</div>
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				{error ? (
+					<p role="alert" className="text-xs text-destructive">
+						{error}
+					</p>
+				) : null}
+				<AlertDialogFooter>
+					<AlertDialogCancel autoFocus disabled={busy}>
+						{FS_SHELL.cancel}
+					</AlertDialogCancel>
+					<Button
+						variant={danger ? "destructive" : "default"}
+						disabled={busy}
+						onClick={onConfirm}
+					>
+						{verb}
+					</Button>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+}
+
+/**
+ * A modal with fields (Save as, Import, choosing a new default): title, what
+ * happens, the fields, an error, and Cancel beside the verb. Enter in a field
+ * submits. `ConfirmDialog` stays the one for plain confirmations; this is
+ * for dialogs the person fills in.
+ */
+export function FormDialog({
+	open,
+	title,
+	description,
+	children,
+	error,
+	verb,
+	danger,
+	busy,
+	canSubmit = true,
+	secondary,
+	onSubmit,
+	onCancel,
+	name,
+}: {
+	open: boolean;
+	title: string;
+	description: ReactNode;
+	children?: ReactNode;
+	error?: string;
+	verb: string;
+	danger?: boolean;
+	busy?: boolean;
+	canSubmit?: boolean;
+	/** A second button before the verb ("Back"). */
+	secondary?: { label: string; onClick: () => void };
+	onSubmit: () => void;
+	onCancel: () => void;
+	/** `data-settings-dialog`, for tests and captures. */
+	name: string;
+}) {
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				if (!next && !busy) onCancel();
+			}}
+		>
+			<DialogContent
+				showCloseButton={false}
+				data-settings-dialog={name}
+				className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-w-[520px]"
+			>
+				<form
+					className="grid gap-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (canSubmit && !busy) onSubmit();
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle className="text-base">{title}</DialogTitle>
+						<DialogDescription className="text-xs">
+							{description}
+						</DialogDescription>
+					</DialogHeader>
+					{children}
+					{error ? (
+						<p role="alert" className="text-xs text-destructive">
+							{error}
+						</p>
+					) : null}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={busy}
+							onClick={onCancel}
+						>
+							{FS_SHELL.cancel}
+						</Button>
+						{secondary ? (
+							<Button
+								type="button"
+								variant="outline"
+								disabled={busy}
+								onClick={secondary.onClick}
+							>
+								{secondary.label}
+							</Button>
+						) : null}
+						<Button
+							type="submit"
+							variant={danger ? "destructive" : "default"}
+							disabled={busy || !canSubmit}
+						>
+							{verb}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * A page banner (`role="status"`): paused, proposed, changed outside
+ * Factory. Buttons sit at the right and wrap under the text when narrow.
+ */
+export function SettingsBanner({
+	tone = "attention",
+	title,
+	children,
+	actions,
+}: {
+	tone?: Extract<FactoryTone, "attention" | "danger" | "neutral">;
+	title?: ReactNode;
+	children?: ReactNode;
+	actions?: ReactNode;
+}) {
+	const Icon = tone === "neutral" ? Info : AlertTriangle;
+	return (
+		<output
+			data-settings-banner={tone}
+			className={cn(
+				"mt-3 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5 text-xs",
+				tone === "attention" && "border-amber-500/40 bg-amber-500/5",
+				tone === "danger" && "border-destructive/40 bg-destructive/5",
+				tone === "neutral" && "bg-card",
+			)}
+		>
+			<Icon
+				aria-hidden
+				className={cn("mt-0.5 size-3.5 shrink-0", toneText(tone))}
+			/>
+			<p className="min-w-[200px] flex-1 text-muted-foreground">
+				{title ? (
+					<span className="font-medium text-foreground">{title}</span>
+				) : null}
+				{title && children ? " " : null}
+				{children}
+			</p>
+			{actions ? (
+				<div className="ml-auto flex shrink-0 items-center gap-1.5">
+					{actions}
+				</div>
 			) : null}
+		</output>
+	);
+}
+
+/**
+ * The one line a row group shows when its command is missing from this build
+ * (or its Hub is too old), in place of controls that would do nothing.
+ */
+export function UnavailableNote({
+	reason = "build",
+	children,
+}: {
+	reason?: "build" | "hub";
+	/** Names the group: "Working copies: not available in this build." */
+	children?: ReactNode;
+}) {
+	return (
+		<p
+			data-settings-unavailable={reason}
+			className="border-b py-3 text-xs text-muted-foreground"
+		>
+			{children ??
+				(reason === "hub" ? FS_SHELL.hubTooOld : FS_SHELL.notAvailable)}
+		</p>
+	);
+}
+
+/** A same-size grey block in place of a pill or value while loading. */
+export function SettingSkeleton({ className }: { className?: string }) {
+	return (
+		<span
+			aria-hidden
+			className={cn(
+				"inline-block h-4 w-[60px] animate-pulse rounded bg-muted",
+				className,
+			)}
+		/>
+	);
+}
+
+/** "/Users/me/x" → "~/x" for display; the copy button copies the full path. */
+export function tildePath(path: string): string {
+	return path.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, "~");
+}
+
+/**
+ * A path or a command as selectable text under a row's description. There is
+ * no "Show in Finder" command, so the text itself is what the person uses.
+ */
+export function CopyableText({
+	text,
+	display,
+}: {
+	text: string;
+	display?: string;
+}) {
+	return (
+		<code
+			title={text}
+			data-copyable-text=""
+			className="mt-1 block max-w-[490px] break-all font-mono text-[11.5px] leading-[16px] text-muted-foreground select-text"
+		>
+			{display ?? text}
+		</code>
+	);
+}
+
+/**
+ * Copies `text` to the clipboard: "Copy", then "Copied" for 2 seconds, or an
+ * alert when the clipboard refuses.
+ */
+export function CopyButton({
+	text,
+	what,
+	children = FS_COPY.copy,
+}: {
+	text: string;
+	/** Names the button for screen readers: "Copy {what}". */
+	what: string;
+	children?: string;
+}) {
+	const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+	useEffect(() => {
+		if (state !== "copied") return;
+		const timer = setTimeout(() => setState("idle"), 2000);
+		return () => clearTimeout(timer);
+	}, [state]);
+	return (
+		<>
+			<ActionButton
+				aria-label={FS_COPY.label(what)}
+				onClick={() => {
+					const clipboard = globalThis.navigator?.clipboard;
+					if (!clipboard) {
+						setState("failed");
+						return;
+					}
+					clipboard.writeText(text).then(
+						() => setState("copied"),
+						() => setState("failed"),
+					);
+				}}
+			>
+				{state === "copied" ? (
+					<Check aria-hidden className="size-3.5" />
+				) : (
+					<Copy aria-hidden className="size-3.5" />
+				)}
+				{state === "copied" ? FS_COPY.copied : children}
+			</ActionButton>
+			{state === "failed" ? (
+				<span
+					role="alert"
+					className="basis-full text-right text-xs text-destructive"
+				>
+					{FS_COPY.failed}
+				</span>
+			) : null}
+			<span aria-live="polite" className="sr-only">
+				{state === "copied" ? FS_COPY.copied : ""}
+			</span>
 		</>
 	);
 }

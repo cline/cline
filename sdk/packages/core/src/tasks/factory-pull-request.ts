@@ -6,6 +6,7 @@ import {
 	DEFAULT_FACTORY_AGENTS,
 	type FactoryPullRequestChecks,
 	type FactoryRunState,
+	factoryWatchesPullRequest,
 	parseFactoryJson,
 } from "@cline/shared";
 import { z } from "zod";
@@ -23,6 +24,12 @@ import {
 	type FactoryWorkflowInput,
 	runFactoryWorkflow,
 } from "./factory-workflow";
+
+/**
+ * A draft PR Factory only watches to learn what became of it (no PR
+ * follow-up) is not polled once its run completed this long ago.
+ */
+export const FACTORY_OUTCOME_WATCH_MAX_AGE_DAYS = 14;
 
 const commentSchema = z.object({
 	id: z.string(),
@@ -413,7 +420,7 @@ export async function runFactoryPullRequestFollowup(
 	}
 	// Read-only watching never pushes or comments, so a head someone else
 	// pushed is no hazard; it keeps watching until the PR closes.
-	if (!config.watchPullRequest) {
+	if (!factoryWatchesPullRequest(config)) {
 		save({ phase: "watching" });
 		return "idle";
 	}

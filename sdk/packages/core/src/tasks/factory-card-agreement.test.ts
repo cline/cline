@@ -5,9 +5,17 @@
  */
 import { factoryCardState, factoryPlanApprovalBlocker } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
-import { FACTORY_CARD_FIXTURES } from "../../../shared/src/__tests__/factory-card-fixtures";
-import { describeFactoryCard, type FactoryStage } from "./factory-tool";
+import {
+	FACTORY_BOARD_FIXTURES,
+	FACTORY_CARD_FIXTURES,
+	FACTORY_NEEDS_YOU_ORDER,
+	// biome-ignore lint/style/noRestrictedImports: the card fixtures are shared test data, not part of @cline/shared's published entrypoints
+} from "../../../shared/src/__tests__/factory-card-fixtures";
+import {
+	createFactoryStatusTool,
+	describeFactoryCard,
+	type FactoryStage,
+} from "./factory-tool";
 
 /** What the tool says for each fixture: its stage and what happens next. */
 const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
@@ -31,7 +39,7 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 	],
 	"plan held: open findings": [
 		"Waiting for plan approval",
-		/: its plan reviewers still had findings/,
+		/: its plan checkers still had findings/,
 	],
 	"plan held: changed by you": [
 		"Waiting for plan approval",
@@ -139,6 +147,37 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 	],
 };
 
+/** The needsYou phrase of every fixture that waits on the person; the others carry none. */
+const NEEDS_YOU: Record<string, string | RegExp> = {
+	"scoping question": "answer a question",
+	"plan to approve": "approve the plan",
+	"plan held: large change": "approve the plan (large change)",
+	"plan held: open findings": "approve the plan (reviewers still object)",
+	"plan held: changed by you": "approve the plan (you changed it)",
+	"plan held: not ready":
+		"approve the plan (automatic approval could not approve it)",
+	"designer conclusion": "confirm the designer's conclusion",
+	"scoping stopped on a pending card": /^stopped: \S/,
+	"scoping failed": /^stopped: Design /,
+	"run blocked before its stop is recorded": /^stopped: \S/,
+	"stopped while building": /^stopped: \S/,
+	"draft PR could not open": /^stopped: /,
+	"plan fault": /^stopped: /,
+	"draft PR left open with findings": "review the draft PR (open findings)",
+	"delivered, stamp required": "review the delivery",
+	"PR follow-up paused": "resume PR follow-up",
+	"proposed rule": "review a proposed rule",
+	"PR follow-up stopped after delivery": /^stopped: /,
+	"flagged delivery whose PR follow-up stopped": /^stopped: /,
+};
+
+/** The waiting phrase of the fixtures that wait on someone to start or revise them. */
+const WAITING: Record<string, string> = {
+	"held before scoping": "on hold",
+	"plan that cannot be approved": "plan needs revising",
+	"manual card not started": "not started",
+};
+
 describe("factory_status agrees with factoryCardState", () => {
 	it("covers every fixture", () => {
 		expect(Object.keys(TOOL).sort()).toEqual(
@@ -184,10 +223,79 @@ describe("factory_status agrees with factoryCardState", () => {
 				state.waitingOn === "start" ||
 				state.reasonCode === "draft_pr_ready",
 		);
+		// needsYou is exactly the cards the desktop's Needs you holds.
+		expect(Boolean(card.needsYou)).toBe(state.waitingOn === "person");
+		const phrase = NEEDS_YOU[name];
+		if (phrase instanceof RegExp) expect(card.needsYou?.reason).toMatch(phrase);
+		else expect(card.needsYou?.reason).toBe(phrase);
+		// Waiting on a start is never a request for the user's decision.
+		expect(card.waiting).toBe(WAITING[name]);
+		expect(Boolean(card.needsYou && card.waiting)).toBe(false);
 		// A stop's reason is shown; nothing else carries one.
 		expect(Boolean(card.lastError)).toBe(
 			(state.kind === "stopped" || state.kind === "closed") &&
 				Boolean(task.error || run?.factory?.error || run?.error),
+		);
+	});
+});
+
+describe("factory_status lists Needs you in the board's order", () => {
+	it("for every fixture on one board", async () => {
+		const fixtures = FACTORY_BOARD_FIXTURES.filter(
+			(fixture) => !fixture.task.archivedAt,
+		);
+		const tasks = fixtures.map((fixture) => fixture.task);
+		const tool = createFactoryStatusTool({
+			manager: {
+				listTasks: async () => tasks,
+				getTask: async (taskId: string) =>
+					tasks.find((task) => task.taskId === taskId),
+				getTaskRuns: (taskId: string) =>
+					fixtures.flatMap((fixture) =>
+						fixture.run && fixture.task.taskId === taskId ? [fixture.run] : [],
+					),
+				getFactoryQueueState: () => ({
+					paused: false,
+					concurrency: 2,
+					working: fixtures
+						.filter((fixture) => fixture.working)
+						.map((fixture) => fixture.task.taskId),
+					queued: fixtures.flatMap((fixture) =>
+						fixture.task.factoryQueued
+							? [
+									{
+										taskId: fixture.task.taskId,
+										stage: fixture.task.factoryQueued,
+									},
+								]
+							: [],
+					),
+				}),
+				holdFactoryTask: async () => {
+					throw new Error("not used");
+				},
+				queueFactoryScoping: async () => {
+					throw new Error("not used");
+				},
+				startFactoryQueue: async () => {},
+			},
+			// Any existing directory: the fake manager lists every fixture.
+			resolveSessionDefaults: async () => ({ workspaceRoot: "/" }),
+		});
+		const result = await tool.execute({} as never, {
+			agentId: "chat-agent",
+			iteration: 1,
+			sessionId: "chat-1",
+		});
+		if (!result.ok) throw new Error(result.error.message);
+		const names = new Map(
+			fixtures.map((fixture) => [
+				`F${fixture.task.factoryNumber}`,
+				fixture.name,
+			]),
+		);
+		expect(result.needsYou?.cards.map((card) => names.get(card.id))).toEqual(
+			FACTORY_NEEDS_YOU_ORDER,
 		);
 	});
 });

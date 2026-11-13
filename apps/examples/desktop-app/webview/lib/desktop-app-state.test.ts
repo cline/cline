@@ -335,35 +335,6 @@ describe("desktopAppReducer", () => {
 		).toBe(false);
 	});
 
-	it("keeps a Factory intake draft out of ordinary new-session reuse", () => {
-		let state = createDesktopAppState("local-draft", settingsSection, "local");
-		state = desktopAppReducer(state, {
-			type: "thread-started",
-			threadId: "local-draft",
-		});
-		state = desktopAppReducer(state, {
-			type: "new-thread",
-			threadId: "intake-draft",
-			environmentId: "local",
-			factoryIntake: true,
-		});
-		expect(state.threads.at(-1)).toEqual({
-			id: "intake-draft",
-			environmentId: "local",
-			factoryIntake: true,
-		});
-		state = desktopAppReducer(state, {
-			type: "select-environment-draft",
-			environmentId: "local",
-			threadId: "chat-draft",
-		});
-		expect(state.navigation.current.activeThreadId).toBe("chat-draft");
-		expect(state.threads.at(-1)).toEqual({
-			id: "chat-draft",
-			environmentId: "local",
-		});
-	});
-
 	it("gives the Ask Factory panel a manager thread without leaving the view", () => {
 		let state = createDesktopAppState("local-draft", settingsSection, "local");
 		state = desktopAppReducer(state, {

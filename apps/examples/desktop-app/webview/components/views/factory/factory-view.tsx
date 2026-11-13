@@ -1,7 +1,12 @@
 "use client";
 
 import type { AgendaTaskRecord } from "@cline/shared";
-import { isFactoryHandsOff } from "@cline/shared/browser";
+import {
+	compareFactoryNeedsYou,
+	compareFactoryPriority,
+	compareFactoryQueue,
+	isFactoryHandsOff,
+} from "@cline/shared/browser";
 import {
 	AlertTriangle,
 	ArrowLeft,
@@ -11,7 +16,6 @@ import {
 	ChevronRight,
 	CircleDashed,
 	Clock,
-	Columns3,
 	ExternalLink,
 	Factory as FactoryIcon,
 	Flag,
@@ -24,7 +28,8 @@ import {
 	Play,
 	RefreshCw,
 	RotateCcw,
-	Settings2,
+	Settings,
+	SlidersHorizontal,
 	XCircle,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
@@ -67,6 +72,7 @@ import {
 	factoryPlanFault,
 	factoryPlanFaultStopped,
 	factoryPublishFailureReason,
+	factoryRepairLimitReason,
 	factoryRetryPath,
 	isFactoryRuleCard,
 } from "@/lib/factory-attention";
@@ -83,13 +89,13 @@ import {
 	FACTORY_OPEN_FINDINGS,
 	FACTORY_READY,
 	FACTORY_RECOVERY,
-	FACTORY_STAGES,
 	FACTORY_TERMS,
 	FACTORY_UNREADABLE,
 	factoryFeedbackLabel,
 	factoryHistoryStatus,
 	factoryPullRequestActionLabel,
 	factoryReviewReason,
+	factoryWorkingDetail,
 } from "@/lib/factory-copy";
 import { factoryProposedRule } from "@/lib/factory-feedback";
 import { formatFactoryUsd } from "@/lib/factory-limits";
@@ -118,8 +124,10 @@ import {
 	readFactoryBoardView,
 	resolveFactoryBoard,
 	saveFactoryBoardView,
+	setFactoryBoardQueueColumn,
 	toggleFactoryBoardColumn,
 } from "./factory-board-view";
+import { FactoryCardBoundary } from "./factory-card-boundary";
 import {
 	FactoryWorkingLimit,
 	factorySlotsFull,
@@ -146,6 +154,7 @@ import {
 	type FactoryActivity,
 	type FactoryBoardData,
 	FactoryIdChip,
+	FactoryPriorityIcon,
 	FactoryRuleBadge,
 	type FactoryTone,
 	factoryActivity,
@@ -154,11 +163,13 @@ import {
 	factoryNeedsYou,
 	factoryShortId,
 	factoryUrgency,
+	hasFactoryPriority,
 	StatusPill,
 	toneDot,
 	toneText,
 } from "./factory-ui";
-import { useElementWidth } from "./use-element-width";
+import type { AppSettingsSection } from "./settings/types";
+import { useElementSize } from "./use-element-size";
 
 /*
  * Master-detail breakpoints, in Factory's own width (the window less the
@@ -172,9 +183,11 @@ import { useElementWidth } from "./use-element-width";
  *
  * The home is a board (see factory-board-view.ts): one header row, a slim
  * banner only for exceptions, and columns that scroll on their own. The
- * board's own width sets its tier: four columns from 920px, Waiting a strip
- * from 736px, Waiting and Delivered strips from 552px, and below that the
- * board scrolls sideways. The page itself never scrolls.
+ * board's own width sets its tier: three columns (Working with its queue,
+ * Needs you, Delivered) from 700px and Delivered a strip below that; with
+ * the queue as its own column, four from 920px, Waiting a strip from 700px,
+ * Waiting and Delivered strips from 552px. Narrower, the board scrolls
+ * sideways. The page itself never scrolls.
  */
 
 const QUEUE_STOPPED_KEY = "factory.queueStopped";
@@ -309,13 +322,13 @@ function BoardColumn({
 			<div className="flex h-9 shrink-0 items-center gap-[7px] px-2.5">
 				<h2
 					id={headingId}
-					className="flex min-w-0 items-center gap-[7px] text-[13px] font-semibold"
+					className="flex shrink-0 items-center gap-[7px] text-[13px] font-semibold"
 				>
 					<span
 						aria-hidden
 						className={cn("size-2 shrink-0 rounded-full", COLUMN_DOT[tone])}
 					/>
-					<span data-factory-column-title className="truncate">
+					<span data-factory-column-title className="shrink-0">
 						{label}
 					</span>
 					<span
@@ -454,6 +467,8 @@ type FactoryViewProps = {
 	onAskFactory?: () => void;
 	/** Whether the docked Ask Factory panel is showing (its buttons are toggles). */
 	askFactoryOpen?: boolean;
+	/** Opens a section of the app's own Settings (from Factory settings). */
+	onOpenAppSettings?: (section: AppSettingsSection) => void;
 	/** The card on screen, so Ask Factory can offer it as context. */
 	onSelectedTaskChange?: (
 		card: { taskId: string; shortId?: string } | null,
@@ -517,6 +532,7 @@ function FactoryPage({
 	onRequestedTaskOpened,
 	onAskFactory,
 	askFactoryOpen,
+	onOpenAppSettings,
 	onSelectedTaskChange,
 	board,
 }: Omit<FactoryViewProps, "board"> & { board: FactoryBoardData }) {
@@ -620,7 +636,7 @@ function FactoryPage({
 	const { order, hold } = useSteadyOrder();
 	// The board's width sets its tier; its grouping, columns and a person's
 	// collapses are a saved view (factory-board-view.ts).
-	const [boardRef, boardWidth] = useElementWidth();
+	const [boardRef, { width: boardWidth }] = useElementSize();
 	const tier = factoryBoardTier(boardWidth);
 	const [boardView, setBoardViewState] = useState(readFactoryBoardView);
 	const setBoardView = (next: FactoryBoardView) => {
@@ -663,15 +679,14 @@ function FactoryPage({
 		!currentFactoryConclusion(task) &&
 		!autoRetrying(task);
 	// Each card is listed once, in the first group that claims it: Needs you
-	// (most urgent first), Working (furthest along first), Waiting, then
-	// Delivered. A delivery that waits on the user is in Needs you only.
+	// (in factory_status' order: compareFactoryNeedsYou), Working (furthest
+	// along first), Waiting (the engine's queue order), then Delivered. A
+	// delivery that waits on the user is in Needs you only.
 	const needsYou = boardTasks
 		.filter((task) => factoryNeedsYou(activityOf(task)))
-		.sort(
-			(a, b) =>
-				factoryUrgency(activityOf(a).label) -
-				factoryUrgency(activityOf(b).label),
-		);
+		.map((task) => ({ task, urgency: factoryUrgency(activityOf(task).label) }))
+		.sort(compareFactoryNeedsYou)
+		.map(({ task }) => task);
 	const unavailable = inColumn("Status unavailable");
 	const unreadableTasks = unavailable.filter(
 		(task) => activityOf(task).unreadable !== undefined,
@@ -683,13 +698,20 @@ function FactoryPage({
 	);
 	// A card whose status is not loaded yet waits with the queue, unless it
 	// was already delivered.
+	// In the order the engine starts them; within a priority, cards it has
+	// not queued (held, or not loaded yet) follow the ones it has.
 	const waitingTasks = [
 		...inColumn("Queued"),
 		...unavailable.filter((task) => {
 			const { unreadable, station } = activityOf(task);
 			return unreadable === undefined && station.station !== "delivered";
 		}),
-	];
+	].sort((a, b) =>
+		a.factoryQueuedAt && b.factoryQueuedAt
+			? compareFactoryQueue(a, b)
+			: compareFactoryPriority(a, b) ||
+				Number(!a.factoryQueuedAt) - Number(!b.factoryQueuedAt),
+	);
 	const running = workingNow.length;
 	const slotsFull = factorySlotsFull(running, limits.limits);
 	// Who is working on each card right now: scoping and plan checks from the
@@ -710,7 +732,11 @@ function FactoryPage({
 	/** Board rows leave out elapsed time (`compact`); home rows show it. */
 	const liveLine = (
 		task: AgendaTaskRecord,
-		{ compact = false, className }: { compact?: boolean; className?: string },
+		{
+			compact = false,
+			wrap = false,
+			className,
+		}: { compact?: boolean; wrap?: boolean; className?: string },
 	) => {
 		const sessions = liveSessions.get(task.taskId) ?? [];
 		return sessions.length ? (
@@ -718,6 +744,7 @@ function FactoryPage({
 				sessions={sessions}
 				activity={liveActivity}
 				compact={compact}
+				wrap={wrap}
 				className={className}
 			/>
 		) : null;
@@ -987,8 +1014,8 @@ function FactoryPage({
 	 * first group that claims it. The rail beside a card lists the same.
 	 */
 	const homeGroups: [FactoryHomeGroup, string, AgendaTaskRecord[]][] = [
-		["waiting", FACTORY_LINE.groups.waiting, waitingTasks],
 		["working", FACTORY_LINE.groups.working, workingNow],
+		["waiting", FACTORY_LINE.groups.waiting, waitingTasks],
 		[
 			"needsYou",
 			FACTORY_LINE.groups.needsYou,
@@ -997,10 +1024,20 @@ function FactoryPage({
 		["delivered", FACTORY_LINE.groups.delivered, deliveredRecently],
 	];
 	if (selectedId) {
-		// The same groups, in the same order, as the home.
+		// The same groups, in the same order, as the home: Working (running,
+		// then the queue), Needs you, Delivered.
 		const railSections = homeGroups
 			.filter(([, , items]) => items.length > 0)
-			.map(([, label, items]) => [label, items] as const);
+			.map(([group, label, items]) =>
+				group === "waiting" && !boardView.queueColumn
+					? ([FACTORY_BOARD.queue, items] as const)
+					: ([label, items] as const),
+			);
+		// With any priority on the rail, every wide row keeps the icon's slot so
+		// the titles stay aligned.
+		const railPriority = railSections.some(([, items]) =>
+			items.some((task) => hasFactoryPriority(task.factoryPriority)),
+		);
 		/** A rail row's state, as every other surface shows the card. */
 		const railState = (task: AgendaTaskRecord) => {
 			const activity = activityOf(task);
@@ -1010,7 +1047,13 @@ function FactoryPage({
 				detail: activity.station.stopped
 					? stoppedAt(task)
 					: activity.column === "Working"
-						? `${FACTORY_LINE.stations[activity.station.station]} · ${label}`
+						? factoryWorkingDetail(
+								FACTORY_LINE.stations[activity.station.station],
+								activity.station.stage ??
+									(activity.station.checks
+										? FACTORY_LINE.runningChecks
+										: label),
+							)
 						: label,
 				tone: activity.tone,
 				working: activity.column === "Working",
@@ -1049,6 +1092,12 @@ function FactoryPage({
 								)}
 							/>
 						)}
+						{/* Wide rail only: the icon rail has no room beside the id. */}
+						{railPriority ? (
+							<span className="hidden w-3.5 shrink-0 @min-[1120px]/factory:flex">
+								<FactoryPriorityIcon priority={task.factoryPriority} />
+							</span>
+						) : null}
 						<FactoryIdChip task={task} />
 						<span className="hidden min-w-0 flex-1 @min-[1120px]/factory:block">
 							<span className="block truncate text-sm">{task.title}</span>
@@ -1165,19 +1214,24 @@ function FactoryPage({
 							) : null}
 							{notices}
 							{selected ? (
-								<FeatureDetail
-									drafts={drafts}
+								<FactoryCardBoundary
 									key={selected.taskId}
-									task={selected}
-									onRefresh={agenda.refresh}
-									onOpenSession={onOpenSession}
-									onOpenTask={selectTask}
-									onClose={() => selectTask(null)}
-									questions={
-										currentAttention.get(selected.taskId)?.questions ?? []
-									}
-									onAnswer={attention.answer}
-								/>
+									onBack={() => selectTask(null)}
+								>
+									<FeatureDetail
+										drafts={drafts}
+										task={selected}
+										onRefresh={agenda.refresh}
+										onOpenSession={onOpenSession}
+										onOpenTask={selectTask}
+										onClose={() => selectTask(null)}
+										questions={
+											currentAttention.get(selected.taskId)?.questions ?? []
+										}
+										onAnswer={attention.answer}
+										unreadable={activityOf(selected).unreadable}
+									/>
+								</FactoryCardBoundary>
 							) : agenda.isLoading ? (
 								<output className="block text-sm text-muted-foreground">
 									{FACTORY_MESSAGES.loading}
@@ -1326,6 +1380,8 @@ function FactoryPage({
 		if (factoryPlanFault(task)) return FACTORY_RECOVERY.planFault;
 		if (factoryScopingStopped(task))
 			return factoryScopingStopReason(task.error);
+		const repairLimit = factoryRepairLimitReason(task.error);
+		if (repairLimit) return repairLimit;
 		const publish = factoryPublishFailureReason(task.error);
 		if (publish !== undefined)
 			return [FACTORY_RECOVERY.publishFailed, publish]
@@ -1364,8 +1420,11 @@ function FactoryPage({
 			);
 		if (openFindings)
 			return FACTORY_OPEN_FINDINGS.headline(openFindings.findings.length);
-		if (activity.label === FACTORY_READY.needsReview && review)
-			return factoryReviewReason(review.reason);
+		if (activity.label === FACTORY_READY.needsReview && review) {
+			// Mid-sentence elsewhere; here it starts the card's line.
+			const reason = factoryReviewReason(review.reason);
+			return reason.charAt(0).toUpperCase() + reason.slice(1);
+		}
 		return (
 			(task.factory &&
 				factoryAutoApprovalBlocker({ ...task, factory: task.factory })) ||
@@ -1390,10 +1449,13 @@ function FactoryPage({
 			aria-label={`${label}: ${task.title}`}
 			disabled={disabled}
 			onClick={run}
-			className="h-6 gap-1 bg-background px-2 text-[11.5px]"
+			title={label}
+			className="h-[22px] gap-1 bg-background px-2 text-[11.5px] shadow-none dark:bg-[var(--neutral-4)]"
 		>
 			<Icon aria-hidden className="size-3" />
-			<span aria-hidden>{label}</span>
+			<span aria-hidden data-label>
+				{label}
+			</span>
 		</Button>
 	);
 	/**
@@ -1431,9 +1493,11 @@ function FactoryPage({
 
 	/**
 	 * One card of the board, three rows: id · repository and the stage (or
-	 * age); the title, two lines at most; an icon, one line (or two) and a
-	 * time. The whole card is one button that opens it; the one quick action
-	 * appears on hover or focus.
+	 * age); the title, four lines at most (two in the queue); an icon, up to
+	 * three lines (the live line two, its height kept) and a time. The whole
+	 * card is one button that opens it. The one quick action sits at the end
+	 * of the first row, shown on hover or focus: the repository gives way to
+	 * it, so it never covers the stage, the title or the reason.
 	 */
 	const boardCard = (
 		task: AgendaTaskRecord,
@@ -1441,7 +1505,9 @@ function FactoryPage({
 		{
 			icon,
 			detail,
-			twoLines = false,
+			detailTitle,
+			live = false,
+			queued = false,
 			time,
 			stages = false,
 			end,
@@ -1449,7 +1515,12 @@ function FactoryPage({
 		}: {
 			icon?: ReactNode;
 			detail?: ReactNode;
-			twoLines?: boolean;
+			/** The context line's full text, as its tooltip (a string detail is its own). */
+			detailTitle?: string;
+			/** The detail is the live line: two lines, height kept as it changes. */
+			live?: boolean;
+			/** A queued card: its title takes two lines at most. */
+			queued?: boolean;
 			time?: ReactNode;
 			stages?: boolean;
 			/** Row 1's right end when there is no stage: the age. */
@@ -1462,6 +1533,8 @@ function FactoryPage({
 		const id = factoryShortId(task);
 		const name = [id, task.title].filter(Boolean).join(" ");
 		const state = activity.station.stopped ? stoppedAt(task) : rowLabel(task);
+		// Grouped by stage, the column names the stage: no stepper on the card.
+		const stepper = stages && boardView.grouping !== "stage";
 		return (
 			<li
 				key={task.taskId}
@@ -1485,7 +1558,22 @@ function FactoryPage({
 					onClick={() => selectTask(task.taskId, group)}
 					className="absolute inset-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 				/>
-				<div className="flex h-[15px] min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+				<div
+					data-factory-card-top
+					className="flex h-[15px] min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground"
+				>
+					{hasFactoryPriority(task.factoryPriority) ? (
+						// Above the card's button so its tooltip shows; a click
+						// still opens the card, which keyboard users reach directly.
+						// biome-ignore lint/a11y/noStaticElementInteractions: pointer pass-through to the card's button
+						// biome-ignore lint/a11y/useKeyWithClickEvents: the card's button carries the keyboard
+						<span
+							className="relative z-10 flex"
+							onClick={() => selectTask(task.taskId, group)}
+						>
+							<FactoryPriorityIcon priority={task.factoryPriority} />
+						</span>
+					) : null}
 					{id ? (
 						<span
 							data-factory-id
@@ -1497,6 +1585,7 @@ function FactoryPage({
 					{showProject && activity.unreadable === undefined ? (
 						<span
 							data-factory-project
+							title={projectOf(task)}
 							// Hidden on a card under 200px (its content under 182px).
 							className="min-w-0 truncate @max-[181px]/card:hidden"
 						>
@@ -1505,7 +1594,7 @@ function FactoryPage({
 						</span>
 					) : null}
 					<span className="ml-auto flex shrink-0 items-center tabular-nums">
-						{stages ? (
+						{stepper ? (
 							<FactoryRowStages
 								state={activity.station}
 								// A decision is amber at its stage; a stop is red.
@@ -1522,8 +1611,23 @@ function FactoryPage({
 							end
 						)}
 					</span>
+					{action ? (
+						// In the row's flow, so it pushes nothing it could cover; no
+						// width until hover or focus (still reachable by Tab).
+						<div
+							data-factory-quick-action
+							className="relative z-10 -my-1 flex max-w-0 shrink-0 overflow-hidden opacity-0 transition-opacity group-focus-within/card:max-w-none group-focus-within/card:overflow-visible group-focus-within/card:opacity-100 group-hover/card:max-w-none group-hover/card:overflow-visible group-hover/card:opacity-100 [@media(hover:none)]:max-w-none [@media(hover:none)]:opacity-100 @max-[239px]/card:[&_[data-label]]:hidden"
+						>
+							{action}
+						</div>
+					) : null}
 				</div>
-				<p className="line-clamp-2 text-[13px] leading-[17px] font-medium">
+				<p
+					className={cn(
+						"break-words text-[13px] leading-[17px] font-medium",
+						queued ? "line-clamp-2" : "line-clamp-4",
+					)}
+				>
 					{task.title}
 					{ruleBadge(task) ? (
 						<span className="ml-1.5 inline-flex align-middle">
@@ -1542,9 +1646,15 @@ function FactoryPage({
 							</span>
 						) : null}
 						<span
+							data-factory-context
+							title={
+								detailTitle ?? (typeof detail === "string" ? detail : undefined)
+							}
 							className={cn(
-								"min-w-0 flex-1",
-								twoLines ? "line-clamp-2" : "truncate",
+								"min-w-0 flex-1 break-words",
+								// The live line clamps itself to two lines; its two
+								// lines' height stays so cards below do not move.
+								live ? "min-h-8" : "line-clamp-3",
 							)}
 						>
 							{detail}
@@ -1554,14 +1664,6 @@ function FactoryPage({
 								{time}
 							</span>
 						) : null}
-					</div>
-				) : null}
-				{action ? (
-					<div
-						data-factory-quick-action
-						className="absolute right-1.5 bottom-1.5 flex opacity-0 shadow-[-10px_0_8px_2px_var(--neutral-2)] transition-opacity group-focus-within/card:opacity-100 group-hover/card:opacity-100 [@media(hover:none)]:opacity-100 dark:shadow-[-10px_0_8px_2px_var(--neutral-4)]"
-					>
-						{action}
 					</div>
 				) : null}
 			</li>
@@ -1575,10 +1677,8 @@ function FactoryPage({
 		if (activity.unreadable !== undefined)
 			return boardCard(task, "needsYou", {
 				icon: <AlertTriangle className={cn("size-3", toneText("attention"))} />,
-				detail: [FACTORY_UNREADABLE.title, activity.unreadable]
-					.filter(Boolean)
-					.join(" · "),
-				twoLines: true,
+				// The raw reason is under Details on the card page.
+				detail: FACTORY_UNREADABLE.card,
 				edge: "attention",
 			});
 		const stopped = STOPPED_LABELS.has(activity.label);
@@ -1601,7 +1701,7 @@ function FactoryPage({
 				) : (
 					decisionDetail(task)
 				),
-				twoLines: true,
+				detailTitle: stopped ? stopReason(task) : undefined,
 				time: formatRelativeTime(task.updatedAt),
 				stages: true,
 				edge: stopped ? "danger" : "attention",
@@ -1612,6 +1712,10 @@ function FactoryPage({
 
 	const workingRow = (task: AgendaTaskRecord) => {
 		const activity = activityOf(task);
+		const live =
+			activity.station.stage || activity.station.checks
+				? null
+				: liveLine(task, { compact: true, wrap: true, className: "text-xs" });
 		const watch = watchButton(task);
 		const startedAt = (liveSessions.get(task.taskId) ?? [])
 			.map((session) => Date.parse(session.startedAt ?? ""))
@@ -1624,22 +1728,23 @@ function FactoryPage({
 				icon: (
 					<Loader2 className={cn("size-3", toneText(activity.tone), SPIN)} />
 				),
-				// A repository stage runs as part of Build: "Build · Security scan".
+				// The stepper already says Build: a repository stage shows by its
+				// name, the plan's checks as "Running checks".
 				detail: activity.station.stage
-					? FACTORY_STAGES.subStep(activity.station.stage)
+					? activity.station.stage
 					: activity.station.checks
 						? FACTORY_LINE.runningChecks
-						: (liveLine(task, { compact: true, className: "text-xs" }) ??
-							rowLabel(task)),
+						: (live ?? rowLabel(task)),
+				live: Boolean(live),
 				time:
 					startedAt === undefined ? undefined : (
 						<BoardElapsed since={startedAt} />
 					),
 				stages: true,
 			},
-			// The shared watch control, sized as a 24px quick action.
+			// The shared watch control, sized as a quick action.
 			watch ? (
-				<span className="flex [&_button]:h-6 [&_button]:gap-1 [&_button]:bg-background [&_button]:px-2 [&_button]:text-[11.5px] [&_svg]:size-3">
+				<span className="flex [&_button]:h-[22px] [&_button]:gap-1 [&_button]:bg-background [&_button]:px-2 [&_button]:text-[11.5px] [&_button]:shadow-none dark:[&_button]:bg-[var(--neutral-4)] [&_svg]:size-3">
 					{watch}
 				</span>
 			) : null,
@@ -1659,6 +1764,7 @@ function FactoryPage({
 			{
 				icon: detail ? <Clock className="size-3" /> : undefined,
 				detail,
+				queued: true,
 			},
 			startable(task)
 				? quickAction(
@@ -1682,6 +1788,18 @@ function FactoryPage({
 		// Feedback never stops a card: a delivery the person flagged stays
 		// delivered, with their note as its quiet last line.
 		const flagged = outcome?.audit?.finding;
+		const proof = [
+			// Without its outcome, the muted "Status not loaded yet".
+			outcome ? deliveryProof(task, outcome) : activity.label,
+			url
+				? FACTORY_BOARD.pullRequest(
+						outcome?.pullRequestOutcome,
+						outcome?.pullRequestReady === true,
+					)
+				: FACTORY_LINE.proof.onBranch,
+		]
+			.filter(Boolean)
+			.join(" · ");
 		return boardCard(
 			task,
 			"delivered",
@@ -1691,25 +1809,12 @@ function FactoryPage({
 				) : (
 					<Icon className={cn("size-3", toneText("success"))} />
 				),
-				twoLines: Boolean(flagged),
 				detail: flagged ? (
 					<span data-factory-flagged>{FACTORY_LINE.flagged(flagged)}</span>
 				) : (
-					<span data-factory-proof>
-						{[
-							// Without its outcome, the muted "Status not loaded yet".
-							outcome ? deliveryProof(task, outcome) : activity.label,
-							url
-								? FACTORY_BOARD.pullRequest(
-										outcome?.pullRequestOutcome,
-										outcome?.pullRequestReady === true,
-									)
-								: FACTORY_LINE.proof.onBranch,
-						]
-							.filter(Boolean)
-							.join(" · ")}
-					</span>
+					<span data-factory-proof>{proof}</span>
 				),
+				detailTitle: flagged ? FACTORY_LINE.flagged(flagged) : proof,
 				end: formatRelativeTime(task.updatedAt),
 			},
 			url
@@ -1756,7 +1861,7 @@ function FactoryPage({
 		<Button
 			variant="link"
 			size="sm"
-			className="ml-auto h-auto shrink-0 p-0 text-xs font-normal text-accent-foreground"
+			className="ml-auto h-auto shrink-0 px-0 py-1 text-xs font-normal text-accent-foreground"
 			onClick={() => setView("history")}
 		>
 			{FACTORY_LINE.allHistory}
@@ -1767,30 +1872,79 @@ function FactoryPage({
 			<Skeleton className="h-[62px] rounded-md" />
 		</li>
 	));
+	// The board's first column carries the empty board's one instruction.
+	const firstColumnId = columns.find((column) => !column.hidden)?.id;
 	const emptyLine = (id: string) =>
-		id === "waiting" && nothingAtAll
+		id === firstColumnId && nothingAtAll
 			? FACTORY_BOARD.empty.nothing
 			: boardView.grouping === "status" && id in FACTORY_BOARD.empty
 				? FACTORY_BOARD.empty[id as FactoryHomeGroup]
 				: FACTORY_BOARD.empty.column;
+	const cardOf = (task: AgendaTaskRecord) =>
+		cardFor[statusOf.get(task.taskId) ?? "waiting"](task);
 	const boardColumn = (column: FactoryBoardResolvedColumn) => {
 		const pinned = factoryBoardPinned(boardView.grouping, column.id);
-		const collapsed = factoryBoardCollapsed(boardView, column, tier);
+		// An empty board keeps every column open: its one instruction must show.
+		const collapsed =
+			!nothingAtAll && factoryBoardCollapsed(boardView, column, tier);
+		const key = `${boardView.grouping}:${column.id}`;
+		const tasksOf = (rows: readonly FactoryBoardRow[]) =>
+			rows.flatMap((row) => taskById.get(row.id) ?? []);
+		const inSection = new Set(
+			column.sections.flatMap((section) => section.rows.map((row) => row.id)),
+		);
+		// Main cards (running, in Working), then each section under a divider.
 		const items = order(
-			`${boardView.grouping}:${column.id}`,
-			column.rows.flatMap((row) => taskById.get(row.id) ?? []),
+			key,
+			tasksOf(column.rows.filter((row) => !inSection.has(row.id))),
 			byId,
+		);
+		const sections = column.sections
+			.filter((section) => section.rows.length > 0)
+			.map((section) => {
+				const all = order(`${key}:${section.id}`, tasksOf(section.rows), byId);
+				return { ...section, all, shown: all.slice(0, WAITING_LIMIT) };
+			});
+		const queued = sections.reduce(
+			(sum, section) => sum + section.all.length,
+			0,
 		);
 		const shown =
 			column.id === "waiting" ? items.slice(0, WAITING_LIMIT) : items;
+		const hiddenWaiting =
+			items.length -
+			shown.length +
+			sections.reduce(
+				(sum, section) => sum + section.all.length - section.shown.length,
+				0,
+			);
 		const isStatus = boardView.grouping === "status";
 		const footer =
-			column.id === "waiting" && items.length > shown.length
-				? FACTORY_BOARD.moreWaiting(items.length - shown.length)
+			hiddenWaiting > 0
+				? FACTORY_BOARD.moreWaiting(hiddenWaiting)
 				: column.id === "delivered" &&
 						delivered.length > deliveredRecently.length
 					? FACTORY_BOARD.mostRecent(deliveredRecently.length)
 					: undefined;
+		const working = isStatus && column.id === "working";
+		const cards =
+			loadingActivity && column.rows.length === 0
+				? skeletons
+				: [
+						...shown.map(cardOf),
+						...sections.flatMap((section) => [
+							<li
+								key={`section-${section.id}`}
+								data-factory-section={section.id}
+								className="flex items-center gap-2 px-1 pt-2 pb-0.5 text-[11px] text-muted-foreground"
+							>
+								<span>{section.title}</span>
+								<span className="tabular-nums">{section.all.length}</span>
+								<span aria-hidden className="h-px flex-1 bg-border" />
+							</li>,
+							...section.shown.map(cardOf),
+						]),
+					];
 		return (
 			<BoardColumn
 				key={column.id}
@@ -1801,7 +1955,8 @@ function FactoryPage({
 						? "neutral"
 						: (column.tone ?? "neutral")
 				}
-				count={items.length}
+				// Working counts what runs; its queue is counted after the limit.
+				count={items.length + (working ? 0 : queued)}
 				pill={isStatus && column.id === "needsYou" && items.length > 0}
 				countTitle={
 					column.id === "delivered"
@@ -1809,22 +1964,32 @@ function FactoryPage({
 						: undefined
 				}
 				aside={
-					isStatus && column.id === "working" ? (
-						<FactoryWorkingLimit
-							running={running}
-							state={limits}
-							className={slotsFull ? toneText("attention") : undefined}
-						/>
+					working ? (
+						<>
+							<FactoryWorkingLimit
+								running={running}
+								state={limits}
+								className={slotsFull ? toneText("attention") : undefined}
+							/>
+							{queued > 0 ? (
+								<span
+									data-factory-queued
+									className="min-w-0 truncate text-xs text-muted-foreground"
+								>
+									· {FACTORY_BOARD.queued(queued)}
+								</span>
+							) : null}
+						</>
 					) : column.id === "delivered" ? (
 						allHistory
 					) : null
 				}
 				collapsed={collapsed}
 				collapsible={!pinned}
-				alwaysShowCollapse={factoryBoardAutoCollapsed(
-					boardView.grouping,
-					tier,
-				).has(column.id)}
+				alwaysShowCollapse={
+					!nothingAtAll &&
+					factoryBoardAutoCollapsed(boardView, tier).has(column.id)
+				}
 				onToggle={() =>
 					setBoardView(
 						collapseFactoryBoardColumn(
@@ -1838,13 +2003,9 @@ function FactoryPage({
 				}
 				empty={emptyLine(column.id)}
 				footer={footer}
-				hold={hold(`${boardView.grouping}:${column.id}`)}
+				hold={hold(key)}
 			>
-				{loadingActivity && items.length === 0
-					? skeletons
-					: shown.map((task) =>
-							cardFor[statusOf.get(task.taskId) ?? "waiting"](task),
-						)}
+				{cards}
 			</BoardColumn>
 		);
 	};
@@ -1919,7 +2080,7 @@ function FactoryPage({
 				onClick={() => setView("settings")}
 				className={cn("h-7", compactHeader ? "w-7 px-0" : "px-2")}
 			>
-				<Settings2 aria-hidden className="size-3.5" />
+				<Settings aria-hidden className="size-3.5" />
 				{compactHeader ? null : (
 					<span aria-hidden>{FACTORY_COMPACT.settings}</span>
 				)}
@@ -1958,6 +2119,21 @@ function FactoryPage({
 					askFactoryOpen={askFactoryOpen}
 					limits={limits}
 					focus={settingsFocus}
+					onOpenAppSettings={onOpenAppSettings}
+					onOpenArchive={() => {
+						setSettingsFocus(undefined);
+						setView("archived");
+					}}
+					onOpenCard={(taskId) => {
+						setSettingsFocus(undefined);
+						setView("activity");
+						selectTask(taskId, "settings");
+					}}
+					onNewWork={() => {
+						setSettingsFocus(undefined);
+						setView("activity");
+						if (!askFactoryOpen) onAskFactory?.();
+					}}
 					projects={[
 						...new Set(
 							tasks
@@ -2185,7 +2361,7 @@ function BoardDisplayMenu({
 					data-factory-display
 					className="h-7 w-7 px-0"
 				>
-					<Columns3 aria-hidden className="size-3.5" />
+					<SlidersHorizontal aria-hidden className="size-3.5" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -2226,6 +2402,18 @@ function BoardDisplayMenu({
 						{column.title}
 					</DropdownMenuCheckboxItem>
 				))}
+				{view.grouping === "status" ? (
+					<DropdownMenuCheckboxItem
+						data-factory-queue-column
+						checked={view.queueColumn === true}
+						onSelect={(event) => event.preventDefault()}
+						onCheckedChange={(checked) =>
+							onChange(setFactoryBoardQueueColumn(view, checked === true))
+						}
+					>
+						{FACTORY_BOARD.queueColumn}
+					</DropdownMenuCheckboxItem>
+				) : null}
 				<DropdownMenuSub>
 					<DropdownMenuSubTrigger>
 						{FACTORY_BOARD.reorder}

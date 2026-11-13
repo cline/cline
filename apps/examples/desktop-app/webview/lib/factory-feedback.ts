@@ -88,9 +88,12 @@ export function factoryFeedbackRowState(
 	}
 }
 
-/** Asks the app to open Ask Factory about a card with a draft in its composer. */
+/**
+ * Asks the app to open Ask Factory with a draft in its composer, about a card
+ * (`taskId`) or, from Factory settings, about nothing in particular.
+ */
 export type FactoryDiscussRequest = {
-	taskId: string;
+	taskId?: string;
 	shortId?: string;
 	draft: string;
 };
@@ -123,7 +126,7 @@ export function subscribeFactoryDiscussion(
 ): () => void {
 	const listener = (event: Event) => {
 		const detail = (event as CustomEvent<FactoryDiscussRequest>).detail;
-		if (detail && typeof detail.taskId === "string") handler(detail);
+		if (detail && typeof detail.draft === "string") handler(detail);
 	};
 	window.addEventListener(FACTORY_DISCUSS_EVENT, listener);
 	return () => window.removeEventListener(FACTORY_DISCUSS_EVENT, listener);

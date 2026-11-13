@@ -14,6 +14,7 @@ import type {
 	HubEventEnvelope,
 	HubSessionSearchHit,
 	HubTaskCreateInput,
+	HubTaskCreateOutput,
 	HubTaskFactoryLimits,
 	HubTaskFactoryLimitsUpdate,
 	HubTaskUpdateInput,
@@ -782,9 +783,12 @@ export class HubSessionClient {
 			: [];
 	}
 
-	async createTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
-		const result = await this.taskCommand("task.create", input);
-		return result.task;
+	/**
+	 * The whole reply: for a Factory filing the duplicate check matched,
+	 * `task` is the card that already covers it (`existing`, `duplicateOf`).
+	 */
+	async createTask(input: HubTaskCreateInput): Promise<HubTaskCreateOutput> {
+		return this.taskCommand("task.create", input);
 	}
 
 	async listTasks(

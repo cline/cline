@@ -406,7 +406,7 @@ export const FACTORY_GUIDANCE_REFUSAL =
 	"Factory guidance is about what a role should look for and how it should work. It cannot change approval, spending limits, review requirements or tools, or tell agents to ignore their rules. Approval, limits and review policy are in Factory settings.";
 
 export const FACTORY_ROUTING_GUIDANCE_REFUSAL =
-	"Factory routing guidance decides how work is routed: which stations it needs, how many reviewers, what it delivers and whether it needs the user's approval first. It can add a checkpoint but cannot turn off approval, change spending limits, tools or permissions, run code from pull requests, post to GitHub, merge, or tell agents to ignore their rules. Those stay in Factory settings or with the user.";
+	"Factory routing guidance decides how work is routed: which stations it needs, how many reviewers, what it delivers and whether it needs the user's approval first. It can steer the scoper's priority estimate, but never to Urgent, which only the user sets. It can add a checkpoint but cannot turn off approval, change spending limits, tools or permissions, run code from pull requests, post to GitHub, merge, or tell agents to ignore their rules. Those stay in Factory settings or with the user.";
 
 export const FACTORY_MANAGER_GUIDANCE_REFUSAL =
 	"The manager readme is about how the manager reports and works with you: what to mention first, how to word things, standing preferences. It cannot give the manager abilities it does not have: approving plans, marking work reviewed, merging, changing spending limits or approval and review settings, using other tools, or ignoring its rules. Those stay in Factory settings or with you.";
@@ -774,15 +774,17 @@ export interface FactoryGuidanceHistoryEntry {
 	/** Content before and after, so any listed hash can be restored. */
 	before: string;
 	after: string;
-	/** The card whose feedback produced this change, when one did. */
+	/** Where the change came from: a card's feedback or Factory settings. */
 	source?: FactoryGuidanceHistorySource;
 }
 
-/** Where a saved change came from (absent for the manager's own changes). */
-export interface FactoryGuidanceHistorySource {
-	taskId: string;
-	kind: "feedback";
-}
+/**
+ * Where a saved change came from: the feedback on a card, or a person's
+ * edit in Factory settings. Absent for the manager's own (confirmed) changes.
+ */
+export type FactoryGuidanceHistorySource =
+	| { kind: "feedback"; taskId: string }
+	| { kind: "settings" };
 
 export interface FactoryGuidanceProposal {
 	role: FactoryGuidanceRole;
@@ -813,6 +815,13 @@ export const FACTORY_GUIDANCE_HISTORY_MAX_BYTES = 1024 * 1024;
 /** Roles whose tools run unattended: repository guidance needs acceptance. */
 const ROLES_NEEDING_ACCEPTED_REPOSITORY_GUIDANCE: readonly FactoryGuidanceRole[] =
 	["builder", "verifier"];
+
+/** Whether a role uses repository guidance only once the user accepted that version. */
+export function factoryRepositoryGuidanceNeedsAcceptance(
+	role: FactoryGuidanceRole,
+): boolean {
+	return ROLES_NEEDING_ACCEPTED_REPOSITORY_GUIDANCE.includes(role);
+}
 
 /**
  * Reads and changes guidance files. Reads never throw; writes are atomic,
@@ -1022,6 +1031,24 @@ export class FactoryGuidanceStore {
 				: current.content;
 		const { content, summary } = applyFactoryGuidanceChange(base, change);
 		return this.proposal(scope, role, location, current, content, summary);
+	}
+
+	/**
+	 * The version Factory last applied or the user accepted: its hash and,
+	 * when the history still holds it, its content. Undefined when no version
+	 * was ever accepted for this file.
+	 */
+	async acceptedVersion(
+		scope: FactoryGuidanceScope,
+		role: FactoryGuidanceRole,
+		location: FactoryGuidanceLocation = {},
+	): Promise<{ hash: string; content?: string } | undefined> {
+		const located = this.locate(scope, role, location);
+		if (!located.ok) return undefined;
+		const hash = this.integrity.accepted(located.id);
+		if (hash === undefined) return undefined;
+		const content = await this.historyContent(scope, role, hash, location);
+		return content === undefined ? { hash } : { hash, content };
 	}
 
 	/** Content recorded in the history for `hash`, newest first. */

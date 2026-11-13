@@ -171,6 +171,7 @@ afterEach(async () => {
 async function render(
 	value: AgendaTaskRecord,
 	questions: ComponentProps<typeof FeatureDetail>["questions"] = [],
+	unreadable?: string,
 ) {
 	await act(async () =>
 		root.render(
@@ -183,10 +184,22 @@ async function render(
 				onOpenTask={onOpenTask}
 				questions={questions}
 				onAnswer={vi.fn(async () => {})}
+				unreadable={unreadable}
 			/>,
 		),
 	);
 }
+
+it("keeps the reason a card's status could not be read under Details", async () => {
+	await render(task, [], "intake.key: Invalid input: expected string");
+	const details = document.querySelector('[data-testid="factory-details"]');
+	expect(
+		details?.querySelector('[data-testid="factory-details-unreadable"]')
+			?.textContent,
+	).toBe(
+		"This card could not be readintake.key: Invalid input: expected string",
+	);
+});
 
 it("offers one Start, not approval, for an unscoped card that cannot be approved yet", async () => {
 	await render({
@@ -299,9 +312,15 @@ it("previews Markdown, preserves draft edits across tabs, and retains revision c
 			createdAt: task.createdAt,
 		},
 	]);
-	expect(document.body.textContent).toContain(
+	// Scoping waits on the person: said once, with no spinner, timer or
+	// disabled approval beside the question.
+	const progress = document.querySelector('[aria-label="Task progress"]');
+	expect(progress?.textContent).toContain("Waiting for your answer");
+	expect(progress?.querySelector(".animate-spin")).toBeNull();
+	expect(document.body.textContent).not.toContain(
 		"Answer the agent’s question so scoping can continue.",
 	);
+	expect(document.body.textContent).not.toContain("Preparing plan");
 	expect(
 		document.querySelector('[data-streamdown="heading-1"]')?.textContent,
 	).toBe("Search plan");
@@ -605,8 +624,8 @@ it("names acceptance criteria in the plan and keeps approval closed until each o
 	};
 	await render(unscoped);
 	const plan = () =>
-		document.querySelector('section[aria-label="Acceptance criteria"]')
-			?.textContent ?? "";
+		document.querySelector('section[aria-label="Requirements"]')?.textContent ??
+		"";
 	expect(plan()).toContain("No acceptance criteria are recorded");
 	// Not started: Start is the one action until the plan is edited by hand.
 	expect(() => button("Approve and run")).toThrow();
@@ -625,7 +644,8 @@ it("names acceptance criteria in the plan and keeps approval closed until each o
 		"needs a named approved check or a configured verifier",
 	);
 	await change('select[aria-label="Proven by"]', "API");
-	expect(plan()).toContain("criterion-1");
+	// The plan's criterion ids are internal: the list shows the text.
+	expect(plan()).not.toContain("criterion-1");
 	expect(plan()).toContain("Searching a title lists it");
 	expect(plan()).toContain("Required · proven by check “API”");
 	mocks.updateAgendaTask.mockResolvedValueOnce({ ...unscoped, revision: 2 });
@@ -725,7 +745,7 @@ it("shows each criterion's recorded outcome and evidence, and no per-criterion c
 		document.querySelector('section[aria-label="Acceptance results"]')
 			?.textContent ?? "";
 	expect(results).toContain(
-		"1/2 required proven · unverified: browser-flow · optional 0/1 passed",
+		"1/2 required proven · 1 unverified · optional 0/1 passed",
 	);
 	expect(results).toContain('Check "API" passed (exit 0)');
 	expect(results).toContain("No evidence recorded.");
@@ -906,7 +926,7 @@ it("protects unsaved back and role-session navigation and remembers the selected
 	await render({ ...task, originSessionId: "designer" });
 	await act(async () => button("Edit").click());
 	await editBrief("Unsaved brief");
-	await act(async () => button("Back to factory").click());
+	await act(async () => button("Back to Factory").click());
 	expect(onClose).not.toHaveBeenCalled();
 	expect(document.body.textContent).toContain("Leave unsaved brief changes?");
 	expect(document.querySelectorAll('[role="alertdialog"]')).toHaveLength(1);
@@ -1367,7 +1387,7 @@ it("keeps feedback optional: one quiet row on a delivered card and More → Rate
 	// Nothing asks for a rating: an unrated delivery is not waiting on anyone.
 	expect(progress()?.textContent?.toLowerCase()).not.toContain("feedback");
 	expect(document.querySelector("#factory-feedback-finding")).toBeNull();
-	await menuItem("Rate this delivery…");
+	await menuItem("Leave feedback…");
 	await act(async () => new Promise(requestAnimationFrame));
 	const field = document.querySelector("#factory-feedback-finding");
 	expect(field).toBeInstanceOf(HTMLTextAreaElement);
@@ -1393,7 +1413,7 @@ it("offers no feedback on a card that is not delivered", async () => {
 	expect(
 		document.querySelector('[aria-controls="factory-feedback"]'),
 	).toBeNull();
-	await expect(menuItem("Rate this delivery…")).rejects.toThrow(
+	await expect(menuItem("Leave feedback…")).rejects.toThrow(
 		"Missing menu item",
 	);
 });
@@ -1515,14 +1535,14 @@ it("orders a hands-off card status first and keeps configuration read-only behin
 	});
 	const sections = [
 		...document.querySelectorAll(
-			'[aria-label="Task progress"], [aria-label="What\'s being built"], details',
+			'[aria-label="Task progress"], [aria-label="Brief"], details',
 		),
 	].map(
 		(node) =>
 			node.getAttribute("aria-label") ??
 			node.querySelector("summary")?.textContent,
 	);
-	expect(sections).toEqual(["Task progress", "What's being built", "Details"]);
+	expect(sections).toEqual(["Task progress", "Brief", "Details"]);
 	const header = document.querySelector("header")?.textContent ?? "";
 	expect(header).not.toContain("Revision");
 	expect(header).not.toContain("Local execution");
@@ -1533,7 +1553,7 @@ it("orders a hands-off card status first and keeps configuration read-only behin
 	expect(details?.textContent).toContain("Model: test/model-x");
 	expect(details?.textContent).toContain("Plan settings");
 	expect(details?.textContent).toContain("node check.mjs");
-	expect(details?.textContent).toContain("No app verification configured");
+	expect(details?.textContent).toContain("No test setup.");
 	expect(document.querySelector('input[aria-label="Check name"]')).toBeNull();
 	expect(document.body.textContent).not.toContain(
 		"How scoping and approval work",
@@ -2073,9 +2093,9 @@ it("shows a draft PR left open with unresolved review findings as a result to re
 		"The reviewer left 3 findings Factory did not fix. Have Factory fix them, or accept as is.",
 	);
 	expect(
-		document.querySelector('[data-testid="factory-proof-not-checked"]')
+		document.querySelector('[data-testid="factory-proof-open-findings"]')
 			?.textContent,
-	).toContain("3 reviewer findings left unresolved");
+	).toBe("3 reviewer findings left unresolved");
 });
 
 it("hands a failed card whose plan is still approved back to the Factory queue on Try again", async () => {
@@ -2572,15 +2592,13 @@ it("shows the verification setup and its dry run in Details", async () => {
 			},
 		},
 	});
-	const setup = document.querySelector('[aria-label="Verification setup"]');
+	const setup = document.querySelector('[aria-label="Test setup"]');
 	expect(setup?.textContent).toContain(
 		"Proposed by this plan: reviewed before it runs",
 	);
 	expect(setup?.textContent).toContain("Startbun run dev");
 	expect(setup?.textContent).toContain("Dry run failed at start");
-	expect(document.body.textContent).not.toContain(
-		"No app verification configured",
-	);
+	expect(document.body.textContent).not.toContain("No test setup.");
 });
 
 async function openPanelTab(name: string) {
@@ -2914,21 +2932,7 @@ it("lists open findings above the diff once, with the actions only in the header
 });
 
 it("joins the panel's tabs with the card's section tabs on a narrow card", async () => {
-	const original = globalThis.ResizeObserver;
-	class NarrowObserver {
-		constructor(private callback: ResizeObserverCallback) {}
-		observe() {
-			this.callback(
-				[{ contentRect: { width: 600 } } as ResizeObserverEntry],
-				this as unknown as ResizeObserver,
-			);
-		}
-		unobserve() {}
-		disconnect() {}
-	}
-	globalThis.ResizeObserver =
-		NarrowObserver as unknown as typeof ResizeObserver;
-	try {
+	await atCardWidth(600, async () => {
 		mocks.getFactoryTask.mockResolvedValue({ runs: [run] });
 		await render({ ...task, status: "completed", lastRunId: run.runId });
 		const lists = document.querySelectorAll('[role="tablist"]');
@@ -2946,9 +2950,7 @@ it("joins the panel's tabs with the card's section tabs on a narrow card", async
 		await openPanelTab("Plan");
 		expect(panelTab("Plan").getAttribute("aria-selected")).toBe("true");
 		expect(document.body.textContent).toContain("Search plan");
-	} finally {
-		globalThis.ResizeObserver = original;
-	}
+	});
 });
 
 it("leads the card's title with its short id", async () => {
@@ -2961,23 +2963,13 @@ it("leads the card's title with its short id", async () => {
 
 /** Measures every card at `width` while `body` runs. */
 async function atCardWidth(width: number, body: () => Promise<void>) {
-	const original = globalThis.ResizeObserver;
-	class FixedObserver {
-		constructor(private callback: ResizeObserverCallback) {}
-		observe() {
-			this.callback(
-				[{ contentRect: { width } } as ResizeObserverEntry],
-				this as unknown as ResizeObserver,
-			);
-		}
-		unobserve() {}
-		disconnect() {}
-	}
-	globalThis.ResizeObserver = FixedObserver as unknown as typeof ResizeObserver;
+	const measured = vi
+		.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+		.mockReturnValue({ width, height: 0 } as DOMRect);
 	try {
 		await body();
 	} finally {
-		globalThis.ResizeObserver = original;
+		measured.mockRestore();
 	}
 }
 const deliveredHandsOff = async () => {
@@ -2997,22 +2989,26 @@ const cardMain = () =>
 const artifactPanel = () =>
 	document.querySelector('[data-testid="factory-artifact-panel"]');
 const SPLIT_HEIGHT =
-	"@min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem)]";
+	"@min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem_-_var(--factory-card-title)_-_1.25rem)]";
 
 it("splits the card into two columns from 700px, each exactly as tall as the visible page", async () => {
 	await deliveredHandsOff();
 	expect(card()?.getAttribute("data-layout")).toBe("two-column");
-	const grid = card()?.firstElementChild;
-	// A 300px column from 700px of card width, 360px from 1000px.
+	// The title row spans the card above its two columns.
+	expect(card()?.firstElementChild?.querySelector("h1")?.textContent).toContain(
+		task.title,
+	);
+	const grid = card()?.children[1];
+	// A 320-380px column from 700px of card width, 360-420px from 1000px.
 	expect(grid?.className).toContain(
-		"@min-[700px]:grid-cols-[300px_minmax(0,1fr)]",
+		"@min-[700px]:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]",
 	);
 	expect(grid?.className).toContain(
-		"@min-[1000px]:grid-cols-[360px_minmax(0,1fr)]",
+		"@min-[1000px]:grid-cols-[minmax(360px,420px)_minmax(0,1fr)]",
 	);
 	expect(grid?.className).not.toContain("1100px");
-	// Sized from the title bar and the page padding, so the page itself
-	// does not scroll; only the columns do.
+	// Sized from the title bar, the page padding and the title row above
+	// them, so the page itself does not scroll; only the columns do.
 	for (const column of [cardMain(), artifactPanel()]) {
 		expect(column?.className).toContain(SPLIT_HEIGHT);
 		expect(column?.className).toContain("@min-[700px]:sticky");
@@ -3023,12 +3019,29 @@ it("splits the card into two columns from 700px, each exactly as tall as the vis
 	expect(grid?.lastElementChild).toBe(artifactPanel());
 });
 
+it("leaves room for the title row above the two columns, so the page does not scroll", async () => {
+	const measured = vi
+		.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+		.mockReturnValue({ width: 900, height: 64 } as DOMRect);
+	try {
+		await deliveredHandsOff();
+		expect(card()?.getAttribute("data-layout")).toBe("two-column");
+		expect(
+			(card() as HTMLElement | null)?.style.getPropertyValue(
+				"--factory-card-title",
+			),
+		).toBe("64px");
+	} finally {
+		measured.mockRestore();
+	}
+});
+
 it("puts the panel right after the status on a one-column card", async () => {
 	await atCardWidth(600, async () => {
 		await deliveredHandsOff();
 		expect(card()?.getAttribute("data-layout")).toBe("stacked");
 		const panel = artifactPanel();
-		const plan = document.querySelector('[aria-label="What\'s being built"]');
+		const plan = document.querySelector('[aria-label="Brief"]');
 		expect(panel && cardMain()?.contains(panel)).toBe(true);
 		expect(panel?.className).not.toContain(SPLIT_HEIGHT);
 		// Status, then the diff, then the plan.
@@ -3209,7 +3222,7 @@ it("leaves a delivered card's requirements to its proof receipt", async () => {
 		lastRunId: run.runId,
 		factory: handsOffConfig,
 	});
-	const plan = document.querySelector('[aria-label="What\'s being built"]');
+	const plan = document.querySelector('[aria-label="Brief"]');
 	expect(plan?.querySelector('[aria-label="Acceptance results"]')).toBeNull();
 	expect(plan?.textContent).not.toContain("Acceptance criteria");
 });
@@ -3334,6 +3347,26 @@ describe("feedback analysis on a delivered card", () => {
 				?.getAttribute("data-new"),
 		).toBe("## Empty titles\nCheck empty titles.");
 		expect(rowButtons()).toEqual(["Save rule", "Discard", "Discuss"]);
+		// The header asks for the rule, not the merge: its primary action
+		// brings the rule into view.
+		const status = document.querySelector('[aria-label="Task progress"]');
+		expect(status?.querySelector("strong")?.textContent).toBe(
+			"Review proposed rule",
+		);
+		expect(status?.textContent).not.toContain("You decide when to merge");
+		const review = [
+			...(status?.querySelectorAll<HTMLButtonElement>(
+				'[data-testid="factory-card-actions"] button',
+			) ?? []),
+		];
+		expect(review[0]?.textContent).toBe("Review the rule");
+		const scrolled = vi.fn();
+		const ruleBlock = document.querySelector<HTMLElement>(
+			'[data-testid="factory-feedback-proposal"]',
+		);
+		if (ruleBlock) ruleBlock.scrollIntoView = scrolled;
+		await act(async () => review[0]?.click());
+		expect(scrolled).toHaveBeenCalled();
 		// The card is the only place with Save and Discard.
 		expect(
 			[...document.querySelectorAll("button")].filter(
@@ -3470,7 +3503,7 @@ describe("feedback analysis on a delivered card", () => {
 			});
 			await render(card());
 			await act(async () => report(true));
-			await expect(menuItem("Rate this delivery…")).rejects.toThrow(
+			await expect(menuItem("Leave feedback…")).rejects.toThrow(
 				"Missing menu item",
 			);
 		});
@@ -3483,7 +3516,7 @@ describe("feedback analysis on a delivered card", () => {
 				summary: "A one-off.",
 			});
 			await act(async () => report(true));
-			await menuItem("Rate this delivery…");
+			await menuItem("Leave feedback…");
 			await act(async () => new Promise(requestAnimationFrame));
 			const field = document.querySelector("#factory-feedback-finding");
 			expect(field).toBeInstanceOf(HTMLTextAreaElement);

@@ -9,7 +9,11 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import type { useFactoryLimits } from "@/hooks/use-factory-limits";
-import { FACTORY_SPENDING, factoryWorkingLimit } from "@/lib/factory-copy";
+import {
+	FACTORY_SPENDING,
+	factoryWorkingLimit,
+	factoryWorkingOverLimit,
+} from "@/lib/factory-copy";
 import {
 	FACTORY_CONCURRENCY_MAX,
 	FACTORY_CONCURRENCY_MIN,
@@ -91,7 +95,8 @@ export function factoryWaitingForSlot(
 }
 
 /**
- * The limit beside the Working heading: "of 3". It opens the work-at-once
+ * The limit beside the Working heading: "of 3", amber with its reason as
+ * the tooltip when more runs than it allows. It opens the work-at-once
  * control in a popover, so changing it never leaves the home. Nothing shows
  * while the Hub reports no limit.
  */
@@ -106,20 +111,25 @@ export function FactoryWorkingLimit({
 }) {
 	const limit = state.limits?.supported ? state.limits.concurrency : undefined;
 	if (limit === undefined) return null;
+	const over = factoryWorkingOverLimit(running, limit);
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
 				<Button
 					variant="link"
 					size="sm"
-					// accent-11 keeps small link text at 4.5:1 on dark too.
+					data-factory-working-limit={over ? "over" : ""}
+					title={over}
+					// accent-11 keeps small link text at 4.5:1 on dark too; py-1
+					// makes the small link a usable target.
 					className={cn(
-						"h-auto p-0 text-xs font-normal text-accent-foreground",
+						"h-auto shrink-0 px-0 py-1 text-xs font-normal text-accent-foreground",
 						className,
+						over && toneText("attention"),
 					)}
-					aria-label={`${factoryWorkingLimit(running, limit)}: change how much work runs at once`}
+					aria-label={`${factoryWorkingLimit(limit)}: ${over ?? "change how much work runs at once"}`}
 				>
-					{factoryWorkingLimit(running, limit)}
+					{factoryWorkingLimit(limit)}
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-80 p-0">

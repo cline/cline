@@ -1,4 +1,7 @@
-import { createFactoryWorkflowRecipe } from "@cline/core";
+import {
+	createFactoryWorkflowRecipe,
+	FACTORY_GUIDANCE_ROLES,
+} from "@cline/core";
 import {
 	type FactoryWorkflowRecipe,
 	factoryDesignProgressSchema,
@@ -7,6 +10,7 @@ import {
 	factoryRunStateSchema,
 	factoryStageSchema,
 	factoryTaskConfigSchema,
+	factoryVerificationProfileSchema,
 	isFactoryHandsOff,
 } from "@cline/shared";
 import { z } from "zod";
@@ -26,6 +30,7 @@ import {
 import {
 	type FactoryPresetSettings,
 	factoryPresetSchema,
+	HANDS_OFF_PRESET_NAME,
 } from "../webview/lib/factory-presets";
 import {
 	missingDefaultFactoryWorkflow,
@@ -34,13 +39,11 @@ import {
 	withBuiltInFactoryPresets,
 	writeDesktopSettings,
 } from "./desktop-settings";
-import { readFactoryIssue } from "./factory-issue-import";
 import { readFactoryDiff } from "./factory-review";
 import type { JsonRecord, SidecarContext } from "./types";
 
 type FactoryCommand =
 	| "factory_save_preset"
-	| "factory_import_issue"
 	| "factory_attention"
 	| "factory_get_diff";
 type ReadTask = (
@@ -105,7 +108,8 @@ export type SendHubCommand = (
 		| "task.factory.limits.get"
 		| "task.factory.limits.set"
 		| "task.factory.stages.get"
-		| "task.factory.stages.set",
+		| "task.factory.stages.set"
+		| FactorySettingsHubCommand,
 	input: JsonRecord,
 ) => Promise<{
 	ok: boolean;
@@ -119,8 +123,13 @@ const factoryConcurrencySchema = z
 	.min(FACTORY_CONCURRENCY_MIN)
 	.max(FACTORY_CONCURRENCY_MAX);
 
-/** The limits the Hub reports (see FactoryLimits for `paused` and cost). */
-export type FactoryLimitsReply = FactoryLimits;
+/**
+ * The limits the Hub reports (see FactoryLimits for `paused` and cost), and
+ * whether new filings are checked for duplicates (absent from older Hubs).
+ */
+export type FactoryLimitsReply =
+	| (Extract<FactoryLimits, { supported: true }> & { duplicateCheck?: boolean })
+	| Extract<FactoryLimits, { supported: false }>;
 
 const factoryDailyCostSchema = z
 	.number()
@@ -134,13 +143,18 @@ const factoryLimitsSetSchema = z
 		concurrency: factoryConcurrencySchema.optional(),
 		paused: z.boolean().optional(),
 		dailyCostUsd: factoryDailyCostSchema.optional(),
+		duplicateCheck: z.boolean().optional(),
 	})
 	.refine(
 		(value) =>
 			value.concurrency !== undefined ||
 			value.paused !== undefined ||
-			value.dailyCostUsd !== undefined,
-		{ message: "Send concurrency, paused, dailyCostUsd or a combination" },
+			value.dailyCostUsd !== undefined ||
+			value.duplicateCheck !== undefined,
+		{
+			message:
+				"Send concurrency, paused, dailyCostUsd, duplicateCheck or a combination",
+		},
 	);
 
 /**
@@ -162,12 +176,14 @@ export async function handleFactoryLimitsCommand(
 	const setting = command === "factory_set_limits";
 	const input: JsonRecord = {};
 	if (setting) {
-		const { concurrency, paused, dailyCostUsd } = factoryLimitsSetSchema.parse(
-			args ?? {},
-		);
+		const { concurrency, paused, dailyCostUsd, duplicateCheck } =
+			factoryLimitsSetSchema.parse(args ?? {});
 		if (concurrency !== undefined) input.concurrency = concurrency;
+		if (duplicateCheck !== undefined) input.duplicateCheck = duplicateCheck;
 		if (paused !== undefined) input.paused = paused;
-		if (dailyCostUsd !== undefined) input.dailyCostUsd = dailyCostUsd;
+		// One meaning everywhere: null is "no daily limit", and 0 says the same.
+		if (dailyCostUsd !== undefined)
+			input.dailyCostUsd = dailyCostUsd === 0 ? null : dailyCostUsd;
 	}
 	const reply = await send(
 		setting ? "task.factory.limits.set" : "task.factory.limits.get",
@@ -179,11 +195,11 @@ export async function handleFactoryLimitsCommand(
 		const reason = reply.error?.message ?? "the Hub did not answer";
 		throw new Error(
 			setting
-				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : "how much work runs at once"}: ${reason}`
+				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : input.duplicateCheck !== undefined ? "the duplicate check" : "how much work runs at once"}: ${reason}`
 				: `Factory could not read how much work runs at once: ${reason}`,
 		);
 	}
-	const { concurrency, paused, dailyCostUsd, spentTodayUsd } = z
+	const { concurrency, paused, dailyCostUsd, spentTodayUsd, duplicateCheck } = z
 		.object({
 			concurrency: z.number().int().positive(),
 			paused: z.boolean().optional(),
@@ -196,6 +212,7 @@ export async function handleFactoryLimitsCommand(
 				.optional()
 				.catch(undefined),
 			spentTodayUsd: z.number().finite().min(0).optional().catch(undefined),
+			duplicateCheck: z.boolean().optional().catch(undefined),
 		})
 		.parse(reply.payload);
 	const daily =
@@ -212,6 +229,7 @@ export async function handleFactoryLimitsCommand(
 		...(daily !== undefined && spentTodayUsd !== undefined
 			? { spentTodayUsd }
 			: {}),
+		...(duplicateCheck !== undefined ? { duplicateCheck } : {}),
 	};
 }
 
@@ -392,6 +410,92 @@ const runsReplySchema = z.object({
 		.default([]),
 });
 
+type FactoryRuns = z.infer<typeof runsReplySchema>;
+
+/** A card's runs are read again after this long even with no Hub event for it. */
+const FACTORY_RUNS_CACHE_MS = 60_000;
+const ACTIVE_RUN_STATUSES = new Set(["starting", "running"]);
+
+/**
+ * Runs read for the attention sweep, per card. An entry is used while the
+ * card's revision, status and run are unchanged, its run is not in progress,
+ * and no Hub task event named the card since it was read.
+ */
+const factoryRunsCache = new Map<
+	string,
+	{ key: string; runs: FactoryRuns; at: number }
+>();
+let factoryRunsEpoch = 0;
+let factoryRunsClearedAt = 0;
+const factoryRunsForgotten = new Map<string, number>();
+
+/** Drops one card's cached runs (a Hub task event), or all of them. */
+export function forgetFactoryRuns(taskId?: string): void {
+	factoryRunsEpoch++;
+	if (taskId === undefined) {
+		factoryRunsCache.clear();
+		factoryRunsForgotten.clear();
+		factoryRunsClearedAt = factoryRunsEpoch;
+		return;
+	}
+	factoryRunsCache.delete(taskId);
+	factoryRunsForgotten.set(taskId, factoryRunsEpoch);
+}
+
+async function readFactoryRuns(
+	task: Pick<
+		FactoryListTask,
+		"taskId" | "revision" | "status" | "currentRunId" | "lastRunId"
+	>,
+	readTask: ReadTask,
+): Promise<FactoryRuns> {
+	const runId = task.currentRunId ?? task.lastRunId;
+	const key = `${task.revision}:${task.status}:${runId}`;
+	const cached = factoryRunsCache.get(task.taskId);
+	if (cached?.key === key && Date.now() - cached.at < FACTORY_RUNS_CACHE_MS)
+		return cached.runs;
+	const epoch = factoryRunsEpoch;
+	const runs = runsReplySchema.parse(
+		await readTask("task.get", { taskId: task.taskId, allWorkspaces: true }),
+	);
+	const run = runs.runs.find((item) => item.runId === runId);
+	const forgotten = Math.max(
+		factoryRunsClearedAt,
+		factoryRunsForgotten.get(task.taskId) ?? 0,
+	);
+	if (run?.status && !ACTIVE_RUN_STATUSES.has(run.status) && forgotten <= epoch)
+		factoryRunsCache.set(task.taskId, { key, runs, at: Date.now() });
+	else factoryRunsCache.delete(task.taskId);
+	return runs;
+}
+
+let factoryAttentionRunning: Promise<unknown> | undefined;
+let factoryAttentionNext: Promise<unknown> | undefined;
+
+/**
+ * One attention sweep at a time: callers that arrive while one runs (a burst
+ * of task events, several views) share the single sweep that follows it.
+ */
+function coalesceFactoryAttention(
+	sweep: () => Promise<unknown>,
+): Promise<unknown> {
+	if (!factoryAttentionRunning) {
+		const running = sweep().finally(() => {
+			if (factoryAttentionRunning === running)
+				factoryAttentionRunning = undefined;
+		});
+		factoryAttentionRunning = running;
+		return running;
+	}
+	factoryAttentionNext ??= factoryAttentionRunning
+		.catch(() => undefined)
+		.then(() => {
+			factoryAttentionNext = undefined;
+			return coalesceFactoryAttention(sweep);
+		});
+	return factoryAttentionNext;
+}
+
 export async function handleFactoryCommand(
 	ctx: Pick<SidecarContext, "pendingQuestions" | "logger">,
 	command: FactoryCommand,
@@ -457,19 +561,6 @@ export async function handleFactoryCommand(
 			}),
 			reportUnreadable,
 		);
-	if (command === "factory_import_issue") {
-		const input = z
-			.object({ url: z.string().min(1), cwd: z.string().min(1) })
-			.parse(args);
-		const issue = await readFactoryIssue(input);
-		const existing = (await list()).find(
-			(task) =>
-				task.workspaceRoot === input.cwd &&
-				task.factory?.sourceIssue?.provider === issue.source.provider &&
-				task.factory.sourceIssue.id === issue.source.id,
-		);
-		return { ...issue, existingTaskId: existing?.taskId };
-	}
 	if (command === "factory_get_diff") {
 		const input = z
 			.object({
@@ -487,98 +578,626 @@ export async function handleFactoryCommand(
 			input.expectedCommit,
 		);
 	}
-	const pending = [...ctx.pendingQuestions.values()].map(
-		(question) => question.item,
-	);
-	const tasks = (await list()).flatMap(({ factory, ...task }) =>
-		factory && !task.archivedAt ? [{ ...task, factory }] : [],
-	);
-	const items = await Promise.all(
-		tasks.map(async (task) => {
-			try {
-				return await factoryAttentionItem(task);
-			} catch (error) {
-				// One card's bad run data never hides the others.
-				reportUnreadable(
-					{
-						taskId: task.taskId,
-						revision: task.revision,
-						reason: factoryUnreadableReason(error),
-					},
-					error,
-				);
-				return undefined;
-			}
-		}),
-	);
-	return [
-		...items.filter((item) => item !== undefined),
-		...unreadable.map((card) => ({
-			taskId: card.taskId,
-			revision: card.revision,
-			questions: [],
-			needsAttention: false,
-			unreadable: { reason: card.reason },
-		})),
-	];
-	async function factoryAttentionItem(task: (typeof tasks)[number]) {
-		// An approved hands-off card with an earlier run may be waiting on its
-		// automatic retry, which only that run records. Other approved cards
-		// have no outcome to read, so they cost no extra request.
-		const { runs } =
-			(task.currentRunId || task.lastRunId) &&
-			(["in_progress", "completed", "failed", "cancelled", "expired"].includes(
-				task.status,
-			) ||
-				(task.status === "approved" &&
-					Boolean(task.lastRunId) &&
-					isFactoryHandsOff(task.factory)) ||
-				pending.length > 0)
-				? runsReplySchema.parse(
-						await readTask("task.get", {
-							taskId: task.taskId,
-							allWorkspaces: true,
-						}),
-					)
-				: { runs: [] };
-		const run = runs.find(
-			(run) => run.runId === (task.currentRunId ?? task.lastRunId),
+	return coalesceFactoryAttention(async () => {
+		const pending = [...ctx.pendingQuestions.values()].map(
+			(question) => question.item,
 		);
-		const state = currentFactoryRunState(task, run);
-		const reasons = factoryAttentionReasons(task, state, runs);
-		const closed = task.status === "cancelled" || task.status === "expired";
-		const sessions = new Set([
-			task.originSessionId,
-			...(run?.factory?.sessions.map((session) => session.sessionId) ?? []),
-		]);
-		const questions = closed
-			? []
-			: [
-					...pending.filter((question) => sessions.has(question.sessionId)),
-					...reasons.flatMap((reason) =>
-						reason.kind === "question"
-							? [
-									{
-										requestId: reason.question.questionId,
-										sessionId: reason.question.sessionId,
-										createdAt: reason.question.createdAt,
-										question: reason.question.question,
-										options: reason.question.options ?? [],
-									},
-								]
-							: [],
-					),
-				];
-		const needsAttention = questions.length > 0 || reasons.length > 0;
-		return {
-			taskId: task.taskId,
-			revision: task.revision,
-			runId: state ? run?.runId : undefined,
-			questions,
-			needsAttention,
-			// Filed by Factory for a recurring review pattern.
-			...(isFactoryRuleCard(task) ? { ruleCard: true } : {}),
-			outcome: state ? factoryAttentionOutcome(task, state, runs) : undefined,
+		const tasks = (await list()).flatMap(({ factory, ...task }) =>
+			factory && !task.archivedAt ? [{ ...task, factory }] : [],
+		);
+		const items = await Promise.all(
+			tasks.map(async (task) => {
+				try {
+					return await factoryAttentionItem(task);
+				} catch (error) {
+					// One card's bad run data never hides the others.
+					reportUnreadable(
+						{
+							taskId: task.taskId,
+							revision: task.revision,
+							reason: factoryUnreadableReason(error),
+						},
+						error,
+					);
+					return undefined;
+				}
+			}),
+		);
+		return [
+			...items.filter((item) => item !== undefined),
+			...unreadable.map((card) => ({
+				taskId: card.taskId,
+				revision: card.revision,
+				questions: [],
+				needsAttention: false,
+				unreadable: { reason: card.reason },
+			})),
+		];
+		async function factoryAttentionItem(task: (typeof tasks)[number]) {
+			// An approved hands-off card with an earlier run may be waiting on its
+			// automatic retry, which only that run records. Other approved cards
+			// have no outcome to read, so they cost no extra request.
+			const { runs } =
+				(task.currentRunId || task.lastRunId) &&
+				([
+					"in_progress",
+					"completed",
+					"failed",
+					"cancelled",
+					"expired",
+				].includes(task.status) ||
+					(task.status === "approved" &&
+						Boolean(task.lastRunId) &&
+						isFactoryHandsOff(task.factory)) ||
+					pending.length > 0)
+					? await readFactoryRuns(task, readTask)
+					: { runs: [] };
+			const run = runs.find(
+				(run) => run.runId === (task.currentRunId ?? task.lastRunId),
+			);
+			const state = currentFactoryRunState(task, run);
+			const reasons = factoryAttentionReasons(task, state, runs);
+			const closed = task.status === "cancelled" || task.status === "expired";
+			const sessions = new Set([
+				task.originSessionId,
+				...(run?.factory?.sessions.map((session) => session.sessionId) ?? []),
+			]);
+			const questions = closed
+				? []
+				: [
+						...pending.filter((question) => sessions.has(question.sessionId)),
+						...reasons.flatMap((reason) =>
+							reason.kind === "question"
+								? [
+										{
+											requestId: reason.question.questionId,
+											sessionId: reason.question.sessionId,
+											createdAt: reason.question.createdAt,
+											question: reason.question.question,
+											options: reason.question.options ?? [],
+										},
+									]
+								: [],
+						),
+					];
+			const needsAttention = questions.length > 0 || reasons.length > 0;
+			return {
+				taskId: task.taskId,
+				revision: task.revision,
+				runId: state ? run?.runId : undefined,
+				questions,
+				needsAttention,
+				// Filed by Factory for a recurring review pattern.
+				...(isFactoryRuleCard(task) ? { ruleCard: true } : {}),
+				outcome: state ? factoryAttentionOutcome(task, state, runs) : undefined,
+			};
+		}
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Factory settings: pass-throughs to the Hub's task.factory.* settings
+// commands. Each answers `{ supported: false }` on a Hub that predates it.
+// Writes answer `{ supported: true, ok: true, ... }`, or for a refusal the
+// person can act on (a stale hash, a refused or invalid text, ...)
+// `{ supported: true, ok: false, error: { code, message, currentHash? } }`;
+// any other failure throws.
+
+export type FactorySettingsCommand =
+	| "factory_get_guidance"
+	| "factory_get_guidance_history"
+	| "factory_set_guidance"
+	| "factory_resolve_guidance"
+	| "factory_get_verification"
+	| "factory_set_verification"
+	| "factory_get_storage"
+	| "factory_clean_storage"
+	| "factory_reset"
+	| "factory_get_projects";
+
+export type FactorySettingsHubCommand =
+	| "task.factory.guidance.get"
+	| "task.factory.guidance.history"
+	| "task.factory.guidance.set"
+	| "task.factory.guidance.resolve"
+	| "task.factory.verification.get"
+	| "task.factory.verification.set"
+	| "task.factory.storage.get"
+	| "task.factory.storage.clean"
+	| "task.factory.reset"
+	| "task.factory.projects.get";
+
+export const FACTORY_SETTINGS_COMMANDS: readonly FactorySettingsCommand[] = [
+	"factory_get_guidance",
+	"factory_get_guidance_history",
+	"factory_set_guidance",
+	"factory_resolve_guidance",
+	"factory_get_verification",
+	"factory_set_verification",
+	"factory_get_storage",
+	"factory_clean_storage",
+	"factory_reset",
+	"factory_get_projects",
+];
+
+export function isFactorySettingsCommand(
+	command: string,
+): command is FactorySettingsCommand {
+	return (FACTORY_SETTINGS_COMMANDS as readonly string[]).includes(command);
+}
+
+const guidanceRoleSchema = z.enum(FACTORY_GUIDANCE_ROLES);
+const guidanceHashSchema = z.string().regex(/^[0-9a-f]{16}$/);
+const profileHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+/** A project path; the Hub accepts only a project Factory knows. */
+const workspaceRootSchema = z.string().trim().min(1).max(4096);
+/** Shared schemas use their own zod, so they parse inside a transform. */
+const verificationProfileSchema = z
+	.unknown()
+	.transform((value) => factoryVerificationProfileSchema.parse(value));
+
+const guidanceScopeSchema = z.object({
+	status: z.enum(["none", "current", "changed", "invalid"]),
+	content: z.string(),
+	hash: z.string(),
+	path: z.string().optional(),
+	truncated: z.literal(true).optional(),
+	reason: z.string().optional(),
+	acceptedHash: z.string().optional(),
+	acceptedContent: z.string().optional(),
+});
+const guidanceTargetSchema = z.object({
+	role: guidanceRoleSchema,
+	user: guidanceScopeSchema,
+	repository: guidanceScopeSchema
+		.extend({
+			accepted: z.boolean(),
+			inUse: z.boolean(),
+			needsAcceptance: z.boolean(),
+		})
+		.optional(),
+});
+const guidanceSettingsSchema = z.object({
+	maxChars: z.number(),
+	userScope: z.boolean(),
+	managerReadmeDefault: z.string(),
+	workspaceRoot: z.string().optional(),
+	targets: z.array(guidanceTargetSchema),
+});
+const guidanceHistoryEntrySchema = z.object({
+	id: z.string(),
+	time: z.string(),
+	role: guidanceRoleSchema,
+	scope: z.enum(["user", "repository"]),
+	workspaceRoot: z.string().optional(),
+	note: z.string(),
+	hashBefore: z.string(),
+	hashAfter: z.string(),
+	before: z.string(),
+	after: z.string(),
+	source: z
+		.union([
+			z.object({
+				kind: z.literal("feedback"),
+				taskId: z.string(),
+				factoryNumber: z.number().optional(),
+			}),
+			z.object({ kind: z.literal("settings") }),
+		])
+		.optional(),
+});
+const verificationSettingsSchema = z.object({
+	workspaceRoot: z.string(),
+	file: z.enum(["absent", "present", "invalid"]),
+	reason: z.string().optional(),
+	status: z.enum(["none", "proposed", "in_use", "changed", "invalid"]),
+	profile: verificationProfileSchema.optional(),
+	hash: z.string().optional(),
+	origin: z.enum(["repository", "approved_local", "proposed"]).optional(),
+	approved: z
+		.object({
+			profile: verificationProfileSchema,
+			hash: z.string(),
+			provenAt: z.string().optional(),
+		})
+		.optional(),
+	proposedBy: z
+		.object({
+			taskId: z.string(),
+			title: z.string(),
+			factoryNumber: z.number().optional(),
+		})
+		.optional(),
+	proposals: z
+		.array(
+			z.object({
+				taskId: z.string(),
+				title: z.string(),
+				factoryNumber: z.number().optional(),
+				hash: z.string(),
+				profile: verificationProfileSchema,
+			}),
+		)
+		.default([]),
+});
+const storageSummarySchema = z.object({
+	dataDir: z.string(),
+	worktreesDir: z.string(),
+	artifactsDir: z.string(),
+	logsDir: z.string(),
+	worktrees: z.object({
+		count: z.number(),
+		bytes: z.number(),
+		finishedCount: z.number(),
+		finishedBytes: z.number(),
+		unknownCount: z.number(),
+	}),
+	artifactsBytes: z.number(),
+	logsBytes: z.number(),
+	approximate: z.boolean(),
+	measuredAt: z.string(),
+	cleaning: z.literal(true).optional(),
+});
+const resetWhatSchema = z.enum([
+	"stage_trust",
+	"verification_trust",
+	"user_guidance",
+	"settings",
+]);
+const resetResultSchema = z.object({
+	what: resetWhatSchema,
+	dryRun: z.boolean(),
+	stages: z.number().optional(),
+	projects: z.number().optional(),
+	roles: z.array(guidanceRoleSchema).optional(),
+	concurrency: z.number().optional(),
+	dailyCostUsd: z.number().optional(),
+	duplicateCheck: z.boolean().optional(),
+});
+const projectSummarySchema = z.object({
+	workspaceRoot: z.string(),
+	name: z.string(),
+	remote: z.string().optional(),
+	defaultBranch: z.string().optional(),
+	cards: z.object({ open: z.number(), archived: z.number() }),
+	stages: z.object({
+		file: z.enum(["absent", "present", "invalid"]),
+		total: z.number(),
+		inUse: z.number(),
+		awaiting: z.number(),
+	}),
+	verification: z.enum(["none", "proposed", "in_use", "changed", "invalid"]),
+	guidance: z.object({
+		roles: z.array(guidanceRoleSchema),
+		changed: z.array(guidanceRoleSchema),
+	}),
+	taskFiles: z.number(),
+});
+
+/** Per sidecar command: the Hub command, the strict input and the reply. */
+const FACTORY_SETTINGS_ROUTES = {
+	factory_get_guidance: {
+		hub: "task.factory.guidance.get",
+		write: false,
+		input: z.object({ workspaceRoot: workspaceRootSchema.optional() }).strict(),
+		reply: guidanceSettingsSchema,
+	},
+	factory_get_guidance_history: {
+		hub: "task.factory.guidance.history",
+		write: false,
+		input: z
+			.object({
+				role: guidanceRoleSchema.optional(),
+				workspaceRoot: workspaceRootSchema.optional(),
+				limit: z.number().int().min(1).max(50).optional(),
+				before: z.string().max(300).optional(),
+			})
+			.strict(),
+		reply: z.object({
+			entries: z.array(guidanceHistoryEntrySchema),
+			more: z.boolean(),
+		}),
+	},
+	factory_set_guidance: {
+		hub: "task.factory.guidance.set",
+		write: true,
+		input: z
+			.object({
+				role: guidanceRoleSchema,
+				scope: z.enum(["user", "repository"]),
+				workspaceRoot: workspaceRootSchema.optional(),
+				expectedHash: guidanceHashSchema,
+				content: z.string().max(16_000),
+				note: z.string().max(200).optional(),
+			})
+			.strict(),
+		reply: z.object({
+			target: guidanceTargetSchema,
+			entry: guidanceHistoryEntrySchema,
+		}),
+	},
+	factory_resolve_guidance: {
+		hub: "task.factory.guidance.resolve",
+		write: true,
+		input: z
+			.object({
+				role: guidanceRoleSchema,
+				scope: z.enum(["user", "repository"]),
+				workspaceRoot: workspaceRootSchema.optional(),
+				decision: z.enum(["accept", "discard"]),
+				expectedHash: guidanceHashSchema,
+			})
+			.strict(),
+		reply: z.object({ target: guidanceTargetSchema }),
+	},
+	factory_get_verification: {
+		hub: "task.factory.verification.get",
+		write: false,
+		input: z.object({ workspaceRoot: workspaceRootSchema }).strict(),
+		reply: verificationSettingsSchema,
+	},
+	factory_set_verification: {
+		hub: "task.factory.verification.set",
+		write: true,
+		input: z
+			.object({
+				workspaceRoot: workspaceRootSchema,
+				decision: z.enum(["approve", "remove"]),
+				expectedHash: profileHashSchema.optional(),
+				profile: z.record(z.unknown()).optional(),
+			})
+			.strict(),
+		reply: verificationSettingsSchema,
+	},
+	factory_get_storage: {
+		hub: "task.factory.storage.get",
+		write: false,
+		input: z.object({ refresh: z.boolean().optional() }).strict(),
+		reply: storageSummarySchema,
+	},
+	factory_clean_storage: {
+		hub: "task.factory.storage.clean",
+		write: true,
+		input: z
+			.object({
+				what: z.literal("finished_worktrees").default("finished_worktrees"),
+			})
+			.strict(),
+		reply: z.object({
+			removed: z.number(),
+			bytes: z.number(),
+			skipped: z
+				.array(z.object({ path: z.string(), reason: z.string() }))
+				.default([]),
+			storage: storageSummarySchema,
+			running: z.literal(true).optional(),
+		}),
+	},
+	factory_reset: {
+		hub: "task.factory.reset",
+		write: true,
+		input: z
+			.object({
+				what: resetWhatSchema,
+				workspaceRoot: workspaceRootSchema.optional(),
+				dryRun: z.boolean().optional(),
+			})
+			.strict(),
+		reply: resetResultSchema,
+	},
+	factory_get_projects: {
+		hub: "task.factory.projects.get",
+		write: false,
+		input: z.object({}).strict(),
+		reply: z.object({
+			projects: z.array(projectSummarySchema),
+			userGuidanceChanged: z.array(guidanceRoleSchema),
+		}),
+	},
+} as const satisfies Record<
+	FactorySettingsCommand,
+	{
+		hub: FactorySettingsHubCommand;
+		write: boolean;
+		input: z.ZodTypeAny;
+		reply: z.ZodTypeAny;
+	}
+>;
+
+/** The reply of a Factory settings command (see the section comment). */
+export type FactorySettingsReply =
+	| { supported: false }
+	| ({ supported: true } & Record<string, unknown>);
+
+/**
+ * Resets the desktop's part of "Reset Factory settings": Hands-off becomes
+ * the default workflow (saved workflows are kept) and the Hub learns it.
+ */
+export async function resetFactoryDefaultWorkflow(
+	setFactoryDefaults?: SetFactoryDefaults,
+): Promise<void> {
+	const settings = readDesktopSettings();
+	const saved = {
+		...settings,
+		factoryDefaultPreset: HANDS_OFF_PRESET_NAME,
+		factoryHandsOffUpgradeApplied: true,
+	};
+	writeDesktopSettings(saved);
+	if (setFactoryDefaults)
+		await pushFactoryDefaultWorkflow(setFactoryDefaults, saved);
+}
+
+/**
+ * Factory settings commands. The trusted-connection check is the caller's
+ * (commands.ts); the Hub checks the client's authority again and accepts
+ * only projects Factory knows. `factory_reset` with `what: "settings"` also
+ * makes Hands-off the desktop's default workflow.
+ */
+export async function handleFactorySettingsCommand(
+	command: FactorySettingsCommand,
+	args: JsonRecord | undefined,
+	send: SendHubCommand,
+	setFactoryDefaults?: SetFactoryDefaults,
+): Promise<FactorySettingsReply> {
+	const route = FACTORY_SETTINGS_ROUTES[command];
+	const input = route.input.parse(args ?? {}) as JsonRecord;
+	if (
+		command === "factory_set_guidance" ||
+		command === "factory_resolve_guidance"
+	) {
+		if (input.scope === "user" && input.workspaceRoot !== undefined)
+			throw new Error("Your guidance is not tied to a project.");
+		if (input.scope === "repository" && input.workspaceRoot === undefined)
+			throw new Error("Repository guidance needs the project.");
+	}
+	const reply = await send(route.hub, input);
+	if (!reply.ok) {
+		const code = reply.error?.code;
+		if (code === "unsupported_command") return { supported: false };
+		const message = reply.error?.message ?? "the Hub did not answer";
+		if (route.write && code?.startsWith("factory_")) {
+			const details = (reply.error as { details?: unknown } | undefined)
+				?.details as { currentHash?: unknown } | undefined;
+			return {
+				supported: true,
+				ok: false,
+				error: {
+					code,
+					message,
+					...(typeof details?.currentHash === "string"
+						? { currentHash: details.currentHash }
+						: {}),
+				},
+			};
+		}
+		throw new Error(
+			`Factory could not ${FACTORY_SETTINGS_VERBS[command]}: ${message}`,
+		);
+	}
+	const payload = route.reply.parse(reply.payload ?? {}) as Record<
+		string,
+		unknown
+	>;
+	if (
+		command === "factory_reset" &&
+		input.what === "settings" &&
+		input.dryRun !== true
+	)
+		await resetFactoryDefaultWorkflow(setFactoryDefaults);
+	return route.write
+		? { supported: true, ok: true, ...payload }
+		: { supported: true, ...payload };
+}
+
+const FACTORY_SETTINGS_VERBS: Record<FactorySettingsCommand, string> = {
+	factory_get_guidance: "read the guidance",
+	factory_get_guidance_history: "read the guidance history",
+	factory_set_guidance: "save the guidance",
+	factory_resolve_guidance: "resolve the guidance change",
+	factory_get_verification: "read the test setup",
+	factory_set_verification: "save the test setup",
+	factory_get_storage: "read its storage",
+	factory_clean_storage: "remove finished working copies",
+	factory_reset: "reset",
+	factory_get_projects: "read the projects",
+};
+
+// ---------------------------------------------------------------------------
+// Saved workflows: delete and rename
+
+export type FactoryPresetCommand =
+	| "factory_delete_preset"
+	| "factory_rename_preset";
+
+/**
+ * Deletes or renames a saved workflow in the desktop settings and returns
+ * the workflow list (as `factory_save_preset` does). The built-in Hands-off
+ * workflow can be neither. The default workflow can be deleted only with
+ * `newDefault`, another saved workflow that becomes the default. A rename
+ * keeps the workflow's revision (it is the configuration's hash) and moves
+ * the default with it. The Hub learns a changed default.
+ */
+export async function handleFactoryPresetCommand(
+	command: FactoryPresetCommand,
+	args: JsonRecord | undefined,
+	setFactoryDefaults?: SetFactoryDefaults,
+): Promise<unknown> {
+	const nameSchema = factoryPresetSchema.shape.name;
+	const settings = readDesktopSettings();
+	const presets = settings.factoryPresets ?? [];
+	const effectiveDefault =
+		withBuiltInFactoryPresets(settings).factoryDefaultPreset;
+	let next: typeof settings;
+	if (command === "factory_delete_preset") {
+		const { name, newDefault } = z
+			.object({ name: nameSchema, newDefault: nameSchema.optional() })
+			.strict()
+			.parse(args ?? {});
+		if (name === HANDS_OFF_PRESET_NAME)
+			throw new Error(
+				`“${HANDS_OFF_PRESET_NAME}” is built in and cannot be deleted.`,
+			);
+		if (!presets.some((preset) => preset.name === name))
+			throw new Error(`There is no saved workflow “${name}”.`);
+		let factoryDefaultPreset = settings.factoryDefaultPreset;
+		if (effectiveDefault === name) {
+			if (!newDefault || newDefault === name)
+				throw new Error(
+					`“${name}” is the default workflow. Choose another default before deleting it.`,
+				);
+			if (
+				newDefault !== HANDS_OFF_PRESET_NAME &&
+				!presets.some((preset) => preset.name === newDefault)
+			)
+				throw new Error(`There is no saved workflow “${newDefault}”.`);
+			factoryDefaultPreset = newDefault;
+		} else if (newDefault !== undefined)
+			throw new Error(
+				"newDefault is only for deleting the default workflow; use Make default.",
+			);
+		next = {
+			...settings,
+			factoryPresets: presets.filter((preset) => preset.name !== name),
+			...(factoryDefaultPreset ? { factoryDefaultPreset } : {}),
+			factoryHandsOffUpgradeApplied: true,
+		};
+	} else {
+		const { name, newName } = z
+			.object({ name: nameSchema, newName: nameSchema })
+			.strict()
+			.parse(args ?? {});
+		if (name === HANDS_OFF_PRESET_NAME || newName === HANDS_OFF_PRESET_NAME)
+			throw new Error(
+				`“${HANDS_OFF_PRESET_NAME}” is built in; choose another name.`,
+			);
+		const preset = presets.find((item) => item.name === name);
+		if (!preset) throw new Error(`There is no saved workflow “${name}”.`);
+		if (newName === name)
+			return withBuiltInFactoryPresets(settings).factoryPresets;
+		if (presets.some((item) => item.name === newName))
+			throw new Error(`A workflow named “${newName}” already exists.`);
+		const renamed = createFactoryWorkflowRecipe({
+			name: newName,
+			config: preset.config,
+		});
+		next = {
+			...settings,
+			factoryPresets: presets.map((item) => (item === preset ? renamed : item)),
+			...(settings.factoryDefaultPreset === name
+				? { factoryDefaultPreset: newName }
+				: {}),
+			factoryHandsOffUpgradeApplied: true,
 		};
 	}
+	writeDesktopSettings(next);
+	const nextDefault = withBuiltInFactoryPresets(next).factoryDefaultPreset;
+	if (setFactoryDefaults && nextDefault !== effectiveDefault)
+		try {
+			await pushFactoryDefaultWorkflow(setFactoryDefaults, next);
+		} catch (error) {
+			throw new Error(
+				`Saved, but Factory could not update the default workflow for new work: ${error instanceof Error ? error.message : String(error)}. Make it the default again to retry.`,
+			);
+		}
+	return withBuiltInFactoryPresets(next).factoryPresets;
 }

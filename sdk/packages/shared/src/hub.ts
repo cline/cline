@@ -2,8 +2,10 @@ import type { AgentMessage } from "./agent";
 import type {
 	FactoryFeedbackAnalysis,
 	FactoryReplayRequest,
+	FactoryVerificationProfile,
 	FactoryWorkflowRecipe,
 } from "./factory";
+import type { FactoryPriority } from "./factory-priority";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
@@ -50,6 +52,7 @@ export type HubCapabilityName =
 	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
+	| "task.factory.priority"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"
@@ -57,6 +60,16 @@ export type HubCapabilityName =
 	| "task.factory.limits.set"
 	| "task.factory.stages.get"
 	| "task.factory.stages.set"
+	| "task.factory.guidance.get"
+	| "task.factory.guidance.history"
+	| "task.factory.guidance.set"
+	| "task.factory.guidance.resolve"
+	| "task.factory.verification.get"
+	| "task.factory.verification.set"
+	| "task.factory.storage.get"
+	| "task.factory.storage.clean"
+	| "task.factory.reset"
+	| "task.factory.projects.get"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.get"
@@ -98,6 +111,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.answer",
 	"task.factory.design",
 	"task.factory.watch",
+	"task.factory.priority",
 	"task.factory.replay",
 	"task.factory.defaults.get",
 	"task.factory.defaults.set",
@@ -105,6 +119,16 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.limits.set",
 	"task.factory.stages.get",
 	"task.factory.stages.set",
+	"task.factory.guidance.get",
+	"task.factory.guidance.history",
+	"task.factory.guidance.set",
+	"task.factory.guidance.resolve",
+	"task.factory.verification.get",
+	"task.factory.verification.set",
+	"task.factory.storage.get",
+	"task.factory.storage.clean",
+	"task.factory.reset",
+	"task.factory.projects.get",
 	"task.automation.get",
 	"task.automation.set",
 	"settings.get",
@@ -492,7 +516,50 @@ export interface HubTaskIdInput {
 
 export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy"> & {
 	allWorkspaces?: boolean;
+	/**
+	 * Factory cards only: skip the duplicate check (never the exact repeat
+	 * match), for when the person says this is different work.
+	 */
+	allowDuplicate?: boolean;
 };
+
+/** The card that already covers a Factory filing the duplicate check blocked. */
+export interface HubFactoryDuplicateOf {
+	taskId: string;
+	/** Short id such as F12. */
+	factoryId?: string;
+	title: string;
+	/** Where the card is, in the board's words (e.g. "Draft PR ready"). */
+	state: string;
+	pullRequestUrl?: string;
+	/** A delivered original: its PR merged, or still open as a draft. */
+	outcome?: "merged" | "draft_open";
+	/** When the original last changed. */
+	at: string;
+}
+
+/** A card the duplicate check linked to a newly created one. */
+export interface HubFactoryRelatedCard {
+	taskId: string;
+	factoryId?: string;
+	title: string;
+}
+
+/**
+ * `task.create` reply. `task` is the created card, or the stored one when
+ * `existing` is set: an exact repeat, or (with `duplicateOf`, `reason` and
+ * `fileAnyway`) a Factory filing the duplicate check matched to an open or
+ * recently delivered card; no card was created then. `relatedTo` lists cards
+ * linked to a created Factory card.
+ */
+export interface HubTaskCreateOutput {
+	task: AgendaTaskRecord;
+	existing?: boolean;
+	duplicateOf?: HubFactoryDuplicateOf;
+	reason?: string;
+	fileAnyway?: string;
+	relatedTo?: HubFactoryRelatedCard[];
+}
 export type HubTaskUpdateInput = Omit<AgendaTaskUpdateInput, "updatedBy"> & {
 	allWorkspaces?: boolean;
 };
@@ -527,10 +594,11 @@ export interface HubTaskFactoryLimits {
 	paused?: boolean;
 	/**
 	 * Hub-wide limit on Factory model spend per local day, in USD (50 when
-	 * never set). Once today's spend reaches it no new scoping or run starts;
-	 * running work finishes. Older Hubs omit it.
+	 * never set); `null` when the person chose no daily limit. Once today's
+	 * spend reaches it no new scoping or run starts; running work finishes.
+	 * Older Hubs omit it.
 	 */
-	dailyCostUsd?: number;
+	dailyCostUsd?: number | null;
 	/**
 	 * Factory session cost recorded since local midnight across all cards, in
 	 * USD. Sessions still running count what they have reported so far.
@@ -539,17 +607,214 @@ export interface HubTaskFactoryLimits {
 	spentTodayUsd?: number;
 	/** Today's spend reached `dailyCostUsd`: new work waits for tomorrow or a higher limit. */
 	spendingLimitReached?: boolean;
+	/**
+	 * Factory checks each new filing for an open or recently delivered card
+	 * that already covers it (on unless turned off). Older Hubs omit it.
+	 */
+	duplicateCheck?: boolean;
 }
 
 /**
  * `task.factory.limits.set` input: any of the fields alone, or several.
- * `dailyCostUsd: null` clears the daily limit back to its default.
+ * `dailyCostUsd: null` (or `0`) means no daily limit; send 50 to return to
+ * the default.
  */
 export type HubTaskFactoryLimitsUpdate = {
 	concurrency?: number;
 	paused?: boolean;
 	dailyCostUsd?: number | null;
+	duplicateCheck?: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// Factory settings (task.factory.guidance.*, verification.*, storage.*,
+// reset, projects.get): what a person reads and changes in Factory settings.
+
+/** A Factory guidance target: the manager readme, routing, then the roles. */
+export type HubFactoryGuidanceRole =
+	| "manager"
+	| "factory"
+	| "designer"
+	| "plan_reviewer"
+	| "builder"
+	| "verifier"
+	| "reviewer";
+export type HubFactoryGuidanceScope = "user" | "repository";
+
+/**
+ * One scope of one guidance target. `none`: no text; `current`: in use;
+ * `changed`: changed outside Factory, waiting for Accept or Discard
+ * (`acceptedContent` is the version still in use, when history holds it);
+ * `invalid`: unusable (`reason`).
+ */
+export interface HubFactoryGuidanceScopeState {
+	status: "none" | "current" | "changed" | "invalid";
+	content: string;
+	/** The `expectedHash` of an edit, accept or discard (16 hex). */
+	hash: string;
+	path?: string;
+	truncated?: true;
+	reason?: string;
+	acceptedHash?: string;
+	acceptedContent?: string;
+}
+
+export interface HubFactoryGuidanceRepositoryState
+	extends HubFactoryGuidanceScopeState {
+	accepted: boolean;
+	/** The role is given this text now. */
+	inUse: boolean;
+	/** Builder and tester use repository text only once accepted. */
+	needsAcceptance: boolean;
+}
+
+export interface HubFactoryGuidanceTarget {
+	role: HubFactoryGuidanceRole;
+	user: HubFactoryGuidanceScopeState;
+	/** With a project; never for the manager readme. */
+	repository?: HubFactoryGuidanceRepositoryState;
+}
+
+export interface HubFactoryGuidanceSettings {
+	maxChars: number;
+	userScope: boolean;
+	managerReadmeDefault: string;
+	workspaceRoot?: string;
+	targets: HubFactoryGuidanceTarget[];
+}
+
+/** Where a guidance change came from; absent for Ask Factory. */
+export type HubFactoryGuidanceHistorySource =
+	| { kind: "feedback"; taskId: string; factoryNumber?: number }
+	| { kind: "settings" };
+
+export interface HubFactoryGuidanceHistoryEntry {
+	/** Cursor for the next page's `before`. */
+	id: string;
+	time: string;
+	role: HubFactoryGuidanceRole;
+	scope: HubFactoryGuidanceScope;
+	workspaceRoot?: string;
+	note: string;
+	hashBefore: string;
+	hashAfter: string;
+	before: string;
+	after: string;
+	source?: HubFactoryGuidanceHistorySource;
+}
+
+export interface HubFactoryGuidanceTargetInput {
+	role: HubFactoryGuidanceRole;
+	scope: HubFactoryGuidanceScope;
+	/** Repository scope only: a project Factory knows. */
+	workspaceRoot?: string;
+	expectedHash: string;
+}
+
+export interface HubFactoryVerificationProposal {
+	taskId: string;
+	title: string;
+	factoryNumber?: number;
+	hash: string;
+	profile: FactoryVerificationProfile;
+}
+
+/**
+ * A project's test setup. `status`: none, proposed (a file or a card
+ * proposes one), in_use, changed (the file differs from the approval;
+ * nothing runs until the person decides), invalid (the file is unusable).
+ */
+export interface HubFactoryVerificationSettings {
+	workspaceRoot: string;
+	file: "absent" | "present" | "invalid";
+	reason?: string;
+	status: "none" | "proposed" | "in_use" | "changed" | "invalid";
+	profile?: FactoryVerificationProfile;
+	/** sha256 of the shown profile: an approval's `expectedHash`. */
+	hash?: string;
+	origin?: "repository" | "approved_local" | "proposed";
+	approved?: {
+		profile: FactoryVerificationProfile;
+		hash: string;
+		provenAt?: string;
+	};
+	proposedBy?: { taskId: string; title: string; factoryNumber?: number };
+	proposals: HubFactoryVerificationProposal[];
+}
+
+export interface HubFactoryStorageSummary {
+	dataDir: string;
+	worktreesDir: string;
+	artifactsDir: string;
+	logsDir: string;
+	worktrees: {
+		count: number;
+		bytes: number;
+		finishedCount: number;
+		finishedBytes: number;
+		unknownCount: number;
+	};
+	artifactsBytes: number;
+	logsBytes: number;
+	approximate: boolean;
+	measuredAt: string;
+	/** Finished working copies are being removed now. */
+	cleaning?: true;
+}
+
+/**
+ * What "Remove finished copies" did. `running`: removal continues in the
+ * Hub past the reply; the counts are what was done so far, and
+ * `task.factory.storage.get` reports `cleaning` until it finishes.
+ */
+export interface HubFactoryStorageCleanResult {
+	removed: number;
+	bytes: number;
+	skipped: Array<{ path: string; reason: string }>;
+	storage: HubFactoryStorageSummary;
+	running?: true;
+}
+
+export type HubFactoryResetWhat =
+	| "stage_trust"
+	| "verification_trust"
+	| "user_guidance"
+	| "settings";
+
+export interface HubFactoryResetResult {
+	what: HubFactoryResetWhat;
+	dryRun: boolean;
+	/** stage_trust: decisions forgotten (or that would be). */
+	stages?: number;
+	/** stage_trust and verification_trust: projects affected. */
+	projects?: number;
+	/** user_guidance: targets cleared. */
+	roles?: HubFactoryGuidanceRole[];
+	/** settings: the values restored. */
+	concurrency?: number;
+	dailyCostUsd?: number;
+	duplicateCheck?: boolean;
+}
+
+export interface HubFactoryProjectSummary {
+	workspaceRoot: string;
+	name: string;
+	remote?: string;
+	defaultBranch?: string;
+	cards: { open: number; archived: number };
+	stages: {
+		file: "absent" | "present" | "invalid";
+		total: number;
+		inUse: number;
+		awaiting: number;
+	};
+	verification: HubFactoryVerificationSettings["status"];
+	guidance: {
+		roles: HubFactoryGuidanceRole[];
+		changed: HubFactoryGuidanceRole[];
+	};
+	taskFiles: number;
+}
 
 /** The Factory role a session works in, for live activity. */
 export type HubFactoryActivityRole =
@@ -644,11 +909,58 @@ export interface HubCommandInputMap {
 	};
 	"task.factory.design": HubTaskIdInput;
 	"task.factory.watch": HubTaskRevisionInput & { enabled: boolean };
+	/**
+	 * A person sets the card's Factory priority (`null` clears it). Allowed in
+	 * any status; it never revises the plan or changes approval or status.
+	 */
+	"task.factory.priority": HubTaskIdInput & {
+		priority: FactoryPriority | null;
+	};
 	"task.factory.replay": FactoryReplayRequest & { allWorkspaces?: boolean };
 	"task.factory.defaults.get": Record<string, never>;
 	"task.factory.defaults.set": HubTaskFactoryDefaultsSetInput;
 	"task.factory.limits.get": Record<string, never>;
 	"task.factory.limits.set": HubTaskFactoryLimitsUpdate;
+	"task.factory.guidance.get": { workspaceRoot?: string };
+	"task.factory.guidance.history": {
+		role?: HubFactoryGuidanceRole;
+		workspaceRoot?: string;
+		/** 1..50, default 20. */
+		limit?: number;
+		/** The `id` of the previous page's last entry. */
+		before?: string;
+	};
+	/** Needs a client trusted across workspaces. Empty content removes the file. */
+	"task.factory.guidance.set": HubFactoryGuidanceTargetInput & {
+		content: string;
+		note?: string;
+	};
+	/** Needs a client trusted across workspaces. */
+	"task.factory.guidance.resolve": HubFactoryGuidanceTargetInput & {
+		decision: "accept" | "discard";
+	};
+	"task.factory.verification.get": { workspaceRoot: string };
+	/**
+	 * Needs a client trusted across workspaces. `approve` + `expectedHash`:
+	 * the shown file or card proposal; `approve` + `profile`: save a setup
+	 * approved on this computer; `remove`: stop using the approval.
+	 */
+	"task.factory.verification.set": {
+		workspaceRoot: string;
+		decision: "approve" | "remove";
+		expectedHash?: string;
+		profile?: FactoryVerificationProfile;
+	};
+	"task.factory.storage.get": { refresh?: boolean };
+	"task.factory.storage.clean": { what: "finished_worktrees" };
+	"task.factory.reset": {
+		what: HubFactoryResetWhat;
+		/** stage_trust and verification_trust only: one project. */
+		workspaceRoot?: string;
+		/** Count only; change nothing. */
+		dryRun?: boolean;
+	};
+	"task.factory.projects.get": Record<string, never>;
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
 }
@@ -656,7 +968,7 @@ export interface HubCommandInputMap {
 /** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
 	"session.search": { hits: HubSessionSearchHit[] };
-	"task.create": { task: AgendaTaskRecord };
+	"task.create": HubTaskCreateOutput;
 	"task.list": { tasks: AgendaTaskRecord[] };
 	"task.get": { task?: AgendaTaskRecord; runs?: AgendaTaskRunRecord[] };
 	"task.update": { task: AgendaTaskRecord };
@@ -678,11 +990,31 @@ export interface HubCommandOutputMap {
 	"task.factory.answer": { task: AgendaTaskRecord };
 	"task.factory.design": { sessionId: string };
 	"task.factory.watch": { task: AgendaTaskRecord };
+	"task.factory.priority": { task: AgendaTaskRecord };
 	"task.factory.replay": { tasks: AgendaTaskRecord[] };
 	"task.factory.defaults.get": { workflow?: FactoryWorkflowRecipe };
 	"task.factory.defaults.set": { workflow?: FactoryWorkflowRecipe };
 	"task.factory.limits.get": HubTaskFactoryLimits;
 	"task.factory.limits.set": HubTaskFactoryLimits;
+	"task.factory.guidance.get": HubFactoryGuidanceSettings;
+	"task.factory.guidance.history": {
+		entries: HubFactoryGuidanceHistoryEntry[];
+		more: boolean;
+	};
+	"task.factory.guidance.set": {
+		target: HubFactoryGuidanceTarget;
+		entry: HubFactoryGuidanceHistoryEntry;
+	};
+	"task.factory.guidance.resolve": { target: HubFactoryGuidanceTarget };
+	"task.factory.verification.get": HubFactoryVerificationSettings;
+	"task.factory.verification.set": HubFactoryVerificationSettings;
+	"task.factory.storage.get": HubFactoryStorageSummary;
+	"task.factory.storage.clean": HubFactoryStorageCleanResult;
+	"task.factory.reset": HubFactoryResetResult;
+	"task.factory.projects.get": {
+		projects: HubFactoryProjectSummary[];
+		userGuidanceChanged: HubFactoryGuidanceRole[];
+	};
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
 }
@@ -770,6 +1102,7 @@ export type HubCommandName =
 	| "task.factory.answer"
 	| "task.factory.design"
 	| "task.factory.watch"
+	| "task.factory.priority"
 	| "task.factory.replay"
 	| "task.factory.defaults.get"
 	| "task.factory.defaults.set"
@@ -777,6 +1110,16 @@ export type HubCommandName =
 	| "task.factory.limits.set"
 	| "task.factory.stages.get"
 	| "task.factory.stages.set"
+	| "task.factory.guidance.get"
+	| "task.factory.guidance.history"
+	| "task.factory.guidance.set"
+	| "task.factory.guidance.resolve"
+	| "task.factory.verification.get"
+	| "task.factory.verification.set"
+	| "task.factory.storage.get"
+	| "task.factory.storage.clean"
+	| "task.factory.reset"
+	| "task.factory.projects.get"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.list"
@@ -803,6 +1146,8 @@ export function getDefaultHubCommandTimeoutMs(
 ): number | null {
 	switch (command) {
 		case "task.factory.stamp":
+		case "task.factory.storage.get":
+		case "task.factory.storage.clean":
 			return 75_000;
 		case "run.start":
 		case "session.send_input":

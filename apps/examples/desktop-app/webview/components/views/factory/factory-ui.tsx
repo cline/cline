@@ -1,6 +1,11 @@
 "use client";
 
-import type { AgendaTaskRecord, FactoryCardState } from "@cline/shared";
+import type {
+	AgendaTaskRecord,
+	FactoryCardState,
+	FactoryPriority,
+	FactoryPriorityState,
+} from "@cline/shared";
 import {
 	factoryCardState,
 	formatFactoryId,
@@ -16,6 +21,11 @@ import {
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { UseAgendaTasksResult } from "@/hooks/use-agenda-tasks";
 import type {
 	FactoryAttention,
@@ -36,6 +46,7 @@ import {
 	FACTORY_ACTIVITY,
 	FACTORY_DECISION,
 	FACTORY_LINE,
+	FACTORY_PRIORITY,
 	FACTORY_READY,
 	FACTORY_ROW_ACTION,
 	FACTORY_RULE_CARD,
@@ -205,6 +216,115 @@ export function FactoryIdChip({
 	);
 }
 
+/** Signal bars filled per level: Low one, Medium two, High three. */
+const PRIORITY_BARS: Record<Exclude<FactoryPriority, "urgent">, number> = {
+	low: 1,
+	medium: 2,
+	high: 3,
+};
+
+/**
+ * A priority level drawn as Linear draws it: signal bars for Low, Medium and
+ * High, an orange square with "!" for Urgent, three dashes for No priority
+ * (shown only where a level is chosen). Decorative: callers name it.
+ */
+export function FactoryPriorityGlyph({
+	level,
+	className,
+}: {
+	level: FactoryPriority | "none";
+	className?: string;
+}) {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 16 16"
+			data-factory-priority-glyph={level}
+			// Urgent stays orange wherever it is drawn, a muted menu included.
+			className={cn(
+				"size-3.5 shrink-0",
+				className,
+				level === "urgent" && "text-orange-500",
+			)}
+		>
+			{level === "urgent" ? (
+				<>
+					<rect x="1" y="1" width="14" height="14" rx="3" fill="currentColor" />
+					<rect x="7" y="3.75" width="2" height="5.5" rx="1" fill="white" />
+					<circle cx="8" cy="11.5" r="1.25" fill="white" />
+				</>
+			) : (
+				[
+					{ x: 1.5, y: 8, height: 6 },
+					{ x: 6.5, y: 5, height: 9 },
+					{ x: 11.5, y: 2, height: 12 },
+				].map((bar, index) =>
+					level === "none" ? (
+						<rect
+							key={bar.x}
+							x={bar.x}
+							y="7.25"
+							width="3"
+							height="1.5"
+							rx="0.75"
+							fill="currentColor"
+						/>
+					) : (
+						<rect
+							key={bar.x}
+							x={bar.x}
+							y={bar.y}
+							width="3"
+							height={bar.height}
+							rx="1"
+							fill="currentColor"
+							fillOpacity={index < PRIORITY_BARS[level] ? 1 : 0.3}
+						/>
+					),
+				)
+			)}
+		</svg>
+	);
+}
+
+/**
+ * A card's priority, named "High priority", with who set it as its tooltip;
+ * nothing when the card has none.
+ */
+/** A priority to show: a cleared one ("none") shows like no priority. */
+export function hasFactoryPriority(
+	priority: FactoryPriorityState | undefined,
+): priority is FactoryPriorityState & { level: FactoryPriority } {
+	return priority !== undefined && priority.level !== "none";
+}
+
+export function FactoryPriorityIcon({
+	priority,
+	className,
+}: {
+	priority: FactoryPriorityState | undefined;
+	className?: string;
+}) {
+	if (!hasFactoryPriority(priority)) return null;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					role="img"
+					aria-label={FACTORY_PRIORITY.level(priority.level)}
+					data-factory-priority={priority.level}
+					className={cn("flex shrink-0", className)}
+				>
+					<FactoryPriorityGlyph level={priority.level} />
+				</span>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-72">
+				{FACTORY_PRIORITY.tooltip(priority)}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
 /**
  * The Factory cards and their attention, loaded once for the app: the
  * sidebar's Factory group and the Factory page share one subscription.
@@ -354,6 +474,16 @@ export function factoryNeedsYou(
 		(activity.column === "Ready for you" &&
 			activity.label === FACTORY_READY.needsReview)
 	);
+}
+
+/**
+ * Whether the board's Needs you column lists the card: a decision, or a card
+ * whose stored data could not be read. The sidebar's count uses the same.
+ */
+export function factoryInNeedsYouColumn(
+	activity: Pick<FactoryActivity, "column" | "label" | "unreadable">,
+): boolean {
+	return factoryNeedsYou(activity) || activity.unreadable !== undefined;
 }
 
 /**

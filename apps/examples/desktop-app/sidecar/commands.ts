@@ -87,6 +87,7 @@ import {
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
+import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -137,11 +138,15 @@ import { readFactoryArtifact } from "./factory-artifacts";
 import {
 	handleFactoryCommand,
 	handleFactoryLimitsCommand,
+	handleFactoryPresetCommand,
+	handleFactorySettingsCommand,
 	handleFactoryStagesCommand,
+	isFactorySettingsCommand,
 	oncePerConnection,
 	pushFactoryDefaultWorkflow,
 	type SetFactoryDefaults,
 } from "./factory-commands";
+import { createFactoryConnectionsReader } from "./factory-connections";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -1416,6 +1421,7 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.factory.stop",
 	"task.factory.design",
 	"task.factory.watch",
+	"task.factory.priority",
 	"task.factory.answer",
 	"task.factory.audit",
 	"task.factory.audit.resolve",
@@ -1430,6 +1436,7 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.factory.stop",
 	"task.factory.design",
 	"task.factory.watch",
+	"task.factory.priority",
 	"task.factory.answer",
 	"task.factory.audit",
 	"task.factory.audit.resolve",
@@ -1444,6 +1451,9 @@ const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
 	"task.run",
 	"task.automation.set",
 ]);
+
+/** GitHub CLI, Linear and Hub state for Factory settings; gh is probed at most every 5 minutes. */
+const readFactoryConnections = createFactoryConnectionsReader({});
 
 function factoryDefaultsSender(
 	hubClient: Awaited<ReturnType<typeof ensureSharedHubClient>>,
@@ -3634,7 +3644,6 @@ export async function handleCommand(
 
 	if (
 		command === "factory_save_preset" ||
-		command === "factory_import_issue" ||
 		command === "factory_attention" ||
 		command === "factory_get_diff"
 	) {
@@ -3667,6 +3676,63 @@ export async function handleCommand(
 		return handleFactoryStagesCommand(command, args, (name, input) =>
 			hubClient.command(name, input),
 		);
+	}
+
+	// Factory settings (guidance, test setup, storage, reset, projects): the
+	// person's own reads and decisions, only from a trusted desktop connection.
+	if (isFactorySettingsCommand(command)) {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		const hubClient = await ensureSharedHubClient(ctx);
+		return handleFactorySettingsCommand(
+			command,
+			args,
+			(name, input) => hubClient.command(name, input),
+			factoryDefaultsSender(hubClient),
+		);
+	}
+
+	if (
+		command === "factory_delete_preset" ||
+		command === "factory_rename_preset"
+	) {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		return handleFactoryPresetCommand(command, args, async (workflow) =>
+			factoryDefaultsSender(await ensureSharedHubClient(ctx))(workflow),
+		);
+	}
+
+	if (command === "factory_get_connections") {
+		if (!options?.connection?.data?.canApproveTools)
+			throw new Error("Feature access requires a trusted desktop connection.");
+		const { refresh } = z
+			.object({ refresh: z.boolean().optional() })
+			.strict()
+			.parse(args ?? {});
+		const hubClient = await ensureSharedHubClient(ctx).catch(() => undefined);
+		const mismatch = ctx.hubBuildMismatch;
+		return readFactoryConnections({
+			refresh,
+			hub: {
+				status: hubClient?.isConnected() ? "connected" : "disconnected",
+				...(hubClient?.getUrl() ? { url: hubClient.getUrl() as string } : {}),
+				appVersion: packageJson.version,
+				...(hubClient?.getConnectionError()?.message
+					? { error: hubClient.getConnectionError()?.message }
+					: {}),
+				...(mismatch
+					? {
+							mismatch: {
+								...(mismatch.hubCoreVersion
+									? { hubCoreVersion: mismatch.hubCoreVersion }
+									: {}),
+								...(mismatch.reason ? { reason: mismatch.reason } : {}),
+							},
+						}
+					: {}),
+			},
+		});
 	}
 
 	if (command === "factory_read_artifact") {

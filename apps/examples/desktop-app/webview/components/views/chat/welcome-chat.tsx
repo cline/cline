@@ -43,7 +43,6 @@ import {
 	type CloudOnboardingVariant,
 } from "./cloud-onboarding";
 import { FactoryHardHat } from "./factory-hard-hat";
-import { FactoryIntakeNotice } from "./factory-intake-notice";
 import { FactoryManagerNotice } from "./factory-manager-notice";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
@@ -103,7 +102,7 @@ export function WelcomeScreen({
 	 * workspace quick actions. Without it, the hard hat follows whether
 	 * `notice` is a Factory notice.
 	 */
-	factory?: "intake" | "manager";
+	factory?: "manager";
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	environmentSelector: ReactNode;
@@ -473,9 +472,7 @@ export function WelcomeScreen({
 						: null;
 	const showsFactoryHardHat =
 		factory !== undefined ||
-		(isValidElement(notice) &&
-			(notice.type === FactoryIntakeNotice ||
-				notice.type === FactoryManagerNotice));
+		(isValidElement(notice) && notice.type === FactoryManagerNotice);
 	// A failed restore must still allow a manual repository selection.
 	const showCloudOnboarding =
 		cloudOnboardingVariant !== null && cloudSetup.status !== "restore_error";

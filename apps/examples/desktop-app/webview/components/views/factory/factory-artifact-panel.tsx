@@ -23,7 +23,6 @@ import {
 	type ComponentType,
 	type KeyboardEvent,
 	type ReactNode,
-	type RefObject,
 	useCallback,
 	useEffect,
 	useState,
@@ -120,27 +119,6 @@ export function useFactoryPanelTab(
  * matches the `@min-[700px]` container queries in factory-detail.tsx.
  */
 export const FACTORY_NARROW_CARD = 700;
-
-/**
- * The card's width, measured where ResizeObserver exists; undefined until
- * measured, so unmeasured cards (and tests) keep the separate panel.
- */
-export function useFactoryCardWidth(
-	ref: RefObject<HTMLElement | null>,
-): number | undefined {
-	const [width, setWidth] = useState<number>();
-	useEffect(() => {
-		const element = ref.current;
-		if (!element || typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver((entries) => {
-			const next = entries[0]?.contentRect.width;
-			if (next) setWidth(next);
-		});
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, [ref]);
-	return width;
-}
 
 /**
  * Every role session known for the card, oldest first: the scoping agent,

@@ -365,7 +365,7 @@ it("compares source and variant runs, including failures, unknown usage and prov
 	expect(cheaper).toContain("Something's off: Missed the empty state");
 	// The missing verifier report leaves its required criterion unverified.
 	expect(cheaper).toContain(
-		"1/2 required proven · unverified: empty-state · optional 0/1 passed",
+		"1/2 required proven · 1 unverified · optional 0/1 passed",
 	);
 	expect(cheaper).toContain(`Cheaper · ${"b".repeat(8)}`);
 	// Replays skip the designer, so their totals are scoped differently.

@@ -403,6 +403,52 @@ describe("Factory design triage", () => {
 		);
 	});
 
+	it("shows the designer the cards linked as related, fenced, without triage", async () => {
+		const h = await harness({ intake: false, maxRuntimeRetries: 0 });
+		const card = await h.manager.createTask({
+			title: "Add retry jitter",
+			type: "follow-up",
+			instructions: "Spread retries out.",
+			scope: "workspace",
+			workspaceRoot: h.workspaceRoot,
+			expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+			createdBy: { kind: "user" },
+			queueFactoryDesign: false,
+			factory: factoryTaskConfigSchema.parse({
+				...h.task.factory,
+				relatedTo: [h.task.taskId],
+			}),
+		});
+		await h.manager.startFactoryDesign(card.taskId);
+		await vi.waitFor(() =>
+			expect(
+				h.designerCalls().some(([, task]) => task.taskId === card.taskId),
+			).toBe(true),
+		);
+		const instructions =
+			h.designerCalls().find(([, task]) => task.taskId === card.taskId)?.[1]
+				.instructions ?? "";
+		expect(instructions).not.toContain("FACTORY_CARDS");
+		const block = instructions
+			.split("<<<RELATED_CARDS\n")[1]
+			?.split("\nRELATED_CARDS>>>")[0];
+		expect(instructions).toContain(
+			"RELATED CARDS (context; do not redo their work).",
+		);
+		expect(block?.split("\n").map((line) => JSON.parse(line))).toEqual([
+			{
+				id: h.task.taskId,
+				factoryId: "F1",
+				status: "pending_approval",
+				title: "Fix flaky retry",
+				brief: "Brief for Fix flaky retry",
+			},
+		]);
+		expect(instructions.indexOf("RELATED_CARDS>>>")).toBeLessThan(
+			instructions.indexOf("PLAN REVIEW FINDINGS:"),
+		);
+	});
+
 	it("allows triage on a user card when the workflow's designer opts in", async () => {
 		const h = await harness({ intake: false, designerTriage: true });
 		const task = await concluded(h);

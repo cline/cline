@@ -114,8 +114,8 @@ export function createFactoryReplayInputs(input: {
 				sourceIssue: undefined,
 				intake: undefined,
 				approval: "required",
+				// Never published, so never watched: no PR to follow up.
 				publishPullRequest: false,
-				watchPullRequest: false,
 				replay: {
 					sourceTaskId: source.taskId,
 					sourceRunId: run.runId,

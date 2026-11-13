@@ -26,6 +26,7 @@ import {
 	markQueuedAttachmentsSubmitted,
 	reconcileQueuedAttachments,
 } from "./attachments";
+import { forgetFactoryRuns } from "./factory-commands";
 import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
@@ -930,6 +931,10 @@ export function handleHubLiveEvent(
 	// Forward them before the session-only live-chat projection below so Agenda
 	// surfaces stay current without polling.
 	if (event.event.startsWith("task.")) {
+		const task = event.payload?.task as { taskId?: unknown } | undefined;
+		forgetFactoryRuns(
+			typeof task?.taskId === "string" ? task.taskId : undefined,
+		);
 		sendEvent(ctx, event.event, {
 			...(event.payload ?? {}),
 			...(event.sessionId ? { sessionId: event.sessionId } : {}),
@@ -1527,6 +1532,7 @@ export async function ensureSharedHubClient(
 		});
 		try {
 			await client.connect();
+			forgetFactoryRuns();
 			client.subscribe((event) => {
 				handleHubLiveEvent(
 					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),

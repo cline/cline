@@ -147,10 +147,12 @@ describe("Factory intake tool", () => {
 		expect(persisted.factory?.agents).toBeUndefined();
 		expect(queue()).toEqual([first.task.taskId]);
 		// An omitted source defaults to one shared by every agent session.
+		// The same wording under another key is a duplicate unless allowed.
 		const unnamed = await submit({
 			source: undefined,
 			idempotency_key: "issue-44",
 			start_scoping: false,
+			allow_duplicate: true,
 		});
 		if (!unnamed.ok) throw new Error(unnamed.error.message);
 		expect(
@@ -194,6 +196,7 @@ describe("Factory intake tool", () => {
 		const scoped = await submit({
 			idempotency_key: "issue-43",
 			start_scoping: true,
+			allow_duplicate: true,
 		});
 		if (!scoped.ok) throw new Error(scoped.error.message);
 		expect(scoped.task.taskId).not.toBe(first.task.taskId);
@@ -345,8 +348,9 @@ describe("Factory intake tool", () => {
 			autonomy: "hands_off",
 			maxCostUsd: 10,
 			publishPullRequest: true,
-			watchPullRequest: false,
 		});
+		// PR follow-up is left unset: on for hands-off work.
+		expect(plain.factory?.watchPullRequest).toBeUndefined();
 		expect(plain.factory?.workflow?.name).not.toBe("Hands-off");
 		expect(queue()).toEqual([plain.taskId]);
 		// Only an explicit request just queues it.
@@ -360,7 +364,6 @@ describe("Factory intake tool", () => {
 			approval: "automatic",
 			autonomy: "hands_off",
 			publishPullRequest: true,
-			watchPullRequest: false,
 			workflow: { name: "Hands-off" },
 			intake: { source: "nightly-audit", key: "hands-off" },
 		});
@@ -1117,7 +1120,7 @@ describe("Factory status tool", () => {
 			describe(card({ factoryDesignProgress: design("designing") }), [], live),
 		).toMatchObject({
 			stage: "Scoping",
-			working: ["designer"],
+			working: ["scoping agent"],
 			queue: "working (1 of 2 slots in use)",
 			next: "Continues on its own.",
 		});
@@ -1136,7 +1139,7 @@ describe("Factory status tool", () => {
 			),
 		).toMatchObject({
 			stage: "Checking the plan",
-			working: ["2 plan reviewers"],
+			working: ["2 plan checkers"],
 		});
 		const approvable = {
 			approval: "required",
@@ -1197,7 +1200,7 @@ describe("Factory status tool", () => {
 				[run({ phase: "verifying", attempts: [attempt("verifier", 75)] })],
 				live,
 			),
-		).toMatchObject({ stage: "Verifying", working: ["verifier for 1h 15m"] });
+		).toMatchObject({ stage: "Verifying", working: ["tester for 1h 15m"] });
 		expect(
 			describe(
 				card({ status: "in_progress" }),
@@ -1311,7 +1314,7 @@ describe("Factory status tool", () => {
 		expect(delivered).toMatchObject({
 			pullRequestOutcome: "merged after changes",
 			route:
-				"shared_contract (sensitive paths: .env.example): 1 plan reviewer, 2 reviewers. Scoping $0.06 · build $0.31 · review $1.89.",
+				"shared_contract (sensitive paths: .env.example): 1 plan checker, 2 code reviewers. Scoping $0.06 · build $0.31 · review $1.89.",
 		});
 	});
 
@@ -1445,10 +1448,12 @@ describe("Factory status tool", () => {
 		defaults: () => Promise<FactorySessionDefaults | undefined> = async () => ({
 			workspaceRoot: "/",
 		}),
+		confirmPriority?: CreateFactoryStatusToolOptions["confirmPriority"],
 	) =>
 		createFactoryStatusTool({
 			manager,
 			resolveSessionDefaults: defaults,
+			confirmPriority,
 		}).execute(input as never, {
 			agentId: "chat-agent",
 			iteration: 1,
@@ -1478,6 +1483,7 @@ describe("Factory status tool", () => {
 			ok: true,
 			workspaceRoot: "/",
 			factory: "1 of 2 slots in use, 2 waiting",
+			needsYou: { count: 0, cards: [] },
 			cards: [
 				{
 					taskId: "task_a",
@@ -1492,12 +1498,279 @@ describe("Factory status tool", () => {
 					title: "Fix login",
 					status: "pending_approval",
 					stage: "On hold",
+					waiting: "on hold",
 					queue: "1st in line (1 of 2 slots in use)",
 					next: "Waits until someone starts it.",
 				},
 			],
 			more: false,
 		});
+	});
+
+	it("lists the cards that need the user in the overview, most urgent first, and never a card waiting to start", async () => {
+		const held = (text: string) => `Automatic approval is waiting: ${text}`;
+		const tasks = [
+			card({
+				taskId: "task_start",
+				factoryNumber: 1,
+				title: "Not started",
+				status: "approved",
+			}),
+			card({
+				taskId: "task_plan",
+				factoryNumber: 2,
+				title: "Big change",
+				error: held("Large change: plan needs your approval"),
+			}),
+			card({
+				taskId: "task_hold",
+				factoryNumber: 3,
+				title: "On hold",
+				factory: { approval: "required", hold: true } as never,
+			}),
+			card({
+				taskId: "task_stop",
+				factoryNumber: 4,
+				title: "Stopped at scope",
+				status: "failed",
+				error: "Design did not complete",
+			}),
+			card({
+				taskId: "task_ask",
+				factoryNumber: 5,
+				title: "Asks",
+				factoryQuestions: [
+					{ id: "q", status: "pending", revision: 2, question: "Which API?" },
+				] as never,
+			}),
+		];
+		const result = await execute(fakeManager(tasks), {});
+		if (!result.ok) throw new Error(result.error.message);
+		expect(result.needsYou).toEqual({
+			count: 3,
+			cards: [
+				{
+					id: "F4",
+					title: "Stopped at scope",
+					reason: "stopped: Design did not complete",
+				},
+				{ id: "F5", title: "Asks", reason: "answer a question" },
+				{
+					id: "F2",
+					title: "Big change",
+					reason: "approve the plan (large change)",
+				},
+			],
+		});
+		const byId = new Map(result.cards.map((entry) => [entry.factoryId, entry]));
+		expect(byId.get("F1")).toMatchObject({ waiting: "not started" });
+		expect(byId.get("F1")).not.toHaveProperty("needsYou");
+		expect(byId.get("F3")).toMatchObject({ waiting: "on hold" });
+		expect(byId.get("F3")).not.toHaveProperty("needsYou");
+		expect(byId.get("F2")).toMatchObject({
+			needsYou: { reason: "approve the plan (large change)" },
+		});
+		expect(byId.get("F2")).not.toHaveProperty("waiting");
+		const listed = await createFactoryListTool({
+			manager: fakeManager(tasks),
+			resolveSessionDefaults: async () => ({ workspaceRoot: "/" }),
+		}).execute({} as never, {
+			agentId: "chat-agent",
+			iteration: 1,
+			sessionId: "chat-1",
+		});
+		if (!listed.ok) throw new Error(listed.error.message);
+		expect(
+			listed.cards.map((entry) => [
+				entry.factoryId,
+				entry.needsYou?.reason,
+				entry.waiting,
+			]),
+		).toEqual([
+			["F1", undefined, "not started"],
+			["F2", "approve the plan (large change)", undefined],
+			["F3", undefined, "on hold"],
+			["F4", "stopped: Design did not complete", undefined],
+			["F5", "answer a question", undefined],
+		]);
+	});
+
+	it("orders the overview by priority: Needs you by priority, urgency, then age, and no high card cut off", async () => {
+		const stopped = (
+			factoryNumber: number,
+			minutes: number,
+			extra: Partial<AgendaTaskRecord> = {},
+		) =>
+			card({
+				taskId: `task_${factoryNumber}`,
+				factoryNumber,
+				workspaceRoot: "/",
+				title: `Stopped ${factoryNumber}`,
+				status: "failed",
+				error: "Build failed",
+				createdAt: minutesAgo(minutes),
+				...extra,
+			});
+		const priority = (level: "high" | "medium" | "low") => ({
+			factoryPriority: { level, by: "person" as const, at: minutesAgo(0) },
+		});
+		const tasks = [
+			// Newest first, as the manager lists them.
+			stopped(1, 10),
+			stopped(2, 60),
+			stopped(3, 5, priority("medium")),
+			card({
+				taskId: "task_4",
+				factoryNumber: 4,
+				workspaceRoot: "/",
+				title: "Asks",
+				factoryQuestions: [
+					{ id: "q", status: "pending", revision: 2, question: "Which API?" },
+				] as never,
+				...priority("low"),
+			}),
+			...Array.from({ length: 20 }, (_, index) =>
+				card({
+					taskId: `task_wait_${index}`,
+					workspaceRoot: "/",
+					status: "approved",
+				}),
+			),
+			card({
+				taskId: "task_high",
+				factoryNumber: 30,
+				workspaceRoot: "/",
+				title: "Big change",
+				error:
+					"Automatic approval is waiting: Large change: plan needs your approval",
+				...priority("high"),
+			}),
+		];
+		const result = await execute(fakeManager(tasks), {});
+		if (!result.ok) throw new Error(result.error.message);
+		expect(
+			result.needsYou?.cards.map((entry) => [entry.id, entry.priority]),
+		).toEqual([
+			["F30", "high"],
+			["F2", undefined],
+			["F1", undefined],
+			["F3", "medium"],
+			["F4", "low"],
+		]);
+		expect(result.cards).toHaveLength(20);
+		expect(result.cards[0]).toMatchObject({
+			factoryId: "F30",
+			priority: "high",
+		});
+		expect(result.cards[0]).not.toHaveProperty("priorityBy");
+		expect(result.more).toBe(true);
+	});
+
+	it("changes a card's priority only through the Factory manager chat", async () => {
+		const pending = card({
+			taskId: "task_p",
+			workspaceRoot: "/",
+			title: "Pending work",
+		});
+		const manager = {
+			...fakeManager([pending]),
+			setFactoryPriority: vi.fn(async () => pending),
+		};
+		const managerChat = async () => ({ workspaceRoot: "/", manager: true });
+		await expect(
+			execute(manager, {
+				task_id: "task_p",
+				action: "priority",
+				priority: "high",
+			}),
+		).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: "factory_priority_refused",
+				message: expect.stringContaining("Only the user changes"),
+			},
+		});
+		for (const input of [
+			{ task_id: "task_p", action: "priority" },
+			{ task_id: "task_p", priority: "high" },
+		])
+			await expect(execute(manager, input, managerChat)).resolves.toMatchObject(
+				{ ok: false },
+			);
+		expect(manager.setFactoryPriority).not.toHaveBeenCalled();
+		await execute(
+			manager,
+			{ task_id: "task_p", action: "priority", priority: "high" },
+			managerChat,
+		);
+		await execute(
+			manager,
+			{ task_id: "task_p", action: "priority", priority: "none" },
+			managerChat,
+		);
+		expect(manager.setFactoryPriority.mock.calls).toEqual([
+			["task_p", "high", "manager"],
+			["task_p", null, "manager"],
+		]);
+	});
+
+	it("lets the manager chat set Urgent or change the user's priority only when the user confirms", async () => {
+		const plain = card({
+			taskId: "task_p",
+			workspaceRoot: "/",
+			title: "Plain",
+		});
+		const theirs = card({
+			taskId: "task_q",
+			factoryNumber: 7,
+			workspaceRoot: "/",
+			title: "Theirs",
+			factoryPriority: { level: "low", by: "person", at: minutesAgo(0) },
+		});
+		const manager = {
+			...fakeManager([plain, theirs]),
+			setFactoryPriority: vi.fn(async () => plain),
+		};
+		const managerChat = async () => ({ workspaceRoot: "/", manager: true });
+		const urgent = {
+			task_id: "task_p",
+			action: "priority",
+			priority: "urgent",
+		};
+		await expect(execute(manager, urgent, managerChat)).resolves.toMatchObject({
+			ok: false,
+			error: { code: "factory_priority_refused" },
+		});
+		const declined = vi.fn(async () => ({ approved: false }));
+		await expect(
+			execute(
+				manager,
+				{ task_id: "task_q", action: "priority", priority: "none" },
+				managerChat,
+				declined,
+			),
+		).resolves.toMatchObject({
+			ok: false,
+			error: { message: expect.stringContaining("did not confirm") },
+		});
+		expect(declined).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task_q",
+				card: "F7",
+				from: "low",
+				fromBy: "person",
+				to: "none",
+				summary: "Priority Low (set by you) → No priority",
+			}),
+		);
+		expect(manager.setFactoryPriority).not.toHaveBeenCalled();
+		const approved = vi.fn(async () => ({ approved: true }));
+		await expect(
+			execute(manager, urgent, managerChat, approved),
+		).resolves.toMatchObject({ ok: true });
+		expect(manager.setFactoryPriority.mock.calls).toEqual([
+			["task_p", "urgent", "person"],
+		]);
 	});
 
 	it("holds, starts and retries one card, and refuses anything else", async () => {
@@ -1877,6 +2150,86 @@ describe("Factory status tool", () => {
 				expect.objectContaining({ factoryId: "F2" }),
 			]),
 		});
+	});
+
+	it("files a stated priority: any model's urgent is recorded as high, the manager chat's as the manager's", async () => {
+		const root = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "cline-factory-priority-")),
+		);
+		const workspaceRoot = join(root, "repo");
+		mkdirSync(join(workspaceRoot, ".git"), { recursive: true });
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		cleanup.push(async () => {
+			await manager.dispose();
+			rmSync(root, { recursive: true, force: true });
+		});
+		const submit = async (title: string, managerChat: boolean) => {
+			const result = await createFactoryTool({
+				manager,
+				resolveSessionDefaults: async () => ({
+					workspaceRoot,
+					manager: managerChat,
+				}),
+				listProjects: async () => [workspaceRoot],
+			}).execute(
+				{
+					title,
+					instructions: `${title}.`,
+					start_scoping: false,
+					priority: "urgent",
+					...(managerChat ? { project: workspaceRoot } : {}),
+				},
+				{ agentId: "chat-agent", iteration: 1, sessionId: "chat-1" },
+			);
+			if (!result.ok) throw new Error(result.error.message);
+			return result.task;
+		};
+		const byAgent = await submit("Fix login", false);
+		expect(byAgent.priority).toBe("high");
+		expect(
+			(await manager.getTask(byAgent.taskId))?.factoryPriority,
+		).toMatchObject({ level: "high", by: "agent" });
+		const asked = await submit("Fix checkout", true);
+		expect(asked.priority).toBe("high");
+		expect(
+			(await manager.getTask(asked.taskId))?.factoryPriority,
+		).toMatchObject({
+			level: "high",
+			by: "manager",
+		});
+		const status = await createFactoryStatusTool({
+			manager,
+			resolveSessionDefaults: async () => ({ workspaceRoot }),
+		}).execute({ task_id: byAgent.taskId } as never, {
+			agentId: "chat-agent",
+			iteration: 1,
+			sessionId: "chat-1",
+		});
+		expect(status).toMatchObject({
+			cards: [{ priority: "high", priorityBy: "agent" }],
+		});
+		const listed = await createFactoryListTool({
+			manager,
+			resolveSessionDefaults: async () => ({ workspaceRoot }),
+		}).execute(
+			{},
+			{ agentId: "chat-agent", iteration: 1, sessionId: "chat-1" },
+		);
+		if (!listed.ok) throw new Error(listed.error.message);
+		expect(listed.cards.map((entry) => entry.priority)).toEqual([
+			"high",
+			"high",
+		]);
 	});
 });
 

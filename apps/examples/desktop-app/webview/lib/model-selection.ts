@@ -60,8 +60,18 @@ export function parseModelSelectionStorage(
 	}
 }
 
+/**
+ * Where a remembered model lives: Local and Cloud chats, and the Factory
+ * manager (Ask Factory), which keeps its own and starts from Local's until
+ * one is chosen for it.
+ */
+export type ModelSelectionScope = ExecutionTarget | "factory-manager";
+
+export const FACTORY_MANAGER_MODEL_STORAGE_KEY =
+	"cline.code.factory-manager-model.v1";
+
 export function readModelSelectionStorageFromWindow(
-	scope: ExecutionTarget = "local",
+	scope: ModelSelectionScope = "local",
 ): ModelSelectionStorage {
 	if (typeof window === "undefined") {
 		return {
@@ -69,14 +79,15 @@ export function readModelSelectionStorageFromWindow(
 			lastModelByProvider: {},
 		};
 	}
-	return parseModelSelectionStorage(
-		window.localStorage.getItem(modelSelectionStorageKey(scope)),
-	);
+	const raw = window.localStorage.getItem(modelSelectionStorageKey(scope));
+	if (raw === null && scope === "factory-manager")
+		return readModelSelectionStorageFromWindow("local");
+	return parseModelSelectionStorage(raw);
 }
 
 export function writeModelSelectionStorageToWindow(
 	value: ModelSelectionStorage,
-	scope: ExecutionTarget = "local",
+	scope: ModelSelectionScope = "local",
 ): void {
 	if (typeof window === "undefined") {
 		return;
@@ -148,11 +159,11 @@ export function writeReasoningSelectionToWindow(
 export type ExecutionTarget = "local" | "cloud";
 export const EXECUTION_TARGET_STORAGE_KEY = "cline.code.execution-target.v1";
 
-function modelSelectionStorageKey(scope: ExecutionTarget): string {
+function modelSelectionStorageKey(scope: ModelSelectionScope): string {
 	// Cloud has a different model catalog; keep the local provider/model intact.
-	return scope === "cloud"
-		? "cline.code.cloud-model-selection.v1"
-		: MODEL_SELECTION_STORAGE_KEY;
+	if (scope === "cloud") return "cline.code.cloud-model-selection.v1";
+	if (scope === "factory-manager") return FACTORY_MANAGER_MODEL_STORAGE_KEY;
+	return MODEL_SELECTION_STORAGE_KEY;
 }
 
 export function readExecutionTargetFromWindow(): ExecutionTarget {

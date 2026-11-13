@@ -128,4 +128,11 @@ describe("FactoryManagerNotice", () => {
 		expect(container.querySelector("button")).toBeNull();
 		expect(mocks.listAgendaTasks).not.toHaveBeenCalled();
 	});
+
+	it("shows the mascot in its hard hat, without a second title, when docked", async () => {
+		await act(async () => root.render(<FactoryManagerNotice docked />));
+		expect(container.querySelector("[data-factory-mascot]")).not.toBeNull();
+		expect(container.querySelector("[data-factory-hard-hat]")).not.toBeNull();
+		expect(container.textContent).not.toContain("Ask FactoryGive");
+	});
 });

@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
@@ -10,6 +18,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgendaTaskManagerApi } from "../../tasks/agenda-task-api";
 import { AgendaTaskManager } from "../../tasks/agenda-task-manager";
 import { FileFactoryDefaultsStore } from "../../tasks/factory-defaults";
+import {
+	FACTORY_GUIDANCE_EMPTY_HASH,
+	FactoryGuidanceStore,
+	factoryGuidanceHash,
+} from "../../tasks/factory-guidance";
+import { FileFactoryStageTrustStore } from "../../tasks/factory-stages";
 import { createFactoryWorkflowRecipe } from "../../tasks/factory-workflow-recipe";
 import { HubAgendaTaskCommandService } from "./task-command-service";
 
@@ -245,10 +259,10 @@ describe("HubAgendaTaskCommandService", () => {
 			);
 			return vi.mocked(manager.createTask).mock.calls[0]?.[0].factory;
 		};
-		expect(await create({ approval: "automatic" })).toMatchObject({
-			publishPullRequest: true,
-			watchPullRequest: false,
-		});
+		const automatic = await create({ approval: "automatic" });
+		expect(automatic).toMatchObject({ publishPullRequest: true });
+		// PR follow-up is left to its one default (off: not hands-off).
+		expect(automatic?.watchPullRequest).toBeUndefined();
 		expect(
 			await create({ approval: "automatic", publishPullRequest: false }),
 		).toMatchObject({ publishPullRequest: false });
@@ -380,6 +394,214 @@ describe("HubAgendaTaskCommandService", () => {
 				},
 			}),
 		);
+	});
+
+	it("records a client's priority as the person's, on creation and through task.factory.priority", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-hub-factory-priority-"));
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		const authority = {
+			...AUTHORITY,
+			workspaceContext: { workspaceRoot: root, cwd: root },
+		};
+		try {
+			const service = new HubAgendaTaskCommandService(manager);
+			const created = await service.handleCommand(
+				envelope("task.create", {
+					type: "follow-up",
+					title: "Fix checkout",
+					instructions: "Checkout fails",
+					expiresAt: "2099-01-01T00:00:00.000Z",
+					queueFactoryDesign: false,
+					factory: { approval: "required", checks: [] },
+					// A client cannot pass itself off as an agent or the scoper.
+					factoryPriority: { level: "urgent", by: "scoper", reason: "spoof" },
+				}),
+				authority,
+			);
+			const task = created.payload?.task as AgendaTaskRecord;
+			expect(task.factoryPriority).toEqual({
+				level: "urgent",
+				by: "person",
+				at: expect.any(String),
+			});
+			const set = (payload: Record<string, unknown>, scope = authority) =>
+				service.handleCommand(
+					envelope("task.factory.priority", {
+						taskId: task.taskId,
+						...payload,
+					}),
+					scope,
+				);
+			await expect(set({ priority: "low" })).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					task: {
+						revision: task.revision,
+						factoryPriority: { level: "low", by: "person" },
+					},
+				},
+			});
+			await expect(set({ priority: "soon" })).resolves.toMatchObject({
+				ok: false,
+			});
+			await expect(
+				set(
+					{ priority: "high" },
+					{
+						...AUTHORITY,
+						workspaceContext: { workspaceRoot: "/other-repo", cwd: "/" },
+					},
+				),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { message: "task does not exist in this workspace" },
+			});
+			const cleared = await set({ priority: null });
+			expect(
+				(cleared.payload?.task as AgendaTaskRecord).factoryPriority,
+			).toMatchObject({ level: "none", by: "person" });
+		} finally {
+			await manager.dispose();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("files Factory cards through the duplicate check and replies with the card that covers a repeat", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "cline-hub-factory-duplicate-")),
+		);
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		const authority = {
+			...AUTHORITY,
+			workspaceContext: { workspaceRoot: root, cwd: root },
+		};
+		const service = new HubAgendaTaskCommandService(manager);
+		const create = (payload: Record<string, unknown> = {}) =>
+			service.handleCommand(
+				envelope("task.create", {
+					type: "follow-up",
+					title: "Fix checkout",
+					instructions: "Checkout fails on submit.",
+					expiresAt: "2099-01-01T00:00:00.000Z",
+					queueFactoryDesign: false,
+					factory: { approval: "required", checks: [] },
+					...payload,
+				}),
+				authority,
+			);
+		try {
+			const created = await create();
+			expect(Object.keys(created.payload ?? {})).toEqual(["task"]);
+			const original = created.payload?.task as AgendaTaskRecord;
+			const repeat = await create();
+			expect(repeat.payload).toEqual({
+				task: expect.objectContaining({ taskId: original.taskId }),
+				existing: true,
+				duplicateOf: {
+					taskId: original.taskId,
+					factoryId: "F1",
+					title: "Fix checkout",
+					state: "On hold",
+					at: original.updatedAt,
+				},
+				reason: "A card with the same title and brief already exists.",
+				fileAnyway:
+					"pass allow_duplicate: true only if the user says this is different work",
+			});
+			const allowed = await create({ allowDuplicate: true });
+			expect(allowed.payload?.existing).toBeUndefined();
+			expect((allowed.payload?.task as AgendaTaskRecord).taskId).not.toBe(
+				original.taskId,
+			);
+			expect(
+				(allowed.payload?.task as Record<string, unknown>).allowDuplicate,
+			).toBeUndefined();
+			await expect(create({ allowDuplicate: "yes" })).resolves.toMatchObject({
+				ok: false,
+			});
+		} finally {
+			await manager.dispose();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("round-trips the duplicate check switch beside the limits, on by default", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-factory-duplicate-cmd-"));
+		try {
+			const path = join(root, "factory-defaults.json");
+			const store = new FileFactoryDefaultsStore(path);
+			let enabled = true;
+			const manager = {
+				...managerMock(),
+				getFactoryConcurrency: vi.fn(() => 2),
+				setFactoryConcurrency: vi.fn((value: number) => value),
+				getFactoryPaused: vi.fn(() => false),
+				getFactoryDuplicateCheck: vi.fn(() => enabled),
+				setFactoryDuplicateCheck: vi.fn((value: boolean) => {
+					enabled = value;
+					return value;
+				}),
+			};
+			const service = new HubAgendaTaskCommandService(manager, store);
+			const trusted = { ...AUTHORITY, crossWorkspace: true };
+			await expect(
+				service.handleCommand(envelope("task.factory.limits.get"), AUTHORITY),
+			).resolves.toMatchObject({ ok: true, payload: { duplicateCheck: true } });
+			for (const [scope, value] of [
+				[AUTHORITY, false],
+				[trusted, "off"],
+			] as const)
+				await expect(
+					service.handleCommand(
+						envelope("task.factory.limits.set", { duplicateCheck: value }),
+						scope,
+					),
+				).resolves.toMatchObject({ ok: false });
+			// Alone, it leaves the working limit as it is.
+			await expect(
+				service.handleCommand(
+					envelope("task.factory.limits.set", { duplicateCheck: false }),
+					trusted,
+				),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { concurrency: 2, duplicateCheck: false },
+			});
+			expect(manager.setFactoryConcurrency).not.toHaveBeenCalled();
+			expect(manager.setFactoryDuplicateCheck).toHaveBeenLastCalledWith(false);
+			await expect(
+				new FileFactoryDefaultsStore(path).getDuplicateCheck(),
+			).resolves.toBe(false);
+			await service.handleCommand(
+				envelope("task.factory.limits.set", { duplicateCheck: true }),
+				trusted,
+			);
+			await expect(
+				new FileFactoryDefaultsStore(path).getDuplicateCheck(),
+			).resolves.toBe(true);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("routes approval and execution through the manager", async () => {
@@ -836,7 +1058,7 @@ describe("HubAgendaTaskCommandService", () => {
 				...managerMock(),
 				getFactoryConcurrency: vi.fn(() => 2),
 				getFactoryPaused: vi.fn(() => false),
-				setFactoryDailyCostUsd: vi.fn((value: number) => value),
+				setFactoryDailyCostUsd: vi.fn((value: number | null) => value),
 				getFactorySpentTodayUsd: vi.fn(async () => spent),
 			};
 			const service = new HubAgendaTaskCommandService(manager, store);
@@ -862,7 +1084,7 @@ describe("HubAgendaTaskCommandService", () => {
 					AUTHORITY,
 				),
 			).resolves.toMatchObject({ ok: false });
-			for (const dailyCostUsd of [0, -3, "5"])
+			for (const dailyCostUsd of [-3, "5", 200_000])
 				await expect(
 					service.handleCommand(
 						envelope("task.factory.limits.set", { dailyCostUsd }),
@@ -888,16 +1110,39 @@ describe("HubAgendaTaskCommandService", () => {
 			await expect(
 				new FileFactoryDefaultsStore(path).getDailyCostUsd(),
 			).resolves.toBe(10);
-			// null restores the default.
-			spent = 1;
+			// null is "no daily limit", stored and pushed to the manager; 0
+			// means the same; a later read reports null, never the default.
+			spent = 1_000;
+			for (const none of [null, 0]) {
+				await expect(
+					service.handleCommand(
+						envelope("task.factory.limits.set", { dailyCostUsd: none }),
+						trusted,
+					),
+				).resolves.toMatchObject({
+					ok: true,
+					payload: { dailyCostUsd: null, spendingLimitReached: false },
+				});
+				expect(manager.setFactoryDailyCostUsd).toHaveBeenLastCalledWith(null);
+			}
+			await expect(
+				service.handleCommand(envelope("task.factory.limits.get"), AUTHORITY),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { dailyCostUsd: null, spendingLimitReached: false },
+			});
+			await expect(
+				new FileFactoryDefaultsStore(path).getDailyCostUsd(),
+			).resolves.toBeNull();
+			// Sending the default restores it.
 			await expect(
 				service.handleCommand(
-					envelope("task.factory.limits.set", { dailyCostUsd: null }),
+					envelope("task.factory.limits.set", { dailyCostUsd: 50 }),
 					trusted,
 				),
 			).resolves.toMatchObject({
 				ok: true,
-				payload: { dailyCostUsd: 50, spendingLimitReached: false },
+				payload: { dailyCostUsd: 50, spendingLimitReached: true },
 			});
 		} finally {
 			rmSync(root, { recursive: true, force: true });
@@ -1075,6 +1320,460 @@ describe("repository stage commands", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("Factory settings commands", () => {
+	function settingsHarness() {
+		const root = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "cline-hub-factory-settings-")),
+		);
+		const repo = join(root, "repo");
+		const elsewhere = join(root, "elsewhere");
+		mkdirSync(elsewhere);
+		mkdirSync(repo);
+		execFileSync("git", ["init", "-q", "-b", "main", repo]);
+		execFileSync("git", [
+			"-C",
+			repo,
+			"remote",
+			"add",
+			"origin",
+			"https://user:secret-token@github.com/o/r.git",
+		]);
+		mkdirSync(join(repo, ".cline/factory"), { recursive: true });
+		mkdirSync(join(repo, ".cline/tasks"), { recursive: true });
+		writeFileSync(join(repo, ".cline/tasks/one.task.md"), "# One\n");
+		writeFileSync(
+			join(repo, ".cline/factory/stages.json"),
+			JSON.stringify({
+				schemaVersion: 1,
+				stages: [
+					{ id: "lint", name: "Lint", kind: "command", command: "true" },
+				],
+			}),
+		);
+		const guidance = new FactoryGuidanceStore(join(root, "factory-guidance"));
+		const stageTrust = new FileFactoryStageTrustStore();
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+			factoryGuidance: guidance,
+			factoryStageTrust: stageTrust,
+		});
+		const store = new FileFactoryDefaultsStore(join(root, "defaults.json"));
+		const service = new HubAgendaTaskCommandService(manager, store, {
+			listProjects: async () => [repo, elsewhere, undefined],
+		});
+		const scoped = {
+			clientId: "desktop",
+			crossWorkspace: false,
+			workspaceContext: { workspaceRoot: elsewhere, cwd: elsewhere },
+		};
+		const trusted = { ...scoped, crossWorkspace: true };
+		const send = (
+			command: HubCommandEnvelope["command"],
+			payload: Record<string, unknown>,
+			authority: typeof scoped = trusted,
+		) => service.handleCommand(envelope(command, payload), authority);
+		return {
+			root,
+			repo,
+			elsewhere,
+			manager,
+			guidance,
+			stageTrust,
+			store,
+			send,
+			scoped,
+			cleanup: async () => {
+				await manager.dispose();
+				rmSync(root, { recursive: true, force: true });
+			},
+		};
+	}
+
+	it("reads and edits guidance for a known project, refusing untrusted clients, unknown folders and stale hashes", async () => {
+		const h = settingsHarness();
+		try {
+			await expect(
+				h.send("task.factory.guidance.get", { workspaceRoot: h.repo }),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					workspaceRoot: h.repo,
+					userScope: true,
+					targets: expect.arrayContaining([
+						expect.objectContaining({
+							role: "builder",
+							user: expect.objectContaining({ status: "none" }),
+							repository: expect.objectContaining({ status: "none" }),
+						}),
+					]),
+				},
+			});
+			// Another project needs a client trusted across workspaces; a
+			// folder that is not a project Factory knows is never read.
+			await expect(
+				h.send(
+					"task.factory.guidance.get",
+					{ workspaceRoot: h.repo },
+					h.scoped,
+				),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			await expect(
+				h.send("task.factory.guidance.get", { workspaceRoot: h.elsewhere }),
+			).resolves.toMatchObject({ ok: true });
+			await expect(
+				h.send("task.factory.guidance.get", { workspaceRoot: h.root }),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_unknown_project" },
+			});
+			await expect(
+				h.send("task.factory.guidance.get", { workspaceRoot: "repo" }),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_unknown_project" },
+			});
+
+			const edit = {
+				role: "builder",
+				scope: "repository",
+				workspaceRoot: h.repo,
+				expectedHash: FACTORY_GUIDANCE_EMPTY_HASH,
+				content: "## Lint\nRun the linter before committing.\n",
+			};
+			// Writes need a trusted client even in the client's own workspace.
+			await expect(
+				h.send(
+					"task.factory.guidance.set",
+					{ ...edit, workspaceRoot: h.elsewhere },
+					h.scoped,
+				),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			for (const invalid of [
+				{ ...edit, role: "operator" },
+				{ ...edit, expectedHash: "abc" },
+				{ ...edit, path: "/etc/passwd" },
+				{ ...edit, scope: "user" },
+			])
+				await expect(
+					h.send("task.factory.guidance.set", invalid),
+				).resolves.toMatchObject({
+					ok: false,
+					error: { code: "factory_settings_invalid_input" },
+				});
+			await expect(
+				h.send("task.factory.guidance.set", {
+					...edit,
+					role: "manager",
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_guidance_user_level_only" },
+			});
+			const saved = await h.send("task.factory.guidance.set", edit);
+			expect(saved).toMatchObject({
+				ok: true,
+				payload: {
+					target: {
+						role: "builder",
+						repository: { status: "current", accepted: true, inUse: true },
+					},
+					entry: { source: { kind: "settings" } },
+				},
+			});
+			await expect(
+				h.send("task.factory.guidance.set", {
+					...edit,
+					content: "## Other\nAgain.\n",
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: {
+					code: "factory_guidance_stale",
+					details: { currentHash: factoryGuidanceHash(edit.content) },
+				},
+			});
+			await expect(
+				h.send("task.factory.guidance.history", {
+					role: "builder",
+					workspaceRoot: h.repo,
+				}),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { more: false, entries: [{ scope: "repository" }] },
+			});
+			await expect(
+				h.send("task.factory.guidance.resolve", {
+					role: "builder",
+					scope: "repository",
+					workspaceRoot: h.repo,
+					decision: "accept",
+					expectedHash: factoryGuidanceHash(edit.content),
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_guidance_nothing_to_resolve" },
+			});
+		} finally {
+			await h.cleanup();
+		}
+	});
+
+	it("approves a project's test setup by hash only for a trusted client", async () => {
+		const h = settingsHarness();
+		try {
+			const profile = {
+				schemaVersion: 1,
+				environment: { start: "bun run dev" },
+				exercise: "Open the home page.",
+				artifacts: [],
+			};
+			writeFileSync(
+				join(h.repo, ".cline/factory/verification.json"),
+				JSON.stringify(profile),
+			);
+			const read = await h.send("task.factory.verification.get", {
+				workspaceRoot: h.repo,
+			});
+			expect(read).toMatchObject({
+				ok: true,
+				payload: { status: "proposed", file: "present" },
+			});
+			const hash = (read.payload as { hash: string }).hash;
+			await expect(
+				h.send(
+					"task.factory.verification.set",
+					{
+						workspaceRoot: h.elsewhere,
+						decision: "approve",
+						expectedHash: hash,
+					},
+					h.scoped,
+				),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			await expect(
+				h.send("task.factory.verification.set", {
+					workspaceRoot: h.repo,
+					decision: "approve",
+					expectedHash: "0".repeat(64),
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_verification_stale" },
+			});
+			await expect(
+				h.send("task.factory.verification.set", {
+					workspaceRoot: h.repo,
+					decision: "approve",
+					expectedHash: hash,
+				}),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { status: "in_use", origin: "repository" },
+			});
+			await expect(
+				h.send("task.factory.verification.set", {
+					workspaceRoot: h.repo,
+					decision: "remove",
+					profile,
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_invalid_input" },
+			});
+		} finally {
+			await h.cleanup();
+		}
+	});
+
+	it("resets only what is named, in one project or all, never cards or repository files", async () => {
+		const h = settingsHarness();
+		try {
+			const hash = "a".repeat(64);
+			await h.stageTrust.decide(h.repo, "lint", hash, "approved");
+			await h.stageTrust.decide(h.elsewhere, "scan", hash, "approved");
+			await h.send("task.factory.limits.set", {
+				concurrency: 5,
+				dailyCostUsd: null,
+				duplicateCheck: false,
+			});
+			await expect(
+				h.send("task.factory.reset", { what: "stage_trust" }, h.scoped),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			await expect(
+				h.send("task.factory.reset", { what: "everything" }),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_invalid_input" },
+			});
+			await expect(
+				h.send("task.factory.reset", {
+					what: "stage_trust",
+					workspaceRoot: h.repo,
+					dryRun: true,
+				}),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { what: "stage_trust", dryRun: true, stages: 1, projects: 1 },
+			});
+			await expect(h.stageTrust.get(h.repo)).resolves.toHaveProperty("lint");
+			await expect(
+				h.send("task.factory.reset", {
+					what: "stage_trust",
+					workspaceRoot: h.repo,
+				}),
+			).resolves.toMatchObject({ ok: true, payload: { stages: 1 } });
+			await expect(h.stageTrust.get(h.repo)).resolves.toEqual({});
+			await expect(h.stageTrust.get(h.elsewhere)).resolves.toHaveProperty(
+				"scan",
+			);
+			expect(existsSync(join(h.repo, ".cline/factory/stages.json"))).toBe(true);
+			await expect(
+				h.send("task.factory.reset", {
+					what: "user_guidance",
+					workspaceRoot: h.repo,
+				}),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_reset_invalid" },
+			});
+			await expect(
+				h.send("task.factory.reset", { what: "settings" }),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { concurrency: 2, dailyCostUsd: 50, duplicateCheck: true },
+			});
+			await expect(h.store.getConcurrency()).resolves.toBe(2);
+			await expect(h.store.getDailyCostUsd()).resolves.toBe(50);
+			await expect(h.store.getDuplicateCheck()).resolves.toBe(true);
+			// The running manager has the reset values too.
+			expect(h.manager.getFactoryDailyCostUsd()).toBe(50);
+			expect(h.manager.getFactoryDuplicateCheck()).toBe(true);
+		} finally {
+			await h.cleanup();
+		}
+	});
+
+	it("runs one removal of finished copies at a time and replies before a long one ends", async () => {
+		const h = settingsHarness();
+		try {
+			const summary = await h.manager.getFactoryStorage();
+			const measure = vi.spyOn(
+				h.manager as unknown as {
+					measureFactoryStorage(refresh: boolean): Promise<unknown>;
+				},
+				"measureFactoryStorage",
+			);
+			let finish: (value: unknown) => void = () => {};
+			measure.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			for (let attempt = 0; attempt < 2; attempt++)
+				await expect(
+					h.manager.cleanFactoryStorage({ waitMs: 0 }),
+				).resolves.toMatchObject({
+					removed: 0,
+					running: true,
+					storage: { cleaning: true },
+				});
+			expect(measure.mock.calls.filter(([refresh]) => refresh)).toHaveLength(1);
+			finish({ summary, worktrees: [] });
+			await vi.waitFor(async () =>
+				expect(await h.manager.getFactoryStorage()).not.toHaveProperty(
+					"cleaning",
+				),
+			);
+		} finally {
+			await h.cleanup();
+		}
+	});
+
+	it("lists known projects with their counts, no credentials, and storage for trusted clients", async () => {
+		const h = settingsHarness();
+		try {
+			await expect(
+				h.send("task.factory.projects.get", {}, h.scoped),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			const listed = await h.send("task.factory.projects.get", {});
+			expect(listed).toMatchObject({
+				ok: true,
+				payload: {
+					userGuidanceChanged: [],
+					projects: [
+						{
+							workspaceRoot: h.repo,
+							name: "repo",
+							remote: "https://github.com/o/r.git",
+							cards: { open: 0, archived: 0 },
+							stages: { file: "present", total: 1, inUse: 0, awaiting: 1 },
+							verification: "none",
+							guidance: { roles: [], changed: [] },
+							taskFiles: 1,
+						},
+					],
+				},
+			});
+			expect(JSON.stringify(listed)).not.toContain("secret-token");
+			// Only existing git repositories are projects: not "elsewhere".
+			expect((listed.payload as { projects: unknown[] }).projects).toHaveLength(
+				1,
+			);
+			await expect(
+				h.send("task.factory.storage.get", {}, h.scoped),
+			).resolves.toMatchObject({ ok: false });
+			await expect(
+				h.send("task.factory.storage.get", { refresh: true }),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					dataDir: h.root,
+					worktreesDir: join(h.root, "factory", "factory-worktrees"),
+					worktrees: { count: 0, finishedCount: 0 },
+				},
+			});
+			await expect(
+				h.send("task.factory.storage.clean", { what: "everything" }),
+			).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_invalid_input" },
+			});
+			await expect(
+				h.send("task.factory.storage.clean", { what: "finished_worktrees" }),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { removed: 0, bytes: 0, storage: { worktrees: { count: 0 } } },
+			});
+		} finally {
+			await h.cleanup();
 		}
 	});
 });

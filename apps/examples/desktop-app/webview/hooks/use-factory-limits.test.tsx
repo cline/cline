@@ -140,3 +140,16 @@ it("reads nothing when disabled", async () => {
 	expect(current.loading).toBe(false);
 	expect(current.limits).toBeUndefined();
 });
+
+it("reads the Hub's limits again on reload, after a settings reset", async () => {
+	let concurrency = 4;
+	mocks.invoke.mockImplementation(async () => ({
+		supported: true,
+		concurrency,
+	}));
+	await act(async () => root.render(<Probe />));
+	expect(current.limits).toEqual({ supported: true, concurrency: 4 });
+	concurrency = 2;
+	await act(async () => current.reload());
+	expect(current.limits).toEqual({ supported: true, concurrency: 2 });
+});

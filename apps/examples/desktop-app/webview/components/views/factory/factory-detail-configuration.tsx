@@ -9,6 +9,7 @@ import type {
 import {
 	factoryArtifactPathProblem,
 	factoryCheckConfigurationFindings,
+	factoryWatchesPullRequest,
 	isFactoryHandsOff,
 } from "@cline/shared/browser";
 import { Plus, Trash2, X } from "lucide-react";
@@ -152,7 +153,7 @@ export function FactoryDetailConfiguration({
 				<AppEnvironmentSummary config={config} />
 				<section className="space-y-3">
 					<div className="flex items-center justify-between">
-						<h3 className="text-sm font-semibold">Acceptance criteria</h3>
+						<h3 className="text-sm font-semibold">Requirements</h3>
 						<Button
 							variant="ghost"
 							size="sm"
@@ -237,7 +238,7 @@ export function FactoryDetailConfiguration({
 							type="checkbox"
 							className="mt-1"
 							disabled={disabled}
-							checked={config.watchPullRequest ?? isFactoryHandsOff(config)}
+							checked={factoryWatchesPullRequest(config)}
 							onChange={(event) =>
 								setConfig({
 									...config,
@@ -599,7 +600,7 @@ function ConfigurationSummary({
 	config: FactoryTaskConfig;
 	showChecks: boolean;
 }) {
-	const watch = config.watchPullRequest ?? isFactoryHandsOff(config);
+	const watch = factoryWatchesPullRequest(config);
 	return (
 		<section
 			aria-label="Configuration"

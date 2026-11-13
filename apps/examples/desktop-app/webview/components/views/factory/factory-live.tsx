@@ -169,6 +169,26 @@ function primarySession(
 	return best;
 }
 
+/**
+ * A tool summary shortened for a board card, where the card names the work:
+ * a file path becomes its file name ("Editing src/a/b.ts" → "Editing b.ts")
+ * and a URL loses its scheme. The full text stays in the line's tooltip.
+ */
+export function factoryShortActivity(text: string): string {
+	return text
+		.split(/(\s+)/)
+		.map((token) => {
+			const url = /^(?:https?|file):\/\/(.+)$/.exec(token);
+			if (url?.[1]) return url[1];
+			const path =
+				/^(["'`(]?)(?:[\w.@~-]*\/)+([\w@-][\w.@-]*\.[A-Za-z0-9]+)([)"'`,.:;]*)$/.exec(
+					token,
+				);
+			return path ? `${path[1]}${path[2]}${path[3]}` : token;
+		})
+		.join("");
+}
+
 /** Repeats `value` at most every `ms`, so screen readers are not flooded. */
 function useThrottled(value: string, ms: number) {
 	const [shown, setShown] = useState(value);
@@ -200,6 +220,7 @@ export function FactoryLiveLine({
 	compact = false,
 	showOthers = true,
 	className,
+	wrap = false,
 }: {
 	sessions: readonly FactoryLiveSession[];
 	/** From `useFactoryLiveActivity`; omit to show role and elapsed time only. */
@@ -213,6 +234,11 @@ export function FactoryLiveLine({
 	 * the most recently active one, without "+N more".
 	 */
 	showOthers?: boolean;
+	/**
+	 * Board cards: up to two lines with file names instead of paths; the
+	 * full line is the tooltip.
+	 */
+	wrap?: boolean;
 	className?: string;
 }) {
 	const primary = primarySession(sessions, activity?.sessions);
@@ -232,6 +258,28 @@ export function FactoryLiveLine({
 				: [role, entry?.lastTool ?? "Working"].join(" · ");
 	const announced = useThrottled(text, 5000);
 	if (!text) return null;
+	const more = others > 0 && !reconnecting ? ` · +${others} more` : "";
+	if (wrap)
+		return (
+			<p
+				data-testid="factory-live-line"
+				title={`${text}${more}`}
+				className={cn("min-w-0 text-xs text-muted-foreground", className)}
+			>
+				<span
+					data-factory-live-text
+					className="line-clamp-2 break-words"
+					aria-hidden
+				>
+					{factoryShortActivity(text)}
+					{more}
+				</span>
+				<output aria-live="polite" className="sr-only">
+					{announced}
+					{more ? `, and ${others} more` : ""}
+				</output>
+			</p>
+		);
 	const elapsed =
 		!primary || reconnecting || compact
 			? undefined

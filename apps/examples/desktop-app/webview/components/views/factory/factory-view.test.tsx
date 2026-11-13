@@ -53,8 +53,8 @@ const mocks = vi.hoisted(() => ({
 	/** The board's measured width; 0 is unmeasured, laid out as wide. */
 	boardWidth: 0,
 }));
-vi.mock("./use-element-width", () => ({
-	useElementWidth: () => [() => {}, mocks.boardWidth],
+vi.mock("./use-element-size", () => ({
+	useElementSize: () => [() => {}, { width: mocks.boardWidth, height: 0 }],
 }));
 vi.mock("@/hooks/use-toast", () => ({ toast: mocks.toast }));
 vi.mock("@/hooks/use-agenda-tasks", () => ({
@@ -132,7 +132,7 @@ beforeEach(() => {
 	mocks.createTask.mockImplementation(async (input: HubTaskCreateInput) => {
 		const created = task({ taskId: input.taskId, status: "pending_approval" });
 		mocks.tasks = [...mocks.tasks, created];
-		return created;
+		return { task: created };
 	});
 	mocks.tasks = [];
 	mocks.boardWidth = 0;
@@ -476,7 +476,7 @@ describe("Factory workflow", () => {
 		await act(async () => row("Needs you", "feature-1").click());
 		expect(document.querySelector('[role="dialog"]')).toBeNull();
 		expect(sessionStorage.getItem("factory.selectedTask")).toBe("feature-1");
-		await act(async () => button("Back to factory").click());
+		await act(async () => button("Back to Factory").click());
 		// Focus returns to the row that opened the card.
 		expect(document.activeElement).toBe(row("Needs you", "feature-1"));
 		await act(async () => root.unmount());
@@ -1516,8 +1516,11 @@ describe("Factory workflow", () => {
 			),
 		);
 		expect(container.textContent).not.toContain("Ordinary reminder");
-		const waiting = container.querySelector('[data-factory-list="waiting"]');
-		const start = Array.from(waiting?.querySelectorAll("button") ?? []).filter(
+		// The queue is Working's lower part.
+		const queued = container.querySelectorAll<HTMLButtonElement>(
+			'[data-factory-list="working"] li[data-factory-row="waiting"] button',
+		);
+		const start = Array.from(queued).filter(
 			(item) => item.textContent === "Start",
 		);
 		// Only the approved manual card waiting outside the Hub queue.
@@ -1603,7 +1606,7 @@ describe("Factory workflow", () => {
 			answer: "CSV",
 		});
 		expect(document.body.textContent).not.toContain("Which format?");
-		await act(async () => button("Back to factory").click());
+		await act(async () => button("Back to Factory").click());
 		// Answered: Needs you stays, empty.
 		expect(section("Needs you")).toBe("Needs you0Nothing needs you.");
 	});
@@ -1818,17 +1821,18 @@ describe("Factory home", () => {
 			{ taskId: "failed", revision: 3, questions: [], needsAttention: true },
 		]);
 		await render();
-		// Four columns in lifecycle order, each a region named by its heading
-		// and count, empty or not.
-		expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
+		// Three columns in lifecycle order, each a region named by its heading
+		// and count, empty or not; the queue is Working's lower part.
+		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
 		const board = container.querySelector('[aria-label="Factory board"]');
 		expect(board?.getAttribute("data-factory-grouping")).toBe("status");
 		expect(
 			Array.from(container.querySelectorAll("[data-factory-group] h2")).map(
 				(heading) => heading.textContent,
 			),
-		).toEqual(["Waiting0", "Working1", "Needs you1", "Delivered2"]);
-		expect(section("Waiting")).toContain("Nothing is waiting.");
+		).toEqual(["Working1", "Needs you1", "Delivered2"]);
+		// Nothing queued: no queue divider.
+		expect(container.querySelector("[data-factory-section]")).toBeNull();
 		expect(filledGroups()).toEqual(["working", "needsYou", "delivered"]);
 		for (const id of ["build", "pr", "done", "failed"])
 			expect(listed(id)).toBe(1);
@@ -2019,7 +2023,7 @@ describe("Factory home", () => {
 			"Factory could not fix the plan's checks on its own. Edit the plan to fix them.",
 		);
 		expect(onLine("scoping").text).toContain(
-			"The plan reviewers still had objections after 2 rounds of fixes.",
+			"The plan checkers still had objections after 2 rounds of fixes.",
 		);
 		// The plan's checks belong to Build.
 		expect(onLine("fault").station).toBe("build");
@@ -2146,7 +2150,7 @@ describe("Factory home", () => {
 		expect(Object.keys(pr).map(ending)).toEqual([
 			"draft PR",
 			"ready for review",
-			"merged as delivered",
+			"merged",
 			"merged after changes",
 			"closed without merging",
 		]);
@@ -2159,6 +2163,20 @@ describe("Factory home", () => {
 					)?.textContent,
 			),
 		).toEqual(["Open draft PR", "Open PR", "Open PR", "Open PR", "Open PR"]);
+		// The quick action sits in the card's first row, in its flow, after
+		// the age: never over the title or the line below it.
+		const card = container.querySelector('[data-factory-card="draft"]');
+		const action = card?.querySelector("[data-factory-quick-action]");
+		expect(action?.parentElement?.hasAttribute("data-factory-card-top")).toBe(
+			true,
+		);
+		expect(action?.previousElementSibling?.textContent).toMatch(/\d/);
+		expect(action?.className).not.toMatch(/\babsolute\b|\bbottom-/);
+		expect(action?.className).not.toContain("shadow-[");
+		// Its context line: three lines at most, the whole text as its tooltip.
+		const context = card?.querySelector("[data-factory-context]");
+		expect(context?.className).toContain("line-clamp-3");
+		expect(context?.getAttribute("title")).toBe(context?.textContent);
 	});
 
 	it("caps Delivered at the 20 most recent, with today's count as its tooltip", async () => {
@@ -2311,14 +2329,19 @@ describe("Factory home", () => {
 		expect(order()).toEqual(["b", "a"]);
 	});
 
-	it("keeps four columns when the factory is empty, with nothing but the header's way in", async () => {
+	it("keeps three open columns when the factory is empty, with nothing but the header's way in", async () => {
 		const onAskFactory = vi.fn();
 		await render({ onAskFactory });
 		expect(
 			container.textContent?.split(FACTORY_BOARD.empty.nothing),
 		).toHaveLength(2);
-		expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
-		expect(section("Waiting")).toContain(FACTORY_BOARD.empty.nothing);
+		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
+		expect(section("Working")).toContain(FACTORY_BOARD.empty.nothing);
+		// Its one instruction shows at every width: nothing collapses.
+		mocks.boardWidth = 600;
+		await render({ onAskFactory });
+		expect(container.querySelector("[data-factory-strip]")).toBeNull();
+		expect(section("Working")).toContain(FACTORY_BOARD.empty.nothing);
 		expect(container.querySelector("[data-factory-pause]")).toBeNull();
 		const asks = Array.from(container.querySelectorAll("button")).filter(
 			(item) => item.textContent?.trim() === "Ask Factory",
@@ -2438,15 +2461,19 @@ describe("Factory work-at-once limit", () => {
 		let concurrency = 2;
 		withLimits(async () => ({ supported: true, concurrency }));
 		await render();
-		// The Working heading carries the limit; Waiting counts what waits.
+		// The Working heading carries the limit and how many wait.
 		const heading = (group: string) =>
 			container.querySelector(`[data-factory-group="${group}"] h2`)
 				?.parentElement?.textContent;
-		expect(heading("working")).toBe("Working2of 2");
-		expect(heading("waiting")).toBe("Waiting4");
+		expect(heading("working")).toBe("Working2of 2· 4 queued");
+		expect(container.querySelector("[data-factory-section]")?.textContent).toBe(
+			"Queue4",
+		);
 		const rows = (label: string) =>
 			Array.from(
-				container.querySelectorAll('[data-factory-list="waiting"] li'),
+				container.querySelectorAll(
+					'[data-factory-list="working"] li[data-factory-row="waiting"]',
+				),
 			).filter((item) => item.textContent?.includes(label));
 		expect(rows("Waiting for a free slot")).toHaveLength(3);
 		expect(rows("On hold")).toHaveLength(1);
@@ -2466,9 +2493,42 @@ describe("Factory work-at-once limit", () => {
 		root = createRoot(container);
 		concurrency = 4;
 		await render();
-		expect(heading("working")).toBe("Working2of 4");
+		expect(heading("working")).toBe("Working2of 4· 4 queued");
 		expect(rows("Waiting for a free slot")).toHaveLength(0);
 		expect(rows("Waiting to start")).toHaveLength(3);
+		// Running cards first, then the divider, then the queue; each once.
+		const items = Array.from(
+			container.querySelectorAll<HTMLElement>(
+				'[data-factory-list="working"] > li',
+			),
+		);
+		const divider = items.findIndex((item) =>
+			item.hasAttribute("data-factory-section"),
+		);
+		expect(
+			items.slice(0, divider).map((item) => item.dataset.factoryRow),
+		).toEqual(["working", "working"]);
+		expect(
+			items.slice(divider + 1).map((item) => item.dataset.factoryRow),
+		).toEqual(["waiting", "waiting", "waiting", "waiting"]);
+		for (const id of ["a", "b", "c", "d", "e", "f"]) expect(listed(id)).toBe(1);
+
+		// A limit lowered below what runs: the name stays, "of 1" is amber
+		// and says why.
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		concurrency = 1;
+		await render();
+		expect(heading("working")).toBe("Working2of 1· 4 queued");
+		const limit = container.querySelector("[data-factory-working-limit]");
+		expect(limit?.getAttribute("data-factory-working-limit")).toBe("over");
+		expect(limit?.getAttribute("title")).toContain("limit of 1");
+		expect(limit?.className).toContain("text-warning-text");
+		expect(
+			container.querySelector(
+				'[data-factory-group="working"] [data-factory-column-title]',
+			)?.className,
+		).toContain("shrink-0");
 	});
 });
 
@@ -2599,7 +2659,7 @@ describe("Activity master-detail and short ids", () => {
 		expect(
 			rail()?.contains(container.querySelector("[data-factory-task]")),
 		).toBe(true);
-		await act(async () => button("Back to factory").click());
+		await act(async () => button("Back to Factory").click());
 		expect(rail()).toBeNull();
 		expect(sessionStorage.getItem("factory.selectedTask")).toBeNull();
 		expect(document.activeElement).toBe(row("Needs you", "feature-1"));
@@ -2718,7 +2778,7 @@ describe("Factory home fits the width it has", () => {
 		expect(failed.querySelector("[data-factory-stages]")?.textContent).toBe(
 			"Build",
 		);
-		expect(failed.querySelector("p")?.className).toContain("line-clamp-2");
+		expect(failed.querySelector("p")?.className).toContain("line-clamp-4");
 		expect(failed.querySelector("[data-factory-detail]")?.textContent).toMatch(
 			/^Stopped at Build\d+d$/,
 		);
@@ -2782,48 +2842,45 @@ describe("Factory home fits the width it has", () => {
 				container.querySelectorAll<HTMLElement>("[data-factory-strip]"),
 			).map((item) => item.dataset.factoryGroup);
 		expect(strips()).toEqual([]);
-		// 840px (a 1100px window): Waiting is a strip with its count.
+		// 840px (a 1100px window): the three columns all fit.
 		mocks.boardWidth = 840;
 		await render();
-		expect(strips()).toEqual(["waiting"]);
-		const waiting = container.querySelector<HTMLButtonElement>(
-			'[data-factory-strip][data-factory-group="waiting"]',
-		);
-		expect(waiting?.getAttribute("aria-expanded")).toBe("false");
-		expect(waiting?.getAttribute("aria-label")).toBe("Show Waiting, 1 card");
-		expect(waiting?.textContent).toBe("Waiting1");
-		expect(listed("queued")).toBe(0);
-		expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
-		// 700px: Waiting and Delivered are strips.
-		mocks.boardWidth = 700;
-		await render();
-		expect(strips()).toEqual(["waiting", "delivered"]);
-		// Expanding a strip keeps the other columns; it gets a collapse chevron.
-		await act(async () =>
-			container
-				.querySelector<HTMLButtonElement>(
-					'[data-factory-strip][data-factory-group="waiting"]',
-				)
-				?.click(),
-		);
-		expect(strips()).toEqual(["delivered"]);
+		expect(strips()).toEqual([]);
 		expect(listed("queued")).toBe(1);
-		expect(labelled("Collapse Waiting")).toBeTruthy();
+		// 650px (a 1280px window beside Ask Factory): Delivered is a strip
+		// with its count; Working and Needs you stay open.
+		mocks.boardWidth = 650;
+		await render();
+		expect(strips()).toEqual(["delivered"]);
+		const delivered = container.querySelector<HTMLButtonElement>(
+			'[data-factory-strip][data-factory-group="delivered"]',
+		);
+		expect(delivered?.getAttribute("aria-expanded")).toBe("false");
+		expect(delivered?.getAttribute("aria-label")).toBe(
+			"Show Delivered, 1 card",
+		);
+		expect(listed("done")).toBe(0);
+		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
+		// Expanding the strip keeps the other columns; it gets a collapse chevron.
+		await act(async () => delivered?.click());
+		expect(strips()).toEqual([]);
+		expect(listed("done")).toBe(1);
+		expect(labelled("Collapse Delivered")).toBeTruthy();
 		// Needs you has no collapse control at any width.
 		expect(
 			container.querySelector('button[aria-label="Collapse Needs you"]'),
 		).toBeNull();
 		// The person's choice holds at this width and is saved…
 		await render();
-		expect(strips()).toEqual(["delivered"]);
+		expect(strips()).toEqual([]);
 		expect(
 			JSON.parse(localStorage.getItem("cline.code.factory-board-view.v1") ?? "")
 				.collapsedTier,
 		).toBe("narrow");
 		// …until the width changes tier.
-		mocks.boardWidth = 840;
+		mocks.boardWidth = 500;
 		await render();
-		expect(strips()).toEqual(["waiting"]);
+		expect(strips()).toEqual(["delivered"]);
 	});
 
 	it("keeps the rail beside a card, with only Factory and Ask Factory in its header", async () => {
@@ -2835,6 +2892,7 @@ describe("Factory home fits the width it has", () => {
 				status: "in_progress",
 				currentRunId: "run-build",
 			}),
+			task({ taskId: "queued", title: "Queued card" }),
 		];
 		withAttention([
 			{ taskId: "feature-1", revision: 3, questions: [], needsAttention: true },
@@ -2867,10 +2925,15 @@ describe("Factory home fits the width it has", () => {
 			Array.from(rail?.querySelectorAll("section[aria-label]") ?? []).map(
 				(item) => item.getAttribute("aria-label"),
 			),
-		).toEqual(["Working", "Needs you"]);
+		).toEqual(["Working", "Queue", "Needs you"]);
 		expect(
 			rail?.querySelector('[data-factory-task="build"] .truncate')?.textContent,
 		).toContain("Building card");
+		// "Build", not "Build · Building".
+		expect(
+			rail?.querySelector('[data-factory-task="build"] .truncate + span')
+				?.textContent,
+		).toBe("Build");
 	});
 
 	it("shows paused work in the narrow rail as an indicator, with Resume beside the card", async () => {
@@ -2919,9 +2982,8 @@ describe("Factory home fits the width it has", () => {
 		expect(broken.text).toContain("F12");
 		expect(broken.text).toContain("This card could not be read");
 		expect(broken.text).toContain("Broken card");
-		expect(broken.text).toContain(
-			"This card could not be read · acceptanceCriteria: Required",
-		);
+		// The raw reason stays off the board, under the card's Details.
+		expect(broken.text).not.toContain("acceptanceCriteria");
 		expect(row("Needs you", "failed")).toBeTruthy();
 		expect(container.textContent).not.toContain("Status not loaded yet");
 	});
@@ -3008,7 +3070,7 @@ describe("Factory board display", () => {
 	it("groups by Status, Stage or Project, each card once in every grouping", async () => {
 		mocks.tasks = cards();
 		await render();
-		expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
+		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
 		await openDisplay();
 		expect(menuItem("Status").getAttribute("aria-checked")).toBe("true");
 		await choose("Stage");
@@ -3021,13 +3083,16 @@ describe("Factory board display", () => {
 			"delivered",
 		]);
 		for (const id of ids) expect(listed(id)).toBe(1);
-		// A stopped card stays at its stage, flagged in place.
+		// A stopped card stays at its stage, flagged in place; the column names
+		// the stage, so no card repeats it in a stepper.
 		const failed = homeRow("failed");
 		expect(
 			failed.closest<HTMLElement>("[data-factory-group]")?.dataset.factoryGroup,
-		).toBe(onLine("failed").station);
+		).toBe("scope");
 		expect(failed.className).toContain("destructive");
-		expect(onLine("failed").stopped).toBe(true);
+		expect(
+			container.querySelector("[data-factory-home] [data-factory-stages]"),
+		).toBeNull();
 		expect(saved()).toMatchObject({ version: 1, grouping: "stage" });
 		await openDisplay();
 		await choose("Project");
@@ -3050,9 +3115,9 @@ describe("Factory board display", () => {
 		await render();
 		await openDisplay();
 		expect(menuItem("Needs you").getAttribute("aria-disabled")).toBe("true");
-		await choose("Waiting");
-		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
-		expect(listed("queued")).toBe(0);
+		await choose("Delivered");
+		expect(groups()).toEqual(["working", "needsYou"]);
+		await choose("Delivered");
 		await choose("Needs you");
 		expect(groups()).toContain("needsYou");
 		// Move Delivered left of Needs you, from the Reorder submenu.
@@ -3070,9 +3135,14 @@ describe("Factory board display", () => {
 		root = createRoot(container);
 		await render();
 		expect(groups()).toEqual(["working", "delivered", "needsYou"]);
+		// The queue as its own column, first, for a four-column board.
 		await openDisplay();
+		await choose("Queue as its own column");
+		expect(groups()).toEqual(["waiting", "working", "delivered", "needsYou"]);
+		expect(listed("queued")).toBe(1);
+		expect(saved()).toMatchObject({ queueColumn: true });
 		await choose("Reset to default");
-		expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
+		expect(groups()).toEqual(["working", "needsYou", "delivered"]);
 	});
 
 	it("falls back to the default view when the saved one cannot be read", async () => {
@@ -3084,14 +3154,14 @@ describe("Factory board display", () => {
 			JSON.stringify({
 				version: 1,
 				grouping: "stage",
-				columns: [{ id: "x", title: "X", match: { kind: "owner" } }],
+				columns: [{ id: "x", hidden: "yes" }],
 			}),
 		]) {
 			localStorage.setItem("cline.code.factory-board-view.v1", value);
 			await act(async () => root.unmount());
 			root = createRoot(container);
 			await render();
-			expect(groups()).toEqual(["waiting", "working", "needsYou", "delivered"]);
+			expect(groups()).toEqual(["working", "needsYou", "delivered"]);
 		}
 		// Needs you cannot be hidden, even by a saved view.
 		localStorage.setItem(
@@ -3114,5 +3184,234 @@ describe("Factory board display", () => {
 		await render();
 		expect(groups()).toContain("needsYou");
 		expect(listed("failed")).toBe(1);
+	});
+});
+
+describe("Factory card priority", () => {
+	const render = () =>
+		act(async () =>
+			root.render(
+				<FactoryView drafts={drafts} onOpenSession={vi.fn(async () => {})} />,
+			),
+		);
+	beforeEach(() => sessionStorage.removeItem("factory.destination"));
+	const priority = (
+		level: NonNullable<AgendaTaskRecord["factoryPriority"]>["level"],
+		by: NonNullable<AgendaTaskRecord["factoryPriority"]>["by"] = "person",
+		reason?: string,
+	): AgendaTaskRecord["factoryPriority"] => ({
+		level,
+		by,
+		at: "2026-01-02T00:00:00Z",
+		...(reason ? { reason } : {}),
+	});
+	/** A stopped card (urgency 0) or a plan to approve (urgency 2). */
+	const stopped = (taskId: string, overrides: Partial<AgendaTaskRecord> = {}) =>
+		task({
+			taskId,
+			title: `Card ${taskId}`,
+			status: "failed",
+			approvedRevision: 3,
+			...overrides,
+		});
+	const plan = (taskId: string, overrides: Partial<AgendaTaskRecord> = {}) =>
+		task({
+			taskId,
+			title: `Card ${taskId}`,
+			status: "pending_approval",
+			...overrides,
+		});
+	const order = (list: string) =>
+		Array.from(
+			container.querySelectorAll<HTMLElement>(
+				`[data-factory-list="${list}"] li[data-factory-card]`,
+			),
+		).map((item) => item.dataset.factoryCard);
+
+	it("orders Needs you as the agenda lists it when no card has a priority", async () => {
+		// Within an urgency, the agenda's order (sortAgendaTasks): status,
+		// then when available, then the oldest; whatever order cards arrive in.
+		const at = (day: number) => `2026-01-0${day}T00:00:00Z`;
+		mocks.tasks = [
+			plan("plan-new", { createdAt: at(5), availableAt: at(5) }),
+			plan("plan-old", { createdAt: at(1), availableAt: at(1) }),
+			stopped("stop-new", { createdAt: at(4), availableAt: at(4) }),
+			stopped("stop-old", { createdAt: at(2), availableAt: at(2) }),
+		];
+		await render();
+		expect(order("needsYou")).toEqual([
+			"stop-old",
+			"stop-new",
+			"plan-old",
+			"plan-new",
+		]);
+		expect(container.querySelector("[data-factory-priority]")).toBeNull();
+	});
+
+	it("orders Needs you by priority, then urgency, with no priority as Medium", async () => {
+		mocks.tasks = [
+			plan("plan-high", { factoryPriority: priority("high") }),
+			stopped("stop-none"),
+			plan("plan-low", { factoryPriority: priority("low") }),
+			stopped("stop-low", { factoryPriority: priority("low") }),
+			plan("plan-medium", { factoryPriority: priority("medium", "agent") }),
+			plan("plan-urgent", { factoryPriority: priority("urgent") }),
+		];
+		await render();
+		expect(order("needsYou")).toEqual([
+			"plan-urgent",
+			"plan-high",
+			"stop-none",
+			"plan-medium",
+			"stop-low",
+			"plan-low",
+		]);
+		// The rail beside an open card lists the same order.
+		await act(async () => row("Needs you", "stop-none").click());
+		expect(
+			Array.from(
+				container.querySelectorAll<HTMLElement>(
+					"nav[data-factory-rail] [data-factory-task]",
+				),
+			).map((item) => item.dataset.factoryTask),
+		).toEqual([
+			"plan-urgent",
+			"plan-high",
+			"stop-none",
+			"plan-medium",
+			"stop-low",
+			"plan-low",
+		]);
+		// Its rows show the priority too; a row without one keeps the slot.
+		const railRow = (id: string) =>
+			container.querySelector<HTMLElement>(
+				`nav[data-factory-rail] [data-factory-task="${id}"]`,
+			);
+		expect(
+			railRow("plan-urgent")
+				?.querySelector("[data-factory-priority]")
+				?.getAttribute("aria-label"),
+		).toBe("Urgent priority");
+		expect(
+			railRow("stop-none")?.querySelector("[data-factory-priority]"),
+		).toBeNull();
+	});
+
+	it("lists the queue in the engine's order: priority, then when queued", async () => {
+		const queued = (
+			taskId: string,
+			at: string | undefined,
+			level?: Parameters<typeof priority>[0],
+		) =>
+			task({
+				taskId,
+				title: `Card ${taskId}`,
+				status: "approved",
+				factoryQueued: at ? "run" : undefined,
+				factoryQueuedAt: at,
+				...(level ? { factoryPriority: priority(level) } : {}),
+			});
+		mocks.tasks = [
+			queued("held", undefined),
+			queued("late-urgent", "2026-01-03T00:00:00Z", "urgent"),
+			queued("second", "2026-01-02T00:00:00Z"),
+			queued("first", "2026-01-01T00:00:00Z"),
+			queued("low", "2026-01-01T00:00:00Z", "low"),
+		];
+		await render();
+		expect(order("working")).toEqual([
+			"late-urgent",
+			"first",
+			"second",
+			"held",
+			"low",
+		]);
+	});
+
+	it("shows the priority before the id, with no control on the card", async () => {
+		mocks.tasks = [
+			stopped("urgent", {
+				factoryNumber: 1,
+				factoryPriority: priority("urgent"),
+			}),
+			stopped("high", {
+				factoryNumber: 2,
+				factoryPriority: priority("high", "agent"),
+			}),
+			stopped("medium", {
+				factoryNumber: 3,
+				factoryPriority: priority("medium", "scoper", "Affects every export"),
+			}),
+			stopped("low", { factoryNumber: 4, factoryPriority: priority("low") }),
+			stopped("none", { factoryNumber: 5 }),
+		];
+		await render();
+		const top = (id: string) =>
+			homeRow(id).querySelector<HTMLElement>("[data-factory-card-top]");
+		const glyph = (id: string) =>
+			top(id)?.querySelector<HTMLElement>("[data-factory-priority]");
+		const filled = (id: string) =>
+			Array.from(glyph(id)?.querySelectorAll("rect") ?? []).filter(
+				(bar) => bar.getAttribute("fill-opacity") === "1",
+			).length;
+		expect(glyph("urgent")?.getAttribute("aria-label")).toBe("Urgent priority");
+		expect(glyph("urgent")?.querySelector("circle")).not.toBeNull();
+		expect(glyph("high")?.getAttribute("aria-label")).toBe("High priority");
+		expect(filled("high")).toBe(3);
+		expect(filled("medium")).toBe(2);
+		expect(filled("low")).toBe(1);
+		// None shows nothing and keeps no space: the id leads the row.
+		expect(glyph("none")).toBeNull();
+		expect(
+			top("none")?.firstElementChild?.hasAttribute("data-factory-id"),
+		).toBe(true);
+		// The icon leads the row, before the id.
+		expect(
+			top("high")?.firstElementChild?.querySelector("[data-factory-priority]"),
+		).toBe(glyph("high"));
+		// Display only: no menu or control on any card.
+		for (const id of ["urgent", "high", "medium", "low", "none"]) {
+			expect(homeRow(id).querySelector("[aria-haspopup]")).toBeNull();
+			expect(
+				homeRow(id).querySelector("[data-factory-priority-control]"),
+			).toBeNull();
+		}
+		// Its tooltip says who set it.
+		if (!("ResizeObserver" in globalThis))
+			Object.assign(globalThis, {
+				ResizeObserver: class {
+					observe() {}
+					unobserve() {}
+					disconnect() {}
+				},
+			});
+		const tooltip = async (id: string) => {
+			await act(async () => {
+				glyph(id)?.dispatchEvent(
+					new MouseEvent("pointermove", { bubbles: true }),
+				);
+				// The tooltip opens after its (zero) delay, on a timer.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+			});
+			const text = document.querySelector(
+				'[data-slot="tooltip-content"]',
+			)?.textContent;
+			await act(async () => {
+				glyph(id)?.dispatchEvent(
+					new MouseEvent("pointerleave", { bubbles: true }),
+				);
+			});
+			return text;
+		};
+		expect(await tooltip("urgent")).toContain("Urgent priority · set by you");
+		expect(await tooltip("high")).toContain("High priority · set by an agent");
+		expect(await tooltip("medium")).toContain(
+			"Medium priority · estimated: Affects every export",
+		);
+		// Clicking the icon still opens the card.
+		await act(async () =>
+			(glyph("high")?.parentElement as HTMLElement | null)?.click(),
+		);
+		expect(sessionStorage.getItem("factory.selectedTask")).toBe("high");
 	});
 });

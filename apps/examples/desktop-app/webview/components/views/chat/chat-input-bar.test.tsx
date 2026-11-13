@@ -9,6 +9,7 @@ import { usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
+	FACTORY_MANAGER_MODEL_STORAGE_KEY,
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 	REASONING_SELECTION_STORAGE_KEY,
@@ -215,7 +216,7 @@ async function renderVoiceComposer({
 	readOnly?: boolean;
 	executionTarget?: "cloud" | "local";
 	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
-	factory?: "intake" | "manager";
+	factory?: "manager";
 	variant?: "conversation" | "welcome";
 } = {}) {
 	await act(async () => {
@@ -2340,6 +2341,72 @@ describe("ChatInputBar", () => {
 		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
 	});
 
+	it("remembers Ask Factory's model under its own key, leaving other chats' model alone", async ({
+		onTestFinished,
+	}) => {
+		onTestFinished(() => {
+			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+			window.localStorage.removeItem(FACTORY_MANAGER_MODEL_STORAGE_KEY);
+		});
+		const chats = {
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "test-model" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(chats),
+		);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["openrouter"],
+			providerModels: { openrouter: ["manager-model", "other-model"] },
+			providerReasoningModels: { openrouter: [] },
+		});
+		await act(async () => {
+			root.render(
+				<ModelSelector
+					selectionScope="factory-manager"
+					provider="openrouter"
+					model="manager-model"
+					isBusy={false}
+					onProviderChange={vi.fn()}
+					onModelChange={vi.fn()}
+					onModelReadyChange={vi.fn()}
+					onModelSupportsReasoningChange={vi.fn()}
+					onModelSupportsImagesChange={vi.fn()}
+				/>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => {
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("openrouter");
+		});
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>('[aria-label^="Model:"]')
+				?.click(),
+		);
+		const option = [
+			...(document
+				.querySelector('[role="dialog"]')
+				?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+		].find((entry) => entry.textContent?.includes("other-model"));
+		await act(async () => option?.click());
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(FACTORY_MANAGER_MODEL_STORAGE_KEY),
+			),
+		).toEqual({
+			lastProvider: "openrouter",
+			lastModelByProvider: { cline: "test-model", openrouter: "other-model" },
+		});
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			),
+		).toEqual(chats);
+	});
+
 	it("renders the cline model picker with recommended and free sections", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
@@ -3318,21 +3385,6 @@ describe("ChatInputBar in Factory modes", () => {
 	const composer = () => container.querySelector("[data-factory-composer]");
 	const textarea = () => container.querySelector("textarea");
 
-	it("Add work: its own placeholder, no chat model or thinking picker, and a focus style", async () => {
-		await renderVoiceComposer({ factory: "intake", variant: "welcome" });
-		expect(textarea()?.placeholder).toBe(
-			"Describe what you want built, or paste an issue link",
-		);
-		expect(container.querySelector('[aria-label="Thinking level"]')).toBeNull();
-		// The model picker stays mounted for model checks but is not shown.
-		const picker = container.querySelector("[data-composer-model-picker]");
-		expect(picker?.classList.contains("hidden")).toBe(true);
-		expect(composer()?.getAttribute("data-factory-composer")).toBe("intake");
-		expect(composer()?.className).toContain(
-			"focus-within:border-cline-ui-primary/50",
-		);
-	});
-
 	it("Ask Factory: its own placeholder and the picker labelled as the manager's model", async () => {
 		await renderVoiceComposer({ factory: "manager", variant: "welcome" });
 		expect(textarea()?.placeholder).toBe(
@@ -3354,6 +3406,32 @@ describe("ChatInputBar in Factory modes", () => {
 				.querySelector("[data-composer-model-picker]")
 				?.classList.contains("hidden"),
 		).toBe(false);
+	});
+
+	it("Ask Factory: one compact model button with the short name, effort following the composer's width", async () => {
+		await renderVoiceComposer({
+			factory: "manager",
+			variant: "conversation",
+			model: "anthropic/claude-sonnet-5.5",
+		});
+		const picker = container.querySelector("[data-composer-model-picker]");
+		// No provider selector in the row: it is in the button's popover.
+		expect(picker?.querySelectorAll("button")).toHaveLength(1);
+		expect(picker?.querySelector("button")?.textContent).toBe(
+			"claude-sonnet-5.5",
+		);
+		expect(picker?.querySelector("button")?.getAttribute("title")).toContain(
+			"claude-sonnet-5.5",
+		);
+		expect(composer()?.className).toContain("@container/composer");
+		expect(
+			container.querySelector('[aria-label="Thinking level"] span')?.className,
+		).toContain("@max-[440px]/composer:sr-only");
+		// Other composers keep their full model row.
+		await renderVoiceComposer({ variant: "conversation" });
+		expect(
+			container.querySelector('[aria-label="Thinking level"] span')?.className,
+		).toBe("max-[560px]:sr-only");
 	});
 
 	it("Ask Factory: no pull request bar, workspace or branch in the full page or the docked panel", async () => {

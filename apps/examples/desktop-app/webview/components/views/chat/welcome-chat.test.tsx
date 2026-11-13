@@ -12,7 +12,6 @@ import {
 	writeCloudRepositorySelection,
 } from "@/lib/cloud-repositories";
 import { FACTORY_HARD_HAT_GEOMETRY } from "./factory-hard-hat";
-import { FactoryIntakeNotice } from "./factory-intake-notice";
 import { FactoryManagerNotice } from "./factory-manager-notice";
 import { WelcomeScreen } from "./welcome-chat";
 
@@ -764,16 +763,6 @@ describe("WelcomeScreen Factory hard hat", () => {
 		expect(hardHat()).toBeNull();
 	});
 
-	it("puts a decorative hard hat on the mascot in Factory intake mode", async () => {
-		await renderWelcomeScreen({
-			workspaceRoot: "/repo",
-			workspaces: [],
-			notice: <FactoryIntakeNotice />,
-		});
-
-		expect(hardHat()?.getAttribute("aria-hidden")).toBe("true");
-	});
-
 	it("wears the hat like a helmet: the shell is wider than the head and covers its top, and the brim sits on the forehead", () => {
 		const { brim, dome, head } = FACTORY_HARD_HAT_GEOMETRY;
 		expect(brim.left).toBeLessThan(head.left);
@@ -791,17 +780,6 @@ describe("WelcomeScreen Factory hard hat", () => {
 		expect(dome.base).toBeLessThan(brim.bottom);
 	});
 
-	it("says what Add work does without repeating the repository chip", async () => {
-		await renderWelcomeScreen({
-			workspaceRoot: "/repo",
-			workspaces: [],
-			notice: <FactoryIntakeNotice />,
-		});
-		const notice = container.querySelector('[data-factory-notice="intake"]');
-		expect(notice?.textContent).toContain("Add work to Factory");
-		expect(notice?.textContent).not.toContain("Repository");
-	});
-
 	it("keeps the hard hat in Ask Factory mode", async () => {
 		await renderWelcomeScreen({
 			workspaceRoot: "/repo",
@@ -816,8 +794,8 @@ describe("WelcomeScreen Factory hard hat", () => {
 		await renderWelcomeScreen({
 			workspaceRoot: "/repo",
 			workspaces: [],
-			factory: "intake",
-			notice: <p>Preparing request…</p>,
+			factory: "manager",
+			notice: <p>Loading…</p>,
 		});
 		expect(hardHat()).not.toBeNull();
 	});
@@ -848,14 +826,5 @@ describe("WelcomeScreen Factory hard hat", () => {
 		expect(container.textContent).not.toContain("feat/factory-");
 		// Workspace quick actions are not loaded either.
 		expect(listAgendaTasksMock).not.toHaveBeenCalled();
-
-		// Add work keeps its repository chip.
-		await renderWelcomeScreen({
-			factory: "intake",
-			notice: <FactoryIntakeNotice />,
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-		expect(container.querySelector('button[title="project-1"]')).not.toBeNull();
 	});
 });

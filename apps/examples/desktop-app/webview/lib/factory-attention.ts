@@ -441,6 +441,31 @@ export function factoryRetryPath(
 }
 
 /**
+ * The workflow's stop at its review repair limit: "Repair limit (2)
+ * reached[; …].\n- finding\n- finding" (factory-workflow.ts).
+ */
+const REPAIR_LIMIT_STOP = /^Repair limit \((\d+)\) reached\b/;
+
+/**
+ * Why a run stopped at its review repair limit, with the first finding it
+ * could not clear: "Review still found a problem after 1 fix round: …".
+ * Undefined for any other error.
+ */
+export function factoryRepairLimitReason(
+	text: string | undefined,
+): string | undefined {
+	const trimmed = text?.trim() ?? "";
+	const limit = REPAIR_LIMIT_STOP.exec(trimmed);
+	if (!limit) return undefined;
+	const rounds = Number(limit[1]);
+	const after = `after ${rounds} fix ${rounds === 1 ? "round" : "rounds"}`;
+	const finding = /^\s*-\s+(.+)$/m.exec(trimmed)?.[1]?.trim();
+	return finding
+		? `Review still found a problem ${after}: ${finding}`
+		: `Review still found problems ${after}.`;
+}
+
+/**
  * `FACTORY_PUBLISH_FAILURE_PREFIX` ("Could not open the draft PR: "), or an
  * older run's "Could not confirm the draft PR…".
  */

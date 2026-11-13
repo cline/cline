@@ -8,6 +8,7 @@ import type {
 	DesktopDebugLogPayload,
 	FactoryReplayRequest,
 	HubTaskCreateInput,
+	HubTaskCreateOutput,
 	HubTaskUpdateInput,
 } from "@cline/shared";
 import type {
@@ -756,12 +757,14 @@ class DesktopClient {
 		return this.transportError;
 	}
 
-	async createAgendaTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
-		const response = await this.invoke<{ task: AgendaTaskRecord }>(
-			"task.create",
-			{ ...input },
-		);
-		return response.task;
+	/**
+	 * With `existing` set no card was created: `task` is the stored card (an
+	 * exact repeat, or with `duplicateOf` the card that already covers it).
+	 */
+	async createAgendaTask(
+		input: HubTaskCreateInput,
+	): Promise<HubTaskCreateOutput> {
+		return this.invoke<HubTaskCreateOutput>("task.create", { ...input });
 	}
 
 	async listAgendaTasks(

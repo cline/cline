@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFactoryWorkflowRecipe } from "@cline/core";
-import { DEFAULT_FACTORY_AGENTS, type FactoryTaskConfig } from "@cline/shared";
+import {
+	DEFAULT_FACTORY_AGENTS,
+	type FactoryTaskConfig,
+	factoryWatchesPullRequest,
+} from "@cline/shared";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -131,7 +135,7 @@ describe("Verifier app environment fields", () => {
 			"App environment (Factory starts and stops it)",
 		);
 		expect(container.textContent).toContain(
-			"Overrides the repository's verification setup",
+			"Overrides the repository's test setup",
 		);
 	}
 	const revision = () =>
@@ -222,9 +226,10 @@ describe("Hands-off policy controls", () => {
 			autonomy: "hands_off",
 			approval: "required",
 			publishPullRequest: true,
-			// The engine no longer watches a hands-off draft PR by default.
-			watchPullRequest: false,
 		});
+		// Keeping the PR passing has one default: unset is on for hands-off.
+		expect(config).not.toHaveProperty("watchPullRequest");
+		expect(factoryWatchesPullRequest(config)).toBe(true);
 		await act(async () => pause.click());
 		await act(async () => button("Save workflow").click());
 		expect(readDesktopSettings().factoryPresets?.[0]?.config).toMatchObject({
@@ -503,11 +508,11 @@ describe("Who checks the work", () => {
 			(item) => item.textContent,
 		);
 		expect(lines).toEqual([
-			"Plans: feature model",
+			"Plans: default model",
 			"Checks the plan: nobody",
-			"Builds: feature model",
+			"Builds: default model",
 			"Tests: nobody",
-			"Reviews: feature model (same model)",
+			"Reviews: default model (same model)",
 		]);
 		expect(summary.textContent).toContain(
 			"The same model builds and reviews this work",
@@ -539,7 +544,7 @@ describe("Who checks the work", () => {
 				verifier: {},
 			}),
 		).toMatchObject({ independent: false, noPlanCheckOrTest: false });
-		// A reviewer on the feature model differs from a builder on a chosen one.
+		// A reviewer on the default model differs from a builder on a chosen one.
 		expect(
 			factoryReviewCoverage({
 				designer: {},
@@ -584,9 +589,9 @@ describe("Who checks the work", () => {
 		await act(async () => field("Agent testing").click());
 		const summary = section("Who checks the work");
 		expect(summary.textContent).toContain(
-			"Checks the plan: feature model (same model)",
+			"Checks the plan: default model (same model)",
 		);
-		expect(summary.textContent).toContain("Tests: feature model");
+		expect(summary.textContent).toContain("Tests: default model");
 		expect(summary.textContent).not.toContain("No plan checker and no tester");
 		expect(summary.textContent).toContain(
 			"The same model builds and reviews this work",

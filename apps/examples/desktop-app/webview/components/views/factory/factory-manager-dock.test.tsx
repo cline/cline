@@ -4,7 +4,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ensureLocalStorage } from "@/lib/test-local-storage";
-import { FactoryManagerDock } from "./factory-manager-dock";
+import {
+	FACTORY_MANAGER_NARROW_WIDTH,
+	FactoryManagerDock,
+} from "./factory-manager-dock";
 
 (
 	globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -105,6 +108,37 @@ describe("FactoryManagerDock", () => {
 		expect(onClose).toHaveBeenCalledOnce();
 		pressEscape(button("New conversation") as Element);
 		expect(onClose).toHaveBeenCalledTimes(2);
+	});
+
+	it("docks down to 920px and names itself when it takes over", () => {
+		hostWidth(FACTORY_MANAGER_NARROW_WIDTH);
+		render();
+		expect(main()?.style.display).toBe("flex");
+		act(() => root.unmount());
+		root = createRoot(container);
+		hostWidth(FACTORY_MANAGER_NARROW_WIDTH - 1);
+		render();
+		expect(main()?.style.display).toBe("none");
+		expect(panel()?.querySelector("header h2")?.textContent).toBe(
+			"Ask Factory",
+		);
+	});
+
+	it("keeps Close alone at the right edge, the tools beside the title", () => {
+		hostWidth(1400);
+		render({ contextCard: { shortId: "F25" } });
+		const order = [
+			...(panel()?.querySelectorAll("header h2, header button") ?? []),
+		].map(
+			(element) => element.getAttribute("aria-label") ?? element.textContent,
+		);
+		expect(order).toEqual([
+			"Ask Factory",
+			"New conversation",
+			"Open full page",
+			"Don't send F25 as context",
+			"Close Ask Factory",
+		]);
 	});
 
 	it("closes on Esc from the header only when docked", () => {

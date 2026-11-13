@@ -684,6 +684,14 @@ export const factoryWorkflowConfigSchema = z.object({
 	 * saved workflows keep their revision hash.
 	 */
 	pullRequestReady: z.enum(["never", "when_no_review_required"]).optional(),
+	/**
+	 * Keep the draft PR passing after it opens: Factory watches its checks
+	 * and review comments and repairs what they find (see
+	 * factoryWatchesPullRequest for the one default). No default, so saved
+	 * workflows that omit it keep their revision hash; card creation copies
+	 * the workflow's value when the card sets none.
+	 */
+	watchPullRequest: z.boolean().optional(),
 });
 export type FactoryWorkflowConfig = z.infer<typeof factoryWorkflowConfigSchema>;
 export const factoryWorkflowReferenceSchema = z.object({
@@ -754,7 +762,6 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 	 * it keep loading.
 	 */
 	pullRequestEvidenceDetails: z.boolean().optional(),
-	watchPullRequest: z.boolean().optional(),
 	documents: z
 		.array(
 			z.object({
@@ -828,9 +835,69 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 			workflow: z.string().optional(),
 		})
 		.optional(),
+	/**
+	 * Task ids of up to three cards of the same project that Factory's
+	 * duplicate check found related when this card was filed. Context for
+	 * scoping; nothing waits on them.
+	 */
+	relatedTo: z.array(z.string().trim().min(1).max(200)).max(3).optional(),
+	/**
+	 * The duplicate check's judge session for this filing, recorded so the
+	 * daily spend counts it. `none`: no readable verdict. `durationMs`: the
+	 * judge's wall time, session start included. `skipped`: the filer passed
+	 * allow_duplicate, so no check ran (no session); `by` is the filer's
+	 * actor kind.
+	 */
+	duplicateCheck: z
+		.object({
+			sessionId: z.string().min(1).optional(),
+			at: z.string(),
+			verdict: z.enum(["same", "related", "new", "none", "skipped"]),
+			durationMs: z.number().int().nonnegative().optional(),
+			by: z.string().max(200).optional(),
+		})
+		.optional(),
 });
 
 export type FactoryTaskConfig = z.infer<typeof factoryTaskConfigSchema>;
+
+/** Blocked `{source, key}` pairs a card remembers, oldest dropped first. */
+export const FACTORY_DUPLICATE_REPORT_KEYS_MAX = 200;
+/** Repeat reports a card keeps in full, newest last. */
+export const FACTORY_DUPLICATE_REPORTS_RECENT = 20;
+
+/**
+ * Later filings Factory's duplicate check matched to this card instead of
+ * creating a second one. `count` counts every repeat; `recent` keeps the
+ * last few; `keys` remembers each blocked `[source, key]` so the same
+ * filing again is matched without a model call.
+ */
+export const factoryDuplicateReportsSchema = z.object({
+	count: z.number().int().nonnegative(),
+	recent: z
+		.array(
+			z.object({
+				at: z.string(),
+				source: z.string().max(200).optional(),
+				key: z.string().max(500).optional(),
+				title: z.string().max(200),
+				/** Who filed it: the actor kind (`user`, `agent`, ...). */
+				by: z.string().max(200),
+				/** The judge session that matched it; counted in the daily spend. */
+				judgeSessionId: z.string().min(1).optional(),
+				/** That judge's wall time, session start included. */
+				judgeDurationMs: z.number().int().nonnegative().optional(),
+			}),
+		)
+		.max(FACTORY_DUPLICATE_REPORTS_RECENT),
+	keys: z
+		.array(z.tuple([z.string(), z.string()]))
+		.max(FACTORY_DUPLICATE_REPORT_KEYS_MAX)
+		.optional(),
+});
+export type FactoryDuplicateReports = z.infer<
+	typeof factoryDuplicateReportsSchema
+>;
 
 /** Restarts Factory makes by itself of one run lineage interrupted by a Hub stop or crash. */
 export const FACTORY_MAX_INTERRUPT_RECOVERIES = 2;
@@ -958,6 +1025,17 @@ export function isFactoryHandsOff(
 	config: { autonomy?: unknown } | undefined,
 ): boolean {
 	return config?.autonomy === "hands_off";
+}
+
+/**
+ * Whether Factory keeps a card's (or a workflow's new cards') draft PR
+ * passing after it opens. The one default everywhere: an explicit
+ * `watchPullRequest` wins; unset is on for hands-off and off otherwise.
+ */
+export function factoryWatchesPullRequest(
+	config: { autonomy?: unknown; watchPullRequest?: boolean } | undefined,
+): boolean {
+	return config?.watchPullRequest ?? isFactoryHandsOff(config);
 }
 
 /**
@@ -1169,8 +1247,9 @@ export function factoryIndependentReview(
  * Applies delivery defaults to a raw (pre-parse) task config that runs
  * without a person in the loop (hands-off, or plans approved automatically):
  * publish the draft PR unless the caller set it explicitly, including to
- * false. Watching the PR (unattended follow-up that pushes and comments) stays
- * off unless the caller turns it on.
+ * false. Watching the PR is left as the caller set it: unset reads through
+ * factoryWatchesPullRequest (on for hands-off), and is never written here so
+ * the card's workflow revision matches the workflow it came from.
  */
 export function applyFactoryAutonomyDefaults<T>(rawConfig: T): T {
 	if (
@@ -1182,14 +1261,10 @@ export function applyFactoryAutonomyDefaults<T>(rawConfig: T): T {
 		)
 	)
 		return rawConfig;
-	const config = rawConfig as {
-		publishPullRequest?: unknown;
-		watchPullRequest?: unknown;
-	};
+	const config = rawConfig as { publishPullRequest?: unknown };
 	return {
 		...rawConfig,
 		publishPullRequest: config.publishPullRequest ?? true,
-		watchPullRequest: config.watchPullRequest ?? false,
 	};
 }
 export type FactoryCheck = z.infer<typeof factoryCheckSchema>;

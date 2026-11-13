@@ -3,10 +3,13 @@
 import type {
 	AgendaTaskRecord,
 	FactoryCardState,
+	FactoryPriority,
 	FactoryRunState,
 } from "@cline/shared";
 import {
 	DEFAULT_FACTORY_AGENTS,
+	FACTORY_PRIORITIES,
+	FACTORY_PRIORITY_LABEL,
 	factoryActiveStage,
 	factoryCardState,
 	isFactoryHandsOff,
@@ -22,13 +25,20 @@ import {
 	Clock,
 	FolderGit2,
 	GitPullRequest,
+	HelpCircle,
 	Loader2,
 	MoreHorizontal,
 	PauseCircle,
 	PencilLine,
 	PlayCircle,
 } from "lucide-react";
-import { type ComponentType, type ReactNode, useRef, useState } from "react";
+import {
+	type ComponentType,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -44,11 +54,13 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { FactoryLiveActivity } from "@/hooks/use-factory-live-activity";
 import { basenamePath } from "@/hooks/use-session-history";
-import { openExternalUrl } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	currentFactoryConclusion,
 	type FactoryRetryRun,
@@ -58,6 +70,7 @@ import {
 	factoryCardInput,
 	factoryOpenFindings,
 	factoryPublishFailureReason,
+	factoryRepairLimitReason,
 	factoryScopingWait,
 	isFactoryRuleCard,
 	isReplayReviewQueued,
@@ -68,9 +81,11 @@ import {
 	FACTORY_CARD_ACTION,
 	FACTORY_CHECK_RESULT,
 	FACTORY_DECISION,
+	FACTORY_DUPLICATES,
 	FACTORY_NOT_STARTED,
 	FACTORY_OPEN_FINDINGS,
 	FACTORY_PHASE_LABEL,
+	FACTORY_PRIORITY,
 	FACTORY_PROOF,
 	FACTORY_READY,
 	FACTORY_RECOVERY,
@@ -93,8 +108,11 @@ import {
 } from "./factory-live";
 import {
 	FactoryIdChip,
+	FactoryPriorityGlyph,
 	FactoryRuleBadge,
 	type FactoryTone,
+	factoryShortId,
+	hasFactoryPriority,
 	toneSurface,
 	toneText,
 } from "./factory-ui";
@@ -174,6 +192,9 @@ export function factoryExecutionStage(
 		case "ready":
 			return "deliver";
 		case "blocked": {
+			// Review findings outlasted the repair rounds.
+			if (factoryRepairLimitReason(state.error ?? taskError) !== undefined)
+				return "review";
 			// The draft PR could not be opened: build, checks and any review
 			// before it passed.
 			if (factoryPublishFailed(state, taskError)) return "deliver";
@@ -200,6 +221,9 @@ export function factoryPublishFailed(
 	taskError?: string,
 ): boolean {
 	if (state?.pullRequestUrl) return false;
+	// The workflow stopped at its repair limit, before any PR.
+	if (factoryRepairLimitReason(state?.error ?? taskError) !== undefined)
+		return false;
 	if (
 		factoryPublishFailureReason(taskError) !== undefined ||
 		(state &&
@@ -282,6 +306,8 @@ function stoppedHeadline(
 	task: AgendaTaskRecord,
 	state: FactoryRunState | undefined,
 ): string {
+	if (factoryRepairLimitReason(state?.error ?? task.error) !== undefined)
+		return FACTORY_CARD.repairLimitHeadline;
 	if (factoryPublishFailed(state, task.error))
 		return FACTORY_RECOVERY.publishFailed;
 	const max = task.factory?.maxRepairRounds ?? 0;
@@ -325,7 +351,7 @@ export function factoryScopingStopReason(error: string | undefined): string {
 	const limit = /Plan repair limit \((\d+)\) reached/i.exec(error ?? "");
 	if (!limit) return "Scoping did not finish.";
 	const rounds = Number(limit[1]);
-	return `The plan reviewers still had objections after ${rounds} ${rounds === 1 ? "round" : "rounds"} of fixes.`;
+	return `The plan checkers still had objections after ${rounds} ${rounds === 1 ? "round" : "rounds"} of fixes.`;
 }
 
 type Summary = {
@@ -340,6 +366,12 @@ type Summary = {
 	warning?: boolean;
 	/** Nothing queued or running will start this card; it needs Start. */
 	notStarted?: boolean;
+	/** A brief nobody scoped: approve it as written, or scope it first. */
+	unscoped?: boolean;
+	/** Scoping waits for the person's answer. */
+	question?: boolean;
+	/** A rule Factory proposed from the person's note waits for them. */
+	rule?: boolean;
 };
 
 /**
@@ -409,6 +441,8 @@ function summarize(
 	planFault: "retry" | "stopped" | undefined,
 	/** Where the card is and who it waits on, from factoryCardState. */
 	card: FactoryCardState,
+	/** Scoping asked the person a question and waits for the answer. */
+	waitingForAnswer = false,
 ): Summary {
 	if (task.archivedAt)
 		return {
@@ -490,6 +524,7 @@ function summarize(
 			icon: ClipboardCheck,
 			headline: FACTORY_DECISION.rule,
 			stage: "deliver",
+			rule: true,
 		};
 	if (card.kind === "stopped")
 		return {
@@ -548,6 +583,15 @@ function summarize(
 			icon: Clock,
 			headline: "Plan review queued",
 			stage: "plan_review",
+		};
+	// Nothing runs while scoping waits on the person: no spinner, no timer.
+	if (waitingForAnswer)
+		return {
+			tone: "attention",
+			icon: HelpCircle,
+			headline: FACTORY_CARD.waitingForAnswer,
+			stage: "scope",
+			question: true,
 		};
 	if (designActive) {
 		const reviewing = task.factoryDesignProgress?.phase === "reviewing";
@@ -619,15 +663,25 @@ function summarize(
 			headline: "Approved · waiting to build",
 			stage: "build",
 		};
-	return approvalReason
+	if (approvalReason)
+		return {
+			tone: "attention",
+			icon: PencilLine,
+			headline: FACTORY_ACTIVITY.planNotReady,
+			stage:
+				task.factoryDesignProgress?.revision === task.revision
+					? "plan_review"
+					: "scope",
+		};
+	// A brief nobody scoped yet: approving runs it as written, or scoping
+	// plans it first. Both are on the card; neither has happened.
+	return task.factoryDesignProgress?.revision !== task.revision
 		? {
-				tone: "attention",
-				icon: PencilLine,
-				headline: FACTORY_ACTIVITY.planNotReady,
-				stage:
-					task.factoryDesignProgress?.revision === task.revision
-						? "plan_review"
-						: "scope",
+				tone: "neutral",
+				icon: PlayCircle,
+				headline: FACTORY_RECOVERY.notStarted,
+				stage: "scope",
+				unscoped: true,
 			}
 		: {
 				tone: "accent",
@@ -710,6 +764,10 @@ function nextActionSentence({
 	if (task.factory?.hold === true)
 		return "This card is on hold. Start it to begin scoping.";
 	if (summary.notStarted) return FACTORY_NOT_STARTED.detail;
+	// The question below says what it waits for.
+	if (summary.question) return null;
+	if (summary.rule) return FACTORY_CARD.ruleNext;
+	if (summary.unscoped) return FACTORY_CARD.unscopedNext;
 	// The headline says it is moving on its own.
 	if (autoProgress) return null;
 	if (task.status === "in_progress") return FACTORY_CARD.buildingNext;
@@ -731,7 +789,91 @@ function nextActionSentence({
 	);
 }
 
+/**
+ * "Related: F12, F15": the cards Factory's duplicate check linked when this
+ * one was filed. The record keeps their task ids, so their short ids are read.
+ */
+function FactoryRelatedCards({
+	taskIds,
+	onOpenCard,
+}: {
+	taskIds: readonly string[];
+	onOpenCard?: (taskId: string) => void;
+}) {
+	const ids = taskIds.join(" ");
+	const [shortIds, setShortIds] = useState<Record<string, string>>({});
+	useEffect(() => {
+		let current = true;
+		void Promise.all(
+			ids.split(" ").map(async (taskId) => {
+				const reply = await desktopClient
+					.invoke<{ task?: AgendaTaskRecord }>("task.get", {
+						taskId,
+						allWorkspaces: true,
+					})
+					.catch(() => undefined);
+				const shortId = reply?.task ? factoryShortId(reply.task) : undefined;
+				return shortId ? [[taskId, shortId] as const] : [];
+			}),
+		).then((entries) => {
+			if (current) setShortIds(Object.fromEntries(entries.flat()));
+		});
+		return () => {
+			current = false;
+		};
+	}, [ids]);
+	// A card that cannot be read (deleted, or not yet loaded) is left out.
+	const shown = taskIds.filter((taskId) => shortIds[taskId]);
+	if (!shown.length) return null;
+	return (
+		<span className="flex items-center gap-1" data-factory-related>
+			{FACTORY_DUPLICATES.related}
+			{shown.map((taskId, index) => {
+				const label = shortIds[taskId] as string;
+				return (
+					<span key={taskId}>
+						{onOpenCard ? (
+							<Button
+								variant="link"
+								className="h-auto p-0 text-xs"
+								aria-label={FACTORY_DUPLICATES.openRelated(label)}
+								onClick={() => onOpenCard(taskId)}
+							>
+								{label}
+							</Button>
+						) : (
+							label
+						)}
+						{index < shown.length - 1 ? "," : null}
+					</span>
+				);
+			})}
+		</span>
+	);
+}
+
+/** "Also requested 2 times" on a card later filings were matched to. */
+function FactoryAlsoRequested({ task }: { task: AgendaTaskRecord }) {
+	const reports = task.factoryDuplicateReports;
+	if (!reports?.count) return null;
+	const latest = reports.recent.at(-1)?.at;
+	const when = latest ? new Date(latest) : undefined;
+	return (
+		<span
+			data-factory-also-requested
+			title={
+				when && Number.isFinite(when.getTime())
+					? FACTORY_DUPLICATES.lastRequested(when.toLocaleString())
+					: undefined
+			}
+		>
+			{FACTORY_DUPLICATES.alsoRequested(reports.count)}
+		</span>
+	);
+}
+
 export function FactoryTaskHeader({
+	part,
 	task,
 	busy,
 	designActive,
@@ -752,7 +894,16 @@ export function FactoryTaskHeader({
 	onEditPlan,
 	onRate,
 	findingsShownElsewhere = false,
+	waitingForAnswer = false,
+	onReviewRule,
+	onOpenCard,
 }: {
+	/**
+	 * The card page shows the header in two places: the title row (id,
+	 * title, repository, More) across the card, and the status at the top
+	 * of its main column. Without `part`, both, stacked.
+	 */
+	part?: "title" | "status";
 	task: AgendaTaskRecord;
 	busy: boolean;
 	designActive: boolean;
@@ -813,6 +964,12 @@ export function FactoryTaskHeader({
 	onRate?: () => void;
 	/** The card's artifact panel lists the open findings; keep the actions. */
 	findingsShownElsewhere?: boolean;
+	/** Scoping asked a question that is still unanswered. */
+	waitingForAnswer?: boolean;
+	/** A proposed rule waits: brings it into view on the card. */
+	onReviewRule?: () => void;
+	/** Opens another card (a related card's link). */
+	onOpenCard?: (taskId: string) => void;
 }) {
 	const [deleting, setDeleting] = useState(false);
 	const [confirming, setConfirming] = useState<"stop" | "archive" | null>(null);
@@ -852,6 +1009,7 @@ export function FactoryTaskHeader({
 				? "retry"
 				: undefined,
 		factoryCardState(factoryCardInput(task, stationOutcome)),
+		waitingForAnswer,
 	);
 	// Where the card is on the line, in the home's vocabulary and component.
 	const stations =
@@ -875,10 +1033,16 @@ export function FactoryTaskHeader({
 	const source = task.factory?.sourceIssue;
 	const liveSessions = live?.sessions ?? [];
 	const showLive =
-		!summary.stopped && (liveSessions.length > 0 || Boolean(live?.waiting));
+		!summary.stopped &&
+		!summary.question &&
+		(liveSessions.length > 0 || Boolean(live?.waiting));
 	const stopping = task.status === "in_progress" || designActive;
 	// The headline already says how it stopped; the reason says why.
-	const failureReason = withoutHeadlineLead(failure?.reason, summary.headline);
+	// A repair-limit stop names the finding it could not clear.
+	const failureReason = withoutHeadlineLead(
+		factoryRepairLimitReason(task.error ?? state?.error) ?? failure?.reason,
+		summary.headline,
+	);
 	const scopeRoute = factoryScopeRouteLine(task);
 	const editPlanPrimary = summary.stopped && !failure?.onRetry;
 	const editPlanInMore = editPlanPrimary ? undefined : onEditPlan;
@@ -890,20 +1054,69 @@ export function FactoryTaskHeader({
 		(reviewState && accept?.reason)
 			? null
 			: nextAction;
-	return (
-		<header className="@container/header space-y-5 @max-[30rem]/header:space-y-4">
-			<div className="flex items-center justify-between gap-3 @min-[960px]/factory:justify-end">
+	const titleRow = (
+		<>
+			<div className="flex @min-[960px]/factory:hidden">
 				{/* Beside the card rail, its Factory header is the way back. */}
 				<Button
 					variant="ghost"
 					size="sm"
-					className="-ml-2 text-muted-foreground @min-[960px]/factory:hidden"
+					className="-ml-2 text-muted-foreground"
 					data-factory-back
 					onClick={onBack}
 					disabled={busy}
 				>
-					<ArrowLeft className="mr-1 size-4" /> Back to factory
+					<ArrowLeft className="mr-1 size-4" /> Back to Factory
 				</Button>
+			</div>
+			<div className="flex items-start gap-3">
+				<div className="min-w-0 flex-1">
+					{/* The id leads the title's first line; the title wraps after it. */}
+					<h1 className="break-words text-lg leading-snug font-semibold">
+						<FactoryIdChip
+							task={task}
+							className="mr-2 inline-block align-middle text-xs leading-5"
+						/>
+						{task.title}
+					</h1>
+					{isFactoryRuleCard(task) ? (
+						<p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+							<FactoryRuleBadge />
+							<span>{FACTORY_RULE_CARD.explanation}</span>
+						</p>
+					) : null}
+					<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+						<span
+							className="flex min-w-0 items-center gap-1.5"
+							title={task.workspaceRoot}
+						>
+							<FolderGit2 className="size-3.5 shrink-0" />
+							<span className="truncate font-medium text-foreground">
+								{basenamePath(task.workspaceRoot)}
+							</span>
+							<span className="sr-only">{task.workspaceRoot}</span>
+						</span>
+						<FactoryPriorityControl task={task} />
+						{source ? (
+							<Button
+								variant="link"
+								className="h-auto p-0 text-xs"
+								onClick={() => void openExternalUrl(source.url)}
+							>
+								{source.provider === "github" ? "GitHub issue" : "Linear issue"}{" "}
+								· {source.id}
+								<ArrowUpRight className="ml-1 size-3" />
+							</Button>
+						) : null}
+						{task.factory?.relatedTo?.length ? (
+							<FactoryRelatedCards
+								taskIds={task.factory.relatedTo}
+								onOpenCard={onOpenCard}
+							/>
+						) : null}
+						<FactoryAlsoRequested task={task} />
+					</div>
+				</div>
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button variant="outline" size="sm" disabled={busy}>
@@ -960,134 +1173,6 @@ export function FactoryTaskHeader({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
-			<div>
-				{/* The id leads the title's first line; the title wraps after it. */}
-				<h1 className="break-words text-2xl font-semibold @max-[30rem]/header:text-xl">
-					<FactoryIdChip
-						task={task}
-						className="mr-2 inline-block align-middle text-xs leading-5"
-					/>
-					{task.title}
-				</h1>
-				{isFactoryRuleCard(task) ? (
-					<p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-						<FactoryRuleBadge />
-						<span>{FACTORY_RULE_CARD.explanation}</span>
-					</p>
-				) : null}
-				<div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-					<span
-						className="flex min-w-0 items-center gap-1.5"
-						title={task.workspaceRoot}
-					>
-						<FolderGit2 className="size-3.5 shrink-0" />
-						<span className="truncate font-medium text-foreground">
-							{basenamePath(task.workspaceRoot)}
-						</span>
-						<span className="sr-only">{task.workspaceRoot}</span>
-					</span>
-					{source ? (
-						<Button
-							variant="link"
-							className="h-auto p-0 text-xs"
-							onClick={() => void openExternalUrl(source.url)}
-						>
-							{source.provider === "github" ? "GitHub issue" : "Linear issue"} ·{" "}
-							{source.id}
-							<ArrowUpRight className="ml-1 size-3" />
-						</Button>
-					) : null}
-				</div>
-			</div>
-			<section
-				aria-label="Task progress"
-				className={cn("rounded-lg border", toneSurface(summary.tone))}
-			>
-				<div className="flex flex-col gap-3 px-5 py-4 @max-[30rem]/header:px-4 @max-[30rem]/header:py-3 @min-[30rem]/header:flex-row @min-[30rem]/header:items-start">
-					<div className="flex min-w-0 flex-1 items-start gap-3">
-						<summary.icon
-							className={cn(
-								"mt-0.5 size-5 shrink-0",
-								toneText(summary.tone),
-								summary.spinning && "animate-spin motion-reduce:animate-none",
-							)}
-						/>
-						<div className="min-w-0 flex-1 space-y-1">
-							<strong className="block text-sm font-semibold">
-								{summary.headline}
-							</strong>
-							{scopeRoute ? (
-								<p
-									className="text-xs text-muted-foreground"
-									data-testid="factory-scope-route"
-								>
-									{scopeRoute}
-								</p>
-							) : null}
-							{showLive ? (
-								<FactoryLiveLine
-									sessions={liveSessions}
-									activity={live?.activity}
-									waiting={live?.waiting}
-									showOthers={false}
-								/>
-							) : null}
-							{summary.stopped && failureReason ? (
-								<p
-									className="line-clamp-3 break-words text-sm text-foreground"
-									data-testid="factory-failure-reason"
-								>
-									{failureReason}
-								</p>
-							) : null}
-							{nextLine ? (
-								<p className="text-sm text-muted-foreground">{nextLine}</p>
-							) : null}
-							{openFindings && summary.warning && !findingsShownElsewhere ? (
-								<FactoryFindingList findings={openFindings.findings} />
-							) : null}
-							<CardActions
-								busy={busy}
-								summary={summary}
-								onRetry={failure?.onRetry}
-								retryLabel={
-									factoryScopingStopped(task)
-										? FACTORY_CARD_ACTION.tryScopingAgain
-										: FACTORY_CARD_ACTION.tryAgain
-								}
-								onEditPlan={onEditPlan}
-								onStart={onStart}
-								startLabel={
-									task.factory?.hold === true
-										? FACTORY_RECOVERY.start
-										: FACTORY_CARD.startScoping
-								}
-								accept={reviewState ? accept : undefined}
-								onFixFindings={onFixFindings}
-								pullRequestUrl={
-									openFindings?.pullRequestUrl ??
-									(reviewState || delivery
-										? (delivery?.pullRequestUrl ?? state?.pullRequestUrl)
-										: undefined)
-								}
-								pullRequestLabel={factoryPullRequestActionLabel(state)}
-								delivery={delivery}
-							/>
-						</div>
-					</div>
-				</div>
-				{stations ? (
-					<div
-						className="border-t border-inherit bg-background/60 px-5 py-3 text-xs @max-[30rem]/header:px-4"
-						data-testid="factory-card-stations"
-					>
-						<FactoryStationLine
-							stations={stations}
-							aria-label={FACTORY_CARD_ACTION.stationLine}
-						/>
-					</div>
-				) : null}
-			</section>
 			<AlertDialog
 				open={confirming !== null}
 				onOpenChange={(open) => {
@@ -1136,6 +1221,108 @@ export function FactoryTaskHeader({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+		</>
+	);
+	const status = (
+		<section
+			aria-label="Task progress"
+			className={cn("rounded-lg border", toneSurface(summary.tone))}
+		>
+			<div className="flex flex-col gap-3 px-5 py-4 @max-[30rem]/header:px-4 @max-[30rem]/header:py-3 @min-[30rem]/header:flex-row @min-[30rem]/header:items-start">
+				<div className="flex min-w-0 flex-1 items-start gap-3">
+					<summary.icon
+						className={cn(
+							"mt-0.5 size-5 shrink-0",
+							toneText(summary.tone),
+							summary.spinning && "animate-spin motion-reduce:animate-none",
+						)}
+					/>
+					<div className="min-w-0 flex-1 space-y-1">
+						<strong className="block text-sm font-semibold">
+							{summary.headline}
+						</strong>
+						{scopeRoute ? (
+							<p
+								className="text-xs text-muted-foreground"
+								data-testid="factory-scope-route"
+							>
+								{scopeRoute}
+							</p>
+						) : null}
+						{showLive ? (
+							<FactoryLiveLine
+								sessions={liveSessions}
+								activity={live?.activity}
+								waiting={live?.waiting}
+								showOthers={false}
+							/>
+						) : null}
+						{summary.stopped && failureReason ? (
+							<p
+								className="whitespace-pre-line break-words text-sm text-foreground"
+								data-testid="factory-failure-reason"
+							>
+								{failureReason}
+							</p>
+						) : null}
+						{nextLine ? (
+							<p className="text-sm text-muted-foreground">{nextLine}</p>
+						) : null}
+						{openFindings && summary.warning && !findingsShownElsewhere ? (
+							<FactoryFindingList findings={openFindings.findings} />
+						) : null}
+						<CardActions
+							busy={busy}
+							summary={summary}
+							onRetry={failure?.onRetry}
+							retryLabel={
+								factoryScopingStopped(task)
+									? FACTORY_CARD_ACTION.tryScopingAgain
+									: FACTORY_CARD_ACTION.tryAgain
+							}
+							onEditPlan={onEditPlan}
+							onStart={onStart}
+							startLabel={
+								task.factory?.hold === true
+									? FACTORY_RECOVERY.start
+									: FACTORY_CARD.startScoping
+							}
+							accept={reviewState ? accept : undefined}
+							onFixFindings={onFixFindings}
+							pullRequestUrl={
+								openFindings?.pullRequestUrl ??
+								(reviewState || delivery
+									? (delivery?.pullRequestUrl ?? state?.pullRequestUrl)
+									: undefined)
+							}
+							pullRequestLabel={factoryPullRequestActionLabel(state)}
+							delivery={delivery}
+							onReviewRule={summary.rule ? onReviewRule : undefined}
+						/>
+					</div>
+				</div>
+			</div>
+			{stations ? (
+				<div
+					className="border-t border-inherit bg-background/60 px-5 py-3 text-xs @max-[30rem]/header:px-4"
+					data-testid="factory-card-stations"
+				>
+					<FactoryStationLine
+						stations={stations}
+						aria-label={FACTORY_CARD_ACTION.stationLine}
+					/>
+				</div>
+			) : null}
+		</section>
+	);
+	if (part === "title")
+		return <header className="@container/header space-y-3">{titleRow}</header>;
+	if (part === "status")
+		return <div className="@container/header">{status}</div>;
+	return (
+		<header className="@container/header space-y-5 @max-[30rem]/header:space-y-4">
+			{titleRow}
+			{status}
 		</header>
 	);
 }
@@ -1149,6 +1336,91 @@ export function FactoryTaskHeader({
  * Delivered: Open draft PR (Open PR once it is merged, closed or marked
  * ready), or View changes when there is no PR.
  */
+/**
+ * The card's priority: a button with its level, opening a radio menu. A
+ * choice shows at once and returns to the saved level, with a note, if the
+ * Hub refuses it. It changes nothing else, so it is offered in every state.
+ */
+function FactoryPriorityControl({ task }: { task: AgendaTaskRecord }) {
+	const saved = task.factoryPriority;
+	// The choice the task does not carry yet, over the value it replaces: a
+	// newer saved value (this choice arriving, or anyone's) supersedes it.
+	const [pending, setPending] = useState<{
+		level: FactoryPriority | null;
+		over: string | undefined;
+	}>();
+	const [failed, setFailed] = useState(false);
+	const latest = useRef(0);
+	const choosing = pending !== undefined && pending.over === saved?.at;
+	const level = choosing
+		? pending.level
+		: hasFactoryPriority(saved)
+			? saved.level
+			: null;
+	const label = FACTORY_PRIORITY_LABEL[level ?? "none"];
+	const choose = async (value: string) => {
+		const next = value === "none" ? null : (value as FactoryPriority);
+		if (next === level) return;
+		const request = ++latest.current;
+		setPending({ level: next, over: saved?.at });
+		setFailed(false);
+		try {
+			await desktopClient.invoke("task.factory.priority", {
+				taskId: task.taskId,
+				priority: next,
+				allWorkspaces: true,
+			});
+		} catch {
+			if (request !== latest.current) return;
+			setPending(undefined);
+			setFailed(true);
+		}
+	};
+	return (
+		<span className="flex min-w-0 items-center gap-2.5">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="ghost"
+						size="xs"
+						data-factory-priority-control
+						aria-label={`${FACTORY_PRIORITY.menu}: ${label}`}
+						className="-mx-1.5 h-6 gap-1.5 px-1.5 font-normal text-muted-foreground hover:text-foreground"
+					>
+						<FactoryPriorityGlyph level={level ?? "none"} />
+						{label}
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="start">
+					<DropdownMenuRadioGroup
+						value={level ?? "none"}
+						onValueChange={(value) => void choose(value)}
+					>
+						{(["none", ...FACTORY_PRIORITIES] as const).map((option) => (
+							<DropdownMenuRadioItem key={option} value={option}>
+								<FactoryPriorityGlyph
+									level={option}
+									className="text-muted-foreground"
+								/>
+								{FACTORY_PRIORITY_LABEL[option]}
+							</DropdownMenuRadioItem>
+						))}
+					</DropdownMenuRadioGroup>
+				</DropdownMenuContent>
+			</DropdownMenu>
+			{failed ? (
+				<span role="alert" className="text-destructive">
+					{FACTORY_PRIORITY.saveFailed}
+				</span>
+			) : !choosing && saved?.by === "scoper" ? (
+				<span className="min-w-0 truncate" title={saved.reason}>
+					{FACTORY_PRIORITY.estimated(saved.reason)}
+				</span>
+			) : null}
+		</span>
+	);
+}
+
 function CardActions({
 	busy,
 	summary,
@@ -1162,6 +1434,7 @@ function CardActions({
 	pullRequestUrl,
 	pullRequestLabel,
 	delivery,
+	onReviewRule,
 }: {
 	busy: boolean;
 	summary: Summary;
@@ -1175,6 +1448,7 @@ function CardActions({
 	pullRequestUrl?: string;
 	pullRequestLabel: string;
 	delivery?: { onViewChanges?: () => void };
+	onReviewRule?: () => void;
 }) {
 	const openPr = (primary: boolean) =>
 		pullRequestUrl ? (
@@ -1229,6 +1503,15 @@ function CardActions({
 			);
 		const pr = openPr(false);
 		if (pr) secondary.push(<span key="pr">{pr}</span>);
+	} else if (onReviewRule) {
+		// The rule is the decision; the PR stays one click away.
+		primary = (
+			<Button size="sm" onClick={onReviewRule}>
+				{FACTORY_CARD.reviewRule}
+			</Button>
+		);
+		const pr = openPr(false);
+		if (pr) secondary.push(<span key="pr">{pr}</span>);
 	} else if (summary.notStarted && onStart)
 		primary = (
 			<Button size="sm" disabled={busy} onClick={onStart}>
@@ -1261,16 +1544,17 @@ function CardActions({
 			className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-2"
 			data-testid="factory-card-actions"
 		>
-			{primary}
-			{secondary}
+			{/* Why Factory asks comes first, then what to do about it. */}
 			{beside ? (
 				<p
-					className="min-w-0 basis-48 flex-1 text-sm text-muted-foreground"
+					className="basis-full text-sm text-muted-foreground"
 					data-testid="factory-review-reason"
 				>
 					{beside}
 				</p>
 			) : null}
+			{primary}
+			{secondary}
 		</div>
 	);
 }

@@ -8,6 +8,7 @@ import {
 	FactoryLiveLine,
 	FactoryWatchButton,
 	factoryLiveSessions,
+	factoryShortActivity,
 	formatFactoryElapsed,
 	rememberFactoryWatchOrigin,
 } from "./factory-live";
@@ -129,6 +130,54 @@ it("falls back to role and elapsed time without live events, and shows a waiting
 		),
 	);
 	expect(container.textContent).toContain("Waiting for a free slot");
+});
+
+it("shortens a board card's live line to file names, keeping the full line as its tooltip", async () => {
+	expect(
+		factoryShortActivity(
+			"Editing src/services/uploads/resumable-upload-manager.ts to add backoff",
+		),
+	).toBe("Editing resumable-upload-manager.ts to add backoff");
+	expect(
+		factoryShortActivity("Opening http://localhost:3125/settings/models"),
+	).toBe("Opening localhost:3125/settings/models");
+	// Directories and plain words are left as they are.
+	expect(factoryShortActivity("Running bun test src/uploads")).toBe(
+		"Running bun test src/uploads",
+	);
+	await act(async () =>
+		root.render(
+			<FactoryLiveLine
+				wrap
+				compact
+				sessions={[
+					{ sessionId: "a", role: "builder" },
+					{ sessionId: "b", role: "builder" },
+				]}
+				activity={{
+					connected: true,
+					sessions: new Map([
+						[
+							"a",
+							{
+								lastTool: "Editing src/a/very/deep/path/file.ts",
+								at: 2,
+								ended: false,
+							},
+						],
+					]),
+				}}
+			/>,
+		),
+	);
+	const line = container.querySelector('[data-testid="factory-live-line"]');
+	const text = line?.querySelector("[data-factory-live-text]");
+	// Two lines at most; the card keeps their height (factory-view).
+	expect(text?.className).toContain("line-clamp-2");
+	expect(text?.textContent).toBe("Builder 1 · Editing file.ts · +1 more");
+	expect(line?.getAttribute("title")).toBe(
+		"Builder 1 · Editing src/a/very/deep/path/file.ts · +1 more",
+	);
 });
 
 it("board buttons are labelled with the role and card", async () => {

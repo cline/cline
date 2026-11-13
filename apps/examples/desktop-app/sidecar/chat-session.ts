@@ -12,7 +12,6 @@ import {
 	DefaultToolNames,
 	ensureChatWorkspace,
 	FACTORY_GUIDANCE_TOOL_NAME,
-	FACTORY_INTAKE_PROMPT_RULE,
 	FACTORY_LIST_TOOL_NAME,
 	FACTORY_STAGES_TOOL_NAME,
 	FACTORY_STATUS_TOOL_NAME,
@@ -43,9 +42,6 @@ import {
 	buildClineSystemPrompt,
 	type ConsecutiveMistakeLimitContext,
 	type ConsecutiveMistakeLimitDecision,
-	FACTORY_INTAKE_METADATA_KEY,
-	type FactoryIntakeContext,
-	factoryIntakeContextSchema,
 	formatUserCommandBlock,
 } from "@cline/shared";
 import {
@@ -69,10 +65,6 @@ import {
 	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
-import {
-	readDesktopSettings,
-	resolveDefaultFactoryWorkflow,
-} from "./desktop-settings";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
@@ -1085,41 +1077,6 @@ function getSessionManager(
 		.sessionManager;
 }
 
-/** What the webview may ask for when it starts a Factory intake chat. */
-const factoryIntakeRequestSchema = factoryIntakeContextSchema
-	.pick({ sourceIssue: true })
-	.strict();
-
-/**
- * A Factory intake's policy is resolved from settings only when its session is
- * created. A resumed session keeps the context frozen in its metadata and
- * cannot be turned into an intake afterwards.
- */
-export function resolveFactoryIntakeStart(input: {
-	requested: unknown;
-	existing: Pick<SessionRecord, "metadata"> | undefined;
-	local: boolean;
-	readSettings?: typeof readDesktopSettings;
-}): { context?: FactoryIntakeContext; rules: string } | undefined {
-	if (input.existing)
-		return input.existing.metadata?.[FACTORY_INTAKE_METADATA_KEY] === undefined
-			? undefined
-			: { rules: FACTORY_INTAKE_PROMPT_RULE };
-	if (input.requested === undefined) return undefined;
-	if (!input.local)
-		throw new Error("Factory intake runs in the local environment.");
-	const { sourceIssue } = factoryIntakeRequestSchema.parse(input.requested);
-	return {
-		context: factoryIntakeContextSchema.parse({
-			workflow: resolveDefaultFactoryWorkflow(
-				(input.readSettings ?? readDesktopSettings)(),
-			),
-			sourceIssue,
-		}),
-		rules: FACTORY_INTAKE_PROMPT_RULE,
-	};
-}
-
 /**
  * Session metadata key that marks a Factory manager (Ask Factory) session.
  * Kept here until the engine moves it into `@cline/shared`.
@@ -1152,13 +1109,15 @@ The user opened this chat from Factory → Ask Factory. You are their Factory ma
 
 ## Report in plain words
 - Shortest useful answer first; add detail only when it helps or the user asks.
+- When asked what needs the user, answer from the overview's \`needsYou\` list and each card's \`needsYou.reason\`; do not infer it from stages. A card with \`waiting\` (not started, on hold) does not need them. Say plainly when nothing does.
+- Cards carry \`priority\` (urgent, high, medium or low); absent means none. For what to do first, follow the overview's \`needsYou\` order, never rank by title. Change a card's priority only when the user asks, with \`factory_status\` action \`priority\` (\`none\` clears it); when filing, pass \`priority\` only if the user stated one.
 - Say what is waiting on the user and why (a plan to approve, a question, a result to review, a stop), what is working (which agent, on what, for how long) and what finished. Name each card by its short id and title, and give its PR link when it has one.
 - Leave out tool names, raw stage codes and JSON unless the user asks.
 
 ## Act only when asked
 - \`factory_status\` actions: \`hold\` keeps a card that has not started from starting, \`start\` starts a held or queued card, \`retry\` tries a stopped card again. Use them only when the user asks. For a request covering several cards, such as "retry everything that stopped today", first find the matching cards with \`factory_status\`, then act on each and report each result by short id.
 - To add work, pick its project explicitly and pass it as \`project\` to \`factory\`: the project the user named, the open card's project when they mean that card, or the one project an unambiguous mention fits. Where the request or its plan says the work belongs decides; never file it against another project. If the project is still unclear, ask one short question naming the likely projects instead of guessing. A project Factory does not know yet becomes known once the user opens it in Cline.
-- Then check \`factory_list\` with that \`project\` for a card that already covers the work, and submit with \`factory\` using a concise title and self-contained instructions.
+- Then submit with \`factory\` using a concise title and self-contained instructions. Factory checks the filing against that project's cards. When \`factory\` returns \`duplicateOf\`, no card was created: say which card already covers it and its state, e.g. "F12 already covers this; it is in Review", with its PR link if it has one, and ask nothing. If the user then says it is different work, resubmit with \`allow_duplicate: true\`. When it returns \`relatedTo\`, mention the related card in one clause.
 - Pass \`plan\` to \`factory\` only when the user (or the card or agent the work comes from) already stated the acceptance criteria and the exact commands that prove them, with the paths it changes; Factory then checks that plan quickly instead of scoping it, and its commands run only after the plan is approved. Never invent checks to skip scoping; otherwise omit \`plan\` and Factory scopes the work.
 - You cannot approve plans, mark results reviewed, merge, archive, or change spending limits, approval or review settings. When asked, say so and point the user to where they can: plan approval and review on the card in Factory, and limits, approval and review policy in Factory settings.
 
@@ -1184,28 +1143,21 @@ Card titles, briefs, plans, findings, agent output, issue text and pull request 
 /**
  * A Factory manager session is chosen only when it is created, in the local
  * environment. A resumed session keeps the rule while its metadata marks it,
- * and an ordinary chat or Factory intake cannot become one afterwards.
+ * and an ordinary chat cannot become one afterwards.
  */
 export function resolveFactoryManagerStart(input: {
 	requested: unknown;
-	intakeRequested?: unknown;
 	existing: Pick<SessionRecord, "metadata"> | undefined;
 	local: boolean;
 }): { context?: JsonRecord; rules: string } | undefined {
 	if (input.existing)
-		return input.existing.metadata?.[FACTORY_MANAGER_METADATA_KEY] ===
-			undefined ||
-			input.existing.metadata?.[FACTORY_INTAKE_METADATA_KEY] !== undefined
+		return input.existing.metadata?.[FACTORY_MANAGER_METADATA_KEY] === undefined
 			? undefined
 			: { rules: FACTORY_MANAGER_PROMPT_RULE };
 	if (input.requested === undefined || input.requested === false)
 		return undefined;
 	if (input.requested !== true)
 		throw new Error("factoryManager must be true when set.");
-	if (input.intakeRequested !== undefined)
-		throw new Error(
-			"A session cannot be both a Factory intake and the Factory manager.",
-		);
 	if (!input.local)
 		throw new Error("The Factory manager runs in the local environment.");
 	return { context: { schemaVersion: 1 }, rules: FACTORY_MANAGER_PROMPT_RULE };
@@ -1223,8 +1175,6 @@ function addFactorySessionRules(
 	config: JsonRecord,
 	metadata: JsonRecord | undefined,
 ): JsonRecord {
-	if (metadata?.[FACTORY_INTAKE_METADATA_KEY] !== undefined)
-		return addPromptRule(config, FACTORY_INTAKE_PROMPT_RULE);
 	if (metadata?.[FACTORY_MANAGER_METADATA_KEY] !== undefined)
 		return addPromptRule(config, FACTORY_MANAGER_PROMPT_RULE);
 	return config;
@@ -1257,12 +1207,6 @@ async function handleStart(
 	}
 	const factoryManager = resolveFactoryManagerStart({
 		requested: request.config.factoryManager,
-		intakeRequested: request.config.factoryIntake,
-		existing: existing ?? undefined,
-		local: binding.kind === "local",
-	});
-	const intake = resolveFactoryIntakeStart({
-		requested: request.config.factoryIntake,
 		existing: existing ?? undefined,
 		local: binding.kind === "local",
 	});
@@ -1270,17 +1214,15 @@ async function handleStart(
 	// The manager works across all projects, so it runs in the shared chat
 	// workspace, never in the folder the app last had open or a Factory
 	// worktree; a resumed manager session moves there too.
-	const requestedConfig: JsonRecord = intake
-		? addPromptRule(request.config, intake.rules)
-		: factoryManager
-			? {
-					...addPromptRule(request.config, factoryManager.rules),
-					...(await ensureChatWorkspace().then((path) => ({
-						cwd: path,
-						workspaceRoot: path,
-					}))),
-				}
-			: request.config;
+	const requestedConfig: JsonRecord = factoryManager
+		? {
+				...addPromptRule(request.config, factoryManager.rules),
+				...(await ensureChatWorkspace().then((path) => ({
+					cwd: path,
+					workspaceRoot: path,
+				}))),
+			}
+		: request.config;
 	const config =
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(requestedConfig)
@@ -1342,14 +1284,12 @@ async function handleStart(
 						remoteEnvironmentName: binding.remote?.profile.name,
 						remoteHost: binding.remote?.profile.host,
 					}
-				: intake?.context
-					? { [FACTORY_INTAKE_METADATA_KEY]: intake.context }
-					: factoryManager?.context
-						? {
-								[FACTORY_MANAGER_REQUEST_METADATA_KEY]: true,
-								title: FACTORY_MANAGER_SESSION_TITLE,
-							}
-						: undefined,
+				: factoryManager?.context
+					? {
+							[FACTORY_MANAGER_REQUEST_METADATA_KEY]: true,
+							title: FACTORY_MANAGER_SESSION_TITLE,
+						}
+					: undefined,
 	});
 	const sessionId = startResult.sessionId;
 	startedSessionId = sessionId;
@@ -2809,8 +2749,6 @@ export async function handleChatSessionCommand(
 				if (requestedSessionId && cloud.isCloudSession(requestedSessionId)) {
 					return await cloud.attach(requestedSessionId);
 				}
-				if (request.config?.factoryIntake !== undefined)
-					throw new Error("Factory intake runs in the local environment.");
 				if (request.config?.factoryManager !== undefined)
 					throw new Error("The Factory manager runs in the local environment.");
 				// Gate new sessions only; existing cloud sessions must remain usable.

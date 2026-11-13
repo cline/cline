@@ -6,6 +6,7 @@ import {
 	type FactoryWorkflowRecipe,
 	factoryWorkflowConfigSchema,
 	factoryWorkflowRecipeSchema,
+	isFactoryHandsOff,
 } from "@cline/shared";
 import { normalizeAgendaTaskLocation } from "./task-location";
 
@@ -13,7 +14,15 @@ export function createFactoryWorkflowRecipe(input: {
 	name: string;
 	config: unknown;
 }): FactoryWorkflowRecipe {
-	const config = factoryWorkflowConfigSchema.parse(input.config);
+	const parsed = factoryWorkflowConfigSchema.parse(input.config);
+	// PR follow-up set to its default reads the same as unset, so saying it
+	// explicitly never moves a revision (see factoryWatchesPullRequest).
+	const { watchPullRequest, ...rest } = parsed;
+	const config =
+		watchPullRequest === undefined ||
+		watchPullRequest === isFactoryHandsOff(parsed)
+			? rest
+			: parsed;
 	// Schema parsing fixes property order, defaults and legacy agent aliases.
 	const revision = createHash("sha256")
 		.update(JSON.stringify(config))

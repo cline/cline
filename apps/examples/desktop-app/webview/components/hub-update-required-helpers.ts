@@ -1,5 +1,8 @@
 import type { AppUpdateStatus } from "@/hooks/use-app-update";
 
+/** Generous deadline: drain wait + graceful retire + fresh daemon startup. */
+export const HUB_UPGRADE_TIMEOUT_MS = 60_000;
+
 export type HubUpdateRestartDecision =
 	| { action: "restart" }
 	| { action: "stay"; hint: string };

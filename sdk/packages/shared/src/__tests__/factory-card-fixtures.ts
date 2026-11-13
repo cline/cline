@@ -691,3 +691,51 @@ export const FACTORY_CARD_FIXTURES: readonly FactoryCardFixture[] = [
 		card: { kind: "not_started", waitingOn: "nobody", stage: "waiting" },
 	},
 ];
+
+/**
+ * Every fixture as its own card on one board, each filed a minute before the
+ * one above it: the board and `factory_status` must list its Needs you in
+ * the same order (FACTORY_NEEDS_YOU_ORDER).
+ */
+export const FACTORY_BOARD_FIXTURES: readonly FactoryCardFixture[] =
+	FACTORY_CARD_FIXTURES.map((fixture, index) => {
+		const taskId = `board_${index + 1}`;
+		const at = new Date(Date.parse(AT) - index * 60_000).toISOString();
+		return {
+			...fixture,
+			task: {
+				...fixture.task,
+				taskId,
+				factoryNumber: index + 1,
+				createdAt: at,
+				availableAt: at,
+			},
+			...(fixture.run ? { run: { ...fixture.run, taskId } } : {}),
+		};
+	});
+
+/** The Needs you order of FACTORY_BOARD_FIXTURES, by fixture name. */
+export const FACTORY_NEEDS_YOU_ORDER: readonly string[] = [
+	// Stopped: a card awaiting approval first, then the agenda's order.
+	"run blocked before its stop is recorded",
+	"scoping stopped on a pending card",
+	"plan fault",
+	"draft PR could not open",
+	"stopped while building",
+	"scoping failed",
+	"flagged delivery whose PR follow-up stopped",
+	"PR follow-up stopped after delivery",
+	// A question, then plans to decide on.
+	"scoping question",
+	"designer conclusion",
+	"plan held: not ready",
+	"plan held: changed by you",
+	"plan held: open findings",
+	"plan held: large change",
+	"plan to approve",
+	// Results to review, then a proposed rule.
+	"draft PR left open with findings",
+	"PR follow-up paused",
+	"delivered, stamp required",
+	"proposed rule",
+];

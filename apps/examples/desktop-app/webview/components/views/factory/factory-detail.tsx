@@ -13,6 +13,7 @@ import {
 	factoryPlanApprovalBlocker,
 	factoryRepositoryRelative,
 	factoryTaskConfigSchema,
+	factoryWatchesPullRequest,
 	formatFactoryId,
 	isFactoryHandsOff,
 	selectFactoryReviewAgents,
@@ -32,7 +33,13 @@ import {
 	ThumbsDown,
 	ThumbsUp,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { z } from "zod";
 import {
 	AlertDialog,
@@ -78,6 +85,7 @@ import {
 	FACTORY_PROOF,
 	FACTORY_RECOVERY,
 	FACTORY_ROLE_LABEL,
+	FACTORY_UNREADABLE,
 	factoryApprovalReasonText,
 	factoryReviewRequest,
 } from "@/lib/factory-copy";
@@ -98,7 +106,6 @@ import {
 	type FactoryPanelTab,
 	FactoryStageRows,
 	factoryKnownSessions,
-	useFactoryCardWidth,
 	useFactoryPanelTab,
 } from "./factory-artifact-panel";
 import { FactoryComparison } from "./factory-comparison";
@@ -133,6 +140,7 @@ import {
 	factoryScopingStopReason,
 } from "./factory-task-header";
 import { Panel } from "./factory-ui";
+import { useElementSize } from "./use-element-size";
 
 /**
  * A feature's config before it has one, from an optional reusable workflow.
@@ -182,7 +190,13 @@ export function FeatureDetail({
 	onOpenTask,
 	questions,
 	onAnswer,
+	unreadable,
 }: {
+	/**
+	 * Why Factory's status for this card could not be read (validation
+	 * output): the board says only that; Details keeps the reason.
+	 */
+	unreadable?: string;
 	drafts: Map<string, FactoryDraft>;
 	task: AgendaTaskRecord;
 	onRefresh: () => Promise<void>;
@@ -383,7 +397,7 @@ export function FeatureDetail({
 	const canFollowUp =
 		!task.archivedAt &&
 		task.status === "completed" &&
-		task.factory?.watchPullRequest &&
+		factoryWatchesPullRequest(task.factory) &&
 		state?.pullRequestWatch &&
 		state.pullRequestUrl &&
 		matchesTask;
@@ -770,7 +784,13 @@ export function FeatureDetail({
 		editable &&
 		briefEditable &&
 		(dirty || (!handsOff && !stopped && !awaitingStart));
-	const showApprove = editable && !autoProgress && !stopped && !awaitingStart;
+	// While scoping waits on a question, the question is the one thing to do.
+	const showApprove =
+		editable &&
+		!autoProgress &&
+		!stopped &&
+		!awaitingStart &&
+		questions.length === 0;
 	// Accept lives in the header; the footer keeps saving, approval and PR
 	// follow-up.
 	const footerVisible = canFollowUp || showSaveBrief || showApprove;
@@ -843,8 +863,11 @@ export function FeatureDetail({
 						await startScoping(saved.taskId);
 					})
 			: undefined;
-	const header = (
+	// The title row (id, title, repository, More) spans the card above its
+	// columns; the status leads the main column.
+	const header = (part: "title" | "status") => (
 		<FactoryTaskHeader
+			part={part}
 			task={task}
 			busy={busy}
 			designActive={designActive}
@@ -852,6 +875,7 @@ export function FeatureDetail({
 			approvalReason={approvalReason}
 			autoProgress={autoProgress}
 			onBack={() => navigate(onClose)}
+			onOpenCard={(taskId) => navigate(() => onOpenTask(taskId))}
 			onArchive={toggleArchive}
 			onStop={
 				cancellable
@@ -874,6 +898,16 @@ export function FeatureDetail({
 			onStart={rescope}
 			onFixFindings={openFindings && canRetry ? retry : undefined}
 			findingsShownElsewhere={panelTab !== null}
+			waitingForAnswer={questions.length > 0 && !task.archivedAt}
+			onReviewRule={() => {
+				const proposal = document.querySelector<HTMLElement>(
+					'[data-testid="factory-feedback-proposal"]',
+				);
+				proposal?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+				proposal?.querySelector<HTMLElement>("button")?.focus({
+					preventScroll: true,
+				});
+			}}
 			accept={accept}
 			delivery={
 				delivered && state
@@ -919,7 +953,8 @@ export function FeatureDetail({
 					? {
 							reason: scopingStopped
 								? factoryScopingStopReason(task.error)
-								: (publishFailure ?? failure?.headline),
+								: // The card page shows the whole reason, never a cut one.
+									(publishFailure ?? failure?.sentence ?? failure?.headline),
 							onRetry: scopingStopped ? rescope : canRetry ? retry : undefined,
 							planFault,
 							planFaultStopped: factoryPlanFaultStopped(task),
@@ -1446,7 +1481,7 @@ export function FeatureDetail({
 								? "; it is in progress"
 								: ""
 					}.`
-				: "This variant's workflow has no plan reviewers, so it skips plan review."}{" "}
+				: "This variant's workflow has no plan checkers, so it skips the plan check."}{" "}
 			Nothing is implemented until you approve it; it then runs in an isolated
 			Git worktree on your machine, which is not a security sandbox. Publishing
 			is off.
@@ -1489,7 +1524,7 @@ export function FeatureDetail({
 				<dl className="space-y-1 text-xs text-muted-foreground">
 					{(
 						[
-							["Plan reviewers", reviewAgents.planReviewers],
+							["Plan checkers", reviewAgents.planReviewers],
 							["Code reviewers", reviewAgents.reviewers],
 						] satisfies [string, typeof reviewAgents.reviewers][]
 					).map(([label, reviewers]) => (
@@ -1502,7 +1537,7 @@ export function FeatureDetail({
 											agent.modelSelection?.modelId ??
 											agent.resolvedProfile?.modelId ??
 											agent.profile ??
-											"Feature model",
+											"Default model",
 									)
 									.join(" · ") || "None"}
 							</dd>
@@ -1531,7 +1566,7 @@ export function FeatureDetail({
 			{task.factoryDesignReview.reviews.map((result) => (
 				<ReviewResult
 					key={result.reviewerIndex}
-					label={`Plan reviewer ${result.reviewerIndex + 1}`}
+					label={`Plan checker ${result.reviewerIndex + 1}`}
 					review={result.review}
 					sessionId={result.sessionId}
 					onOpenSession={openSession}
@@ -1565,11 +1600,13 @@ export function FeatureDetail({
 			{FACTORY_DETAILS.refresh}
 		</Button>
 	);
-	const cardRef = useRef<HTMLDivElement>(null);
 	const mainRef = useRef<HTMLDivElement>(null);
-	const cardWidth = useFactoryCardWidth(cardRef);
+	// 0 until measured: unmeasured cards (and tests) keep the separate panel.
+	const [cardRef, { width: cardWidth }] = useElementSize();
+	// The title row above the two columns, which their height leaves room for.
+	const [titleRef, { height: titleHeight }] = useElementSize();
 	// Narrow cards: one tab list for the card's sections and the panel.
-	const narrow = cardWidth !== undefined && cardWidth < FACTORY_NARROW_CARD;
+	const narrow = cardWidth > 0 && cardWidth < FACTORY_NARROW_CARD;
 	// On one column the panel (diff or live view) opens first.
 	const [mergedOnPanel, setMergedOnPanel] = useState(true);
 	const focusMain = () => mainRef.current?.focus();
@@ -1817,6 +1854,17 @@ export function FeatureDetail({
 					</p>
 					{refreshButton}
 				</div>
+				{unreadable ? (
+					<div
+						className="space-y-1 text-xs"
+						data-testid="factory-details-unreadable"
+					>
+						<p className="font-medium">{FACTORY_UNREADABLE.title}</p>
+						<p className="whitespace-pre-wrap break-words font-mono text-muted-foreground">
+							{unreadable}
+						</p>
+					</div>
+				) : null}
 				{workspace?.path ? (
 					<div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
 						<span className="shrink-0">{FACTORY_DETAILS.worktree}</span>
@@ -1951,15 +1999,17 @@ export function FeatureDetail({
 	/**
 	 * The card. From 700px of card width (FACTORY_NARROW_CARD) it has two
 	 * columns: a 300px main column (360px from 1000px) beside the artifact
-	 * panel. Both are exactly as tall as the page's visible area, so only they
+	 * panel. Both fill what the page shows below the title row, so only they
 	 * scroll and the page does not: the window minus the title bar
-	 * (--window-title-bar-height, from WindowTitleBar) and PageFrame's 2.5rem
-	 * top and bottom padding (5rem). The card's `fit` PageFrame pads by its
-	 * own width: py-10 from 720px of frame width, py-5 below. A card of 700px
-	 * or more needs a frame of at least 764px (px-8), so two columns always
-	 * sit in the py-10 frame and 5rem is exact. Narrower, the card is one column and the
-	 * panel follows the status, before the plan. `merged` puts it inside the
-	 * main column, its tabs joined with the card's section tabs.
+	 * (--window-title-bar-height, from WindowTitleBar), PageFrame's 2.5rem top
+	 * and bottom padding (5rem), and the title row (--factory-card-title,
+	 * measured) with the 1.25rem gap under it. The card's `fit` PageFrame pads by
+	 * its own width: py-10 from 720px of frame width, py-5 below. A card of
+	 * 700px or more needs a frame of at least 764px (px-8), so two columns
+	 * always sit in the py-10 frame and 5rem is exact. Narrower, the card is
+	 * one column and the panel follows the status, before the plan. `merged`
+	 * puts it inside the main column, its tabs joined with the card's section
+	 * tabs.
 	 */
 	const frame = (lead: ReactNode, rest: ReactNode, merged = false) => {
 		const split = panelShown && !merged;
@@ -1973,23 +2023,25 @@ export function FeatureDetail({
 					className={
 						stacked
 							? "h-[min(70vh,48rem)]"
-							: "h-[min(70vh,48rem)] @min-[700px]:sticky @min-[700px]:top-0 @min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem)] @min-[700px]:overscroll-contain"
+							: "h-[min(70vh,48rem)] @min-[700px]:sticky @min-[700px]:top-0 @min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem_-_var(--factory-card-title)_-_1.25rem)] @min-[700px]:overscroll-contain"
 					}
 				/>
 			) : null;
 		return (
 			<div
 				ref={cardRef}
-				className="@container"
+				className="@container flex flex-col gap-5"
+				style={{ "--factory-card-title": `${titleHeight}px` } as CSSProperties}
 				data-testid="factory-card"
 				data-layout={!split ? "single" : stacked ? "stacked" : "two-column"}
 			>
+				<div ref={titleRef}>{header("title")}</div>
 				<div
 					className={cn(
 						"flex flex-col gap-5",
 						split &&
 							!stacked &&
-							"@min-[700px]:grid @min-[700px]:grid-cols-[300px_minmax(0,1fr)] @min-[700px]:items-start @min-[700px]:gap-4 @min-[1000px]:grid-cols-[360px_minmax(0,1fr)] @min-[1000px]:gap-6",
+							"@min-[700px]:grid @min-[700px]:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] @min-[700px]:items-start @min-[700px]:gap-4 @min-[1000px]:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] @min-[1000px]:gap-6",
 					)}
 				>
 					<div
@@ -2000,7 +2052,7 @@ export function FeatureDetail({
 							"flex min-w-0 flex-col gap-5 outline-none",
 							split &&
 								!stacked &&
-								"@min-[700px]:sticky @min-[700px]:top-0 @min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem)] @min-[700px]:gap-4 @min-[700px]:overflow-x-hidden @min-[700px]:overflow-y-auto @min-[700px]:overscroll-contain @min-[700px]:pr-2",
+								"@min-[700px]:sticky @min-[700px]:top-0 @min-[700px]:h-[calc(100dvh_-_var(--window-title-bar-height)_-_5rem_-_var(--factory-card-title)_-_1.25rem)] @min-[700px]:gap-4 @min-[700px]:overflow-x-hidden @min-[700px]:overflow-y-auto @min-[700px]:overscroll-contain @min-[700px]:pr-2",
 						)}
 					>
 						{lead}
@@ -2017,7 +2069,7 @@ export function FeatureDetail({
 	// column the artifact panel follows them, before the plan.
 	const lead = (
 		<>
-			{header}
+			{header("status")}
 			{leaveDialog}
 			{alertBlock}
 			{failureBlock}
@@ -2031,10 +2083,10 @@ export function FeatureDetail({
 			lead,
 			<>
 				<Panel
-					aria-label="What's being built"
+					aria-label="Brief"
 					title={
 						<>
-							What's being built
+							Brief
 							{dirty ? (
 								<span className="ml-2 font-normal text-amber-600 dark:text-amber-400">
 									· Unsaved changes
@@ -2081,10 +2133,10 @@ export function FeatureDetail({
 					{/* A delivered card's proof receipt lists each requirement. */}
 					{deliveredBlock ? null : (
 						<div className="space-y-2 border-t pt-3">
-							{/* Results carry their own "Acceptance criteria" heading. */}
+							{/* Results carry their own "Requirements" heading. */}
 							{criteriaHasHeading ? null : (
 								<h4 className="text-xs font-medium text-muted-foreground">
-									Acceptance criteria
+									Requirements
 								</h4>
 							)}
 							{criteriaBlock}
@@ -2190,8 +2242,8 @@ export function FeatureDetail({
 						</div>
 					</Panel>
 					<Panel
-						aria-label="Acceptance criteria"
-						title="Acceptance criteria"
+						aria-label="Requirements"
+						title="Requirements"
 						description="What must be true for this work to count as done, and what proves it."
 					>
 						{config.acceptanceCriteria?.length ? (

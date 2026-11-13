@@ -27,6 +27,8 @@ import {
 } from "./desktop-settings";
 import {
 	handleFactoryCommand,
+	handleFactoryPresetCommand,
+	handleFactorySettingsCommand,
 	pushFactoryDefaultWorkflow,
 } from "./factory-commands";
 
@@ -69,9 +71,12 @@ describe("desktop settings", () => {
 		const persisted = readFileSync(resolveDesktopSettingsPath(), "utf8");
 		expect(persisted).not.toContain("private.md");
 		expect(persisted).not.toContain("owner/repo");
+		// Keep the PR passing is a workflow setting now (E1); card-only
+		// fields stay out.
 		expect(readDesktopSettings().factoryPresets?.[0]?.config).toEqual({
 			approval: "required",
 			maxRepairRounds: 2,
+			watchPullRequest: true,
 		});
 	});
 
@@ -635,5 +640,170 @@ describe("one-time hands-off upgrade", () => {
 		const kept = applyFactoryHandsOffUpgrade(readDesktopSettings, write);
 		expect(write).not.toHaveBeenCalled();
 		expect(kept.factoryPresets?.[0]?.config).not.toHaveProperty("autonomy");
+	});
+});
+
+describe("saved workflows: delete and rename", () => {
+	const focused = createFactoryWorkflowRecipe({
+		name: "Focused",
+		config: { approval: "required", maxRepairRounds: 1 },
+	});
+	const careful = createFactoryWorkflowRecipe({
+		name: "Careful",
+		config: { approval: "required", maxRepairRounds: 3 },
+	});
+
+	it("never deletes the built-in workflow, and the default only with another chosen", async () => {
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Focused",
+			factoryPresets: [focused, careful],
+		});
+		const pushed = vi.fn(async () => ({}));
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_delete_preset",
+				{ name: "Hands-off" },
+				pushed,
+			),
+		).rejects.toThrow("built in");
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_delete_preset",
+				{ name: "Focused" },
+				pushed,
+			),
+		).rejects.toThrow("Choose another default");
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_delete_preset",
+				{ name: "Careful", newDefault: "Focused" },
+				pushed,
+			),
+		).rejects.toThrow("only for deleting the default");
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_delete_preset",
+				{ name: "Missing" },
+				pushed,
+			),
+		).rejects.toThrow("no saved workflow");
+		expect(readDesktopSettings().factoryPresets).toHaveLength(2);
+		expect(pushed).not.toHaveBeenCalled();
+
+		// Deleting a workflow that is not the default changes nothing else.
+		const listed = (await handleFactoryPresetCommand(
+			"factory_delete_preset",
+			{ name: "Careful" },
+			pushed,
+		)) as Array<{ name: string }>;
+		expect(listed.map((item) => item.name)).toEqual(["Focused", "Hands-off"]);
+		expect(pushed).not.toHaveBeenCalled();
+		// The default goes once another is chosen, and the Hub learns it.
+		await handleFactoryPresetCommand(
+			"factory_delete_preset",
+			{ name: "Focused", newDefault: "Hands-off" },
+			pushed,
+		);
+		expect(readDesktopSettings()).toMatchObject({
+			factoryDefaultPreset: "Hands-off",
+			factoryPresets: [],
+		});
+		expect(pushed).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "Hands-off" }),
+		);
+	});
+
+	it("renames keeping the revision and moving the default with it", async () => {
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Focused",
+			factoryPresets: [focused, careful],
+		});
+		const pushed = vi.fn(async () => ({}));
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_rename_preset",
+				{ name: "Focused", newName: "Careful" },
+				pushed,
+			),
+		).rejects.toThrow("already exists");
+		await expect(
+			handleFactoryPresetCommand(
+				"factory_rename_preset",
+				{ name: "Focused", newName: "Hands-off" },
+				pushed,
+			),
+		).rejects.toThrow("built in");
+		await handleFactoryPresetCommand(
+			"factory_rename_preset",
+			{ name: "Focused", newName: "Small fixes" },
+			pushed,
+		);
+		const settings = readDesktopSettings();
+		expect(settings.factoryDefaultPreset).toBe("Small fixes");
+		expect(settings.factoryPresets?.[0]).toMatchObject({
+			name: "Small fixes",
+			revision: focused.revision,
+			config: focused.config,
+		});
+		expect(pushed).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Small fixes",
+				revision: focused.revision,
+			}),
+		);
+	});
+
+	it("resets Factory settings: Hands-off becomes the default, saved workflows stay", async () => {
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Focused",
+			factoryPresets: [focused],
+		});
+		const pushed = vi.fn(async () => ({}));
+		const send = vi.fn(async () => ({
+			ok: true,
+			payload: {
+				what: "settings",
+				dryRun: false,
+				concurrency: 2,
+				dailyCostUsd: 50,
+			},
+		}));
+		await expect(
+			handleFactorySettingsCommand(
+				"factory_reset",
+				{ what: "settings" },
+				send,
+				pushed,
+			),
+		).resolves.toMatchObject({ supported: true, ok: true, concurrency: 2 });
+		expect(send).toHaveBeenCalledWith("task.factory.reset", {
+			what: "settings",
+		});
+		expect(readDesktopSettings()).toMatchObject({
+			factoryDefaultPreset: "Hands-off",
+			factoryPresets: [{ name: "Focused" }],
+		});
+		expect(pushed).toHaveBeenCalledWith(
+			expect.objectContaining({ name: "Hands-off" }),
+		);
+		// A dry run only counts.
+		writeDesktopSettings({
+			cloudSessionsEnabled: false,
+			factoryDefaultPreset: "Focused",
+			factoryPresets: [focused],
+		});
+		await handleFactorySettingsCommand(
+			"factory_reset",
+			{ what: "settings", dryRun: true },
+			vi.fn(async () => ({
+				ok: true,
+				payload: { what: "settings", dryRun: true },
+			})),
+			pushed,
+		);
+		expect(readDesktopSettings().factoryDefaultPreset).toBe("Focused");
 	});
 });

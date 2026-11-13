@@ -931,4 +931,138 @@ describe("SqliteAgendaTaskStore", () => {
 			enabledBy: USER,
 		});
 	});
+
+	describe("Factory priority", () => {
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+		const factoryCard = (
+			taskId: string,
+			extra: Partial<AgendaTaskCreateInput> = {},
+		) =>
+			store.createTask({
+				...createInput(taskId),
+				factory: factoryTaskConfigSchema.parse({}),
+				...extra,
+			});
+
+		it("keeps the priority in its own column: setting it changes no revision, approval, status or update time, and plan edits keep it", () => {
+			vi.useFakeTimers({ toFake: ["Date"] });
+			vi.setSystemTime(new Date("2035-01-01T00:00:00.000Z"));
+			const created = factoryCard("prioritised", {
+				requiresApproval: false,
+				factoryPriority: { level: "high", by: "agent" },
+			});
+			expect(created).toMatchObject({
+				status: "approved",
+				approvedRevision: 1,
+				factoryPriority: {
+					level: "high",
+					by: "agent",
+					at: "2035-01-01T00:00:00.000Z",
+				},
+			});
+			// Only Factory cards carry it.
+			expect(
+				store.createTask({
+					...createInput("plain"),
+					factoryPriority: { level: "high", by: "person" },
+				}).factoryPriority,
+			).toBeUndefined();
+
+			vi.setSystemTime(new Date("2035-01-01T00:05:00.000Z"));
+			const marked = store.setFactoryPriority(created.taskId, {
+				level: "urgent",
+				by: "person",
+				at: "2035-01-01T00:05:00.000Z",
+			});
+			const { factoryPriority: _before, ...unchanged } = created;
+			expect(marked).toMatchObject(unchanged);
+			expect(marked?.factoryPriority).toEqual({
+				level: "urgent",
+				by: "person",
+				at: "2035-01-01T00:05:00.000Z",
+			});
+
+			const edited = store.updateTask({
+				taskId: created.taskId,
+				expectedRevision: created.revision,
+				instructions: "Edited brief",
+				updatedBy: USER,
+			});
+			expect(edited).toMatchObject({
+				revision: 2,
+				approvedRevision: undefined,
+				factoryPriority: marked?.factoryPriority,
+			});
+			expect(
+				store.setFactoryPriority(created.taskId, null)?.factoryPriority,
+			).toBeUndefined();
+		});
+
+		it("adds the column to an older database, where existing cards have no priority", () => {
+			const existing = factoryCard("existing");
+			const dbPath = join(directory, "tasks.db");
+			const oldDb = loadSqliteDb(dbPath);
+			try {
+				oldDb.exec(
+					"ALTER TABLE agenda_tasks DROP COLUMN factory_priority_json",
+				);
+			} finally {
+				oldDb.close?.();
+			}
+			store.close();
+			store = new SqliteAgendaTaskStore({ dbPath });
+			expect(store.getTask(existing.taskId)).toEqual(existing);
+			expect(existing.factoryPriority).toBeUndefined();
+			expect(
+				store.setFactoryPriority(existing.taskId, {
+					level: "low",
+					by: "person",
+					at: "2035-01-01T00:00:00.000Z",
+				})?.factoryPriority?.level,
+			).toBe("low");
+		});
+
+		it("lists the queue by priority rank, then enqueue time, then task id, read each time", () => {
+			vi.useFakeTimers({ toFake: ["Date"] });
+			const ids = ["none-1", "low", "none-2", "urgent-last", "high"];
+			for (const [index, taskId] of ids.entries()) {
+				factoryCard(taskId);
+				vi.setSystemTime(new Date(Date.UTC(2035, 0, 1, 0, index)));
+				store.enqueueFactory({
+					taskId,
+					expectedRevision: 1,
+					actor: USER,
+					stage: "design",
+				});
+			}
+			const set = (taskId: string, level: "urgent" | "high" | "low") =>
+				store.setFactoryPriority(taskId, {
+					level,
+					by: "person",
+					at: nowIso(),
+				});
+			set("low", "low");
+			set("urgent-last", "urgent");
+			set("high", "high");
+			const order = () => store.listFactoryQueue().map((entry) => entry.taskId);
+			expect(order()).toEqual([
+				"urgent-last",
+				"high",
+				"none-1",
+				"none-2",
+				"low",
+			]);
+			expect(store.getTask("none-2")).toMatchObject({
+				factoryQueued: "design",
+				factoryQueuedAt: "2035-01-01T00:02:00.000Z",
+			});
+			// Re-prioritising moves a queued card on the next read.
+			set("low", "urgent");
+			expect(order()[0]).toBe("low");
+			store.dequeueFactory("none-2");
+			expect(store.getTask("none-2")).not.toHaveProperty("factoryQueuedAt");
+		});
+	});
 });

@@ -1,8 +1,11 @@
 import type {
+	FactoryPriority,
+	FactoryPriorityState,
 	FactoryReviewSize,
 	FactoryRunRoute,
 	FactoryRunState,
 } from "@cline/shared";
+import { FACTORY_PRIORITY_LABEL } from "@cline/shared/browser";
 
 /**
  * Plain-language Factory copy, defined once. Engine terms (implementer,
@@ -110,7 +113,7 @@ export function factoryReviewReason(reason: string): string {
 		case "sensitive paths":
 			return "it changes sensitive files";
 		case "verification profile changed":
-			return "changes the verification setup";
+			return "changes the test setup";
 		case "workflow always requires a stamp":
 			return "your settings ask to review every change";
 		case "review findings unresolved":
@@ -167,16 +170,16 @@ export const FACTORY_REVIEW_POLICY = {
 	}[];
 };
 
-/** Where a card's verification setup came from, by recorded origin. */
+/** Where a card's test setup came from, by recorded origin. */
 export const FACTORY_VERIFICATION_ORIGIN = {
 	repository: "From the repository",
 	approved_local: "Approved earlier on this machine",
 	proposed: "Proposed by this plan: reviewed before it runs",
 } as const satisfies Record<string, string>;
 
-/** The verification setup block in a card's details. */
+/** The test setup block in a card's details. */
 export const FACTORY_VERIFICATION_SETUP = {
-	title: "Verification setup",
+	title: "Test setup",
 	exercise: "How the tester uses the app",
 	dryRunPassed: "Dry run passed",
 	dryRunFailed: (stage?: string) =>
@@ -184,12 +187,11 @@ export const FACTORY_VERIFICATION_SETUP = {
 	dryRunPending: "Not tried yet",
 	showLog: "Show log",
 	presetOverrides:
-		"This plan's workflow sets its own app environment, which overrides the repository's verification setup.",
-	presetOverridesField: "Overrides the repository's verification setup",
+		"This plan's workflow sets its own app environment, which overrides the repository's test setup.",
+	presetOverridesField: "Overrides the repository's test setup",
 	noneConfigured:
-		"No app verification configured. Add a verifier in Factory settings to have an agent test the running app.",
-	proposesWhenNeeded:
-		"Factory proposes a verification setup when a plan needs one.",
+		"No test setup. Turn on the tester in Factory settings to have an agent test the running app.",
+	proposesWhenNeeded: "Factory proposes a test setup when a plan needs one.",
 } as const;
 
 /** How a check result reads beside its status. */
@@ -287,14 +289,6 @@ export const FACTORY_WORKFLOW = {
 		`Changed from saved workflow “${name}”. Saving the brief keeps them for this work only.`,
 	explainer:
 		"A workflow sets participants, limits and approval for new work. Checks, documents and PR settings stay with each piece of work.",
-	importExport: "Import or export JSON",
-	jsonExplainer:
-		"A workflow holds participants, models, instructions and policies, not credentials. Review instructions before sharing.",
-	copyJson: "Copy saved workflow JSON",
-	copyFailed: "Couldn't copy the workflow. Try again.",
-	jsonField: "Workflow JSON",
-	jsonPlaceholder: "Paste exported workflow JSON",
-	importJson: "Import workflow",
 	notVersion1: (detail: string) => `Not a version 1 workflow: ${detail}`.trim(),
 	nameTaken: (name: string) =>
 		`A different saved workflow is named “${name}”. Change the name in the JSON, then import.`,
@@ -316,14 +310,22 @@ export const FACTORY_MESSAGES = {
 	resume: "Resume",
 } as const;
 
+/** The limit after "Working N": "of 3", however many run. */
+export function factoryWorkingLimit(limit: number): string {
+	return `of ${limit}`;
+}
+
 /**
- * The limit after "Working on N": "of 3", or, when a lowered limit leaves
- * more running than it allows, "(limit 3, no new work starts)".
+ * Why "Working 7 of 6" is over its limit (the limit was lowered while work
+ * ran), for the limit's tooltip; nothing when within it.
  */
-export function factoryWorkingLimit(running: number, limit: number): string {
+export function factoryWorkingOverLimit(
+	running: number,
+	limit: number,
+): string | undefined {
 	return running > limit
-		? `(limit ${limit}, no new work starts)`
-		: `of ${limit}`;
+		? `More work is running than the limit of ${limit} allows, because the limit was lowered while it ran. No new work starts until fewer than ${limit} run.`
+		: undefined;
 }
 
 /**
@@ -446,14 +448,6 @@ export const FACTORY_MANAGER = {
 		"Only Factory's manager uses this model. Work runs on its workflow's models.",
 } as const;
 
-/** The Add work screen: a new chat that files work with Factory. */
-export const FACTORY_INTAKE = {
-	title: "Add work to Factory",
-	description:
-		"Describe what you want built, or paste a GitHub or Linear issue. Factory scopes it, builds and tests it, and opens a draft PR. It only asks if something’s unclear.",
-	placeholder: "Describe what you want built, or paste an issue link",
-} as const;
-
 /** The read-only transcript of a Factory role agent in its card's Live tab. */
 export const FACTORY_LIVE_TRANSCRIPT = {
 	live: (label: string) => `Live · ${label}`,
@@ -567,6 +561,16 @@ export const FACTORY_CARD = {
 	planFaultHeadline: "The plan's checks need fixing",
 	planFaultStoppedHeadline: "The plan's checks still need fixing",
 	planFaultNext: "Try again sends it back to scoping, or edit the plan.",
+	/** Scoping asked a question; nothing runs until it is answered. */
+	waitingForAnswer: "Waiting for your answer",
+	/** A brief nobody scoped yet: both ways forward are on the card. */
+	unscopedNext:
+		"Approve and run the brief as written, or start scoping so Factory plans it first.",
+	/** Stopped at the review repair limit. */
+	repairLimitHeadline: "Review findings were not cleared",
+	/** A rule Factory proposed from the person's note. */
+	ruleNext: "Factory suggests a rule from your note. Save it or discard it.",
+	reviewRule: "Review the rule",
 	/** Under a building card's headline when no live line is shown. */
 	buildingNext:
 		"Nothing is needed from you while Factory builds and checks it.",
@@ -637,6 +641,11 @@ export const FACTORY_ROW_ACTION = {
 export const FACTORY_UNREADABLE = {
 	title: "This card could not be read",
 	label: "Could not be read",
+	/** The board card's line; the reason is under Details on the card. */
+	card: "This card could not be read.",
+	/** The card page, when the card's data breaks its rendering. */
+	cardPage:
+		"This card could not be shown. Its stored data may be incomplete; the rest of Factory is unaffected.",
 	/** The page-level line when Factory's reply as a whole was unreadable. */
 	page: "Factory sent status the app could not read. Showing the last known status.",
 } as const;
@@ -669,6 +678,7 @@ export const FACTORY_PROOF = {
 	proven: "Proven",
 	checkedBy: "Checked by",
 	notChecked: "Not checked",
+	openFindings: "Open findings",
 	/** "6 of 7 requirements proven". */
 	provenCount: (proven: number, total: number) =>
 		`${proven} of ${total} ${total === 1 ? "requirement" : "requirements"} proven`,
@@ -788,7 +798,7 @@ export const FACTORY_CARD_ACTION = {
 	tryScopingAgain: "Try scoping again",
 	editPlan: "Edit plan",
 	/** More → the delivered card's feedback box. */
-	rate: "Rate this delivery…",
+	rate: "Leave feedback…",
 	deliveredPr: "You decide when to merge.",
 	deliveredBranch: (branch: string) =>
 		`The changes are on branch ${branch}. Nothing was published.`,
@@ -841,8 +851,9 @@ export const FACTORY_COMPARE = {
 } as const;
 
 /**
- * The Factory home: one list in four groups (Needs you, Working, Waiting,
- * Delivered), each row with a small stage line. Stage names are shared with
+ * The Factory home: four status groups (Working, Waiting, Needs you,
+ * Delivered) in three columns, Waiting as the Queue under Working unless it is
+ * its own column; each row has a small stage line. Stage names are shared with
  * the card's own stage line.
  */
 export const FACTORY_LINE = {
@@ -937,6 +948,22 @@ export const FACTORY_FEEDBACK = {
 			.join("\n"),
 } as const;
 
+/** Labels that only repeat their stage's name: "Build · Building". */
+const STAGE_VERBS = new Set<string>([
+	FACTORY_ACTIVITY.scoping,
+	FACTORY_PHASE_LABEL.implementing,
+	FACTORY_PHASE_LABEL.reviewing,
+]);
+
+/**
+ * A working card's stage and what it is doing there, as the rail shows it:
+ * "Build · Running checks", "Verify · Testing", or just "Build" when the
+ * label would only repeat the stage.
+ */
+export function factoryWorkingDetail(station: string, label: string): string {
+	return STAGE_VERBS.has(label) || !label ? station : `${station} · ${label}`;
+}
+
 /** Repository stages (`.cline/factory/stages.json`): a sub-step of Build. */
 export const FACTORY_STAGES = {
 	/** The card header while a stage runs: "Build · Security scan". */
@@ -997,7 +1024,6 @@ export const FACTORY_STAGES = {
 		"Once approved, Factory runs this in each card's worktree on this computer, as you, with access to your files.",
 	stopUsing: "Stop using",
 	readFailed: "Couldn't read this project's repository stages.",
-	decideFailed: "Couldn't save the decision.",
 } as const;
 
 /** The Factory home board: its columns, empty lines and Display menu. */
@@ -1014,6 +1040,12 @@ export const FACTORY_BOARD = {
 			"Nothing here yet. Ask Factory for a change and its card starts here.",
 	},
 	paused: "Paused. Running cards finish; waiting cards do not start.",
+	/** Working's lower part: the cards waiting to start. */
+	queue: "Queue",
+	/** After "Working 3 of 6" when work waits: "· 8 queued". */
+	queued: (count: number) => `${count} queued`,
+	/** Display → Columns: the queue as its own Waiting column. */
+	queueColumn: "Queue as its own column",
 	/** Under Delivered when older deliveries are left for All history. */
 	mostRecent: (count: number) => `${count} most recent`,
 	moreWaiting: (count: number) => `+${count} more waiting`,
@@ -1033,7 +1065,11 @@ export const FACTORY_BOARD = {
 		ready: boolean,
 	) =>
 		outcome
-			? FACTORY_PROOF.pullRequestOutcome(outcome).toLowerCase()
+			? outcome.state === "closed"
+				? "closed without merging"
+				: outcome.headChanged
+					? "merged after changes"
+					: "merged"
 			: ready
 				? "ready for review"
 				: "draft PR",
@@ -1058,19 +1094,10 @@ export const FACTORY_SCOPE_ROUTE = {
 
 /** The Factory settings page: General, Models and Projects. */
 export const FACTORY_SETTINGS = {
-	title: "Factory settings",
-	back: "Back to Factory",
-	saved: "Saved",
-	sectionsLabel: "Factory settings sections",
-	sections: { general: "General", models: "Models", projects: "Projects" },
 	reload: "Reload settings",
 	loadFailed: "Couldn't load Factory settings.",
 	saveFailed: "Couldn't save. Try again.",
 	general: {
-		scope:
-			"For new work in every project. Work already started keeps its settings.",
-		approvalGroup: "Your approval",
-		limitsGroup: "Limits",
 		planApproval: "Plan approval",
 		planApprovalOptions: {
 			automatic: "Only when needed",
@@ -1109,65 +1136,14 @@ export const FACTORY_SETTINGS = {
 			when_no_review_required:
 				"Marked ready only after checks, the tester and an independent review all pass. PRs that need your review, or have open findings, stay drafts. Factory never merges.",
 		},
-		needsIndependentReviewer: "Needs a reviewer on a different model (Models)",
-		workAtOnce: "Work at once",
-		workAtOnceHint: "Other work waits in the queue. Applies right away.",
-		workAtOnceUnsupported:
-			"Update Cline to change this. This version of Factory does not have a limit setting.",
-		cardLimit: "Card spending limit",
-		cardLimitHint: "A card stops, even mid-run, when it has spent this much.",
 		cardNoLimit: "No limit: a card keeps spending until you stop it.",
 		/** A hands-off workflow with no card limit of its own. */
 		cardBuiltInLimit: (amount: string) =>
 			`Empty uses Factory's built-in ${amount} card limit.`,
-		dailyLimit: "Daily spending limit",
-		dailyLimitHint: (spentToday?: string) =>
-			`Across all Factory work on this computer. Applies right away.${spentToday ? ` Spent today: ${spentToday}.` : ""}`,
-		perDay: "per day",
 		noLimitPlaceholder: "No limit",
 	},
+	/** Code review on Roles & models. */
 	models: {
-		scope:
-			"Who does each step, for new work in every project. To change how a role works, tell Ask Factory.",
-		rolesGroup: "Roles",
-		reviewGroup: "Review",
-		roles: {
-			designer: {
-				title: "Scoping",
-				hint: "Reads the request and writes the plan.",
-				name: "Scoping",
-			},
-			planReviewers: {
-				title: "Plan checkers",
-				hint: "Check the plan before anything is built.",
-				name: "Plan checker",
-			},
-			implementers: {
-				title: "Builders",
-				hint: "Write the code. Independent parts rotate through them.",
-				name: "Builder",
-			},
-			verifier: {
-				title: "Tester",
-				hint: "Runs the app and checks the result. Off: only the plan's checks run.",
-				name: "Tester",
-			},
-			reviewers: {
-				title: "Code reviewers",
-				hint: "Review the change before the draft PR opens.",
-				name: "Code reviewer",
-			},
-		},
-		defaultModel: "Default model",
-		modelLabel: (role: string, index?: number) =>
-			`${role}${index === undefined ? "" : ` ${index}`} model`,
-		remove: (role: string, index: number) => `Remove ${role} ${index}`,
-		add: (role: string) => `Add ${role}`,
-		testerSwitch: "Use a tester",
-		requireIndependent: "Require a different model to review",
-		requireIndependentHint:
-			"Plans approve themselves only when a checker or reviewer uses a different model from the builder.",
-		codeReview: "Code review",
 		codeReviewOptions: {
 			adaptive: "Choose per change",
 			fixed: "Every reviewer",
@@ -1176,38 +1152,6 @@ export const FACTORY_SETTINGS = {
 			adaptive: "Factory picks the reviewers each change needs.",
 			fixed: "Every code reviewer reviews every change.",
 		},
-		advanced: "Advanced",
-		advancedSummary: "Fix rounds, retries, role limits, workflow file",
-		repairRounds: "Fix rounds after review",
-		repairRoundsHint: "How many times builders fix what review found.",
-		retries: "Retries per stage",
-		retriesHint: "After a failed session or unusable output.",
-		numberInvalid: (min: number, max: number) =>
-			`Enter a whole number from ${min} to ${max}.`,
-		roleDetails: "Role details",
-		roleDetailsHint: "Profile, skills, instructions, step limit and timeout.",
-		testerEvidence: "Tester evidence paths",
-		workflowFile: "Workflow file",
-		workflowFileHint:
-			"Use a saved workflow, save this one under a name, or import and export JSON.",
-	},
-	projects: {
-		scope: (project: string, path: string) => `For ${project} only · ${path}`,
-		select: "Project",
-		none: "No projects yet. Factory lists a project here once it has a card.",
-		stagesGroup: "Repository stages",
-		stagesGroupHint:
-			"Run after the builder, once you approve the exact definition.",
-		guidanceGroup: "Guidance and test setup",
-		guidance: "Repository guidance",
-		guidanceHint:
-			"What each role is told for this project. To change it, tell Ask Factory.",
-		testSetup: "Test setup",
-		testSetupHint:
-			"How the tester installs and starts the app. Factory proposes one when a plan needs it.",
-		/** The Projects item's count: stages awaiting a decision. */
-		awaiting: (count: number) =>
-			`${count} repository ${count === 1 ? "stage needs" : "stages need"} a decision`,
 	},
 } as const;
 
@@ -1217,4 +1161,47 @@ export const FACTORY_STAGES_APPROVAL = {
 	save: "Save and approve",
 	notSavedYet:
 		"Nothing is saved, approved or run until you choose. Saving approves the stages this change adds or changes.",
+} as const;
+
+/** The scoper's estimate, with its basis when it gave one. */
+const priorityEstimated = (reason?: string) =>
+	reason ? `estimated: ${reason}` : "estimated";
+
+/** A card's priority; the level names are the shared labels. */
+export const FACTORY_PRIORITY = {
+	menu: "Priority",
+	/** The icon's accessible name: "High priority". */
+	level: (level: FactoryPriority) =>
+		`${FACTORY_PRIORITY_LABEL[level]} priority`,
+	/** The level and who set it: "High priority · set by you". */
+	tooltip: (priority: Pick<FactoryPriorityState, "level" | "by" | "reason">) =>
+		`${FACTORY_PRIORITY_LABEL[priority.level]} priority · ${
+			priority.by === "person"
+				? "set by you"
+				: priority.by === "manager"
+					? "set in Ask Factory"
+					: priority.by === "agent"
+						? "set by an agent"
+						: priorityEstimated(priority.reason)
+		}`,
+	estimated: priorityEstimated,
+	saveFailed: "Couldn't change the priority. Try again.",
+} as const;
+
+/** Duplicate detection on the card page: related cards and repeat requests. */
+export const FACTORY_DUPLICATES = {
+	related: "Related:",
+	openRelated: (id: string) => `Open related card ${id}`,
+	/** On a card later filings were matched to: "Also requested 2 times". */
+	alsoRequested: (count: number) =>
+		`Also requested ${count} ${count === 1 ? "time" : "times"}`,
+	lastRequested: (when: string) => `Last requested ${when}`,
+	/** Ask Factory, when a filing was blocked: "F12 already covers this — it is in Review." */
+	covers: (id: string, state: string) =>
+		`${id} already covers this — it is in ${state}.`,
+	open: (id: string) => `Open ${id}`,
+	fileAnyway: "File anyway",
+	/** Sent for File anyway: the manager files it again with the check skipped. */
+	fileAnywayPrompt:
+		"This is different work. File it anyway (allow_duplicate: true).",
 } as const;

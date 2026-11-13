@@ -6,6 +6,7 @@ import {
 	AcceptanceResults,
 	acceptanceSummary,
 	CheckResultSummary,
+	ReviewResult,
 	summarizeFactoryError,
 } from "./factory-detail-evidence";
 
@@ -169,12 +170,43 @@ describe("AcceptanceResults", () => {
 		expect(outcomes).toEqual(["passed", "uncheckable", "unverified"]);
 		expect(text).toContain("not checked");
 		expect(acceptanceSummary(criteria, candidate)).toBe(
-			"1/3 required proven · unverified: ui · not checked: copy",
+			"1/3 required proven · 1 unverified · 1 not checked",
 		);
+		// The plan's criterion ids stay internal.
+		for (const id of ["copy", "ui"])
+			expect(text).not.toMatch(new RegExp(`\\b${id}\\b`));
 	});
 
 	it("fills in as a checklist while work runs: no result yet is not unverified", async () => {
 		const { outcomes } = await renderResults(true);
 		expect(outcomes).toEqual(["passed", "uncheckable", "pending"]);
+	});
+});
+
+describe("ReviewResult", () => {
+	it("says passed or asked for changes, never the raw verdict", async () => {
+		const container = document.createElement("div");
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		const pills = async (verdict: "pass" | "changes_requested") => {
+			await act(async () =>
+				root.render(
+					<ReviewResult
+						label="App test"
+						review={{ verdict, summary: "Works.", findings: [] }}
+						sessionId="s"
+						onOpenSession={vi.fn(async () => {})}
+						collapsed
+					/>,
+				),
+			);
+			return container.querySelector("summary")?.textContent ?? "";
+		};
+		expect(await pills("pass")).toMatch(/^passedApp test/);
+		expect(await pills("changes_requested")).toMatch(
+			/^asked for changesApp test/,
+		);
+		await act(async () => root.unmount());
+		container.remove();
 	});
 });

@@ -60,7 +60,6 @@ import {
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
-import type { FactoryIntakeStart } from "@/lib/factory-intake";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import type { ExecutionTarget } from "@/lib/model-selection";
 import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
@@ -560,8 +559,12 @@ function dispatchCoreLog(chunk: string): void {
 
 export function useChatSession(
 	environmentId: string,
-	options?: { executionTarget?: ExecutionTarget },
+	options?: {
+		executionTarget?: ExecutionTarget;
+		modelScope?: "factory-manager";
+	},
 ) {
+	const modelScope = options?.modelScope;
 	const subscribeToEnvironment = useCallback(
 		(name: string, listener: (payload: unknown) => void) =>
 			desktopClient.subscribe(name, (payload) => {
@@ -2611,7 +2614,6 @@ export function useChatSession(
 			options: {
 				preserveStatus?: boolean;
 				initialPrompt?: string;
-				factoryIntake?: FactoryIntakeStart;
 				factoryManager?: true;
 			} = {},
 		): Promise<string> => {
@@ -2622,9 +2624,6 @@ export function useChatSession(
 				action: "start",
 				config: {
 					...boundConfig,
-					...(options.factoryIntake
-						? { factoryIntake: options.factoryIntake }
-						: {}),
 					...(options.factoryManager ? { factoryManager: true } : {}),
 				},
 				...(options.initialPrompt?.trim()
@@ -2739,8 +2738,6 @@ export function useChatSession(
 			options?: {
 				/** Start the session in a fresh git worktree of the current workspace. */
 				inNewWorktree?: boolean;
-				/** Start a new session as a Factory intake; ignored once it exists. */
-				factoryIntake?: FactoryIntakeStart;
 				/** Start a new session as the Factory manager; ignored once it exists. */
 				factoryManager?: true;
 			},
@@ -2997,7 +2994,6 @@ export function useChatSession(
 											parsed.executionTarget === "cloud"
 												? userLabel
 												: undefined,
-										factoryIntake: options?.factoryIntake,
 										factoryManager: options?.factoryManager,
 									},
 								);
@@ -3828,7 +3824,10 @@ export function useChatSession(
 			// source a freshly mounted thread uses) so a reset after viewing
 			// a historical session does not retain that session's
 			// provider/model for the next chat.
-			const initial = getInitialChatConfig(environmentId);
+			const initial = getInitialChatConfig(
+				environmentId,
+				modelScope ? { modelScope } : undefined,
+			);
 			// A task worktree belongs to the thread that created it; the next
 			// thread goes back to the remembered repo (and its branch).
 			const leavingTaskWorktree = isTaskWorktreePath(
@@ -3877,6 +3876,7 @@ export function useChatSession(
 	}, [
 		sessionId,
 		environmentId,
+		modelScope,
 		clearAbortFallbackTimeout,
 		discardPendingStream,
 		postSession,

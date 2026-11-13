@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
 import {
+	HUB_UPGRADE_TIMEOUT_MS,
 	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
 	retainDismissalForIncomingMismatch,
@@ -38,9 +39,6 @@ function mismatchKeyOf(payload: HubBuildMismatchPayload): string {
 }
 
 type UpdatePhase = "idle" | "updating" | "restarting";
-
-/** Generous deadline: drain wait + graceful retire + fresh daemon startup. */
-const HUB_UPGRADE_TIMEOUT_MS = 60_000;
 
 /**
  * "Later" must survive webview remounts and reconnects: the sidecar replays

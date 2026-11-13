@@ -21,6 +21,7 @@ import {
 	factoryPlanFault,
 	factoryPlanFaultStopped,
 	factoryPublishFailureReason,
+	factoryRepairLimitReason,
 	factoryRetryPath,
 	factoryReviewRequired,
 	factoryScopingWait,
@@ -558,6 +559,22 @@ describe("Try again and publish failures", () => {
 		).toBe("gh timed out.");
 		expect(factoryPublishFailureReason("Could not open the draft PR")).toBe("");
 		expect(factoryPublishFailureReason("Checks failed.")).toBeUndefined();
+	});
+
+	it("says what review still found at the repair limit, keeping the finding", () => {
+		expect(
+			factoryRepairLimitReason(
+				"Repair limit (1) reached.\n- src/onboarding.ts: the checklist still renders twice\n- other",
+			),
+		).toBe(
+			"Review still found a problem after 1 fix round: src/onboarding.ts: the checklist still renders twice",
+		);
+		expect(
+			factoryRepairLimitReason(
+				"Repair limit (2) reached; the draft PR stays open with 1 unresolved finding.",
+			),
+		).toBe("Review still found problems after 2 fix rounds.");
+		expect(factoryRepairLimitReason("Checks failed.")).toBeUndefined();
 	});
 });
 

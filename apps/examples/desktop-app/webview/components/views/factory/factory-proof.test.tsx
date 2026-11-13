@@ -329,14 +329,15 @@ describe("FactoryProof", () => {
 		expect(receipt.requirements).toBeUndefined();
 	});
 
-	it("counts unresolved reviewer findings as not checked", () => {
+	it("lists unresolved reviewer findings as open findings, not under Not checked", () => {
 		const receipt = factoryProofReceipt({
 			state: stateWith({
 				unresolvedFindings: { commit: "c", findings: ["a", "b"] },
 			}),
 			hasVerifier: true,
 		});
-		expect(receipt.notChecked).toEqual(["2 reviewer findings left unresolved"]);
+		expect(receipt.openFindings).toBe("2 reviewer findings left unresolved");
+		expect(receipt.notChecked).toEqual([]);
 	});
 });
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
 	FactoryDesignReview,
+	FactoryDuplicateReports,
 	FactoryRunState,
 	FactoryTaskConfig,
 } from "./factory";
@@ -11,6 +12,10 @@ import {
 	factoryReviewSelectionSchema,
 	selectFactoryReviewAgents,
 } from "./factory";
+import type {
+	FactoryPriorityInput,
+	FactoryPriorityState,
+} from "./factory-priority";
 import type { GatewayModelSelection } from "./llms/gateway";
 
 const factoryQuestionFields = {
@@ -199,6 +204,23 @@ export interface AgendaTaskRecord {
 	 */
 	factoryQueued?: "design" | "run";
 	/**
+	 * When the card's current Factory queue entry was created, present with
+	 * `factoryQueued`. The queue starts work by priority rank, then this.
+	 */
+	factoryQueuedAt?: string;
+	/**
+	 * The Factory card's priority; absent means No priority. Not the agenda
+	 * `priority`: it is stored on its own, so changing it never revises the
+	 * plan, revokes approval or changes status, and plan edits keep it.
+	 */
+	factoryPriority?: FactoryPriorityState;
+	/**
+	 * Later filings matched to this card as repeats of the same work. Stored
+	 * on its own, so recording one never revises the plan, revokes approval
+	 * or changes `updatedAt`.
+	 */
+	factoryDuplicateReports?: FactoryDuplicateReports;
+	/**
 	 * The card's short number within its Hub task database, shown as
 	 * `F<n>` (see `formatFactoryId`). Present on Factory cards; assigned at
 	 * creation and never reused.
@@ -268,6 +290,11 @@ export interface AgendaTaskCreateInput {
 	factory?: FactoryTaskConfig;
 	/** Queue initial Factory design unless false; applies only to this creation request. */
 	queueFactoryDesign?: boolean;
+	/**
+	 * Factory cards only. The manager clamps an agent's or scoper's `urgent`
+	 * to `high`; the Hub records a client's value as the person's.
+	 */
+	factoryPriority?: FactoryPriorityInput;
 	taskId?: string;
 	type: AgendaTaskType;
 	title: string;

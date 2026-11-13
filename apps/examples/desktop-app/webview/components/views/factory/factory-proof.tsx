@@ -81,6 +81,8 @@ export type FactoryProofReceipt = {
 	/** Whether a code reviewer runs on a model the builder does not. */
 	independence: "independent" | "same" | "unknown";
 	notChecked: string[];
+	/** "2 reviewer findings left unresolved": its own block, not Not checked. */
+	openFindings?: string;
 	/** Checkers or builders whose model the run did not record. */
 	modelGaps: string[];
 	/** Why this route and what each station cost; absent without a review selection. */
@@ -281,7 +283,7 @@ export function factoryProofReceipt({
 	const unresolved =
 		state.unresolvedFindings?.findings.length ??
 		reviews.reduce((count, entry) => count + entry.review.findings.length, 0);
-	if (unresolved) notChecked.push(FACTORY_PROOF.unresolved(unresolved));
+
 	const route = factoryRunRoute(state);
 
 	return {
@@ -311,6 +313,9 @@ export function factoryProofReceipt({
 		builderModel,
 		independence,
 		notChecked,
+		...(unresolved
+			? { openFindings: FACTORY_PROOF.unresolved(unresolved) }
+			: {}),
 		modelGaps,
 		...(route ? { route: FACTORY_PROOF.route(route) } : {}),
 		// The PR's outcome is the card header's headline, not repeated here.
@@ -335,17 +340,15 @@ const OUTCOME_TONE: Record<
 function Block({ label, children }: { label: string; children: ReactNode }) {
 	return (
 		<section aria-label={label} className="space-y-1.5">
-			<h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-				{label}
-			</h4>
+			<h4 className="text-xs font-medium text-muted-foreground">{label}</h4>
 			{children}
 		</section>
 	);
 }
 
 /**
- * The proof receipt on a delivered or review-needed card: PROVEN, CHECKED BY
- * and NOT CHECKED, then cost and agent runs in one quiet line. No block is
+ * The proof receipt on a delivered or review-needed card: Proven, Checked by,
+ * Open findings (when a reviewer left any) and Not checked, then cost and agent runs in one quiet line. No block is
  * hidden for lack of good news. `children` (the feedback row) closes it.
  */
 export function FactoryProof({
@@ -506,6 +509,13 @@ export function FactoryProof({
 					</p>
 				) : null}
 			</Block>
+			{receipt.openFindings ? (
+				<Block label={FACTORY_PROOF.openFindings}>
+					<p className="text-sm" data-testid="factory-proof-open-findings">
+						{receipt.openFindings}
+					</p>
+				</Block>
+			) : null}
 			<Block label={FACTORY_PROOF.notChecked}>
 				{receipt.notChecked.length ? (
 					<ul

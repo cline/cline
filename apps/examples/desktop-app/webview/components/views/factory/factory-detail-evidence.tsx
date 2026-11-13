@@ -185,7 +185,8 @@ export function acceptanceSummary(
 			: "No required criteria",
 		...(["failed", "unverified", "not checked"] as const).flatMap((outcome) => {
 			const unmet = ids(outcome, true);
-			return unmet.length ? [`${outcome}: ${unmet.join(", ")}`] : [];
+			// Counts, not criterion ids: ids are the plan's internals.
+			return unmet.length ? [`${unmet.length} ${outcome}`] : [];
 		}),
 		...(optional
 			? [`optional ${ids("passed", false).length}/${optional} passed`]
@@ -215,6 +216,8 @@ function firstLine(text: string): string {
 export type FactoryErrorSummary = {
 	/** The first sentence, short enough for the status panel. */
 	headline: string;
+	/** The same sentence uncut, when the headline had to shorten it. */
+	sentence?: string;
 	/** Per-check lines found in "<check name>: blocked|failed" form. */
 	checks: { name: string; status: "blocked" | "failed"; detail?: string }[];
 	/** The full text when it says more than the headline. */
@@ -281,6 +284,9 @@ export function summarizeFactoryError(text: string): FactoryErrorSummary {
 				: `${checks.length} checks did not pass.`;
 	return {
 		headline,
+		...(headline !== sentence && headline.endsWith("\u2026")
+			? { sentence }
+			: {}),
 		checks,
 		...(trimmed.length > headline.length + 1 ? { details: trimmed } : {}),
 	};
@@ -400,9 +406,6 @@ export function AcceptanceCriteria({ items }: { items: AcceptanceItem[] }) {
 								{criterion.check
 									? `check “${criterion.check}”`
 									: "agent verification"}
-								<span className="ml-2 font-mono text-muted-foreground">
-									{criterion.id}
-								</span>
 							</p>
 							{outcome ? (
 								<p className="mt-1.5 whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 text-xs">
@@ -439,7 +442,7 @@ export function AcceptanceResults({
 	return (
 		<section aria-label="Acceptance results" className="space-y-2">
 			<h4 className="text-sm font-semibold">
-				Acceptance criteria{" "}
+				Requirements{" "}
 				<span className="font-normal text-muted-foreground">
 					· {acceptanceSummary(criteria, candidate)}
 				</span>
@@ -481,7 +484,7 @@ export function ReviewResult({
 						tone={review.verdict === "pass" ? "success" : "attention"}
 						icon={review.verdict === "pass" ? CheckCircle2 : CircleAlert}
 					>
-						{review.verdict.replaceAll("_", " ")}
+						{FACTORY_PROOF.verdict[review.verdict]}
 					</StatusPill>
 					<span className="shrink-0 font-medium">{label}</span>
 					<span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -509,7 +512,7 @@ export function ReviewResult({
 					tone={review.verdict === "pass" ? "success" : "attention"}
 					icon={review.verdict === "pass" ? CheckCircle2 : CircleAlert}
 				>
-					{review.verdict.replaceAll("_", " ")}
+					{FACTORY_PROOF.verdict[review.verdict]}
 				</StatusPill>
 			</div>
 			<MemoizedMarkdown content={review.summary} classNames="mt-2 text-sm" />

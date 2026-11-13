@@ -8,6 +8,7 @@ import {
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	FactoryTaskHeader,
 	factoryAwaitingStart,
@@ -402,15 +403,112 @@ describe("FactoryTaskHeader primary action", () => {
 		expect(reason?.textContent).toBe(
 			"Factory asks for your review: touches a shared contract.",
 		);
-		// The reason is said once, beside Accept.
+		// The reason is said once, before Accept.
 		expect(
 			progress()?.textContent?.split("touches a shared contract").length,
 		).toBe(2);
 		const accept = [...document.querySelectorAll("button")].find(
 			(item) => item.textContent?.trim() === "Accept",
 		);
+		expect(
+			accept &&
+				(reason?.compareDocumentPosition(accept) ?? 0) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 		await act(async () => accept?.click());
 		expect(onAccept).toHaveBeenCalled();
+	});
+
+	it("waits for the person's answer without a spinner or running time", async () => {
+		await render({
+			task,
+			designActive: true,
+			waitingForAnswer: true,
+			live: {
+				sessions: [
+					{ sessionId: "d", role: "designer", startedAt: task.updatedAt },
+				],
+			},
+		});
+		expect(headline()).toBe("Waiting for your answer");
+		expect(progress()?.querySelector(".animate-spin")).toBeNull();
+		expect(
+			progress()?.querySelector('[data-testid="factory-live-line"]'),
+		).toBeNull();
+		expect(actions()).toEqual([]);
+	});
+
+	it("names a brief nobody scoped as not started, with both ways forward", async () => {
+		await render({ task, onStart: vi.fn() });
+		expect(headline()).toBe("Not started");
+		expect(progress()?.textContent).toContain(
+			"Approve and run the brief as written, or start scoping so Factory plans it first.",
+		);
+		// The brief's Start scoping and the footer's approval are the actions.
+		expect(actions()).toEqual([]);
+		await act(async () => root.unmount());
+		root = createRoot(container);
+		await render({
+			task: {
+				...task,
+				factoryDesignProgress: factoryDesignProgressSchema.parse({
+					revision: 1,
+					repairRound: 0,
+					phase: "complete",
+					agents: {
+						designer: {},
+						planReviewers: [],
+						reviewers: [{}],
+						implementers: [{}],
+					},
+					designerSessionId: "d",
+					findings: [],
+					reviewerSessions: [],
+					reviews: [],
+				}),
+			},
+		});
+		expect(headline()).toBe("Plan ready for your approval");
+	});
+
+	it("says which review finding a repair-limit stop could not clear", async () => {
+		const error =
+			"Repair limit (1) reached.\n- src/onboarding.ts: the checklist still renders twice";
+		await render({
+			task: { ...handsOff, status: "failed", error },
+			failure: { reason: "Repair limit (1) reached.", onRetry: vi.fn() },
+			state: factoryRunStateSchema.parse({
+				...delivered,
+				phase: "blocked",
+				error,
+				candidate: {
+					commit: "c",
+					checks: [],
+					reviews: [
+						{
+							reviewerIndex: 0,
+							sessionId: "r",
+							review: {
+								verdict: "changes_requested",
+								summary: "s",
+								findings: [
+									"src/onboarding.ts: the checklist still renders twice",
+								],
+							},
+						},
+					],
+				},
+			}),
+		});
+		// Not "Could not open the draft PR": no PR was attempted.
+		expect(headline()).toBe("Review findings were not cleared");
+		expect(
+			document.querySelector('[data-testid="factory-failure-reason"]')
+				?.textContent,
+		).toBe(
+			"Review still found a problem after 1 fix round: src/onboarding.ts: the checklist still renders twice",
+		);
+		expect(at()).toBe("review:stopped");
 	});
 
 	it("offers Try again on a stopped card and keeps Edit plan in More", async () => {
@@ -496,7 +594,7 @@ describe("FactoryTaskHeader primary action", () => {
 		expect(
 			document.querySelector('[data-testid="factory-failure-reason"]')
 				?.textContent,
-		).toBe("The plan reviewers still had objections after 2 rounds of fixes.");
+		).toBe("The plan checkers still had objections after 2 rounds of fixes.");
 		expect(progress()?.textContent?.split("still had objections").length).toBe(
 			2,
 		);
@@ -522,7 +620,7 @@ describe("FactoryTaskHeader primary action", () => {
 			delivery: { branch: "feat/search", onViewChanges: vi.fn() },
 			onRate,
 		});
-		expect(await menuItems()).toContain("Rate this delivery…");
+		expect(await menuItems()).toContain("Leave feedback…");
 	});
 
 	it("offers Start scoping on a card nothing will start", async () => {
@@ -599,5 +697,181 @@ describe("FactoryTaskHeader supplied plan line", () => {
 	it("shows nothing on an ordinary card", async () => {
 		await render({ task });
 		expect(line()).toBeUndefined();
+	});
+});
+
+describe("FactoryTaskHeader priority", () => {
+	const invoke = vi.mocked(desktopClient.invoke);
+	const control = () =>
+		document.querySelector<HTMLButtonElement>(
+			"button[data-factory-priority-control]",
+		);
+	const choose = async (label: string) => {
+		await act(async () =>
+			control()?.dispatchEvent(
+				new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
+			),
+		);
+		const items = [...document.querySelectorAll('[role="menuitemradio"]')];
+		expect(items.map((item) => item.textContent?.trim())).toEqual([
+			"No priority",
+			"Urgent",
+			"High",
+			"Medium",
+			"Low",
+		]);
+		const item = items.find((entry) => entry.textContent?.trim() === label);
+		await act(async () => (item as HTMLElement | undefined)?.click());
+	};
+	const delivered = factoryRunStateSchema.parse({
+		phase: "ready",
+		repairRound: 0,
+		sessions: [],
+		workspace: {
+			path: "/wt",
+			branch: "feat/search",
+			baseBranch: "main",
+			baseCommit: "base",
+		},
+		candidate: { commit: "c", checks: [], reviews: [] },
+	});
+	beforeEach(() => {
+		invoke.mockReset();
+	});
+
+	it("sets a working card's priority at once through the Hub", async () => {
+		let reply: (value: unknown) => void = () => {};
+		invoke.mockImplementation(
+			() => new Promise((resolve) => (reply = resolve)),
+		);
+		await render({ task: { ...handsOff, status: "in_progress" } });
+		expect(control()?.textContent).toBe("No priority");
+		expect(control()?.getAttribute("aria-label")).toBe("Priority: No priority");
+		await choose("Urgent");
+		expect(invoke).toHaveBeenCalledWith("task.factory.priority", {
+			taskId: "feature",
+			priority: "urgent",
+			allWorkspaces: true,
+		});
+		// Shown before the Hub answers.
+		expect(control()?.textContent).toBe("Urgent");
+		await act(async () => reply({}));
+		// The saved record then carries it.
+		await render({
+			task: {
+				...handsOff,
+				status: "in_progress",
+				factoryPriority: {
+					level: "urgent",
+					by: "person",
+					at: "2026-01-02T00:00:00Z",
+				},
+			},
+		});
+		expect(control()?.textContent).toBe("Urgent");
+	});
+
+	it("clears a delivered card's priority and restores it, with a note, when refused", async () => {
+		invoke.mockImplementation(async () => {
+			throw new Error("Hub unavailable");
+		});
+		await render({
+			task: {
+				...handsOff,
+				status: "completed",
+				factoryPriority: {
+					level: "medium",
+					by: "scoper",
+					reason: "Affects every export",
+					at: "2026-01-02T00:00:00Z",
+				},
+			},
+			state: delivered,
+			delivery: { branch: "feat/search", onViewChanges: vi.fn() },
+		});
+		expect(control()?.textContent).toBe("Medium");
+		// The scoper's estimate says so, quietly.
+		expect(control()?.parentElement?.textContent).toContain(
+			"estimated: Affects every export",
+		);
+		await choose("No priority");
+		expect(invoke).toHaveBeenCalledWith("task.factory.priority", {
+			taskId: "feature",
+			priority: null,
+			allWorkspaces: true,
+		});
+		expect(control()?.textContent).toBe("Medium");
+		expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+			"Couldn't change the priority. Try again.",
+		);
+	});
+});
+
+describe("FactoryTaskHeader duplicates", () => {
+	const invoke = vi.mocked(desktopClient.invoke);
+	beforeEach(() => {
+		invoke.mockReset();
+	});
+
+	it("links the related cards by short id and opens one", async () => {
+		invoke.mockImplementation(async (_command, args) => {
+			const taskId = (args as { taskId: string }).taskId;
+			return taskId === "task_gone"
+				? {}
+				: {
+						task: {
+							...task,
+							taskId,
+							factoryNumber: taskId === "task_a" ? 12 : 15,
+						},
+					};
+		});
+		const onOpenCard = vi.fn();
+		await render({
+			task: {
+				...task,
+				factory: {
+					...task.factory!,
+					relatedTo: ["task_a", "task_gone", "task_b"],
+				},
+			},
+			onOpenCard,
+		});
+		expect(invoke).toHaveBeenCalledWith("task.get", {
+			taskId: "task_a",
+			allWorkspaces: true,
+		});
+		const related = document.querySelector("[data-factory-related]");
+		// A card that cannot be read is left out.
+		expect(related?.textContent).toBe("Related:F12,F15");
+		const link = document.querySelector<HTMLButtonElement>(
+			'button[aria-label="Open related card F12"]',
+		);
+		await act(async () => link?.click());
+		expect(onOpenCard).toHaveBeenCalledWith("task_a");
+	});
+
+	it("says how often a card was requested again, with the latest date as its title", async () => {
+		await render({ task });
+		expect(document.querySelector("[data-factory-also-requested]")).toBeNull();
+		expect(document.querySelector("[data-factory-related]")).toBeNull();
+		const latest = "2026-11-10T12:00:00.000Z";
+		await render({
+			task: {
+				...task,
+				factoryDuplicateReports: {
+					count: 2,
+					recent: [
+						{ at: "2026-11-09T12:00:00.000Z", title: "Again", by: "agent" },
+						{ at: latest, title: "Again", by: "user" },
+					],
+				},
+			},
+		});
+		const repeats = document.querySelector("[data-factory-also-requested]");
+		expect(repeats?.textContent).toBe("Also requested 2 times");
+		expect(repeats?.getAttribute("title")).toBe(
+			`Last requested ${new Date(latest).toLocaleString()}`,
+		);
 	});
 });

@@ -533,7 +533,7 @@ describe("HubSessionClient", () => {
 			maxStartsPerHour: 20,
 		};
 
-		expect(await client.createTask(createInput)).toEqual(task);
+		expect(await client.createTask(createInput)).toEqual({ task });
 		expect(await client.listTasks({ priorities: [1] })).toEqual([task]);
 		expect(await client.getTask(task.taskId)).toEqual(task);
 		expect(await client.updateTask(updateInput)).toEqual(task);
