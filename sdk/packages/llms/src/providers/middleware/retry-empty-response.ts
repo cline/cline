@@ -188,6 +188,38 @@ const RETRYABLE_FINISH_REASONS = new Set(["stop", "other", "unknown"]);
 
 type FinishPart = Extract<LanguageModelV4StreamPart, { type: "finish" }>;
 
+interface RetryAttemptUsageRecord {
+	usage: LanguageModelV4Usage;
+	providerMetadata?: FinishPart["providerMetadata"];
+}
+
+// AI SDK's v4 -> public usage conversion preserves the raw object reference.
+// Keep retry evidence out of provider JSON: only objects registered here carry
+// it, so a provider field cannot be mistaken for our internal bookkeeping.
+// This is an in-process association, not a serializable usage contract.
+const retryAttemptUsages = new WeakMap<
+	object,
+	readonly RetryAttemptUsageRecord[]
+>();
+
+export function getRetryAttemptUsages(
+	usage: unknown,
+): readonly LanguageModelV4Usage[] | undefined {
+	return getRetryAttemptUsageRecords(usage)?.map((attempt) => attempt.usage);
+}
+
+export function getRetryAttemptUsageRecords(
+	usage: unknown,
+): readonly RetryAttemptUsageRecord[] | undefined {
+	if (!usage || typeof usage !== "object") {
+		return undefined;
+	}
+	const raw = (usage as { raw?: unknown }).raw;
+	return raw && typeof raw === "object"
+		? retryAttemptUsages.get(raw)
+		: undefined;
+}
+
 function addCounts(
 	a: number | undefined,
 	b: number | undefined,
@@ -198,11 +230,22 @@ function addCounts(
 	return (a ?? 0) + (b ?? 0);
 }
 
-/** Sum two standardized v4 usage records field by field. */
+/** Sum standardized counts while preserving each original attempt for billing. */
 export function addUsage(
 	a: LanguageModelV4Usage,
 	b: LanguageModelV4Usage,
+	aProviderMetadata?: FinishPart["providerMetadata"],
+	bProviderMetadata?: FinishPart["providerMetadata"],
 ): LanguageModelV4Usage {
+	const raw = { ...b.raw };
+	retryAttemptUsages.set(raw, [
+		...(getRetryAttemptUsageRecords(a) ?? [
+			{ usage: a, providerMetadata: aProviderMetadata },
+		]),
+		...(getRetryAttemptUsageRecords(b) ?? [
+			{ usage: b, providerMetadata: bProviderMetadata },
+		]),
+	]);
 	return {
 		inputTokens: {
 			total: addCounts(a.inputTokens?.total, b.inputTokens?.total),
@@ -221,9 +264,9 @@ export function addUsage(
 				b.outputTokens?.reasoning,
 			),
 		},
-		// `raw` is provider-specific and cannot be summed generically; the
-		// emitted finish keeps the final attempt's raw payload.
-		...(b.raw !== undefined ? { raw: b.raw } : {}),
+		// Opaque provider fields still describe only the final attempt. The
+		// normalizer uses the original records, never a generic raw-field sum.
+		raw,
 	};
 }
 
@@ -234,14 +277,20 @@ export function addUsage(
  */
 function withAggregatedUsage(
 	finish: FinishPart,
-	discardedUsage: readonly LanguageModelV4Usage[],
+	discardedFinishes: readonly FinishPart[],
 ): FinishPart {
-	if (discardedUsage.length === 0) {
+	if (discardedFinishes.length === 0) {
 		return finish;
 	}
 	let usage = finish.usage;
-	for (const discarded of discardedUsage) {
-		usage = addUsage(discarded, usage);
+	for (let index = discardedFinishes.length - 1; index >= 0; index--) {
+		const discarded = discardedFinishes[index];
+		usage = addUsage(
+			discarded.usage,
+			usage,
+			discarded.providerMetadata,
+			finish.providerMetadata,
+		);
 	}
 	return { ...finish, usage };
 }
@@ -300,7 +349,7 @@ export function createRetryEmptyResponseMiddleware(
 			const stream = new ReadableStream<LanguageModelV4StreamPart>({
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
-					const discardedUsage: LanguageModelV4Usage[] = [];
+					const discardedFinishes: FinishPart[] = [];
 					// Counted separately from the shared attempt number so the
 					// first network retry always waits `networkRetryDelayMs`,
 					// regardless of any empty-response retries that came first.
@@ -372,7 +421,7 @@ export function createRetryEmptyResponseMiddleware(
 								return;
 							}
 							if (pendingFinish) {
-								discardedUsage.push(pendingFinish.usage);
+								discardedFinishes.push(pendingFinish);
 							}
 							response.headers = undefined;
 							const delayMs = networkRetryDelayMs * 2 ** networkRetries;
@@ -411,7 +460,7 @@ export function createRetryEmptyResponseMiddleware(
 						if (accepted) {
 							if (pendingFinish) {
 								controller.enqueue(
-									withAggregatedUsage(pendingFinish, discardedUsage),
+									withAggregatedUsage(pendingFinish, discardedFinishes),
 								);
 							}
 							controller.close();
@@ -434,7 +483,7 @@ export function createRetryEmptyResponseMiddleware(
 							}
 							if (pendingFinish) {
 								controller.enqueue(
-									withAggregatedUsage(pendingFinish, discardedUsage),
+									withAggregatedUsage(pendingFinish, discardedFinishes),
 								);
 							}
 							controller.close();
@@ -442,7 +491,7 @@ export function createRetryEmptyResponseMiddleware(
 						}
 
 						if (pendingFinish) {
-							discardedUsage.push(pendingFinish.usage);
+							discardedFinishes.push(pendingFinish);
 						}
 
 						response.headers = undefined;
