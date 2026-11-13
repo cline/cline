@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
+import { compiledLoggingOptions } from "./compiled-logging";
 import { buildDashboardRuntimeDirectory } from "./dashboard-runtime";
 
 const cliDir = resolve(import.meta.dir, "..");
@@ -101,6 +102,7 @@ export async function compileCliBinary(
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
 	const bunfsRoot = targetOs === "windows" ? "B:/~BUN/root/" : "/$bunfs/root/";
+	const logging = compiledLoggingOptions(cliDir, rootDir, bunfsRoot);
 	const parserWorkerPath = relative(rootDir, parserWorker).replaceAll(
 		"\\",
 		"/",
@@ -124,7 +126,8 @@ export async function compileCliBinary(
 	try {
 		const autoload = input.autoloadLaunchDirectoryConfig !== false;
 		result = await Bun.build({
-			entrypoints: [entrypoint, parserWorker],
+			entrypoints: [entrypoint, parserWorker, ...logging.entrypoints],
+			plugins: logging.plugins,
 			root: rootDir,
 			splitting: true,
 			compile: {
@@ -140,6 +143,7 @@ export async function compileCliBinary(
 			minify: true,
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
+				...logging.define,
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
 				// compile.assets keeps each directory tree under its basename.
 				__CLINE_PLUGIN_RUNTIME_DIR__: JSON.stringify(
