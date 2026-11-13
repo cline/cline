@@ -1,8 +1,8 @@
-import { Agent } from "@cline/sdk";
+import { Agent, Llms } from "@cline/sdk";
 
 const agent = new Agent({
 	providerId: "cline",
-	modelId: "anthropic/claude-sonnet-4.6",
+	modelId: Llms.CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY,
 	maxIterations: 1,
 });

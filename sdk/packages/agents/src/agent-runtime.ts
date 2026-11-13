@@ -216,11 +216,21 @@ function resolveRuntimeConfig(
 function resolveToolPolicy(
 	toolName: string,
 	policies: BaseAgentRuntimeConfig["toolPolicies"],
+	dependencies: readonly string[] = [],
 ): ToolPolicy {
-	return {
+	const policy = {
 		...(policies?.["*"] ?? {}),
 		...(policies?.[toolName] ?? {}),
 	};
+	for (const name of dependencies) {
+		const dependency = {
+			...policies?.["*"],
+			...policies?.[name],
+		};
+		if (dependency.enabled === false) policy.enabled = false;
+		if (dependency.autoApprove === false) policy.autoApprove = false;
+	}
+	return policy;
 }
 
 interface PendingToolAssembly {
@@ -2491,7 +2501,11 @@ export class AgentRuntime {
 
 		if (tool && !skipReason) {
 			const policy = {
-				...resolveToolPolicy(toolCall.toolName, this.config.toolPolicies),
+				...resolveToolPolicy(
+					toolCall.toolName,
+					this.config.toolPolicies,
+					tool.policyDependencies,
+				),
 				...policyOverride,
 			};
 			if (policy.enabled === false) {

@@ -1,14 +1,19 @@
 import { Mode } from "@shared/storage/types"
+import { useRef, useState } from "react"
 import { type ProviderId } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
+import { useDebounceEffect } from "@/utils/useDebounceEffect"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 import { type ModelPickerSelection, ModelPickerWithManualEntry } from "./ModelPickerWithManualEntry"
+
+const MODEL_REFRESH_DEBOUNCE_MS = 500
 
 interface GenericProviderBaseUrlFieldConfig {
 	label?: string
@@ -42,8 +47,8 @@ export const GenericProviderSettings = ({
 	isPopup,
 	currentMode,
 }: GenericProviderSettingsProps) => {
-	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(providerId)
-	const { config, write, commitSelection } = useProviderConfig(providerId)
+	const { models, defaultModelId, isLoading, isStale, error, refresh } = useProviderModels(providerId)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
 		defaultModelId,
@@ -57,17 +62,52 @@ export const GenericProviderSettings = ({
 		)
 	}
 
+	const [refreshRevision, setRefreshRevision] = useState(0)
+	const hasUnrefreshedChangeRef = useRef(false)
+	const isInputFocusedRef = useRef(false)
+
+	const flushModelRefresh = () => {
+		if (hasUnrefreshedChangeRef.current) {
+			hasUnrefreshedChangeRef.current = false
+			void refresh()
+		}
+	}
+
+	useDebounceEffect(flushModelRefresh, MODEL_REFRESH_DEBOUNCE_MS, [refreshRevision])
+
+	const writeAndRefreshModels = async (patch: { apiKey?: string; baseUrl?: string }) => {
+		const response = await write(patch)
+		hasUnrefreshedChangeRef.current = true
+		if (isInputFocusedRef.current) {
+			setRefreshRevision((rev) => rev + 1)
+		} else {
+			flushModelRefresh()
+		}
+		return response
+	}
+
+	const handleInputFocus = () => {
+		isInputFocusedRef.current = true
+	}
+
+	const handleInputBlur = () => {
+		isInputFocusedRef.current = false
+		flushModelRefresh()
+	}
+
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
 		providerName,
-		write,
+		write: writeAndRefreshModels,
 	})
 	const handleBaseUrlChange = (value: string) => {
-		void write({ baseUrl: value }).catch((err) => console.error(`Failed to update ${providerName} base URL:`, err))
+		void writeAndRefreshModels({ baseUrl: value }).catch((err) =>
+			console.error(`Failed to update ${providerName} base URL:`, err),
+		)
 	}
 	const handleBaseUrlClear = async () => {
 		try {
-			await write({ baseUrl: "" })
+			await writeAndRefreshModels({ baseUrl: "" })
 		} catch (error) {
 			console.error(`Failed to clear ${providerName} base URL:`, error)
 			throw error
@@ -78,7 +118,9 @@ export const GenericProviderSettings = ({
 		<div>
 			<ApiKeyField
 				initialValue={savedApiKeyMask}
+				onBlur={handleInputBlur}
 				onChange={handleApiKeyChange}
+				onFocus={handleInputFocus}
 				placeholder="Enter API Key..."
 				providerName={providerName}
 				signupUrl={signupUrl}
@@ -88,8 +130,10 @@ export const GenericProviderSettings = ({
 				<BaseUrlField
 					initialValue={config?.baseUrl}
 					label={baseUrlField.label}
+					onBlur={handleInputBlur}
 					onChange={handleBaseUrlChange}
 					onClear={handleBaseUrlClear}
+					onFocus={handleInputFocus}
 					placeholder={baseUrlField.placeholder}
 				/>
 			)}
@@ -110,13 +154,11 @@ export const GenericProviderSettings = ({
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: {
-										enabled: effort !== "none",
-										effort: effort !== "none" ? effort : undefined,
-									},
-								}).catch((err) => console.error(`Failed to update ${providerName} reasoning effort:`, err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error(`Failed to update ${providerName} reasoning effort:`, err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 

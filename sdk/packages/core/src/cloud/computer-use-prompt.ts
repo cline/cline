@@ -22,6 +22,8 @@ This sandbox may have a virtual display and standard Linux tools for computer us
 
 Use your judgment. Verify when a change affects something a user sees or interacts with (a navbar style, a new dialog, a form flow, a terminal UI). Skip it when there's nothing to look at (a git operation, a config tweak, a refactor with no visible effect).
 
+When \`ux_verifier\` is available, delegate visual checks to it instead of driving the UI in the main conversation. Give it the app URL, access/setup details, the sandbox display and command guidance below, and an ordered checklist with stable IDs, steps, and expected outcomes. It returns observations and saved screenshot paths. Keep implementation and fixes in the main agent; after fixing a failure, delegate a fresh check. Workers can cover separate parts of a task, and the main agent combines their findings into one report. If the tool is unavailable, use the manual verification steps below.
+
 ### Display, input, and screenshots
 
 - Start the display if it isn't running: \`Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &\`, and run every GUI command with \`DISPLAY=:99\` (for example \`export DISPLAY=:99\` at the start of the command). Keep the display as small as the check allows so screenshots stay legible. To check a phone layout, restart Xvfb at 390x844 and relaunch the app window at 0,0 with the same size.
@@ -61,4 +63,4 @@ The user can't see this sandbox, and its files disappear when it stops. When you
 
 - Publish frames for the reader, not a log of every input: usually 1 to 8 per thing you verified, in the order that tells the story (at most 20 per call).
 - The tool reports an \`artifactId\` or an \`error\` for each file. To retry a failed file, pass the same \`artifactId\` back. If publishing fails or the tool isn't available, say so in your answer and carry on.
-- In your answer, say what each published screenshot shows, in order, and call out anything you couldn't fix.`;
+- After publishing, call \`report_ux_verification\` if available to record captions and observed results. Otherwise describe the screenshots in your answer. Always mention unresolved problems in your answer.`;

@@ -118,13 +118,50 @@ URLs and a fresh-token callback; feature gating and account selection stay in th
 host. Importing this subpath does not start a local agent.
 
 `createPublishArtifactsTool({ publish })` from `@cline/core` creates the opt-in
-`publish_artifacts` tool. It validates batches and local file paths, assigns missing
-IDs, and returns ordered per-file IDs or errors. The injected `ArtifactPublisher`
-receives prepared files (`path`, `artifactId`, `size`, `modifiedAt`) and an abort
+`publish_artifacts` tool. It validates batches and local file paths, defaults IDs
+to the filename including its extension, and returns ordered per-file IDs or errors.
+Reusing an ID replaces the session's file; use distinct filenames to preserve
+separate outputs. The injected `ArtifactPublisher` receives prepared files
+(`path`, `artifactId`, `size`, `modifiedAt`) and an abort
 signal, and returns one result per file in input order. Storage-specific policy
 and persistence belong to the publisher; constructing the tool does not register
 it in default local tools. Hosts control tool approval and which local paths may
 be published; the tool itself does not restrict paths to a workspace.
+
+`createUxVerificationReportTool()` from `@cline/core` creates the opt-in
+`report_ux_verification` tool. It returns a UX verification report with captions,
+observed passed/failed/blocked results, and screenshot references (`artifactId`,
+`mediaType`). Passed and failed checks require a screenshot; blocked checks may
+omit one. Hosts register it explicitly. It does not upload files or check artifact
+availability.
+
+With tools and spawning enabled, Core also registers `ux_verifier`. It delegates
+an ordered checklist (`id`, `steps`, `expected`) plus a `task` describing the app
+and environment through the host's existing `spawn_agent` executor. Calls run
+sequentially because workers can share a browser. Disabling `spawn_agent` also
+disables this specialization; `ux_verifier` can be disabled independently.
+The shared agent runtime also requires approval for the verifier whenever the
+effective spawn-executor policy requires it, even if the verifier's own policy
+permits auto-approval.
+A stricter verifier policy still applies, with one approval request before
+delegation rather than a second approval inside the worker tool.
+
+The worker returns observations and absolute screenshot paths to the main agent.
+It does not edit the app, upload evidence, or produce the final carousel. The
+main agent can combine multiple workers, fix failures and request fresh checks,
+then use the existing `publish_artifacts` and `report_ux_verification` tools when
+registered. Publication errors remain blockers; workers never supply invented
+artifact IDs or image bytes. Without browser access or prerequisites, workers
+report blocked checks. Computer/browser tooling must be available in the child
+environment; this feature does not install it or add tools to the child.
+
+SDK hosts can opt into the same worker separately with
+`createUxVerifierTool(spawnTool)` from `@cline/core`, or use the exported
+`UX_VERIFIER_INSTRUCTIONS` with their own existing delegation setup. Cancellation,
+child tools, hooks, telemetry, and lifecycle callbacks remain owned by that
+delegation implementation. Oversized findings use Core's existing result cache;
+the main agent can recover omitted text with `read_files` rather than repeating
+UI actions. The worker is independent of the report schema and renderer.
 
 For cloud sessions, inject `createArtifactPublisher({ request, cloudSessionId })`
 from `@cline/core/cloud`. The host provides authenticated transport and the owning
@@ -155,6 +192,8 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+Use `readArchivedMessages` to fetch a snapshot without attaching or changing
+canonical session state. It returns `null` when no snapshot exists.
 The optional sixth argument to `send` accepts a `beforeDispatch` callback.
 The callback runs before submission and can throw to prevent it. A successful
 return without `recoveredAfterDisconnect` confirms acknowledgement.
@@ -257,6 +296,13 @@ unreachable without interrupting existing cloud work.
 
 `loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
 models. Handoff requires the selected model; it never substitutes another.
+
+`publishCloudHandoff({ controller, input, assertCurrent })` from `@cline/core/cloud`
+publishes a confirmed Git snapshot and creates the cloud task with its initial
+message, defaulting to a resumable sandbox. Hosts prevent duplicate confirmation
+and supply `assertCurrent`, which throws if the account changes or the host is
+disposed. Git work already underway can finish; the guard prevents subsequent
+creation. The function provides no automatic retry or rollback.
 
 Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
 an existing target. Persist target IDs and dispatch markers through the callbacks;
@@ -364,6 +410,86 @@ executable, pass `ELECTRON_RUN_AS_NODE: "1"` in `env`. Required Hub daemon marke
 take precedence over these overrides.
 
 The hub `/health` endpoint includes `hubId`, the instance identity also returned by authenticated `/status` and discovery. Restart callers can compare it before and after shutdown to distinguish a replacement at the same address from the original hub.
+
+### Hub provider and model management
+
+Use `createHubProvidersApi(client)` from `@cline/core` or `@cline/core/hub`
+with an existing registered `NodeHubClient`. Provider settings belong to the
+machine running that Hub; Desktop uses its local connection even while viewing
+an SSH environment.
+
+| Method | Hub command |
+| --- | --- |
+| `list({ isClinePassEnabled })` | `providers.list` |
+| `listModels({ providerId, includeCloudModels })` | `providers.models.list` |
+| `recommendedModels()` | `providers.models.recommended` |
+| `saveSettings({ providerId, ...settings })` | `providers.settings.save` |
+| `add({ providerId, name, baseUrl, ...options })` | `providers.add` |
+| `updateModels({ providerId, models })` | `providers.models.update` |
+
+The network-free catalog includes saved voice selection and authentication
+metadata. Model discovery uses current provider credentials and omits bundled
+known-model overrides; Cline cloud models are included only when explicitly
+requested. Recommended models retain the bundled offline fallback.
+
+Settings writes merge nested configuration. Null or empty-string nested values
+remove individual fields. Disabling Cline Pass also removes its shared Cline
+credentials, and disabling a provider clears applicable legacy secrets so they
+cannot restore the removed credentials. `saveSettings` returns
+`clineCredentialsChanged` alongside the saved provider id, enabled state, and
+settings path, allowing hosts to update account and cloud views. Provider API
+calls do not automatically resend dispatched requests after a connection loss.
+OAuth login and audio transcription remain separate APIs.
+
+### Hub MCP management
+
+`createHubMcpApi(client)` uses an existing registered, token-authenticated local
+Hub connection. Desktop Settings and Marketplace use it for machine-wide MCP
+settings even while a remote environment is selected.
+
+```ts
+const mcp = createHubMcpApi(client);
+await mcp.upsert({ name: "local", transportType: "stdio", command: "node", args: ["server.js"] });
+const config = await mcp.list();
+await mcp.setDisabled("local", true);
+const inspection = await mcp.inspect("local"); // explicit connect + tool discovery, then disconnect
+await mcp.delete("local");
+```
+
+`ensureSettings()` creates the settings file without rewriting an existing file;
+`install(args)` accepts marketplace MCP install arguments using the existing
+parser and registers the transport without opening a connection. Callers cannot choose a settings path. Invalid requests fail before
+writing. Deletion and rename-source lookup use the exact stored key, including
+whitespace and reserved names, so malformed entries remain removable or repairable.
+New names still follow creation-name validation. Catalog responses include invalid entries with configuration errors and
+OAuth readiness, without OAuth token state. Static environment/header values are
+available only to authenticated clients for editing.
+
+Remote enable and changed-endpoint Settings saves passively probe existing credentials;
+failed probes leave the server disabled and never open a browser.
+URL connection deadlines cover transport startup and initialization, closing the
+in-flight transport on timeout so a stalled SSE endpoint cannot hold the shared
+queue or shutdown open. Same-endpoint edits retain OAuth credentials and metadata; endpoint changes discard those
+credentials. MCP requests are not replayed after dispatch. Mutations and probes
+are serialized, accepted work keeps the Hub busy, draining rejects new work, and
+shutdown waits for accepted operations. Lock acquisition yields the event loop,
+and Desktop mutation calls wait for completion of queued work. Inspection opens a temporary client and
+always disconnects it.
+
+`mcp.authorize(name, { openUrl, signal })` starts an interactive OAuth attempt in
+the Hub. Only the initiating client can poll its browser URLs or cancel it. The
+API returns the refreshed catalog after completion or cancellation; it never
+returns OAuth credentials. Desktop owns browser opening and cancels its viewer
+interaction when the webview closes. CLI entry points are unchanged.
+
+`mcp.oauth.start/next/cancel` are authenticated, owner-scoped commands. The Hub
+keeps interaction URLs out of broadcasts and the durable event log. User cancel
+restores a previously enabled server; disable/delete/edit/reinstall, superseding
+login, disconnect, expiry and shutdown prevent that restoration. New attempts
+wait for superseded callback listeners to retire. Settings mutations cancel
+attempts before entering the management queue, and token persistence checks the
+abort signal and original endpoint under the settings lock. Pending OAuth work
+participates in drain/replacement checks; shutdown aborts it and waits for cleanup.
 
 ### Provider authentication metadata for host UIs
 

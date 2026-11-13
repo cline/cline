@@ -79,7 +79,11 @@ export function ModelPickerWithManualEntry({
 
 			{isStale && <div role="status">Model list may be stale for the current provider configuration.</div>}
 			{isLoading && <div role="status">Loading models…</div>}
-			{error && <div role="alert">{error}</div>}
+			{error && (
+				<div role="alert" style={{ color: "var(--vscode-errorForeground)", fontSize: "12px" }}>
+					{error}
+				</div>
+			)}
 
 			{hasModels && (
 				<DropdownContainer className="dropdown-container">

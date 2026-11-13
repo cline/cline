@@ -17,12 +17,11 @@ import {
 	relative,
 	resolve,
 } from "node:path";
+import type { HubMcpApi } from "@cline/core";
 import {
 	installPlugin as installCorePlugin,
-	installMcpServer,
 	type MarketplaceActionResult,
 	type MarketplaceEntryInput,
-	parseMcpInstallArgs,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	SKILLS_CLI_PACKAGE,
@@ -33,8 +32,13 @@ import {
 	discoverPluginModulePaths,
 	resolveClineDir,
 } from "@cline/shared/storage";
-import { deleteMcpServer, readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
+
+type McpActions = Pick<HubMcpApi, "install" | "delete">;
+function requireMcpApi(api?: McpActions): McpActions {
+	if (!api) throw new Error("MCP management requires a Hub connection");
+	return api;
+}
 
 type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
 type LocalPrimitiveType = MarketplacePrimitiveType | "workflow";
@@ -500,12 +504,12 @@ function resolveUserInstructionRemovalTarget(input: {
 
 export async function uninstallLocalPrimitive(
 	args?: Record<string, unknown>,
-	options: { workspaceRoot?: string } = {},
+	options: { workspaceRoot?: string; mcp?: McpActions } = {},
 ): Promise<MarketplaceInstallResult> {
 	const input = readLocalUninstallInput(args);
 	if (input.type === "mcp") {
 		const name = input.name ?? input.id;
-		const response = deleteMcpServer(name);
+		const response = await requireMcpApi(options.mcp).delete(name);
 		return {
 			id: input.id,
 			type: input.type,
@@ -727,11 +731,14 @@ function hasMatchingInventoryItem(
 	});
 }
 
-function isMcpEntryInstalled(entry: MarketplaceInstallInput): boolean {
+function isMcpEntryInstalled(
+	entry: MarketplaceInstallInput,
+	inventory?: JsonRecord,
+): boolean {
 	if (entry.type !== "mcp") return false;
 	const input = buildMarketplaceMcpInput(entry.install.args ?? []);
-	const response = readMcpServersResponse();
-	const servers = Array.isArray(response.servers) ? response.servers : [];
+	const response = inventory?.mcp as JsonRecord | undefined;
+	const servers = Array.isArray(response?.servers) ? response.servers : [];
 	return servers.some((server) => {
 		if (!server || typeof server !== "object") return false;
 		const record = server as JsonRecord;
@@ -744,7 +751,7 @@ function isMarketplaceEntryInstalled(
 	inventory?: JsonRecord,
 ): boolean {
 	try {
-		if (entry.type === "mcp") return isMcpEntryInstalled(entry);
+		if (entry.type === "mcp") return isMcpEntryInstalled(entry, inventory);
 		if (entry.type === "plugin") {
 			return (
 				isOfficialPluginInstalled(entry) ||
@@ -871,15 +878,14 @@ async function installPlugin(
 
 export async function installMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
+	options: { spawnCommand?: SpawnCommand; mcp?: McpActions } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
 	if (entry.type === "mcp") {
-		// Register the server in-process; this only writes MCP settings, so
-		// there is no reason to depend on a `cline` binary being on PATH.
-		const result = installMcpServer(
-			parseMcpInstallArgs(entry.install.args ?? []),
+		// The Hub owns registration; Desktop does not write MCP settings.
+		const result = await requireMcpApi(options.mcp).install(
+			entry.install.args ?? [],
 		);
 		return {
 			id: entry.id,
@@ -902,7 +908,7 @@ export async function installMarketplaceEntry(
 
 export async function uninstallMarketplaceEntry(
 	args?: Record<string, unknown>,
-	options: { spawnCommand?: SpawnCommand } = {},
+	options: { spawnCommand?: SpawnCommand; mcp?: McpActions } = {},
 ): Promise<MarketplaceInstallResult> {
 	const entry = readInstallInput(args);
 	const spawnCommand = options.spawnCommand ?? defaultSpawnCommand;
@@ -910,8 +916,8 @@ export async function uninstallMarketplaceEntry(
 	const result = await uninstallCoreMarketplaceEntry(
 		entry satisfies MarketplaceEntryInput,
 		{
-			deleteMcpServer: (name) => {
-				mcpDetails = deleteMcpServer(name);
+			deleteMcpServer: async (name) => {
+				mcpDetails = { ...(await requireMcpApi(options.mcp).delete(name)) };
 			},
 			spawnCommand: (command, commandArgs) =>
 				spawnCommand(command, commandArgs),
@@ -927,6 +933,7 @@ export async function installMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
+		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -943,7 +950,7 @@ export async function installMarketplaceEntryFromCatalog(
 	}
 	return installMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand },
+		{ spawnCommand: options.spawnCommand, mcp: options.mcp },
 	);
 }
 
@@ -951,6 +958,7 @@ export async function uninstallMarketplaceEntryFromCatalog(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
+		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -967,7 +975,7 @@ export async function uninstallMarketplaceEntryFromCatalog(
 	}
 	return uninstallMarketplaceEntry(
 		{ entry },
-		{ spawnCommand: options.spawnCommand },
+		{ spawnCommand: options.spawnCommand, mcp: options.mcp },
 	);
 }
 
@@ -986,6 +994,7 @@ export async function installMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
+		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {
@@ -996,6 +1005,7 @@ export async function uninstallMarketplaceEntryForDesktopCommand(
 	args?: Record<string, unknown>,
 	options: {
 		spawnCommand?: SpawnCommand;
+		mcp?: McpActions;
 		loadCatalog?: CatalogLoader;
 	} = {},
 ): Promise<MarketplaceInstallResult> {

@@ -163,7 +163,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
       - Tests are located in `src/test/e2e/`
       - Use the `e2e` fixture for single-root workspace tests
       - Use `e2eMultiRoot` fixture for multi-root workspace tests
-      - Follow existing patterns in `auth.test.ts`, `chat.test.ts`, `diff.test.ts`, and `editor.test.ts`
+      - Follow existing patterns in `auth.test.ts`, `chat.test.ts`, `file-edit.test.ts`, and `editor.test.ts`
       - See `src/test/e2e/README.md` for detailed documentation
     
     - **Debug mode features:**

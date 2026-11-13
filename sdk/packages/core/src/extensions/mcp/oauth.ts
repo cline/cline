@@ -171,6 +171,8 @@ export function createOriginBoundMcpHeadersFetch(input: {
 }
 
 export interface CreateMcpOAuthProviderContextOptions {
+	signal?: AbortSignal;
+	expectedTransport?: McpServerRegistration["transport"];
 	settingsPath?: string;
 	serverName: string;
 	redirectUrl: string;
@@ -304,10 +306,17 @@ export function createMcpOAuthProviderContext(
 				{
 					filePath: options.settingsPath,
 					expectedOAuthClient,
+					signal: options.signal,
+					expectedTransport: options.expectedTransport,
 				},
 			);
 		} catch (error) {
-			if (options.settingsPath || error instanceof McpOAuthClientChangedError) {
+			if (
+				options.signal?.aborted ||
+				options.expectedTransport ||
+				options.settingsPath ||
+				error instanceof McpOAuthClientChangedError
+			) {
 				throw error;
 			}
 			// Programmatically supplied registrations may not have a settings file.
@@ -675,6 +684,7 @@ export async function authorizeMcpServerOAuth(
 	};
 
 	const authFetch: FetchLike = (input, init) => {
+		options.signal?.throwIfAborted();
 		const signals = [AbortSignal.timeout(requestTimeoutMs)];
 		if (options.signal) signals.push(options.signal);
 		if (init?.signal) signals.push(init.signal);
@@ -730,6 +740,8 @@ export async function authorizeMcpServerOAuth(
 	const oauthContext = createMcpOAuthProviderContext({
 		settingsPath,
 		serverName,
+		signal: options.signal,
+		expectedTransport: registration.transport,
 		redirectUrl: callbackServer.callbackUrl,
 		clientInformation: createMcpOAuthClientInformation(
 			registration.oauthClient,
@@ -738,12 +750,13 @@ export async function authorizeMcpServerOAuth(
 			await options.openUrl?.(url);
 		},
 	});
-	await oauthContext.resetInteractiveState();
 
 	const client = buildClient(options);
 	let retryClient: Client | undefined;
 	let probeClient: Client | undefined;
 	try {
+		options.signal?.throwIfAborted();
+		await oauthContext.resetInteractiveState();
 		let challenge: ReturnType<typeof extractWWWAuthenticateParams> = {};
 		const tokens = await oauthContext.provider.tokens();
 		const probeFetch: FetchLike = async (input, init) => {

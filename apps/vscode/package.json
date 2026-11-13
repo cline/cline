@@ -368,7 +368,7 @@
 		"analyze:unused:prod": "bunx --yes knip --config knip.json --production --include files,exports,types,enumMembers,dependencies",
 		"analyze:unused:fix-exports": "node scripts/remove-unused-exports.mjs --apply",
 		"analyze:unused:fix-exports:dry": "node scripts/remove-unused-exports.mjs",
-		"format": "biome format --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error --semicolons=as-needed",
+		"format": "biome format --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error --semicolons=as-needed .",
 		"format:fix": "biome check --config-path ./biome.jsonc --changed --since main --no-errors-on-unmatched --files-ignore-unknown=true --write --semicolons=as-needed",
 		"fix:all": "biome check --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe --semicolons=as-needed",
 		"ci:check-all": "bun run --parallel check-types lint format",

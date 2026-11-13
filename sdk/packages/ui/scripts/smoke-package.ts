@@ -14,6 +14,7 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	Button, IconButton, Badge,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -82,6 +83,14 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const control of [Button, IconButton, Badge]) {
+ if (!control) throw new Error("packed shared control export is missing");
+}
+const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
+if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
+ throw new Error("packed button stylesheet is missing");
+}
+
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
 	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
 		throw new Error("packed review UI stylesheet is missing: " + name);
@@ -228,7 +237,16 @@ async function verifyDiffDeclarations(root: string): Promise<void> {
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import type { ComponentProps } from "react";
+import { createElement, createRef, type ComponentProps } from "react";
+import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
+const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
+const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
+createElement(Badge, { ...spanProps, ref: createRef<HTMLSpanElement>() });
+createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
+createElement(Button, { variant: "fill", asChild: true });
+createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
+createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -320,7 +338,7 @@ async function verifyTailwindContract(
 		"leading-none",
 		"max-h-44",
 		"not-last:border-b",
-		"focus-visible:outline-3",
+		"focus-visible:outline-2",
 		"min-h-8",
 		"resize-none",
 		"backdrop-blur-sm",
@@ -356,7 +374,7 @@ async function verifyTailwindContract(
 		"border-style:solid",
 		"font-family:inherit",
 		"margin:.5rem 0 0",
-		"padding-block:0",
+		"padding:0",
 	]) {
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
@@ -373,6 +391,11 @@ async function verifyTailwindContract(
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,
+			"--cline-ui-control-height:",
+			"packed control sizing tokens",
+		);
+		expectFragment(
+			output,
 			".cline-ui-switch__input:checked",
 			"packed switch states",
 		);
@@ -386,8 +409,8 @@ try {
 		? resolve(process.argv[2])
 		: await pack(packageRoot, join(temporaryRoot, "pack"));
 	// The packed UI pins @cline/shared to the workspace version, which is not on
-	// npm yet during a release, so both consumers install the local pack. npm
-	// dedupes onto it directly; Bun only resolves it through an override.
+	// the registry yet during a release, so both consumers install the local pack.
+	// npm dedupes onto it directly; Bun needs an override to resolve it.
 	const sharedArchive = await pack(
 		join(packageRoot, "../shared"),
 		join(temporaryRoot, "shared-pack"),
@@ -421,6 +444,7 @@ try {
 		"tailwindcss",
 	]);
 
+	// The workspace uses Bun, but published consumers must also install via npm.
 	const npmConsumer = join(temporaryRoot, "npm-consumer");
 	createConsumer(npmConsumer);
 	await run(
