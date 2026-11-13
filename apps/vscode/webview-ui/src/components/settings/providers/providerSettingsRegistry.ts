@@ -33,7 +33,6 @@ const CUSTOM_PROVIDER_SETTINGS_IDS = new Set([
 	"sapaicore",
 	"vertex",
 	"vscode-lm",
-	"xai",
 	"zai",
 ])
 
@@ -123,6 +122,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	wandb: {
 		fallbackName: "CoreWeave",
 		signupUrl: "https://wandb.ai/settings",
+	},
+	xai: {
+		fallbackName: "xAI",
+		signupUrl: "https://x.ai",
 	},
 	xiaomi: {
 		fallbackName: "Xiaomi",
