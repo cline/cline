@@ -72,15 +72,23 @@ export function parseStdioCommand(input: string): string[] {
 	const tokens: string[] = [];
 	let current = "";
 	let quote: '"' | "'" | undefined;
-	let escaping = false;
-	for (const char of input.trim()) {
-		if (escaping) {
+	const chars = [...input.trim()];
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i];
+		if (char === undefined) break;
+		// Preserve Windows path separators while still allowing escaped quotes
+		// and escaped whitespace outside quotes.
+		if (char === "\\" && quote !== "'") {
+			const next = chars[i + 1];
+			if (
+				next !== undefined &&
+				(next === '"' || next === "'" || (!quote && /\s/.test(next)))
+			) {
+				current += next;
+				i++;
+				continue;
+			}
 			current += char;
-			escaping = false;
-			continue;
-		}
-		if (char === "\\") {
-			escaping = true;
 			continue;
 		}
 		if (quote) {
@@ -103,9 +111,6 @@ export function parseStdioCommand(input: string): string[] {
 			continue;
 		}
 		current += char;
-	}
-	if (escaping) {
-		current += "\\";
 	}
 	if (current) {
 		tokens.push(current);
