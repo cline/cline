@@ -1,6 +1,6 @@
 import { fstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	CliMigrationNotice,
@@ -179,8 +179,12 @@ vi.mock("@cline/core", async () => {
 	const { readGlobalSettings } = await vi.importActual<
 		typeof import("../../../sdk/packages/core/src/services/global-settings")
 	>("../../../sdk/packages/core/src/services/global-settings");
+	const { listHookConfigFiles } = await vi.importActual<
+		typeof import("../../../sdk/packages/core/src/hooks/hook-file-config")
+	>("../../../sdk/packages/core/src/hooks/hook-file-config");
 	return {
 		readGlobalSettings,
+		listHookConfigFiles,
 		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createUserInstructionConfigService: vi.fn(() => ({
@@ -1040,6 +1044,64 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 		);
 		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		undefined,
+		"/tmp/flag-hooks",
+	])("captures hooks directory for the session (flag: %s)", async (flag) => {
+		const original = process.env.CLINE_HOOKS_DIR;
+		process.env.CLINE_HOOKS_DIR = "/tmp/env-hooks";
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			...(flag ? ["--hooks-dir", flag] : []),
+		];
+		try {
+			const { runCli } = await import("./main");
+			await runCli();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					hooksDir: resolve(flag ?? "/tmp/env-hooks"),
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(process.env.CLINE_HOOKS_DIR).toBe("/tmp/env-hooks");
+		} finally {
+			if (original === undefined) delete process.env.CLINE_HOOKS_DIR;
+			else process.env.CLINE_HOOKS_DIR = original;
+		}
+	});
+
+	it("includes custom hooks directory in config hooks output", async () => {
+		const tempHooks = mkdtempSync(join(tmpdir(), "custom-hooks-"));
+		const hookPath = join(tempHooks, "PreToolUse");
+		writeFileSync(hookPath, 'echo "test"\n', { mode: 0o755 });
+		const originalWrite = process.stdout.write;
+		let output = "";
+		process.stdout.write = vi.fn((chunk: string | Uint8Array) => {
+			output += chunk.toString();
+			return true;
+		}) as unknown as typeof process.stdout.write;
+		process.argv = ["bun", "src/index.ts", "config", "hooks", "--json", "--hooks-dir", tempHooks];
+		try {
+			const { runCli } = await import("./main");
+			await runCli();
+			const parsed = JSON.parse(output);
+			expect(parsed).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						path: hookPath,
+						fileName: "PreToolUse",
+					}),
+				]),
+			);
+		} finally {
+			process.stdout.write = originalWrite;
+			rmSync(tempHooks, { recursive: true, force: true });
+		}
 	});
 
 	it("applies --auto-approve as a runtime policy without changing the config default", async () => {
