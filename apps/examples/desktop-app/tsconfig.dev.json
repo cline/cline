@@ -22,6 +22,12 @@
 			]
 		}
 	},
-	"include": ["sidecar/**/*.ts", "scripts/**/*.ts", "global.d.ts", "bun.mts"],
+	"include": [
+		"sidecar/**/*.ts",
+		"scripts/**/*.ts",
+		"evals/**/*.ts",
+		"global.d.ts",
+		"bun.mts"
+	],
 	"exclude": ["node_modules", "webview"]
 }

@@ -12,6 +12,7 @@ export * from "./factory-repo-rules";
 export * from "./factory-review-draft";
 export * from "./factory-review-input";
 export * from "./factory-settings";
+export { factorySplitInstruction } from "./factory-split";
 export * from "./factory-stages";
 export * from "./factory-stages-tool";
 export * from "./factory-tool";

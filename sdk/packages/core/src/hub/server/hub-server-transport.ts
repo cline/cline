@@ -215,6 +215,25 @@ function assertFactoryProvider(task: AgendaTaskRecord): void {
  */
 const AGENDA_TODO_TOOL_ENABLED = false;
 
+/** The user message that starts an agenda or Factory role session's run. */
+export function formatAgendaTaskRunPrompt(task: AgendaTaskRecord): string {
+	const executionRoot = task.factory
+		? task.cwd
+		: (task.workspaceRoot ?? task.cwd);
+	const resources = task.resourcePaths.length
+		? `\n\nRelevant resources (paths are relative to workspace root ${executionRoot}):\n${task.resourcePaths
+				.map(
+					(resourcePath) =>
+						`- ${resourcePath} (absolute: ${resolve(executionRoot ?? "", resourcePath)})`,
+				)
+				.join("\n")}`
+		: "";
+	const assignment = task.assignee
+		? `\nAssigned agent: ${task.assignee}. If a configured agent or subagent with this name is available, delegate the work to it and oversee completion; otherwise execute it directly and mention the fallback in the summary.`
+		: "";
+	return `${task.factory && task.mode === "plan" ? "Design this feature. Implementation has not been approved." : "Execute this approved agenda task."}\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
+}
+
 const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
 	"workflows",
@@ -1334,21 +1353,7 @@ export class HubServerTransport implements NativeHubTransport {
 		task: AgendaTaskRecord,
 		run: Pick<AgendaTaskRunRecord, "requestedByClientId">,
 	): Promise<AgendaTaskRuntimeResult> {
-		const executionRoot = task.factory
-			? task.cwd
-			: (task.workspaceRoot ?? task.cwd);
-		const resources = task.resourcePaths.length
-			? `\n\nRelevant resources (paths are relative to workspace root ${executionRoot}):\n${task.resourcePaths
-					.map(
-						(resourcePath) =>
-							`- ${resourcePath} (absolute: ${resolve(executionRoot ?? "", resourcePath)})`,
-					)
-					.join("\n")}`
-			: "";
-		const assignment = task.assignee
-			? `\nAssigned agent: ${task.assignee}. If a configured agent or subagent with this name is available, delegate the work to it and oversee completion; otherwise execute it directly and mention the fallback in the summary.`
-			: "";
-		const prompt = `${task.factory && task.mode === "plan" ? "Design this feature. Implementation has not been approved." : "Execute this approved agenda task."}\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
+		const prompt = formatAgendaTaskRunPrompt(task);
 		const reply = await handleSessionInput(this.ctx, {
 			version: "v1",
 			command: "run.start",
