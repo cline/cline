@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import {
 	augmentNodeCommandForDebug,
+	getShellKind,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 
@@ -190,11 +191,27 @@ export async function runSubprocessEvent(
 	}
 
 	const detached = !!options.detached;
+	// On Windows, spawning powershell.exe or pwsh.exe with detached: true causes
+	// PowerShell to exit 0 immediately (~200ms) without executing the script
+	// (issue #14767). Running attached (detached: false) allows standard handles
+	// to remain valid while child.unref() and stdio: ['pipe', 'ignore', 'ignore']
+	// maintain the non-blocking fire-and-forget contract.
+	//
+	// Tradeoff: Spawning attached means the child joins a Windows job object that
+	// terminates when the parent process exits, so a .ps1 hook still running when
+	// Cline exits is stopped with it (unlike hooks spawned with detached: true, which
+	// outlive the parent). This matters primarily for TaskComplete and SessionShutdown
+	// hooks in non-hub runs like `cline -y`. Non-PowerShell commands and non-Windows
+	// platforms preserve detached: true.
+	const isWinPowerShell =
+		process.platform === "win32" && getShellKind(command[0]) === "powershell";
+	const spawnDetached = detached && !isWinPowerShell;
+
 	const child = spawn(command[0], command.slice(1), {
 		cwd: options.cwd,
 		env: withResolvedClineBuildEnv(options.env),
 		stdio: detached ? ["pipe", "ignore", "ignore"] : ["pipe", "pipe", "pipe"],
-		detached,
+		detached: spawnDetached,
 		// Prevent a console window from flashing on Windows (especially when
 		// detached, which would otherwise allocate a new console).
 		windowsHide: true,
