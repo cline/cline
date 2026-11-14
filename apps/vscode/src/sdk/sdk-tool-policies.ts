@@ -45,7 +45,7 @@ export function buildToolPolicies(
  * approval callback, so changes from the AutoApproveBar are respected even if
  * an SDK session was created before the toggle changed.
  */
-export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings): boolean {
+export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings, mcpHub?: McpHub): boolean {
 	if (isReadTool(toolName)) {
 		return !!settings.actions.readFiles
 	}
@@ -60,7 +60,14 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 	}
 
 	if (isMcpToolName(toolName)) {
-		// One global toggle governs all MCP tools; there is no per-tool opt-in.
+		// A server with a per-server `autoApprove` list in cline_mcp_settings.json
+		// is governed by that list in both directions: listed tools run silently,
+		// unlisted tools prompt. Servers without a list fall back to the single
+		// global Use MCP servers toggle.
+		const listDecision = resolveMcpServerListDecision(toolName, mcpHub)
+		if (listDecision !== undefined) {
+			return listDecision
+		}
 		return !!settings.actions.useMcp
 	}
 
@@ -83,6 +90,41 @@ function isCommandTool(toolName: string): boolean {
 
 function isBrowserTool(toolName: string): boolean {
 	return toolName === "fetch_web_content" || toolName === "web_fetch" || toolName === "web_search"
+}
+
+/**
+ * Resolve an MCP tool against its server's per-server `autoApprove` list.
+ * McpHub stamps each discovered tool with `autoApprove` from the server's
+ * list in cline_mcp_settings.json, so a server has a list exactly when at
+ * least one of its tools is flagged. Returns the list's verdict when the
+ * server has one, and `undefined` when it does not (or the server is
+ * unknown), leaving the global toggle in charge. An undiscovered tool on a
+ * listed server resolves to `false`: prompting is the fail-closed default.
+ */
+function resolveMcpServerListDecision(toolName: string, mcpHub?: McpHub): boolean | undefined {
+	if (!mcpHub) {
+		return undefined
+	}
+
+	// Longest matching server name wins, so a server name that is a prefix
+	// of another cannot claim the other server's tools.
+	let match: { serverNameLength: number; tools: { name: string; autoApprove?: boolean }[] } | undefined
+	for (const server of mcpHub.getServers()) {
+		if (toolName.startsWith(`${server.name}__`) && (!match || server.name.length > match.serverNameLength)) {
+			match = { serverNameLength: server.name.length, tools: server.tools ?? [] }
+		}
+	}
+	if (!match) {
+		return undefined
+	}
+
+	if (!match.tools.some((tool) => tool.autoApprove)) {
+		return undefined
+	}
+
+	const bareToolName = toolName.slice(match.serverNameLength + 2)
+	const tool = match.tools.find((candidate) => candidate.name === bareToolName)
+	return tool?.autoApprove === true
 }
 
 /** MCP tools are registered by `createMcpTools` under `serverName__toolName`. */
