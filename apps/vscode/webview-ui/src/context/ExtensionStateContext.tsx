@@ -5,7 +5,7 @@ import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
-import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
+import type { TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
@@ -26,6 +26,11 @@ import {
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
+import {
+	createSettingsNavigationRequest,
+	type SettingsNavigationRequest,
+	type SettingsNavigationTarget,
+} from "../components/settings/settingsTargets"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export type ProviderId = string
@@ -46,12 +51,9 @@ interface ProviderModelsState {
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
-	liteLlmModels: Record<string, ModelInfo>
-	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
 	basetenModels: Record<string, ModelInfo>
@@ -70,7 +72,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showMcp: boolean
 	mcpTab?: McpViewTab
 	showSettings: boolean
-	settingsTargetSection?: string
+	settingsNavigationRequest?: SettingsNavigationRequest
 	settingsInitialModelTab?: "recommended" | "free"
 	showHistory: boolean
 	showAccount: boolean
@@ -100,7 +102,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
-	setOnboardingModels: (value: OnboardingModelGroup | undefined) => void
 	startProviderModelsRequest: (providerId: ProviderId, requestId: string) => void
 	applyProviderModelsResponse: (response: ProviderModelsResponse) => void
 
@@ -108,7 +109,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	refreshOpenRouterModels: () => void
 	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
-	refreshLiteLlmModels: () => Promise<void>
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -119,8 +119,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Navigation functions
 	navigateToMarketplace: () => void
 	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: (targetSection?: string) => void
-	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
+	navigateToSettings: (targetSection?: SettingsNavigationTarget) => void
+	navigateToSettingsModelPicker: (opts: {
+		targetSection?: SettingsNavigationTarget
+		initialModelTab?: "recommended" | "free"
+	}) => void
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
@@ -136,7 +139,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	closeMcpView: () => void
 
 	// Event callbacks
-	onRelinquishControl: (callback: () => void) => () => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -149,7 +151,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
 	const [showSettings, setShowSettings] = useState(false)
-	const [settingsTargetSection, setSettingsTargetSection] = useState<string | undefined>(undefined)
+	const [settingsNavigationRequest, setSettingsNavigationRequest] = useState<SettingsNavigationRequest | undefined>(undefined)
 	const [settingsInitialModelTab, setSettingsInitialModelTab] = useState<"recommended" | "free" | undefined>(undefined)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
@@ -168,7 +170,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	// Hide functions
 	const hideSettings = useCallback(() => {
 		setShowSettings(false)
-		setSettingsTargetSection(undefined)
+		setSettingsNavigationRequest(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
 	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
@@ -202,13 +204,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [closeMcpView])
 
 	const navigateToSettings = useCallback(
-		(targetSection?: string) => {
+		(targetSection?: SettingsNavigationTarget) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(targetSection)
+			setSettingsNavigationRequest(targetSection ? createSettingsNavigationRequest(targetSection) : undefined)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
 		},
@@ -216,13 +218,13 @@ export const ExtensionStateContextProvider: React.FC<{
 	)
 
 	const navigateToSettingsModelPicker = useCallback(
-		(opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => {
+		(opts: { targetSection?: SettingsNavigationTarget; initialModelTab?: "recommended" | "free" }) => {
 			closeMarketplaceView()
 			setShowHistory(false)
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
-			setSettingsTargetSection(opts.targetSection)
+			setSettingsNavigationRequest(opts.targetSection ? createSettingsNavigationRequest(opts.targetSection) : undefined)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
 		},
@@ -295,13 +297,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
-		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		useAutoCondense: true,
 		compactionStrategy: "basic",
 		webSearchEnabled: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
+		cloudSessionsAvailable: false,
+		cloudSessionsEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
@@ -328,18 +331,15 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [didHydrateState, setDidHydrateState] = useState(false)
 
 	const [showWelcome, setShowWelcome] = useState(false)
-	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
 
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
-	const [liteLlmModels, setLiteLlmModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
-	const [openAiModels, _setOpenAiModels] = useState<string[]>([])
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
@@ -420,21 +420,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
-	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
-	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
-	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
-
-	// Add ref for callbacks
-	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
-
-	// Create hook function
-	const onRelinquishControl = useCallback((callback: () => void) => {
-		relinquishControlCallbacks.current.add(callback)
-		return () => {
-			relinquishControlCallbacks.current.delete(callback)
-		}
-	}, [])
 	const mcpServersSubscriptionRef = useRef<(() => void) | null>(null)
 	// Convergent-replica state for clineMessages. The partial-message stream and the full state
 	// snapshots both feed this reducer so the transcript converges correctly regardless of
@@ -483,10 +469,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Update welcome screen state based on API configuration if welcome view not in progress
 							if (!newState.welcomeViewCompleted && !showWelcome) {
 								setShowWelcome(true)
-								setOnboardingModels(newState.onboardingModels)
 							} else if (newState.welcomeViewCompleted) {
 								setShowWelcome(false)
-								setOnboardingModels(undefined)
 							}
 
 							setDidHydrateState(true)
@@ -655,37 +639,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Subscribe to OpenRouter models updates
-		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
-			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setOpenRouterModels({
-					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-					...models,
-				})
-			},
-			onError: (error: any) => {
-				console.error("Error in OpenRouter models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("OpenRouter models subscription completed")
-			},
-		})
-
-		// Subscribe to LiteLLM models updates
-		liteLlmModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToLiteLlmModels(EmptyRequest.create({}), {
-			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setLiteLlmModels(models)
-			},
-			onError: (error: any) => {
-				console.error("Error in LiteLLM models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("LiteLLM models subscription completed")
-			},
-		})
-
 		// Initialize webview using gRPC
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
 			.then(() => {
@@ -718,20 +671,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error) => {
 				console.error("Failed to fetch available terminal profiles:", error)
 			})
-
-		// Subscribe to relinquish control events
-		relinquishControlUnsubscribeRef.current = UiServiceClient.subscribeToRelinquishControl(EmptyRequest.create({}), {
-			onResponse: () => {
-				// Call all registered callbacks
-				relinquishControlCallbacks.current.forEach((callback) => {
-					callback()
-				})
-			},
-			onError: (error: any) => {
-				console.error("Error in relinquishControl subscription:", error)
-			},
-			onComplete: () => {},
-		})
 
 		// Clean up subscriptions when component unmounts
 		return () => {
@@ -771,21 +710,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				partialMessageUnsubscribeRef.current()
 				partialMessageUnsubscribeRef.current = null
 			}
-			if (openRouterModelsUnsubscribeRef.current) {
-				openRouterModelsUnsubscribeRef.current()
-				openRouterModelsUnsubscribeRef.current = null
-			}
-			if (liteLlmModelsUnsubscribeRef.current) {
-				liteLlmModelsUnsubscribeRef.current()
-				liteLlmModelsUnsubscribeRef.current = null
-			}
 			if (workspaceUpdatesUnsubscribeRef.current) {
 				workspaceUpdatesUnsubscribeRef.current()
 				workspaceUpdatesUnsubscribeRef.current = null
-			}
-			if (relinquishControlUnsubscribeRef.current) {
-				relinquishControlUnsubscribeRef.current()
-				relinquishControlUnsubscribeRef.current = null
 			}
 			if (mcpServersSubscriptionRef.current) {
 				mcpServersSubscriptionRef.current()
@@ -815,15 +742,6 @@ export const ExtensionStateContextProvider: React.FC<{
 				})
 			})
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
-	}, [])
-
-	const refreshLiteLlmModels = useCallback(() => {
-		return ModelsServiceClient.refreshLiteLlmModelsRpc(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setLiteLlmModels(models)
-			})
-			.catch((error: Error) => console.error("Failed to refresh LiteLLM models:", error))
 	}, [])
 
 	const refreshBasetenModels = useCallback(() => {
@@ -858,28 +776,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-		if (state.apiConfiguration?.liteLlmApiKey) {
-			refreshLiteLlmModels()
-		}
-	}, [
-		refreshOpenRouterModels,
-		refreshVercelAiGatewayModels,
-		state?.apiConfiguration?.basetenApiKey,
-		refreshBasetenModels,
-		state?.apiConfiguration?.liteLlmApiKey,
-		refreshLiteLlmModels,
-	])
+	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
-		onboardingModels,
 		openRouterModels,
 		vercelAiGatewayModels,
 		hicapModels,
-		liteLlmModels,
-		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
 		basetenModels: basetenModelsState,
@@ -893,7 +798,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showMcp,
 		mcpTab,
 		showSettings,
-		settingsTargetSection,
+		settingsNavigationRequest,
 		settingsInitialModelTab,
 		showHistory,
 		showAccount,
@@ -929,7 +834,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMarketplaceView,
 		setShowAnnouncement,
 		setShowWelcome,
-		setOnboardingModels,
 		startProviderModelsRequest,
 		applyProviderModelsResponse,
 		setShouldShowAnnouncement: (value) =>
@@ -1005,8 +909,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		refreshVercelAiGatewayModels,
 		refreshHicapModels,
-		refreshLiteLlmModels,
-		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,

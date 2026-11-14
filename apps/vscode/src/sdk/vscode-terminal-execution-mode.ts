@@ -21,7 +21,7 @@ export type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
  * by esbuild to the literal string "true"/"false" (see esbuild.mjs); compare with
  * strict string equality since the string "false" is truthy in JS.
  */
-function isStandaloneHost(): boolean {
+export function isStandaloneHost(): boolean {
 	return process.env.IS_STANDALONE === "true"
 }
 

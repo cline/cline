@@ -57,6 +57,7 @@ describe("providerSettingsRegistry", () => {
 
 	it("allows migrated simple SDK providers to use the generic fallback", () => {
 		const migratedProviders = [
+			["aiand", "ai&", "https://console.aiand.com/"],
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
 			["chutes", "Chutes", "https://chutes.ai/app/api"],
@@ -78,18 +79,21 @@ describe("providerSettingsRegistry", () => {
 			["vercel-ai-gateway", "Vercel AI Gateway", "https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"],
 			["v0", "Vercel v0", undefined],
 			["wandb", "CoreWeave", "https://wandb.ai/settings"],
+			["xai", "xAI", "https://x.ai"],
 			["xiaomi", "Xiaomi", undefined],
 			["zai-coding-plan", "Z.AI Coding Plan", undefined],
 		] as const
 
 		for (const [providerId, providerName, signupUrl] of migratedProviders) {
 			expect(hasCustomProviderSettings(providerId)).toBe(false)
-			expect(getGenericProviderSettings(providerId, listing({ id: providerId, name: providerName }))).toEqual({
+			const expected = {
 				allowsCustomIds: false,
 				providerId,
 				providerName,
 				...(signupUrl ? { signupUrl } : {}),
-			})
+			}
+			expect(getGenericProviderSettings(providerId, listing({ id: providerId, name: providerName }))).toEqual(expected)
+			expect(getFallbackGenericProviderSettings(providerId)).toEqual(expected)
 		}
 	})
 
@@ -205,6 +209,12 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "zai-coding-plan",
 			providerName: "Z.AI Coding Plan",
+		})
+		expect(getFallbackGenericProviderSettings("aiand")).toEqual({
+			allowsCustomIds: false,
+			providerId: "aiand",
+			providerName: "ai&",
+			signupUrl: "https://console.aiand.com/",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

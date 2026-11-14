@@ -247,8 +247,11 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 	// started, unless a visible content row is already streaming.
 	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
 
+	// A provisioning cloud sandbox shows its own progress card.
+	const cloudProvisioning = lastRawMessage?.type === "say" && lastRawMessage.say === "cloud_provisioning"
+
 	return useDebouncedLoaderVisibility(
-		optimisticShow || isWaitingForResponse || handoffToReasoningPending,
+		!cloudProvisioning && (optimisticShow || isWaitingForResponse || handoffToReasoningPending),
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 		// A reasoning tail finishing never ends the turn (the model always emits content after

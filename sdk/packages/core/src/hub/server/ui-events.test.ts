@@ -1,6 +1,8 @@
 import type { HubUINotifyPayload } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import corePackage from "../../../package.json";
 import { SessionSource } from "../../types/common";
+import { HubSessionClient } from "../client/session-client";
 import { HubUIClient } from "../client/ui-client";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { startHubServer } from "../daemon/start-shared-server";
@@ -128,19 +130,51 @@ describe("hub UI events", () => {
 		);
 
 		// Second client connects — should trigger registration event
-		const newClient = new HubUIClient({
+		const newClient = new HubSessionClient({
 			address: server.url,
 			authToken: server.authToken,
 			clientType: "test-newcomer",
 			displayName: "New Client",
+			metadata: { connector: "telegram" },
 		});
 		await newClient.connect();
 
-		const payload = await registered;
-		monitor.close();
-		newClient.close();
+		try {
+			const metadata = {
+				connector: "telegram",
+				version: corePackage.version,
+				pid: process.pid,
+			};
+			const payload = await registered;
+			expect(typeof payload.clientId).toBe("string");
+			expect(payload.metadata).toEqual(metadata);
+			expect(
+				(await monitor.listClients()).find(
+					(client) => client.clientId === payload.clientId,
+				)?.metadata,
+			).toEqual(metadata);
 
-		expect(typeof payload.clientId).toBe("string");
+			// The server unregisters a client from the old socket's close handler,
+			// so reconnecting before that lands would race the re-registration.
+			const disconnected = waitForEvent<Record<string, unknown>>((resolve) =>
+				monitor.subscribeUI({ onClientDisconnected: resolve }),
+			);
+			newClient.close();
+			await disconnected;
+			const reRegistered = waitForEvent<Record<string, unknown>>((resolve) =>
+				monitor.subscribeUI({ onClientRegistered: resolve }),
+			);
+			await newClient.connect();
+			expect((await reRegistered).metadata).toEqual(metadata);
+			expect(
+				(await monitor.listClients()).find(
+					(client) => client.clientId === payload.clientId,
+				)?.metadata,
+			).toEqual(metadata);
+		} finally {
+			monitor.close();
+			newClient.close();
+		}
 	}, 10_000);
 
 	it("lists connected clients and sessions for initial UI hydration", async () => {

@@ -71,6 +71,8 @@ The change has been applied and saved to the file.`
 
 export const E2E_MOCK_API_RESPONSES = {
 	DEFAULT: "Hello! I'm a mock Cline API response.",
+	CHECKPOINT_REBUILD_PROBE: "Checkpoint rebuild probe remains in flight while settings change.",
+	CHECKPOINT_FOLLOWUP: "Checkpoint-enabled follow-up reached the rebuilt session.",
 	/** Assistant text streamed before the structured editor tool call. */
 	EDIT_REQUEST_LEAD_IN: `I'll replace "john" with "cline" in the test.ts file.`,
 	/** Turn-ending text streamed after the SDK reports the editor tool result. */

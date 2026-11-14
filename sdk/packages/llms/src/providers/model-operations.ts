@@ -3,6 +3,7 @@ import type {
 	GatewayModelOperationCapability,
 	GatewayProviderManifest,
 	GatewayProviderMetadata,
+	ModelInfo,
 	ModelModalities,
 	ModelOperation,
 	ModelOperationMode,
@@ -23,18 +24,24 @@ const IMAGE_GENERATION_OPERATION: GatewayModelOperationCapability = {
 interface BuiltinTranscriptionOperation {
 	transport: NonNullable<GatewayProviderMetadata["transcriptionTransport"]>;
 	modes: readonly ModelOperationMode[];
+	streamingModels?: readonly string[];
 }
 
 export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
 	"openai-native": {
-		transport: "openai-compatible",
-		modes: ["batch"],
+		transport: "openai-native",
+		modes: ["batch", "streaming"],
+		streamingModels: ["gpt-realtime-whisper"],
 	},
 	"vercel-ai-gateway": {
 		transport: "vercel-ai-gateway",
 		modes: ["batch", "streaming"],
 	},
-	elevenlabs: { transport: "elevenlabs", modes: ["batch"] },
+	elevenlabs: {
+		transport: "elevenlabs",
+		modes: ["batch", "streaming"],
+		streamingModels: ["scribe_v2_realtime"],
+	},
 	evroc: { transport: "openai-compatible", modes: ["batch"] },
 	groq: { transport: "openai-compatible", modes: ["batch"] },
 	mistral: { transport: "openai-compatible", modes: ["batch"] },
@@ -45,6 +52,29 @@ export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
 	},
 	scaleway: { transport: "openai-compatible", modes: ["batch"] },
 } as const satisfies Readonly<Record<string, BuiltinTranscriptionOperation>>;
+
+/** SDK-supported live models absent from the shared external catalog. */
+export function getBuiltinStreamingTranscriptionModels(
+	providerId: string,
+): Record<string, ModelInfo> {
+	const config = (
+		BUILTIN_TRANSCRIPTION_TRANSPORTS as Readonly<
+			Record<string, BuiltinTranscriptionOperation>
+		>
+	)[providerId];
+	return Object.fromEntries(
+		(config?.streamingModels ?? []).map((id) => [
+			id,
+			{
+				id,
+				name: id,
+				operation: "transcription",
+				operationModes: ["streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			},
+		]),
+	);
+}
 
 /**
  * Built-in transports that have an explicitly verified non-text operation.
@@ -215,6 +245,10 @@ export function normalizeBuiltinModelOperationModalities(input: {
 	capabilities?: readonly string[];
 }): ModelModalities | undefined {
 	if (!input.modalities) return undefined;
+	// Voice classification must see the full provider-declared shape. Cropping
+	// a multimodal session to audio -> text would misclassify it as supported STT.
+	if (input.operation === "transcription" || input.operation === "realtime")
+		return input.modalities;
 	const model: OperationModelDescriptor = {
 		id: input.modelId,
 		operation: input.operation,

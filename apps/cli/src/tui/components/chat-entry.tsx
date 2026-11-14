@@ -201,10 +201,8 @@ function formatToolParams(
 		case "skills": {
 			if (rawInput && typeof rawInput === "object" && "skill" in rawInput) {
 				const s = String((rawInput as { skill: unknown }).skill);
-				const args =
-					"args" in rawInput
-						? ` ${String((rawInput as { args: unknown }).args)}`
-						: "";
+				const rawArgs = (rawInput as { args?: unknown }).args;
+				const args = rawArgs == null || rawArgs === "" ? "" : ` ${rawArgs}`;
 				const full = `${s}${args}`;
 				return full.length > 70 ? `${full.slice(0, 70)}...` : full;
 			}

@@ -72,7 +72,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update checkpoints setting
 		if (request.enableCheckpointsSetting !== undefined) {
-			controller.stateManager.setGlobalState("enableCheckpointsSetting", request.enableCheckpointsSetting)
+			const previousCheckpointsEnabled = controller.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
+			const checkpointsEnabled = request.enableCheckpointsSetting
+			controller.stateManager.setGlobalState("enableCheckpointsSetting", checkpointsEnabled)
+			if (previousCheckpointsEnabled !== checkpointsEnabled) {
+				// The new value takes effect on the next message. An active turn finishes
+				// first, then its idle session is rebuilt before that message is sent.
+				controller.handleCheckpointsSettingChanged(previousCheckpointsEnabled, checkpointsEnabled)
+			}
 		}
 
 		// Update MCP responses collapsed setting
@@ -139,6 +146,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update worktrees setting
 		if (request.worktreesEnabled !== undefined) {
 			controller.stateManager.setGlobalState("worktreesEnabled", request.worktreesEnabled)
+		}
+
+		if (request.cloudSessionsEnabled !== undefined) {
+			controller.stateManager.setGlobalState("cloudSessionsEnabled", request.cloudSessionsEnabled)
+			// Merged History includes cloud rows only while cloud sessions are enabled.
+			controller.invalidateTaskHistoryCache()
 		}
 
 		// Update subagents setting

@@ -189,6 +189,7 @@ export {
 	type ChatCompatibleModelDescriptor,
 	type ChatModelModalities,
 	isChatCompatibleModel,
+	isTranscriptionModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -237,6 +238,8 @@ export {
 export { serializeAbortReason } from "./llms/requests";
 export {
 	CHARS_PER_TOKEN,
+	createImageAwareReplacer,
+	ESTIMATED_TOKENS_PER_IMAGE,
 	estimateRequestInputTokens,
 	estimateTokens,
 	type TokenEstimatedRequest,
@@ -252,12 +255,19 @@ export {
 	ToolCallRecordSchema,
 	USER_REJECTED_TOOL_REASON,
 } from "./llms/tools";
+export type { StreamingAudioTranscriptionSession } from "./llms/transcription";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export type {
+	McpServerConfigInput,
+	McpServerConfigView,
+	McpServerInspection,
+	McpServersResponse,
+} from "./mcp-management";
 export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
@@ -312,7 +322,16 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderApiKeyOptional,
+	resolveProviderLocalCli,
+} from "./provider-auth";
+export {
+	ANTHROPIC_DEFAULT_MODEL_ID,
+	CLINE_DEFAULT_MODEL_ID,
+} from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
@@ -397,6 +416,7 @@ export type {
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
+	ProviderSettingsObjectPatch,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
@@ -438,6 +458,7 @@ export {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
 export type {
@@ -466,6 +487,7 @@ export {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -475,6 +497,11 @@ export {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "./services/telemetry-config";
+export type {
+	TelemetrySelfcheckConfig,
+	TelemetrySelfcheckReport,
+} from "./services/telemetry-selfcheck";
+export { buildTelemetrySelfcheckReport } from "./services/telemetry-selfcheck";
 export type {
 	HookSessionContext,
 	HookSessionContextLookup,
@@ -518,3 +545,4 @@ export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";
+export * from "./ux-verifier";

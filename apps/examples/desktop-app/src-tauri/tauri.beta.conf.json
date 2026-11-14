@@ -2,6 +2,20 @@
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Cline Beta",
 	"identifier": "bot.cline.app.beta",
+	"bundle": {
+		"linux": {
+			"deb": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/beta"
+				}
+			},
+			"rpm": {
+				"files": {
+					"/usr/share/metainfo": "linux/metainfo/beta"
+				}
+			}
+		}
+	},
 	"plugins": {
 		"updater": {
 			"endpoints": [

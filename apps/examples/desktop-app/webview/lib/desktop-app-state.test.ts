@@ -19,6 +19,62 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("reuses a bound thread when opening its session and keeps other environments separate", () => {
+		let state = createDesktopAppState("new-local", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "new-local",
+			sessionId: "same-id",
+		});
+		state = desktopAppReducer(state, {
+			type: "new-thread",
+			threadId: "new-remote",
+			environmentId: "remote",
+		});
+		state = desktopAppReducer(state, {
+			type: "thread-started",
+			threadId: "new-remote",
+			sessionId: "same-id",
+		});
+		for (const environmentId of ["local", "remote", "local"]) {
+			state = desktopAppReducer(state, {
+				type: "open-session",
+				session: createSession("same-id"),
+				environmentId,
+			});
+			expect(state.navigation.current.activeThreadId).toBe(
+				`new-${environmentId}`,
+			);
+			expect(state.threads).toHaveLength(2);
+		}
+		state = desktopAppReducer(state, {
+			type: "update-session-metadata",
+			sessionId: "same-id",
+			environmentId: "local",
+			metadata: { title: "Local title" },
+		});
+		expect(state.threads[0].historySession?.metadata?.title).toBe(
+			"Local title",
+		);
+		expect(state.threads[1].historySession?.metadata?.title).toBeUndefined();
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "same-id",
+			environmentId: "local",
+			fallbackThreadId: "fallback",
+			fallbackEnvironmentId: "local",
+		});
+		expect(state.threads.map((thread) => thread.id)).toEqual([
+			"new-remote",
+			"fallback",
+		]);
+		expect(
+			state.navigation.back.some(
+				(location) => location.activeThreadId === "new-local",
+			),
+		).toBe(false);
+	});
+
 	it("keeps identical session IDs separate across environments", () => {
 		let state = createDesktopAppState("welcome", settingsSection, "local");
 		for (const environmentId of ["local", "remote"]) {
@@ -87,6 +143,71 @@ describe("desktopAppReducer", () => {
 					`session_${sessionKey({ sessionId: "forked-session", environmentId: "local" })}`,
 			)?.initialPromptDraft,
 		).toBeUndefined();
+	});
+
+	it("hands attachment-only recovery to the target thread exactly once", () => {
+		const attachment = new File(["png-bytes"], "screenshot.png", {
+			type: "image/png",
+		});
+		let state = createDesktopAppState("welcome", settingsSection, "local");
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("handoff-target"),
+			environmentId: "local",
+			initialAttachments: [attachment],
+		});
+		const threadId = `session_${sessionKey({ sessionId: "handoff-target", environmentId: "local" })}`;
+
+		const thread = state.threads.find((item) => item.id === threadId);
+		expect(thread?.initialPromptDraft).toBeUndefined();
+		expect(thread?.initialAttachments).toEqual([attachment]);
+
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+
+		const consumed = state.threads.find((item) => item.id === threadId);
+		expect(consumed?.initialPromptDraft).toBeUndefined();
+		expect(consumed?.initialAttachments).toBeUndefined();
+	});
+
+	it.each([
+		"chat",
+		"settings",
+		"sessions",
+	] as const)("passes recovery to the cloud composer when reopening from %s", (view) => {
+		const open = {
+			type: "open-session" as const,
+			session: { ...createSession("cloud-target"), origin: "cloud" as const },
+			environmentId: "local",
+			initialPromptDraft: "Saved follow-up",
+			initialAttachments: [new File(["image"], "test.png")],
+		};
+		let state = desktopAppReducer(
+			createDesktopAppState("welcome", settingsSection, "local"),
+			open,
+		);
+		const threadId = state.navigation.current.activeThreadId;
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view },
+		});
+		const reopened = desktopAppReducer(state, open);
+		expect(reopened.navigation.current.view).toBe("chat");
+		expect(reopened.navigation.back).toHaveLength(
+			state.navigation.back.length + (view === "chat" ? 0 : 1),
+		);
+		expect(
+			reopened.threads.find((thread) => thread.id === threadId),
+		).toMatchObject({
+			initialPromptDraft: open.initialPromptDraft,
+			initialAttachments: open.initialAttachments,
+		});
 	});
 
 	it("keeps both sessions deleted when deletion actions are queued together", () => {

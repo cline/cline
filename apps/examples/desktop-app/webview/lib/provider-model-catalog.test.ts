@@ -1,15 +1,236 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { desktopClient } from "./desktop-client";
 import {
 	buildProviderModelCatalog,
+	fetchProviderCatalog,
 	filterChatModels,
+	invalidateProviderCatalogCache,
 	isChatModel,
 	isDedicatedTranscriptionModel,
+	loadProviderModelCatalog,
+	loadTranscriptionModels,
+	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	readVoiceInputCatalog,
 	selectTranscriptionModel,
 	subscribeToProviderModels,
 	supportsAudio,
 } from "./provider-model-catalog";
 import type { Provider } from "./provider-schema";
+
+describe("verified voice model loading", () => {
+	afterEach(() => {
+		invalidateProviderCatalogCache();
+		vi.restoreAllMocks();
+	});
+
+	it("deduplicates discovery across navigation and selection changes, but refreshes after expiry or credential changes", async () => {
+		let now = 1_000;
+		vi.spyOn(Date, "now").mockImplementation(() => now);
+		const invoke = vi.spyOn(desktopClient, "invoke").mockResolvedValue({
+			models: [
+				{
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+					id: "stt",
+					name: "STT",
+					operation: "transcription",
+				},
+			],
+		});
+		await Promise.all([
+			loadTranscriptionModels("voice"),
+			loadTranscriptionModels("voice"),
+		]);
+		await loadTranscriptionModels("voice");
+		expect(invoke).toHaveBeenCalledTimes(1);
+		invoke.mockResolvedValueOnce({ providers: [], voiceInput: undefined });
+		await fetchProviderCatalog();
+		notifyVoiceInputSettingsChanged({
+			voiceInput: { providerId: "voice", modelId: "stt" },
+		});
+		await loadTranscriptionModels("voice");
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(readVoiceInputCatalog()?.voiceInput?.modelId).toBe("stt");
+		now += 5 * 60_000;
+		await loadTranscriptionModels("voice");
+		expect(invoke).toHaveBeenCalledTimes(3);
+		invalidateProviderCatalogCache();
+		expect(readVoiceInputCatalog()).toBeNull();
+		await loadTranscriptionModels("voice");
+		expect(invoke).toHaveBeenCalledTimes(4);
+	});
+
+	it("does not cache failed discovery or resurrect results invalidated while loading", async () => {
+		let resolveOld!: (value: unknown) => void;
+		const invoke = vi.spyOn(desktopClient, "invoke").mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveOld = resolve;
+				}),
+		);
+		const old = loadTranscriptionModels("voice");
+		invalidateProviderCatalogCache();
+		invoke.mockResolvedValue({
+			models: [
+				{
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+					id: "new",
+					name: "New",
+					operation: "transcription",
+				},
+			],
+		});
+		await loadTranscriptionModels("voice");
+		resolveOld({
+			models: [
+				{
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+					id: "old",
+					name: "Old",
+					operation: "transcription",
+				},
+			],
+		});
+		await old;
+		expect((await loadTranscriptionModels("voice"))[0]?.id).toBe("new");
+		invalidateProviderCatalogCache();
+		invoke.mockRejectedValueOnce(new Error("offline"));
+		await expect(loadTranscriptionModels("voice")).rejects.toThrow("offline");
+		expect((await loadTranscriptionModels("voice"))[0]?.id).toBe("new");
+	});
+
+	it("accepts only audio-to-text, excluding multimodal models even when labeled transcription", async () => {
+		vi.spyOn(desktopClient, "invoke").mockResolvedValue({
+			models: [
+				{
+					id: "stt",
+					name: "STT",
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+				},
+				{
+					id: "live",
+					name: "Live",
+					operation: "transcription",
+					inputModalities: ["audio", "text"],
+					outputModalities: ["text"],
+					operationModes: ["streaming"],
+				},
+				{
+					id: "chat-transcribe",
+					name: "Transcribe",
+					inputModalities: ["text", "audio"],
+					outputModalities: ["text"],
+				},
+				{
+					id: "tts",
+					name: "Speech",
+					inputModalities: ["text"],
+					outputModalities: ["audio"],
+				},
+			],
+		});
+		expect(
+			(await loadTranscriptionModels("vercel-ai-gateway")).map(
+				(model) => model.id,
+			),
+		).toEqual(["stt"]);
+		expect(desktopClient.invoke).toHaveBeenCalledWith(
+			"list_transcription_models",
+			{ provider: "vercel-ai-gateway" },
+		);
+	});
+
+	it.each([
+		true,
+		false,
+	])("validates the composer's saved model against current discovery (present: %s)", async (present) => {
+		const provider: Provider = {
+			id: "vercel-ai-gateway",
+			name: "Vercel",
+			enabled: true,
+			apiKey: "key",
+			models: 1,
+			color: "#000",
+			letter: "V",
+			modelList: [
+				{
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+					id: "saved",
+					name: "Stale",
+					operation: "transcription",
+					operationModes: ["batch"],
+				},
+			],
+		};
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (command) =>
+			command === "list_provider_catalog"
+				? {
+						providers: [provider],
+						voiceInput: { providerId: provider.id, modelId: "saved" },
+					}
+				: {
+						models: present
+							? [
+									{
+										inputModalities: ["audio"],
+										outputModalities: ["text"],
+										id: "saved",
+										name: "Current",
+										operation: "transcription",
+										operationModes: ["streaming"],
+									},
+								]
+							: [],
+					},
+		);
+		const result = await loadProviderModelCatalog({ includeVoiceInput: true });
+		if (present)
+			expect(result.voiceInput).toMatchObject({
+				modelName: "Current",
+				supportsStreaming: true,
+			});
+		else expect(result.voiceInput).toBeNull();
+	});
+
+	it("does not fall back to the bundled selection on discovery failure", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (command) => {
+			if (command === "list_provider_catalog")
+				return {
+					providers: [
+						{
+							id: "vercel-ai-gateway",
+							name: "Vercel",
+							enabled: true,
+							apiKey: "key",
+							modelList: [
+								{
+									inputModalities: ["audio"],
+									outputModalities: ["text"],
+									id: "saved",
+									name: "Stale",
+									operation: "transcription",
+								},
+							],
+						},
+					],
+					voiceInput: { providerId: "vercel-ai-gateway", modelId: "saved" },
+				};
+			throw new Error("catalog offline");
+		});
+		await expect(
+			loadProviderModelCatalog({ includeVoiceInput: true }),
+		).rejects.toThrow("catalog offline");
+		// Ordinary chat model loading never depends on voice discovery.
+		await expect(loadProviderModelCatalog()).resolves.toMatchObject({
+			voiceInput: null,
+		});
+	});
+});
 
 describe("transcription model selection", () => {
 	it("distinguishes speech-to-text from text-to-speech and chat audio", () => {
@@ -102,6 +323,8 @@ describe("transcription model selection", () => {
 		).toBe(false);
 		expect(
 			isChatModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
 				id: "operation-only-whisper",
 				name: "Operation-only Whisper",
 				operation: "transcription",
@@ -118,7 +341,7 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
-	it("selects only the explicitly configured enabled model", () => {
+	it("rejects a configured batch-only transcription model", () => {
 		const providers: Provider[] = [
 			{
 				id: "groq",
@@ -161,13 +384,7 @@ describe("transcription model selection", () => {
 				providerId: "nvidia",
 				modelId: "whisper-large-v3",
 			}),
-		).toEqual({
-			providerId: "nvidia",
-			providerName: "Nvidia",
-			modelId: "whisper-large-v3",
-			modelName: "Whisper",
-			supportsStreaming: false,
-		});
+		).toBeNull();
 		expect(selectTranscriptionModel(providers, undefined)).toBeNull();
 	});
 
@@ -181,9 +398,10 @@ describe("transcription model selection", () => {
 			enabled: true,
 			modelList: [
 				{
-					id: "scribe_v2",
+					id: "scribe_v2_realtime",
 					name: "Scribe v2",
 					operation: "transcription",
+					operationModes: ["streaming"],
 					inputModalities: ["audio"],
 					outputModalities: ["text"],
 				},
@@ -192,15 +410,15 @@ describe("transcription model selection", () => {
 
 		const selection = {
 			providerId: "elevenlabs",
-			modelId: "scribe_v2",
+			modelId: "scribe_v2_realtime",
 		};
 		const catalog = buildProviderModelCatalog([elevenLabs], selection);
 		expect(catalog.enabledProviderIds).toEqual([]);
 		expect(catalog.providerModels.elevenlabs).toEqual([]);
 		expect(catalog.voiceInput).toMatchObject({
 			providerId: "elevenlabs",
-			modelId: "scribe_v2",
-			supportsStreaming: false,
+			modelId: "scribe_v2_realtime",
+			supportsStreaming: true,
 		});
 	});
 

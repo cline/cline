@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 
-import { act, StrictMode } from "react";
+import { Activity, act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	appendCappedCommandOutput,
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
-import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import {
+	MODEL_SELECTION_STORAGE_KEY,
+	writeExecutionTargetToWindow,
+	writeModelSelectionStorageToWindow,
+} from "@/lib/model-selection";
 import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
@@ -16,6 +20,8 @@ import {
 } from "../components/views/chat/messages/group-messages";
 import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
+import { PromptDraftCache, usePromptDraft } from "./use-prompt-draft";
+import { normalizeDiscoveredStatus } from "./use-session-history";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
@@ -428,6 +434,424 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	describe("cloud history preview", () => {
+		const session: Parameters<ChatSessionHook["hydrateSession"]>[0] = {
+			sessionId: "preview-cloud",
+			origin: "cloud",
+			status: normalizeDiscoveredStatus("suspended"),
+			...cloudSessionConfig,
+			environmentId: "local",
+			startedAt: "2026-01-01T00:00:00Z",
+		};
+		const saved: ChatSessionHook["messages"] = [
+			{
+				id: "saved",
+				sessionId: session.sessionId,
+				role: "assistant",
+				content: "Saved reply",
+				createdAt: 1,
+			},
+		];
+		const latest = saved.map((message) => ({
+			...message,
+			id: "live",
+			content: "Live reply",
+		}));
+		let archive: PromiseWithResolvers<typeof saved | null>;
+		let live: PromiseWithResolvers<typeof saved>;
+		let hydration: Promise<void>;
+
+		beforeEach(async () => {
+			archive = Promise.withResolvers();
+			live = Promise.withResolvers();
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "read_archived_cloud_messages") return archive.promise;
+				if (command === "read_session_messages") return live.promise;
+				if (command === "chat_session_command")
+					return {
+						sessionId: session.sessionId,
+						status: "idle",
+						...cloudSessionConfig,
+					};
+				return [];
+			});
+			await act(async () => {
+				hydration = current.hydrateSession(session);
+			});
+		});
+
+		it.each([
+			"messages",
+			"empty",
+		])("replaces the preview with live %s without changing canonical state early", async (outcome) => {
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual(saved);
+			expect(current.messages).toEqual([]);
+			expect(current.isHydratingSession).toBe(true);
+			const expected = outcome === "empty" ? [] : latest;
+			await act(async () => {
+				live.resolve(expected);
+				await hydration;
+			});
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual(expected);
+			expect(current.isHydratingSession).toBe(false);
+			expect(
+				invokeMock.mock.calls.filter(
+					([command]) => command === "read_session_messages",
+				),
+			).toHaveLength(1);
+		});
+
+		it.each([
+			"missing",
+			"empty",
+			"failed",
+		])("keeps opening unchanged when the archive is %s", async (outcome) => {
+			await act(async () => {
+				if (outcome === "failed")
+					archive.reject(new Error("Archive unavailable"));
+				else archive.resolve(outcome === "missing" ? null : []);
+			});
+			expect(current.historyPreview).toEqual([]);
+			expect(current.error).toBeNull();
+			await act(async () => {
+				live.resolve(latest);
+				await hydration;
+			});
+			expect(current.messages).toEqual(latest);
+			expect(current.error).toBeNull();
+			expect(current.isHydratingSession).toBe(false);
+		});
+
+		it("ignores late archives after live history fails", async () => {
+			await act(async () => {
+				live.reject(new Error("Live history unavailable"));
+				await hydration;
+			});
+			const canonical = current.messages;
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual(canonical);
+			expect(current.error).toContain("Live history unavailable");
+		});
+
+		it("ignores a late archive while attaching a session with empty live history", async () => {
+			const attachment = Promise.withResolvers<{
+				sessionId: string;
+				status: string;
+			}>();
+			invokeMock.mockImplementation(async (command: string) =>
+				command === "chat_session_command" ? attachment.promise : [],
+			);
+			await act(async () => live.resolve([]));
+			expect(current.isHydratingSession).toBe(true);
+			await act(async () => archive.resolve(saved));
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual([]);
+			await act(async () => {
+				attachment.resolve({ sessionId: session.sessionId, status: "idle" });
+				await hydration;
+			});
+		});
+
+		it("ignores pending history after selecting another session", async () => {
+			await act(async () => current.reset());
+			invokeMock.mockResolvedValue([]);
+			await act(async () =>
+				current.hydrateSession({
+					...session,
+					sessionId: "another-session",
+					origin: "local",
+				}),
+			);
+			await act(async () => {
+				archive.resolve(saved);
+				live.resolve(latest);
+				await hydration;
+			});
+			expect(current.sessionId).toBe("another-session");
+			expect(current.historyPreview).toEqual([]);
+			expect(current.messages).toEqual([]);
+		});
+	});
+
+	it("keeps flushing streamed text after the app is hidden and restored", async () => {
+		vi.useFakeTimers();
+		try {
+			const sendResponse = deferred<unknown>();
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (command === "get_process_context") {
+						return {
+							environmentId: "local",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+							taskWorktreeRoot: "/home/host/cline-dir/worktrees",
+						};
+					}
+					if (command === "chat_session_command") {
+						if (request?.action === "start")
+							return { sessionId: request.config?.sessionId };
+						if (request?.action === "send") return await sendResponse.promise;
+						return { ok: true, prompts: [] };
+					}
+					return [];
+				},
+			);
+			const renderIn = (mode: "visible" | "hidden") =>
+				act(async () =>
+					root.render(
+						<Activity mode={mode}>
+							<HookHarness />
+						</Activity>,
+					),
+				);
+			const latestChatHandler = () =>
+				subscribeMock.mock.calls
+					.filter(([eventName]) => eventName === "chat_event")
+					.at(-1)?.[1] as (payload: unknown) => void;
+
+			await renderIn("visible");
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(0);
+			});
+			await act(async () => {
+				void current.sendPrompt("Say hello");
+				for (let i = 0; i < 5; i += 1) await Promise.resolve();
+			});
+			const sessionId = current.sessionId;
+			await act(async () => {
+				latestChatHandler()({
+					sessionId,
+					stream: "chat_text",
+					chunk: "Hel",
+					ts: 1,
+					index: 1,
+				});
+			});
+			// Hiding runs effect cleanups while the pending flush timer is armed.
+			await renderIn("hidden");
+			await renderIn("visible");
+			await act(async () => {
+				latestChatHandler()({
+					sessionId,
+					stream: "chat_text",
+					chunk: "lo",
+					ts: 2,
+					index: 2,
+				});
+				await vi.advanceTimersByTimeAsync(200);
+			});
+			expect(
+				current.messages.filter((message) => message.role === "assistant"),
+			).toEqual([expect.objectContaining({ content: "Hello" })]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("keeps manual compaction stoppable and settles its command reply (cancel=%s)", async (cancel) => {
+		const reply = deferred<{ ok: boolean; commandHandled: boolean }>();
+		const requested = deferred<void>();
+		const normalReply = deferred<{ ok: boolean }>();
+		const normalRequested = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-ui" };
+					if (request.action === "send") {
+						if (
+							(args?.request as { prompt?: string }).prompt ===
+							"normal follow-up"
+						) {
+							normalRequested.resolve();
+							return normalReply.promise;
+						}
+						requested.resolve();
+						return reply.promise;
+					}
+					if (request.action === "abort") return { ok: true };
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const previousStatus = current.status;
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("/compact");
+			await requested.promise;
+		});
+		expect(current.status).toBe("running");
+		expect(current.isCompacting).toBe(true);
+		await act(async () => {
+			expect(await current.sendPrompt("follow-up while compacting")).toBe(
+				false,
+			);
+		});
+		expect(current.status).toBe("running");
+		if (cancel) await act(async () => current.abort());
+		await act(async () => {
+			reply.resolve({ ok: true, commandHandled: true });
+			await pending;
+		});
+		expect(current.status).toBe(cancel ? "cancelled" : previousStatus);
+		expect(
+			current.messages.some((message) => message.content === "/compact"),
+		).toBe(false);
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			pending = current.sendPrompt("normal follow-up");
+			await normalRequested.promise;
+		});
+		expect(current.status).toBe("starting");
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			normalReply.resolve({ ok: true });
+			await pending;
+		});
+		await act(async () => {
+			expect(await current.sendPrompt("/compact")).toBe(true);
+		});
+	});
+
+	it("shows Stop instead of an error when the sidecar reports a compaction in progress", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start") return { sessionId: "compact-lost" };
+					if (request.action === "send")
+						throw new Error(
+							"Compaction is in progress. Stop it before sending another message.",
+						);
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(current.status).toBe("running");
+		expect(current.isCompacting).toBe(true);
+		expect(current.error).toBeNull();
+	});
+
+	it("clears recovered compaction state when switching sessions", async () => {
+		let starts = 0;
+		const normalReply = deferred<{ ok: boolean }>();
+		const requested = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start")
+						return { sessionId: `session-${++starts}` };
+					if (request.action === "send") {
+						if (starts === 1)
+							throw new Error(
+								"Compaction is in progress. Stop it before sending another message.",
+							);
+						requested.resolve();
+						return normalReply.promise;
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			expect(await current.sendPrompt("hello")).toBe(false);
+		});
+		expect(current.isCompacting).toBe(true);
+		await act(async () => current.start(current.config));
+		expect(current.sessionId).toBe("session-2");
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("ordinary work");
+			await requested.promise;
+		});
+		expect(current.status).toBe("starting");
+		expect(current.isCompacting).toBe(false);
+		await act(async () => {
+			normalReply.resolve({ ok: true });
+			await pending;
+		});
+	});
+
+	it("keeps a remounted pane's newer draft when the original session start rejects", async () => {
+		const drafts = new PromptDraftCache();
+		let draft!: ReturnType<typeof usePromptDraft>;
+		function DraftHarness({ threadId }: { threadId: string }) {
+			current = useChatSession("local");
+			draft = usePromptDraft(drafts, threadId);
+			return null;
+		}
+		const show = (threadId: string) =>
+			act(async () => {
+				root.render(<DraftHarness key={threadId} threadId={threadId} />);
+			});
+		const started = deferred<void>();
+		let rejectStart!: (error: Error) => void;
+		const startResult = new Promise<never>((_resolve, reject) => {
+			rejectStart = reject;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request;
+					if (
+						request &&
+						typeof request === "object" &&
+						"action" in request &&
+						request.action === "start"
+					) {
+						started.resolve();
+						return await startResult;
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		await show("A");
+		let restore!: (value: string) => boolean;
+		let send!: Promise<boolean>;
+		await act(async () => {
+			restore = draft.clearPromptForSend();
+			send = current.sendPrompt("Original submitted prompt");
+			await started.promise;
+		});
+		await show("B");
+		await show("A");
+		act(() => draft.handlePromptInputChange("Newer unsent prompt"));
+		await act(async () => {
+			rejectStart(new Error("Provider connection failed"));
+			const accepted = await send;
+			expect(accepted).toBe(false);
+			expect(restore("Original submitted prompt")).toBe(false);
+		});
+		await show("B");
+		await show("A");
+		expect(draft.promptDraft.value).toBe("Newer unsent prompt");
+	});
+
 	const cloudSessionConfig = {
 		provider: "cline",
 		model: "test-model",
@@ -568,41 +992,75 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(replacementState.expired);
 	});
 	it.each([
-		[false, undefined],
-		[true, undefined],
-		[true, "read_session_messages"],
-	] as const)("shows expired cloud history as read-only (archive: %s, failure: %s)", async (hasHistory, failedCommand) => {
-		const history = hasHistory
-			? [
-					{
-						id: "saved",
+		"missing",
+		"read",
+		"attach",
+		"failed",
+	] as const)("shows expired cloud history as read-only (%s)", async (scenario) => {
+		const history: ChatSessionHook["messages"] = [
+			{
+				id: "saved-user",
+				sessionId: "expired-cloud",
+				role: "user",
+				content: "Initial cloud prompt",
+				createdAt: 1,
+			},
+			{
+				id: "saved",
+				sessionId: "expired-cloud",
+				role: "assistant",
+				content: "Saved reply",
+				createdAt: 2,
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") {
+					if (scenario === "failed") throw new Error("offline");
+					const messages = scenario === "read" ? history : [];
+					handlerFor("cloud_session_rehydrated")({
 						sessionId: "expired-cloud",
-						role: "assistant",
-						content: "Saved reply",
-						createdAt: 1,
-					},
-				]
-			: [];
-		invokeMock.mockImplementation(async (command: string) => {
-			if (command === failedCommand) throw new Error("offline");
-			if (command === "read_session_messages") return history;
-			if (command === "chat_session_command")
-				return { sessionId: "expired-cloud", status: "expired" };
-			return [];
-		});
+						status: "expired",
+						transcriptKnown: true,
+						messages,
+					});
+					return messages;
+				}
+				const request = args?.request as { action?: string } | undefined;
+				if (
+					command === "chat_session_command" &&
+					request?.action === "attach"
+				) {
+					if (scenario === "attach") {
+						handlerFor("cloud_session_rehydrated")({
+							sessionId: "expired-cloud",
+							status: "expired",
+							transcriptKnown: true,
+							messages: history,
+						});
+					}
+					return { sessionId: "expired-cloud", status: "expired" };
+				}
+				return [];
+			},
+		);
 		await act(async () =>
 			current.hydrateSession({
 				sessionId: "expired-cloud",
 				environmentId: "local",
 				origin: "cloud",
-				status: failedCommand ? "expired" : "completed",
+				status:
+					scenario === "failed"
+						? "expired"
+						: normalizeDiscoveredStatus("expired", "Initial cloud prompt"),
+				prompt: "Initial cloud prompt",
 				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
 		expect(current.isCloudSessionExpired).toBe(true);
-		if (failedCommand) {
+		if (scenario === "failed") {
 			expect(current.error).toContain("offline");
 			expect(
 				invokeMock.mock.calls.some(
@@ -613,8 +1071,18 @@ describe("useChatSession", () => {
 			).toBe(false);
 		} else {
 			expect(current.error).toContain("This cloud session has expired");
-			expect(current.error?.includes("no archived history")).toBe(!hasHistory);
-			expect(current.messages).toEqual(history);
+			if (scenario === "missing")
+				expect(current.error).toContain("no archived history");
+			expect(current.messages).toEqual(
+				scenario === "missing"
+					? [
+							expect.objectContaining({
+								role: "user",
+								content: "Initial cloud prompt",
+							}),
+						]
+					: history,
+			);
 		}
 		invokeMock.mockClear();
 		await act(async () => {
@@ -2846,14 +3314,18 @@ describe("useChatSession", () => {
 		expect(current.messages.at(-1)?.content).toContain("read_files");
 	});
 
-	it("keeps live assistant and tool routing across a running cloud snapshot", async () => {
+	it("keeps live assistant and tool routing while opening a cloud session", async () => {
+		const history = Promise.withResolvers<ChatSessionHook["messages"]>();
+		let opening: Promise<void> | undefined;
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
 				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 			}
+			if (command === "read_session_messages") return history.promise;
 			if (command === "chat_session_command") {
 				return {
 					sessionId: "ses-cloud",
+					status: "running",
 					cwd: "/workspace",
 					workspaceRoot: "/workspace",
 				};
@@ -2861,15 +3333,28 @@ describe("useChatSession", () => {
 			return [];
 		});
 		await act(async () => {
-			await current.start({
-				...current.config,
-				executionTarget: "cloud",
-				provider: "cline",
+			opening = current.hydrateSession({
+				sessionId: "ses-cloud",
+				environmentId: "local",
+				origin: "cloud",
+				status: normalizeDiscoveredStatus("suspended"),
+				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
+				startedAt: "2026-08-06T00:00:00.000Z",
 			});
+			await Promise.resolve();
 		});
 		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
 		const chatEventHandler = handlerFor("chat_event");
+		const snapshot: ChatSessionHook["messages"] = [
+			{
+				id: "saved-assistant",
+				sessionId: "ses-cloud",
+				role: "assistant",
+				content: "Hello",
+				createdAt: 1,
+			},
+		];
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -2890,34 +3375,51 @@ describe("useChatSession", () => {
 				sessionId: "ses-cloud",
 				status: "running",
 				transcriptKnown: true,
-				messages: [
-					{
-						id: "saved-assistant",
-						sessionId: "ses-cloud",
-						role: "assistant",
-						content: "Hello",
-						createdAt: 1,
-					},
-				],
+				messages: snapshot,
 			});
-			chatEventHandler?.({
+		});
+		await act(async () => {
+			chatEventHandler({
 				sessionId: "ses-cloud",
 				stream: "chat_text",
-				chunk: "!",
+				chunk: " again",
 				ts: 3,
 				index: 3,
 			});
-			chatEventHandler?.({
+			chatEventHandler({
 				sessionId: "ses-cloud",
 				stream: "chat_core_log",
 				chunk: "flush",
 				ts: 4,
 				index: 4,
 			});
+			history.resolve(snapshot);
+			await opening;
+		});
+		expect(current.isHydratingSession).toBe(false);
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_text",
+				chunk: "!",
+				ts: 5,
+				index: 5,
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_core_log",
+				chunk: "flush",
+				ts: 6,
+				index: 6,
+			});
 		});
 		expect(
 			current.messages.filter((message) => message.role === "assistant"),
-		).toEqual([expect.objectContaining({ content: "Hello!" })]);
+		).toEqual([
+			expect.objectContaining({
+				content: "Hello again!",
+			}),
+		]);
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -2928,8 +3430,8 @@ describe("useChatSession", () => {
 					toolName: "read_files",
 					input: { paths: ["README.md"] },
 				}),
-				ts: 5,
-				index: 5,
+				ts: 7,
+				index: 7,
 			});
 			rehydratedHandler?.({
 				sessionId: "ses-cloud",
@@ -2969,8 +3471,8 @@ describe("useChatSession", () => {
 					toolName: "read_files",
 					output: "done",
 				}),
-				ts: 6,
-				index: 6,
+				ts: 8,
+				index: 8,
 			});
 		});
 		expect(current.messages.find((message) => message.role === "tool")).toEqual(
@@ -4965,6 +5467,137 @@ describe("useChatSession", () => {
 		expect(userMessages[0]?.content).toBe("First prompt");
 	});
 
+	it("shows plugin failures from session start and later notices in the chat", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message:
+						'Plugin "broken-setup" failed during setup: boom (/p/setup.ts). Its tools and hooks are unavailable.',
+					metadata: { pluginIssue: { name: "broken-setup", state: "failed" } },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			// Ordinary core logs stay out of the transcript.
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "info", message: "compacting" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const pluginMessages = current.messages.filter(
+			(message) => message.meta?.messageKind === "plugin_issue",
+		);
+		expect(pluginMessages.map((message) => message.role)).toEqual([
+			"status",
+			"status",
+		]);
+		expect(pluginMessages[0]?.content).toContain('Plugin "broken-import"');
+		expect(pluginMessages[1]?.content).toContain('Plugin "broken-setup"');
+		expect(
+			current.messages.some((message) => message.content === "compacting"),
+		).toBe(false);
+	});
+
+	it("re-keys the optimistic bubble past a start-time plugin warning", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							pluginWarnings: [
+								'Plugin "broken-import" failed during import: boom (/p/broken.ts). Its tools and hooks are unavailable.',
+							],
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true, result: {} };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("hi there");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// The warning row now sits after the optimistic bubble; the queued
+		// start for the same prompt must still find and re-key that bubble.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "hi there",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user" && message.content === "hi there",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.id).toBe("queued_user_queued-prompt-1");
+		expect(
+			current.messages.filter(
+				(message) => message.meta?.messageKind === "plugin_issue",
+			),
+		).toHaveLength(1);
+	});
+
 	it("explains a failed turn with the latest core error log", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -5745,7 +6378,7 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		// "tokens" here is a context-window problem, not a credential problem;
-		// pointing users at Settings → API Providers would be misleading.
+		// pointing users at Settings → Providers would be misleading.
 		expect(errorMessage?.content).toContain("maximum context tokens");
 		expect(errorMessage?.content).not.toContain("Check your model connection");
 	});
@@ -5775,6 +6408,11 @@ describe("useChatSession", () => {
 			current.setConfig((previous) => ({
 				...previous,
 				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
 				model: "sonnet",
 			}));
 		});
@@ -5798,13 +6436,88 @@ describe("useChatSession", () => {
 		const errorMessage = current.messages.find(
 			(message) => message.role === "error",
 		);
-		// Claude Code's login lives in the `claude` CLI; Settings → API Providers has
+		// Claude Code's login lives in the `claude` CLI; Settings → Providers has
 		// nothing that could fix an expired session there.
 		expect(errorMessage?.content).toContain("OAuth session expired");
 		expect(errorMessage?.content).toContain(
 			"Sign in again with the `claude` CLI",
 		);
-		expect(errorMessage?.content).not.toContain("Settings → API Providers");
+		expect(errorMessage?.content).not.toContain("Settings → Providers");
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
+	});
+
+	it("keeps the submitted provider's auth guidance after the selection changes", async () => {
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
+				model: "sonnet",
+			}));
+		});
+		let sendPromise: Promise<unknown> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "anthropic",
+				providerAuth: { providerId: "anthropic", capabilities: [] },
+				model: "claude-sonnet",
+			}));
+		});
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "Failed to authenticate: OAuth session expired.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain(
+			"Sign in again with the `claude` CLI",
+		);
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
@@ -6117,6 +6830,134 @@ describe("useChatSession", () => {
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
 			environmentId: "local",
 			path: "/workspace/deleted",
+		});
+	});
+
+	it.each([
+		"local",
+		"cloud",
+	] as const)("restores the Cloud target and model after viewing a %s session", async (target) => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: {
+					openrouter: "local-model",
+					cline: "cline-local",
+				},
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		writeModelSelectionStorageToWindow(
+			{ lastProvider: "cline", lastModelByProvider: { cline: "cloud-model" } },
+			"cloud",
+		);
+		const hydratedSessionId = "session-local-history";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						environmentId: "local",
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "openrouter",
+							model: "local-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () => root.render(<HookHarness />));
+
+		expect(current.config).toMatchObject({
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+		});
+
+		// History must not replace the defaults for the next new chat.
+		await act(async () => {
+			await current.hydrateSession({
+				environmentId: "local",
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "openrouter",
+				model: "local-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-01T00:00:00Z",
+				...(target === "cloud"
+					? {
+							origin: "cloud",
+							repoUrl: "https://github.com/cline/other",
+							metadata: { gitBranch: "feature" },
+							...cloudSessionConfig,
+						}
+					: {}),
+			});
+		});
+		expect(current.config).toMatchObject({
+			executionTarget: target,
+		});
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config).toMatchObject({
+			sessionId: undefined,
+			executionTarget: "cloud",
+			provider: "cline",
+			model: "cloud-model",
+			repoUrl: undefined,
+			branch: undefined,
+		});
+	});
+
+	it("keeps remote environments on Local even when Cloud is remembered", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "openrouter",
+				lastModelByProvider: { openrouter: "local-model" },
+			}),
+		);
+		writeExecutionTargetToWindow("cloud");
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "get_process_context") {
+				return {
+					environmentId: "pi-server",
+					cwd: "/home/pi/app",
+					workspaceRoot: "/home/pi/app",
+				};
+			}
+			return [];
+		});
+		root = createRoot(container);
+		await act(async () =>
+			root.render(<HookHarness environmentId="pi-server" />),
+		);
+
+		expect(current.config).toMatchObject({
+			executionTarget: "local",
+			provider: "openrouter",
+			model: "local-model",
 		});
 	});
 

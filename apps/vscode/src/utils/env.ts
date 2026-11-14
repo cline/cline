@@ -2,6 +2,7 @@ import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { ShowMessageType } from "@shared/proto/host/window"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
+import { redactUrlForLog } from "./redact-url"
 
 /**
  * Writes text to the system clipboard
@@ -52,7 +53,7 @@ export async function openExternal(url: string): Promise<void> {
 		return
 	}
 
-	Logger.log("Opening browser:", url)
+	Logger.log(`Opening browser: ${redactUrlForLog(url)}`)
 	try {
 		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
 	} catch (error) {

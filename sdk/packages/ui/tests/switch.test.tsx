@@ -109,6 +109,66 @@ describe("Switch", () => {
 		expect(new FormData(form()).has("notifications")).toBe(false);
 	});
 
+	it.each([
+		false,
+		true,
+	])("locks a pending switch without changing checked=%s", async (checked) => {
+		const onCheckedChange = vi.fn();
+		await render(
+			<Switch
+				pending
+				defaultChecked={checked}
+				onCheckedChange={onCheckedChange}
+			/>,
+		);
+		const element = input();
+		expect(element.disabled).toBe(true);
+		expect(element.getAttribute("aria-busy")).toBe("true");
+		expect(element.getAttribute("data-pending")).toBe("true");
+		expect(element.getAttribute("pending")).toBeNull();
+		await act(async () => element.click());
+		expect(element.checked).toBe(checked);
+		expect(onCheckedChange).not.toHaveBeenCalled();
+
+		await render(
+			<Switch defaultChecked={checked} onCheckedChange={onCheckedChange} />,
+		);
+		expect(input()).toBe(element);
+		expect(element.disabled).toBe(false);
+		expect(element.getAttribute("aria-busy")).toBeNull();
+		expect(element.getAttribute("data-pending")).toBeNull();
+		await act(async () => element.click());
+		expect(onCheckedChange).toHaveBeenCalledExactlyOnceWith(!checked);
+	});
+
+	it("keeps explicitly disabled styling when pending is also true", async () => {
+		await render(<Switch pending disabled defaultChecked />);
+		expect(input().disabled).toBe(true);
+		expect(input().getAttribute("data-pending")).toBeNull();
+		expect(input().getAttribute("aria-busy")).toBe("true");
+	});
+
+	it("retains pending styling and native locking within a disabled fieldset", async () => {
+		const onCheckedChange = vi.fn();
+		await render(
+			<form>
+				<fieldset disabled>
+					<Switch
+						pending
+						defaultChecked
+						name="notifications"
+						onCheckedChange={onCheckedChange}
+					/>
+				</fieldset>
+			</form>,
+		);
+		expect(input().matches(":disabled")).toBe(true);
+		expect(input().getAttribute("data-pending")).toBe("true");
+		await act(async () => input().click());
+		expect(onCheckedChange).not.toHaveBeenCalled();
+		expect(new FormData(form()).has("notifications")).toBe(false);
+	});
+
 	it("participates in forms and resets uncontrolled state", async () => {
 		await render(
 			<form>
@@ -167,6 +227,8 @@ describe("Switch", () => {
 				ref={(node) => {
 					forwardedRef = node;
 				}}
+				size="sm"
+				tone="neutral"
 				style={{ marginInlineStart: 8 }}
 				tabIndex={-1}
 			/>,
@@ -175,6 +237,14 @@ describe("Switch", () => {
 		expect(input().getAttribute("aria-label")).toBe("Notifications");
 		expect(input().getAttribute("aria-describedby")).toBe("help");
 		expect(input().tabIndex).toBe(-1);
+		expect(input().hasAttribute("tone")).toBe(false);
+		expect(input().hasAttribute("size")).toBe(false);
+		expect(
+			input().parentElement?.classList.contains("cline-ui-switch-sm"),
+		).toBe(true);
+		expect(
+			input().parentElement?.classList.contains("cline-ui-switch-neutral"),
+		).toBe(true);
 		expect(input().parentElement?.classList.contains("consumer-class")).toBe(
 			true,
 		);

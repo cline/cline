@@ -149,6 +149,10 @@ export const StructuredCommandEntrySchema = z.union([
 export const RunCommandsInputSchema = z.object({
 	commands: z
 		.array(CommandInputSchema)
+		// Advertised to the model as minItems: 1. The lenient union below still
+		// accepts an empty list so the normalizer can reject it with one clear
+		// message instead of a union error.
+		.min(1)
 		.describe("Array of complete shell command strings to execute."),
 });
 
@@ -197,10 +201,15 @@ export const EditFileInputSchema = z
 			.string()
 			.min(1)
 			.describe("The absolute path for the action to be performed on"),
+		// Advertise old_text as a plain string: when the schema allows null, some
+		// models send null instead of the real text for replacement edits. Other
+		// models send null for optionals they aren't using, so null is still
+		// accepted at runtime and treated as omitted.
 		old_text: z
-			.string()
-			.nullable()
-			.optional()
+			.preprocess(
+				(value) => (value === null ? undefined : value),
+				z.string().optional(),
+			)
 			.describe(
 				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
 			),

@@ -21,6 +21,7 @@ export function createLocalTeamStore(options: SqliteTeamStoreOptions = {}): {
 	readHistory(teamName: string, limit?: number): unknown[];
 	loadRuntime(teamName: string): ReturnType<FileTeamStore["loadRuntime"]>;
 	handleTeamEvent: FileTeamStore["handleTeamEvent"];
+	persistBatch: FileTeamStore["persistBatch"];
 	persistRuntime: FileTeamStore["persistRuntime"];
 	markInProgressRunsInterrupted: FileTeamStore["markInProgressRunsInterrupted"];
 } {

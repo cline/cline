@@ -1,5 +1,5 @@
 import { type ChildProcess, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync, writeFileSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -61,37 +61,6 @@ export class E2ETestHelper {
 		return `${baseName}${projectSuffix}`
 	}
 
-	/**
-	 * Resolves the real VS Code executable for `_electron.launch()`.
-	 *
-	 * `@vscode/test-electron` hardcodes the macOS entry point as
-	 * `Visual Studio Code.app/Contents/MacOS/Electron`, but recent VS Code builds
-	 * ship that binary as `Code` instead, so launching fails with ENOENT.
-	 * See https://github.com/microsoft/vscode-test/issues/355.
-	 *
-	 * When the reported path is missing, fall back to the bundle's real executable
-	 * name(s) so E2E works on both the old and new layouts.
-	 */
-	public static resolveVSCodeExecutablePath(executablePath: string): string {
-		if (existsSync(executablePath)) {
-			return executablePath
-		}
-
-		if (process.platform !== "darwin") {
-			return executablePath
-		}
-
-		const macOSDir = path.dirname(executablePath)
-		for (const candidate of ["Code", "Code - Insiders"]) {
-			const candidatePath = path.join(macOSDir, candidate)
-			if (existsSync(candidatePath)) {
-				return candidatePath
-			}
-		}
-
-		return executablePath
-	}
-
 	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 10000): Promise<void> {
 		let delay = 10
 		const start = Date.now()
@@ -132,8 +101,12 @@ export class E2ETestHelper {
 			return null
 		}
 
-		// Use longer timeout (30s) for sidebar - macOS CI runners can be slow
-		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null, 30000)
+		// Extension activation is slower on Windows, where the Playwright config
+		// also gives each test a larger timeout. Keep sidebar discovery within the
+		// same platform budget instead of failing while VS Code still shows its
+		// loading progress bar.
+		const sidebarTimeoutMs = process.platform === "win32" ? 60_000 : 30_000
+		await E2ETestHelper.waitUntil(async () => (await findSidebarFrame()) !== null, sidebarTimeoutMs)
 		return (await findSidebarFrame()) || page.mainFrame()
 	}
 
@@ -408,9 +381,7 @@ export const e2e = test
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
 		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
-			const executablePath = E2ETestHelper.resolveVSCodeExecutablePath(
-				await downloadAndUnzipVSCode(channel, undefined, new SilentReporter()),
-			)
+			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test
@@ -451,7 +422,6 @@ export const e2e = test
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
 					],

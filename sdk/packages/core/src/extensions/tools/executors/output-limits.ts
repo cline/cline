@@ -9,9 +9,11 @@
  *
  * Truncation notices always live in the preserved head/tail of an entry,
  * never in the elided middle. Provider-request building may re-truncate
- * long strings with its own (possibly tighter) middle-cut backstop
- * (session/services/message-builder.ts); keeping the notices at the edges
- * means the recovery guidance survives that cut too.
+ * long strings with its own middle-cut backstop
+ * (session/services/message-builder.ts) — tighter than these caps for
+ * command and search output, looser for file reads so a read window
+ * reaches the model as the footer describes it; keeping the notices at
+ * the edges means the recovery guidance survives that cut too.
  */
 
 /** Max characters of command output kept; beyond this the middle is elided. */

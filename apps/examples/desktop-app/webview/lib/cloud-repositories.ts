@@ -1,27 +1,71 @@
-export type CloudRepositoryOption = {
-	id: number;
-	name: string;
-	fullName: string;
-	url: string;
-	defaultBranch: string;
-};
+import type {
+	CloudBranchListOptions,
+	CloudBranchListResult,
+} from "@cline/core/cloud";
 
-export type CloudRepositoryListResult = {
-	connected: boolean;
-	connectUrl: string;
-	repositories: CloudRepositoryOption[];
-};
+export type {
+	CloudBranchListOptions,
+	CloudBranchListResult,
+	CloudRepositoryListResult,
+	CloudRepositoryOption,
+} from "@cline/core/cloud";
 
-export type CloudBranchListResult = {
-	available: boolean;
-	branches: string[];
-	nextToken?: string;
-};
+type CloudRepositorySelection = { repoUrl: string; branch: string };
+const SELECTION_KEY = "cline.code.cloud-repository.v1:";
 
-export type CloudBranchListOptions = {
-	cursor?: string;
-	query?: string;
-};
+export function readCloudRepositorySelection(
+	scope: string,
+): CloudRepositorySelection | null {
+	try {
+		const value = JSON.parse(
+			window.localStorage.getItem(SELECTION_KEY + scope) ?? "null",
+		);
+		return typeof value?.repoUrl === "string" &&
+			typeof value?.branch === "string"
+			? {
+					repoUrl: normalizeCloudRepositoryUrl(value.repoUrl),
+					branch: value.branch.trim(),
+				}
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+export function writeCloudRepositorySelection(
+	scope: string,
+	selection: CloudRepositorySelection,
+): void {
+	try {
+		window.localStorage.setItem(
+			SELECTION_KEY + scope,
+			JSON.stringify(selection),
+		);
+	} catch {
+		// Ignore localStorage persistence failures, as with local workspace memory.
+	}
+}
+
+/** Resolve a saved branch without treating an incomplete page as a deletion. */
+export async function resolveRememberedCloudBranch(
+	repositoryId: number,
+	branch: string,
+	defaultBranch: string,
+	listBranches: (
+		id: number,
+		options: CloudBranchListOptions,
+	) => Promise<CloudBranchListResult>,
+): Promise<string> {
+	if (!branch || branch === defaultBranch) return defaultBranch;
+	let cursor: string | undefined;
+	do {
+		const result = await listBranches(repositoryId, { query: branch, cursor });
+		if (!result.available) return defaultBranch;
+		if (result.branches.includes(branch)) return branch;
+		cursor = result.nextToken;
+	} while (cursor);
+	return defaultBranch;
+}
 
 export function normalizeCloudRepositoryUrl(value: string): string {
 	return value.trim().replace(/\/+$/, "");

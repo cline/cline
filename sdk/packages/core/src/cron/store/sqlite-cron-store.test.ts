@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	type CronOneOffSpec,
 	type CronScheduleSpec,
@@ -389,6 +391,28 @@ describe("SqliteCronStore: runs", () => {
 		const run = store.getRun(claims[0]?.run.runId);
 		expect(run?.status).toBe("done");
 		expect(run?.reportPath).toBe("/tmp/report.md");
+	});
+
+	// The desktop hub runs on bun:sqlite, which binds parameters differently
+	// from the node:sqlite backend these tests otherwise exercise.
+	it("claims due runs within capacity under bun:sqlite", () => {
+		const storeModule = fileURLToPath(
+			new URL("./sqlite-cron-store.ts", import.meta.url),
+		);
+		const script = `
+			import { SqliteCronStore } from ${JSON.stringify(storeModule)};
+			const store = new SqliteCronStore({ dbPath: ${JSON.stringify(join(dir, "bun.db"))} });
+			const spec = store.createHubSchedule({
+				name: "s", cronPattern: "0 0 * * *", prompt: "p", workspaceRoot: "/ws", maxParallel: 1,
+			});
+			for (let i = 0; i < 2; i++) {
+				store.enqueueRun({ specId: spec.specId, specRevision: spec.revision, triggerKind: "manual" });
+			}
+			const claim = () => store.claimDueRuns({ nowIso: new Date().toISOString(), leaseMs: 30000 }).length;
+			console.log(JSON.stringify([claim(), claim()]));
+		`;
+		const output = execFileSync("bun", ["-e", script], { encoding: "utf8" });
+		expect(JSON.parse(output.trim())).toEqual([1, 0]);
 	});
 
 	it("reclaims expired running leases", () => {

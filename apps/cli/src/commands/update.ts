@@ -7,6 +7,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "@cline/core";
+import { hasActiveHubSessions } from "@cline/core/hub";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { c, writeErr, writeln } from "../utils/output";
@@ -381,6 +382,7 @@ async function otherCliClientsAttached(): Promise<boolean> {
 			undefined,
 			{ timeoutMs: CLIENT_COUNT_EXIT_TIMEOUT_MS },
 		);
+		if (hasActiveHubSessions(sessions.payload)) return true;
 		const sessionRecords =
 			(sessions.payload as { sessions?: Array<{ participants?: unknown }> })
 				.sessions ?? [];

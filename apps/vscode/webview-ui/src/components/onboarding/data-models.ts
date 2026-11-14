@@ -1,5 +1,5 @@
+import type { OnboardingModel, OnboardingModelGroup } from "@shared/cline/onboarding"
 import type { ClineRecommendedModel, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 
 export const CLINEPASS_GROUP = "cline-pass"
 

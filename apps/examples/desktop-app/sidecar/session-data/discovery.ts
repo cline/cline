@@ -52,10 +52,12 @@ export function discoverChatSessions(
 		if (session.config.executionTarget === "cloud") {
 			continue;
 		}
-		if (!session.busy && !session.prompt && session.messages.length === 0) {
+		const prompt =
+			session.prompt?.trim() || derivePromptFromMessages(session.messages);
+		// Runtime startup status is not evidence that a user has started a turn.
+		if (!prompt) {
 			continue;
 		}
-		const prompt = session.prompt ?? derivePromptFromMessages(session.messages);
 		const resolvedTitle = resolveSessionListTitle({
 			sessionId,
 			metadata: session.title ? { title: session.title } : undefined,
@@ -122,6 +124,7 @@ export function discoverChatSessions(
 					? { ...(manifest.metadata as JsonRecord) }
 					: undefined;
 			const prompt = derivePromptFromMessages(messages);
+			if (!prompt) continue;
 			const resolvedTitle = resolveSessionListTitle({
 				sessionId,
 				metadata,
@@ -193,8 +196,12 @@ export function mergeDiscoveredSessionLists(
 				"",
 		});
 	}
-	const activityTime = (record: JsonRecord) =>
-		Math.max(
+	const activityTime = (record: JsonRecord) => {
+		if (record.origin === "cloud") {
+			const activity = record.lastActivityAt ?? record.startedAt;
+			return parseTimestamp(activity as string | number | undefined);
+		}
+		return Math.max(
 			...[
 				record.lastActivityAt,
 				record.updatedAt,
@@ -202,6 +209,7 @@ export function mergeDiscoveredSessionLists(
 				record.startedAt,
 			].map((value) => parseTimestamp(value as string | number | undefined)),
 		);
+	};
 	return Array.from(merged.values())
 		.sort(
 			(left, right) =>

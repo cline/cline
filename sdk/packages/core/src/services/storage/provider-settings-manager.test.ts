@@ -58,6 +58,46 @@ describe("ProviderSettingsManager", () => {
 		expect(reloaded.read().providers.anthropic?.tokenSource).toBe("manual");
 	});
 
+	it("inherits the previous entry's tokenSource when a save does not pass one", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{ provider: "bedrock", model: "claude-sonnet-4-6" },
+			{ setLastUsed: false, tokenSource: "migration" },
+		);
+		manager.saveProviderSettings(
+			{ provider: "bedrock", model: "claude-sonnet-4-6" },
+			{ setLastUsed: false },
+		);
+
+		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
+	});
+
+	it("replaces the previous tokenSource when a save passes an explicit one", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{ provider: "bedrock", model: "claude-sonnet-4-6" },
+			{ setLastUsed: false, tokenSource: "migration" },
+		);
+		manager.saveProviderSettings(
+			{ provider: "bedrock", model: "claude-sonnet-4-6" },
+			{ setLastUsed: false, tokenSource: "manual" },
+		);
+
+		expect(manager.read().providers.bedrock?.tokenSource).toBe("manual");
+	});
+
 	it("persists voice input selection independently of the chat provider", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),
@@ -371,7 +411,9 @@ describe("ProviderSettingsManager", () => {
 			id: "gpt-oss-120b",
 			contextWindow: 128000,
 			maxInputTokens: 128000,
-			capabilities: ["streaming", "tools", "images"],
+			// A migrated model has no stored entry, so its list is a partial
+			// overlay that must not deny reasoning.
+			capabilities: ["streaming", "tools", "images", "reasoning"],
 		});
 	});
 

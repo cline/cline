@@ -34,6 +34,13 @@ export {
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
 /**
+ * Claude Code's project directory. Skills authored for Claude Code live in
+ * `.claude/skills`, which is documented as a supported project skill location,
+ * so Cline must scan it too — otherwise the same skill folder works in Claude
+ * Code but is silently invisible in Cline.
+ */
+const CLAUDE_CONFIG_DIR = ".claude";
+/**
  * The vendor-neutral `.agents` directory. Originally adopted only for the
  * agentskills.io skills convention (hence the historical name), it is now also
  * the root for Agent Plugins under `.agents/plugins`.
@@ -465,6 +472,7 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 	return [
 		DEPRECATED_CONFIG_DIR,
 		CLINE_CONFIG_DIR,
+		CLAUDE_CONFIG_DIR,
 		LEGACY_AGENT_SKILLS_CONFIG_DIR,
 	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }

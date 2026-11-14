@@ -5,23 +5,27 @@ import {
 	readdirSync,
 	readFileSync,
 	renameSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
 import { resolveTeamDataDir } from "@cline/shared/storage";
 import type { TeamEvent } from "../../extensions/tools/team";
-import type { TeamStore } from "../../types/storage";
+import {
+	isDurableTeamEvent,
+	toPersistableTeamEvent,
+	toTeamRunResultRecord,
+} from "../../extensions/tools/team/persistence-policy";
+import { sanitizeTeamName } from "../../extensions/tools/team/sanitize-team-name";
+import type { TeamPersistenceBatch, TeamStore } from "../../types/storage";
+import { TEAM_EVENT_RETENTION_PER_TEAM } from "./sqlite-team-store";
+
+/** Compact `task-history.jsonl` once it grows past this size. */
+const FILE_HISTORY_COMPACT_BYTES = 4 * 1024 * 1024;
 
 function nowIso(): string {
 	return new Date().toISOString();
-}
-
-function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
 }
 
 function reviveTeamRuntimeStateDates(
@@ -51,6 +55,9 @@ function reviveTeamRuntimeStateDates(
 				? new Date(run.nextAttemptAt)
 				: undefined,
 			heartbeatAt: run.heartbeatAt ? new Date(run.heartbeatAt) : undefined,
+			lastProgressAt: run.lastProgressAt
+				? new Date(run.lastProgressAt)
+				: undefined,
 		})),
 		outcomes: (state.outcomes ?? []).map((outcome) => ({
 			...outcome,
@@ -148,12 +155,83 @@ export class FileTeamStore implements TeamStore {
 	}
 
 	handleTeamEvent(teamName: string, event: TeamEvent): void {
+		if (!isDurableTeamEvent(event)) {
+			return;
+		}
+		this.appendHistory(teamName, [
+			{ type: event.type, payload: toPersistableTeamEvent(event) },
+		]);
+	}
+
+	/**
+	 * The file store cannot apply deltas, so it rewrites `state.json` once per
+	 * batch. Batching plus compacted run results keep that file small.
+	 */
+	persistBatch(teamName: string, batch: TeamPersistenceBatch): void {
+		// State first: rewriting it is idempotent, so if the history append then
+		// fails the writer's retry re-sends both without duplicating history.
+		this.persistRuntime(teamName, batch.getFullState(), batch.teammates);
+		if (batch.events.length > 0) {
+			this.appendHistory(teamName, batch.events);
+		}
+	}
+
+	private appendHistory(
+		teamName: string,
+		events: Array<{ type: string; payload: unknown }>,
+	): void {
 		this.ensureTeamSubdir(teamName);
+		const ts = nowIso();
+		const path = this.historyPath(teamName);
 		appendFileSync(
-			this.historyPath(teamName),
-			`${JSON.stringify({ ts: nowIso(), eventType: event.type, payload: event })}\n`,
+			path,
+			events
+				.map(
+					(e) =>
+						`${JSON.stringify({ ts, eventType: e.type, payload: e.payload })}\n`,
+				)
+				.join(""),
 			"utf8",
 		);
+		// Events are on disk; compaction is best-effort and must not make the
+		// caller retry (and re-append) them.
+		try {
+			this.compactHistoryIfNeeded(path);
+		} catch {
+			// Retried on the next append.
+		}
+	}
+
+	/** Keep the newest `retentionPerTeam` lines once the file grows too big. */
+	private compactHistoryIfNeeded(path: string): void {
+		let size = 0;
+		try {
+			size = statSync(path).size;
+		} catch {
+			return;
+		}
+		if (size < FILE_HISTORY_COMPACT_BYTES) {
+			return;
+		}
+		const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+		// Bound by count and bytes: keep at most half the trigger size so the
+		// next compaction is far away even when individual events are large.
+		const kept: string[] = [];
+		let bytes = 0;
+		for (
+			let i = lines.length - 1;
+			i >= 0 && kept.length < TEAM_EVENT_RETENTION_PER_TEAM;
+			i--
+		) {
+			const line = lines[i] as string;
+			bytes += Buffer.byteLength(line, "utf8") + 1;
+			if (bytes > FILE_HISTORY_COMPACT_BYTES / 2 && kept.length > 0) break;
+			kept.push(line);
+		}
+		kept.reverse();
+		const tempPath = `${path}.tmp`;
+		writeFileSync(tempPath, `${kept.join("\n")}\n`, "utf8");
+		renameSync(tempPath, path);
 	}
 
 	persistRuntime(
@@ -165,7 +243,13 @@ export class FileTeamStore implements TeamStore {
 		const envelope: PersistedTeamEnvelope = {
 			version: 1,
 			updatedAt: nowIso(),
-			teamState: state,
+			teamState: {
+				...state,
+				runs: state.runs.map((run) => ({
+					...run,
+					result: toTeamRunResultRecord(run.result),
+				})),
+			},
 			teammates,
 		};
 		const path = this.statePath(teamName);

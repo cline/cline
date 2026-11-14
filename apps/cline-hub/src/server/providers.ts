@@ -72,7 +72,14 @@ export async function loadProviders(
 			providers.find((provider) => provider.id === defaults.provider)) ||
 		providers[0];
 	if (selected) {
-		await loadModels(ctx, peer, selected.id);
+		// Endpoint-owned model lists (LiteLLM etc.) reject when the host is
+		// unreachable; report it without aborting the rest of peer setup.
+		await loadModels(ctx, peer, selected.id).catch((error: unknown) => {
+			ctx.send(peer, {
+				type: "error",
+				text: error instanceof Error ? error.message : String(error),
+			});
+		});
 	}
 }
 
@@ -131,7 +138,7 @@ export async function saveProviderSettings(
 	peer: BrowserPeer,
 	frame: Extract<WebviewInboundMessage, { type: "saveProviderSettings" }>,
 ): Promise<void> {
-	const result = saveLocalProviderSettings(providerSettingsManager, {
+	const result = await saveLocalProviderSettings(providerSettingsManager, {
 		providerId: frame.providerId,
 		enabled: frame.enabled,
 		apiKey: frame.apiKey,

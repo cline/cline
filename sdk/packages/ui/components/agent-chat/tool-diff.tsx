@@ -137,6 +137,11 @@ export function ToolFileDiff({
 				options={resolvedOptions}
 				style={
 					{
+						// @pierre/diffs defaults to a fixed 13px / 20px, which ignores
+						// the app's root font size. The rem-based text tokens scale
+						// with it (e.g. the desktop font-size setting).
+						"--diffs-font-size": "var(--text-xs, 0.8rem)",
+						"--diffs-line-height": "calc(var(--text-xs, 0.8rem) * 1.5)",
 						"--diffs-light-bg": background,
 						"--diffs-dark-bg": background,
 						// @pierre/diffs declares `color-scheme: light dark` on its

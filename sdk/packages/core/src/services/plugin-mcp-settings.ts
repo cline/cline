@@ -1,20 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import type {
-	AgentConfig,
-	AgentExtensionMcpServer,
-	AgentTool,
-} from "@cline/shared";
+import type { AgentExtensionMcpServer } from "@cline/shared";
 import {
 	type McpServerRegistration,
 	resolveDefaultMcpSettingsPath,
 	resolvePluginMcpServerRegistrations,
 } from "../extensions/mcp";
-import { loadSandboxedPlugins } from "../extensions/plugin/plugin-sandbox";
-
-type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
-type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
-type AgentExtensionWithPath = AgentExtension & { __clinePluginPath?: string };
+import { collectPluginContributions } from "../extensions/plugin/plugin-contributions";
 
 export interface PluginMcpSettingsMutation {
 	name: string;
@@ -235,100 +227,39 @@ async function collectPluginMcpServers(
 	if (options.pluginPaths.length === 0) {
 		return { plugins: [], servers: [], failures: [] };
 	}
-	const sandboxed = await loadSandboxedPlugins({
-		pluginPaths: [...options.pluginPaths],
+	const collected = await collectPluginContributions({
+		pluginPaths: options.pluginPaths,
 		cwd: options.cwd,
+		workspacePath: options.workspacePath,
 		providerId: options.providerId,
 		modelId: options.modelId,
-		workspaceInfo: options.workspacePath
-			? { rootPath: options.workspacePath }
-			: undefined,
 	});
-	try {
-		const plugins: Array<{
-			pluginName: string;
-			pluginPath: string;
-		}> = [];
-		const servers: Array<{
-			pluginName: string;
-			pluginPath: string;
-			server: AgentExtensionMcpServer;
-		}> = [];
-		const failures: PluginMcpSettingsSyncResult["failures"] = (
-			sandboxed.failures ?? []
-		).map((failure) => ({
+	const plugins = collected.plugins.map((plugin) => ({
+		pluginName: plugin.pluginName,
+		pluginPath: plugin.pluginPath,
+	}));
+	const servers = collected.plugins.flatMap((plugin) =>
+		plugin.mcpServers.map((server) => ({
+			pluginName: plugin.pluginName,
+			pluginPath: plugin.pluginPath,
+			server: {
+				...server,
+				metadata: {
+					...(server.metadata ?? {}),
+					source: "plugin",
+					pluginName: plugin.pluginName,
+					pluginPath: plugin.pluginPath,
+				},
+			},
+		})),
+	);
+	const failures: PluginMcpSettingsSyncResult["failures"] =
+		collected.failures.map((failure) => ({
 			pluginPath: failure.pluginPath,
 			pluginName: failure.pluginName,
 			message: failure.message,
 		}));
-		for (const extension of sandboxed.extensions ?? []) {
-			const pluginPath = (extension as AgentExtensionWithPath)
-				.__clinePluginPath;
-			if (!pluginPath) {
-				continue;
-			}
-			if (!extension.setup) {
-				plugins.push({
-					pluginName: extension.name,
-					pluginPath,
-				});
-				continue;
-			}
-			const mcpServers: AgentExtensionMcpServer[] = [];
-			const api: AgentExtensionApi = {
-				registerTool: (_tool: AgentTool) => {},
-				registerCommand: () => {},
-				registerMessageBuilder: () => {},
-				registerRule: () => {},
-				registerProvider: () => {},
-				registerAutomationEventType: () => {},
-				registerMcpServer: (server) => {
-					if (!extension.manifest.capabilities.includes("mcp")) {
-						throw new Error('registerMcpServer requires the "mcp" capability');
-					}
-					mcpServers.push(server);
-				},
-			};
-			try {
-				await extension.setup(api, {
-					workspaceInfo: options.workspacePath
-						? { rootPath: options.workspacePath }
-						: undefined,
-				});
-			} catch (error) {
-				failures.push({
-					pluginPath,
-					pluginName: extension.name,
-					message: error instanceof Error ? error.message : String(error),
-				});
-				continue;
-			}
-			plugins.push({
-				pluginName: extension.name,
-				pluginPath,
-			});
-			for (const server of mcpServers) {
-				servers.push({
-					pluginName: extension.name,
-					pluginPath,
-					server: {
-						...server,
-						metadata: {
-							...(server.metadata ?? {}),
-							source: "plugin",
-							pluginName: extension.name,
-							pluginPath,
-						},
-					},
-				});
-			}
-		}
-		return { plugins, servers, failures };
-	} finally {
-		await sandboxed.shutdown().catch(() => {
-			// Best-effort cleanup after contribution discovery.
-		});
-	}
+	return { plugins, servers, failures };
 }
 
 export async function syncPluginMcpServersToSettings(

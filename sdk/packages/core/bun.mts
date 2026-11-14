@@ -54,11 +54,8 @@ const buildConfig = {
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
-		entrypoints: [
-			"./src/remote/remote-helper.ts",
-			"./src/remote/remote-helper-entry.ts",
-		],
-		outdir: "./dist/remote",
+		entrypoints: ["./src/cloud/index.ts"],
+		outdir: "./dist/cloud",
 		...buildConfig,
 	},
 	// Build main exports separately to avoid Bun bundler output path conflicts
@@ -85,13 +82,6 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: ["./src/services/feature-flags/posthog.ts"],
 		outdir: "./dist/services/feature-flags",
-		...buildConfig,
-	},
-	// The plugin sandbox bootstrap runs in an isolated child process via
-	// SubprocessSandbox and must be emitted as a separate executable entrypoint.
-	{
-		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
-		outdir: "./dist/extensions",
 		...buildConfig,
 	},
 ];

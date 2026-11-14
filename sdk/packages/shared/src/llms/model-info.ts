@@ -66,6 +66,13 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		/**
+		 * Assistant-message field the model needs its earlier reasoning sent
+		 * back in (models.dev `interleaved.field`).
+		 */
+		interleavedReasoningField: z
+			.enum(["reasoning_content", "reasoning_details"])
+			.optional(),
 		/** Per-model wire protocol for gateways that serve multiple API formats. */
 		apiProtocol: z
 			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])
@@ -129,9 +136,25 @@ export const ModelOperationSchema = z.enum([
 	"speech-generation",
 	"video-generation",
 	"transcription",
+	"realtime",
 ]);
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+/** Voice input requires exactly audio input and text output. Model names and
+ * operation labels cannot widen this to a multimodal realtime session. */
+export function isTranscriptionModel(model: {
+	modalities?: { input?: readonly string[]; output?: readonly string[] };
+}): boolean {
+	const input = model.modalities?.input;
+	const output = model.modalities?.output;
+	return (
+		input?.length === 1 &&
+		input[0] === "audio" &&
+		output?.length === 1 &&
+		output[0] === "text"
+	);
+}
 
 export type ChatCompatibleModelDescriptor = {
 	readonly operation?: ModelOperation;

@@ -6,6 +6,7 @@ import { resolveClineDir, resolveMcpSettingsPath } from "@cline/shared/storage";
 import { updateMcpSettingsFileSync } from "../extensions/mcp";
 import { parseMcpInstallArgs } from "./mcp-install";
 import { uninstallPlugin } from "./plugin-uninstall";
+import { SKILLS_CLI_PACKAGE } from "./skills-cli";
 
 export type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
 
@@ -300,7 +301,7 @@ export async function uninstallMarketplaceSkill(
 	const command = "npx";
 	const commandArgs = [
 		"-y",
-		"skills@latest",
+		SKILLS_CLI_PACKAGE,
 		"remove",
 		installedName,
 		"-g",

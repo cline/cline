@@ -1,7 +1,14 @@
-import type { AgentToolContext, ITelemetryService } from "@cline/shared";
+import { Agent } from "@cline/agents";
+import type {
+	AgentMessage,
+	AgentModel,
+	AgentToolContext,
+	ITelemetryService,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRunCommandsDescription,
+	createAskQuestionTool,
 	createDefaultTools,
 	createEditorTool,
 	createReadFilesTool,
@@ -266,6 +273,51 @@ describe("default ask_question tool", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("keeps answers with $ patterns and quotes verbatim", async () => {
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => 'use $& and "$1"' },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		const result = await askTool?.execute(
+			{ question: "Which?", options: ["a", "b"] },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+		expect(result).toBe('use $& and "$1"');
+	});
+
+	it.each([
+		"",
+		"   ",
+		[],
+		[{ type: "text" as const, text: "  " }],
+	])("errors instead of returning empty answer %j", async (answer) => {
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => answer },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		await expect(
+			askTool?.execute(
+				{ question: "Which?", options: ["a", "b"] },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			),
+		).rejects.toThrow("The user did not answer");
+	});
+
+	it("accepts an answer with only an attachment", async () => {
+		const answer = [
+			{ type: "image" as const, mediaType: "image/png", data: "abc" },
+		];
+		const askTool = createDefaultTools({
+			executors: { askQuestion: async () => answer },
+			enableAskQuestion: true,
+		}).find((tool) => tool.name === "ask_question");
+		const result = await askTool?.execute(
+			{ question: "Which?", options: ["a", "b"] },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+		expect(result).toEqual(answer);
+	});
 });
 
 describe("default submit_and_exit tool", () => {
@@ -529,6 +581,30 @@ describe("run_commands tool description", () => {
 		expect(description).toContain("another pwsh -Command invocation");
 		expect(description).not.toContain("Windows");
 		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
+	});
+
+	it.each([
+		["powershell.exe", true],
+		["pwsh.exe", true],
+		["/usr/bin/pwsh", false],
+	])("tells %s how PowerShell escapes quotes", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).toContain(
+			'PowerShell escapes with a backtick (`), not a backslash: inside double quotes, \\" ends the string.',
+		);
+		expect(description).toContain("Remove-Item -LiteralPath instead of cmd /c");
+		expect(description).toContain("-WhatIf");
+	});
+
+	it.each([
+		["cmd", true],
+		["C:\\Program Files\\Git\\bin\\bash.exe", true],
+		["wsl", true],
+		["/bin/bash", false],
+	])("keeps PowerShell quoting guidance out of %s", (shell, isWindows) => {
+		const description = buildRunCommandsDescription(shell, isWindows);
+		expect(description).not.toContain("backtick");
+		expect(description).not.toContain("Remove-Item");
 	});
 
 	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
@@ -1880,6 +1956,51 @@ describe("zod schema conversion", () => {
 });
 
 describe("default editor tool", () => {
+	it("publishes old_text as an optional string without null", () => {
+		const tool = createEditorTool(async () => "patched");
+		const schema = tool.inputSchema as {
+			required?: string[];
+			properties?: Record<string, { type?: string | string[] }>;
+		};
+
+		expect(schema.required).not.toContain("old_text");
+		expect(schema.properties?.old_text?.type).toBe("string");
+	});
+
+	it.each([
+		{ name: "creating a missing file", insert_line: undefined, query: "edit" },
+		{ name: "inserting a line", insert_line: 1, query: "insert" },
+	])("normalizes null old_text when $name", async ({ insert_line, query }) => {
+		const execute = vi.fn(async () => "patched");
+		const tool = createEditorTool(execute);
+		const result = await tool.execute(
+			{
+				path: "/tmp/example.ts",
+				// @ts-expect-error Models may send null despite the advertised string schema.
+				old_text: null,
+				new_text: "created",
+				insert_line,
+			},
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(result).toEqual({
+			query: `${query}:/tmp/example.ts`,
+			result: "patched",
+			success: true,
+		});
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				path: "/tmp/example.ts",
+				old_text: undefined,
+				new_text: "created",
+				insert_line,
+			}),
+			process.cwd(),
+			expect.anything(),
+		);
+	});
+
 	it("accepts replacement edits without insert fields", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
@@ -2108,5 +2229,74 @@ describe("default editor tool", () => {
 			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
 		);
 		expect(execute).not.toHaveBeenCalled();
+	});
+});
+
+describe("direct Agent question continuation", () => {
+	it.each([
+		"factory",
+		"defaults",
+	])("keeps the answer separate with %s tools", async (source) => {
+		const answer = 'use $& and "$1"';
+		const tools =
+			source === "factory"
+				? [createAskQuestionTool(async () => answer)]
+				: createDefaultTools({
+						executors: { askQuestion: async () => answer },
+						enableAskQuestion: true,
+					});
+		const requests: AgentMessage[][] = [];
+		const model: AgentModel = {
+			async stream(request) {
+				requests.push(structuredClone([...request.messages]));
+				const first = requests.length === 1;
+				return (async function* () {
+					if (first) {
+						yield {
+							type: "tool-call-delta" as const,
+							toolCallId: "q1",
+							toolName: "ask_question",
+							inputText: JSON.stringify({
+								question: "Which?",
+								options: ["a", "b"],
+							}),
+						};
+						yield { type: "finish" as const, reason: "tool-calls" as const };
+					} else {
+						yield { type: "text-delta" as const, text: "Continuing." };
+						yield { type: "finish" as const, reason: "stop" as const };
+					}
+				})();
+			},
+		};
+		const agent = new Agent({ model, tools });
+		const outputs: unknown[] = [];
+		agent.subscribe((event) => {
+			if (event.type === "tool-finished")
+				outputs.push(event.message.content[0]);
+		});
+		const result = await agent.run("Work on the task");
+		expect(requests).toHaveLength(2);
+		expect(outputs).toEqual([
+			expect.objectContaining({ type: "tool-result", output: answer }),
+		]);
+		const next = requests[1] ?? [];
+		expect(next.at(-2)?.content[0]).toMatchObject({
+			type: "tool-result",
+			output: answer,
+		});
+		const context = next.at(-1);
+		expect(context).toMatchObject({
+			role: "user",
+			metadata: { displayRole: "system" },
+		});
+		expect(JSON.stringify(context)).toContain(
+			"Continue working on their task using that answer.",
+		);
+		expect(
+			result.messages.filter(
+				(message) => message.metadata?.displayRole === "system",
+			),
+		).toHaveLength(1);
 	});
 });

@@ -3,11 +3,11 @@ import {
 	type IncomingMessage,
 	type ServerResponse,
 } from "node:http";
-import { Agent, createTool } from "@cline/sdk";
+import { Agent, createTool, Llms } from "@cline/sdk";
 import { z } from "zod";
 
 const PORT = Number(process.env.PORT || 3457);
-const MODEL_ID = process.env.CLINE_MODEL_ID || "anthropic/claude-sonnet-4.6";
+const MODEL_ID = process.env.CLINE_MODEL_ID || Llms.CLINE_DEFAULT_MODEL_ID;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 const POSTING_ENABLED =
 	process.env.ENABLE_GITHUB_REVIEW_POSTING === "1" && Boolean(GITHUB_TOKEN);

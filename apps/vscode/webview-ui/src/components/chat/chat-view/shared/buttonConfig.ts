@@ -1,5 +1,7 @@
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, ClineSayTool, TurnState } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
+import { ClineError } from "../../../../../../src/services/error/ClineError"
 
 /**
  * Button action types that determine the behavior
@@ -32,6 +34,12 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		secondaryText: "Start New Task",
 		primaryAction: "retry",
 		secondaryAction: "new_task",
+	},
+	cloud_creation_unconfirmed: {
+		sendingDisabled: true,
+		enableButtons: true,
+		primaryText: "Start New Task",
+		primaryAction: "new_task",
 	},
 	mistake_limit_reached: {
 		sendingDisabled: false,
@@ -243,7 +251,9 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 		switch (message.ask) {
 			// Error recovery states
 			case "api_req_failed":
-				return BUTTON_CONFIGS.api_req_failed
+				return ClineError.parse(message.text)?._error.code === CLOUD_CREATION_UNCONFIRMED_ERROR_CODE
+					? BUTTON_CONFIGS.cloud_creation_unconfirmed
+					: BUTTON_CONFIGS.api_req_failed
 			case "mistake_limit_reached":
 				return BUTTON_CONFIGS.mistake_limit_reached
 
@@ -328,9 +338,7 @@ function isInertStatusMessage(message: ClineMessage): boolean {
 		}
 	}
 
-	return ["api_req_finished", "deleted_api_reqs", "mcp_server_request_started", "subagent_usage", "task_progress"].includes(
-		message.say || "",
-	)
+	return ["api_req_finished", "deleted_api_reqs", "mcp_server_request_started", "subagent_usage"].includes(message.say || "")
 }
 
 /**
@@ -378,10 +386,11 @@ export function buttonsForPhase(
 		case "resumable":
 			return BUTTON_CONFIGS.resume_task
 		case "error":
-			// The anchored message distinguishes mistake_limit (Proceed/New Task) from a failed
-			// API request (Retry/New Task). Default to the retry config.
-			if (anchoredMessage?.type === "ask" && anchoredMessage.ask === "mistake_limit_reached") {
-				return BUTTON_CONFIGS.mistake_limit_reached
+			if (
+				anchoredMessage?.type === "ask" &&
+				(anchoredMessage.ask === "mistake_limit_reached" || anchoredMessage.ask === "api_req_failed")
+			) {
+				return getButtonConfig(anchoredMessage)
 			}
 			return BUTTON_CONFIGS.api_req_failed
 		case "awaiting_followup":
@@ -408,8 +417,24 @@ export function getButtonConfigFromState(
 	foregroundCommandRunning = false,
 ): ButtonConfig {
 	if (turnState) {
-		const anchored = turnState.anchorTs !== undefined ? messages.find((m) => m.ts === turnState.anchorTs) : undefined
+		const anchored = getTurnStateMessage(messages, turnState)
 		return buttonsForPhase(turnState, anchored, foregroundCommandRunning)
 	}
 	return getButtonConfigForMessages(messages, mode)
+}
+
+export function getTurnStateMessage(messages: ClineMessage[], turnState: TurnState | undefined): ClineMessage | undefined {
+	return turnState?.anchorTs !== undefined ? messages.find((message) => message.ts === turnState.anchorTs) : undefined
+}
+
+export function isOptionsAskActive(
+	message: ClineMessage,
+	turnState: TurnState | undefined,
+	isLast: boolean,
+	lastModifiedMessage: ClineMessage | undefined,
+): boolean {
+	if (turnState) {
+		return turnState.phase === "awaiting_followup" && turnState.anchorTs === message.ts
+	}
+	return isLast && lastModifiedMessage?.ask === message.ask
 }

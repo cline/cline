@@ -1,12 +1,26 @@
 "use client";
 
-import { formatDisplayUserInput } from "@cline/shared/browser";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	formatDisplayUserInput,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
+import {
+	createElement,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
-import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	getInitialChatConfig,
+	isUntouchedDefaultModel,
+	loadLiveClineDefaultModelId,
+} from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
 	credentialFailureMeta,
@@ -38,6 +52,7 @@ import type {
 	ToolCallStartEvent,
 	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
+import { toast } from "@/hooks/use-toast";
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
@@ -50,7 +65,7 @@ import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
-import { formatRunError } from "@/lib/run-error";
+import { formatRunError, HUB_INTERRUPTED_MESSAGE_KIND } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -126,6 +141,38 @@ type PendingToolOutput = {
 
 function errorMessage(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
+}
+
+/** A visible status line for a plugin the session could not fully use. */
+function makePluginIssueMessage(
+	sid: string | null,
+	content: string,
+): ChatMessage {
+	return {
+		id: makeId("plugin"),
+		sessionId: sid,
+		role: "status",
+		content,
+		createdAt: Date.now(),
+		meta: { messageKind: "plugin_issue" },
+	};
+}
+
+/** The notice text when a core log chunk reports a plugin issue. */
+function readPluginIssueWarning(chunk: string): string | undefined {
+	try {
+		const parsed = JSON.parse(chunk) as {
+			message?: unknown;
+			metadata?: { pluginIssue?: unknown };
+		};
+		return parsed.metadata?.pluginIssue &&
+			typeof parsed.message === "string" &&
+			parsed.message.trim()
+			? parsed.message.trim()
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function makeErrorChatMessage(
@@ -560,7 +607,25 @@ export function useChatSession(environmentId: string) {
 	const [config, setConfig] = useState<ChatSessionConfig>(() =>
 		getInitialChatConfig(environmentId),
 	);
+	// Swap in the live feed's first free model once it arrives, only while the
+	// config is still the untouched new-user default. Never blocks the UI.
+	// A restored or running session keeps the model it has.
+	const hasSessionRef = useRef(false);
+	hasSessionRef.current = sessionId !== null;
+	useEffect(() => {
+		let cancelled = false;
+		void loadLiveClineDefaultModelId().then((model) => {
+			if (cancelled || !model || hasSessionRef.current) return;
+			setConfig((prev) =>
+				isUntouchedDefaultModel(prev) ? { ...prev, model } : prev,
+			);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
+	const [historyPreview, setHistoryPreview] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [toolCalls, setToolCalls] = useState(0);
@@ -612,6 +677,7 @@ export function useChatSession(environmentId: string) {
 	const cloudOptimisticStatesRef = useRef<Map<string, CloudOptimisticState>>(
 		new Map(),
 	);
+	const cloudSnapshotHydrationIdRef = useRef<number | null>(null);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
 	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
@@ -622,6 +688,7 @@ export function useChatSession(environmentId: string) {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const providerIdRef = useRef(config.provider);
+	const providerAuthRef = useRef(config.providerAuth);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -635,6 +702,10 @@ export function useChatSession(environmentId: string) {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
+	const manualCompactionSessionIdRef = useRef<string | null>(null);
+	const [compactionSessionId, setCompactionSessionId] = useState<string | null>(
+		null,
+	);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -688,6 +759,11 @@ export function useChatSession(environmentId: string) {
 		activeSessionIdRef.current = sessionId;
 	}, [sessionId]);
 	useEffect(() => {
+		setCompactionSessionId((current) =>
+			current === sessionId && BUSY_STATUSES.has(status) ? current : null,
+		);
+	}, [sessionId, status]);
+	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
 	useEffect(() => {
@@ -695,7 +771,8 @@ export function useChatSession(environmentId: string) {
 	}, [messages]);
 	useEffect(() => {
 		providerIdRef.current = config.provider;
-	}, [config.provider]);
+		providerAuthRef.current = config.providerAuth;
+	}, [config.provider, config.providerAuth]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -861,9 +938,9 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			setErrorState(
-				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				`${message} ${resolveCredentialFailureHint(providerId, providerAuthRef.current)}`,
 				sid,
-				credentialFailureMeta(providerId),
+				credentialFailureMeta(providerId, providerAuthRef.current),
 			);
 		},
 		[setErrorState],
@@ -885,6 +962,7 @@ export function useChatSession(environmentId: string) {
 			detail: string,
 			ownedGeneration?: number,
 			ownedProviderId?: string,
+			ownedProviderAuth?: ProviderAuthInfo,
 		) => {
 			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
 			const isCurrentTurn =
@@ -898,10 +976,18 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = formatRunError(description, providerId);
+			// Use the auth facts captured with the submitted provider; the current
+			// selection may have changed since the turn started.
+			const providerAuth =
+				ownedProviderId === undefined
+					? providerAuthRef.current
+					: ownedProviderAuth;
+			const content = formatRunError(description, providerId, providerAuth);
 			const meta = {
 				providerId,
-				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+				...(looksCredentialRelated
+					? credentialFailureMeta(providerId, providerAuth)
+					: {}),
 			};
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.generation === generation) {
@@ -1020,6 +1106,7 @@ export function useChatSession(environmentId: string) {
 		return () => {
 			if (turnEndReconcileTimerRef.current !== null) {
 				clearTimeout(turnEndReconcileTimerRef.current);
+				turnEndReconcileTimerRef.current = null;
 			}
 		};
 	}, []);
@@ -1365,6 +1452,9 @@ export function useChatSession(environmentId: string) {
 		return () => {
 			if (streamFlushTimerRef.current !== null) {
 				clearTimeout(streamFlushTimerRef.current);
+				// The app can be hidden and restored (Activity) with refs intact; a
+				// stale id would make schedulePendingStreamFlush skip every flush.
+				streamFlushTimerRef.current = null;
 			}
 		};
 	}, []);
@@ -1614,6 +1704,31 @@ export function useChatSession(environmentId: string) {
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
 	}, [setPromptsInQueue, subscribeToEnvironment]);
+
+	// Replies from plugin slash commands run by the sidecar. They are not part
+	// of the persisted transcript, so surface them as a toast rather than a
+	// message that canonical rehydration would drop.
+	useEffect(() => {
+		return subscribeToEnvironment("chat_command_output", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const record = payload as {
+				sessionId?: string;
+				command?: string;
+				text?: string;
+			};
+			if (record.sessionId !== activeSessionIdRef.current) return;
+			const text = record.text?.trim();
+			if (!text) return;
+			toast({
+				title: record.command ? `/${record.command}` : undefined,
+				description: createElement(
+					"span",
+					{ className: "whitespace-pre-line" },
+					text,
+				),
+			});
+		});
+	}, [subscribeToEnvironment]);
 
 	// ---- Incoming chunk handler ----
 
@@ -1885,6 +2000,11 @@ export function useChatSession(environmentId: string) {
 							rekeyedOptimisticIdByMessageIdRef.current[userMessageId];
 						for (let i = prev.length - 1; i >= 0; i--) {
 							const candidate = prev[i];
+							// Session start appends plugin warnings after the optimistic
+							// bubble; look past them to the prompt.
+							if (candidate.meta?.messageKind === "plugin_issue") {
+								continue;
+							}
 							if (candidate.role !== "user") {
 								break;
 							}
@@ -1935,6 +2055,12 @@ export function useChatSession(environmentId: string) {
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
+				// Plugin failures after the session started (setup and hooks run
+				// on the first turn) are shown in the chat, not only logged.
+				const pluginWarning = readPluginIssueWarning(payload.chunk);
+				if (pluginWarning) {
+					addMessage(makePluginIssueMessage(payload.sessionId, pluginWarning));
+				}
 				// Remember the latest error so a failed turn can explain itself:
 				// the runtime reports the underlying cause (e.g. an auth failure)
 				// here rather than on the turn-completion event.
@@ -1952,6 +2078,16 @@ export function useChatSession(environmentId: string) {
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);
+					// The sidecar is re-creating the session on a restarted hub;
+					// hold the turn open with a status instead of an error.
+					const hubReconnect = (
+						parsed.metadata as { hubReconnect?: unknown } | undefined
+					)?.hubReconnect;
+					if (hubReconnect === "started") {
+						setActivityLabel("Reconnecting to Cline Hub...");
+					} else if (hubReconnect === "finished") {
+						setActivityLabel(null);
+					}
 					if (summaryActivity) {
 						setActivityLabel(
 							summaryActivity.phase === "started"
@@ -2298,6 +2434,9 @@ export function useChatSession(environmentId: string) {
 					return;
 				}
 				if (!Array.isArray(record.messages)) return;
+				if (record.messages.length > 0) {
+					cloudSnapshotHydrationIdRef.current = hydrationRequestIdRef.current;
+				}
 				const rehydratedMessages = record.messages;
 				const nextStatus = record.status?.trim();
 				// A locally submitted turn owns status and live routing until its RPC
@@ -2584,6 +2723,9 @@ export function useChatSession(environmentId: string) {
 			}
 			setSessionId(id);
 			setIsCloudSessionExpired(false);
+			for (const warning of payload.pluginWarnings ?? []) {
+				addMessage(makePluginIssueMessage(id, warning));
+			}
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
@@ -2599,7 +2741,7 @@ export function useChatSession(environmentId: string) {
 			setHydratedHistorySessionId(null);
 			return id;
 		},
-		[environmentId, postSession],
+		[addMessage, environmentId, postSession],
 	);
 
 	// ---- Actions ----
@@ -2670,7 +2812,18 @@ export function useChatSession(environmentId: string) {
 		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
+			const isManualCompaction = /^\/compact(?:\s|$)/i.test(trimmed);
 			if (!trimmed && attachedFiles.length === 0) return true;
+			if (
+				manualCompactionSessionIdRef.current &&
+				manualCompactionSessionIdRef.current === activeSessionIdRef.current
+			) {
+				toast({
+					title:
+						"Compaction is in progress. Stop it before sending another message.",
+				});
+				return false;
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2992,7 +3145,12 @@ export function useChatSession(environmentId: string) {
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
 					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
-					setStatus("starting");
+					// Manual compaction has no run-start event to enable Stop.
+					if (isManualCompaction) {
+						manualCompactionSessionIdRef.current = activeSessionId;
+						setCompactionSessionId(activeSessionId);
+					}
+					setStatus(isManualCompaction ? "running" : "starting");
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
@@ -3034,6 +3192,27 @@ export function useChatSession(environmentId: string) {
 			};
 			try {
 				const payload = await sendTask;
+				if (payload.ok && payload.commandHandled) {
+					// A plugin slash command (e.g. `/goal status`) was handled by
+					// the sidecar without a turn: its reply arrives as a
+					// chat_command_output toast, so retract the optimistic
+					// bubble/queue entry and hand status back to the prior turn.
+					if (optimisticQueuedPromptId) {
+						setPromptsInQueue((prev) =>
+							prev.filter((item) => item.id !== optimisticQueuedPromptId),
+						);
+					}
+					withdrawPrompt();
+					if (
+						!shouldQueue &&
+						!settleAbortedSend() &&
+						turnEpochRef.current === turnEpochAtDispatch
+					) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus(status);
+					}
+					return true;
+				}
 				// A queued successor clears the abort flag before the old send's
 				// aborted RPC reply can arrive. Its stream now owns the UI.
 				if (
@@ -3082,7 +3261,11 @@ export function useChatSession(environmentId: string) {
 				// rendered as an assistant bubble (canonical rehydration would
 				// silently wipe it, leaving the user with a blank chat).
 				const isErrorResult = result?.finishReason === "error";
-				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
+				// A hub-restart notice is shown as its own bubble below.
+				const assistantText =
+					isErrorResult || result?.hubInterrupted
+						? ""
+						: (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -3426,6 +3609,7 @@ export function useChatSession(environmentId: string) {
 						runError || toolError?.trim() || "",
 						failureGenerationAtSubmission,
 						parsed.provider,
+						parsed.providerAuth,
 					);
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -3440,6 +3624,19 @@ export function useChatSession(environmentId: string) {
 						promptTaken = withdrawPrompt();
 					}
 				} else if (result?.finishReason === "aborted") {
+					// Canonical history keeps a trailing error-role bubble until a
+					// saved error replaces it, so the resend notice is not wiped
+					// when the rebuilt session's history is applied.
+					if (result.hubInterrupted && !newerTurnOwnsStatus) {
+						setMessages((prev) =>
+							sliceMessages([
+								...prev,
+								makeErrorChatMessage(activeSessionId, result.text, {
+									messageKind: HUB_INTERRUPTED_MESSAGE_KIND,
+								}),
+							]),
+						);
+					}
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("cancelled");
@@ -3463,10 +3660,25 @@ export function useChatSession(environmentId: string) {
 				markCloudOptimisticFailed();
 				if (!failureOwnerCurrent()) {
 					replySuperseded = true;
+				} else if (errorMessage(err).startsWith("Compaction is in progress")) {
+					// A compaction we lost track of (reload, remount) is still
+					// running in the sidecar: show Stop again instead of an error.
+					promptTaken = withdrawPrompt();
+					setCompactionSessionId(activeSessionId);
+					setStatus("running");
 				} else {
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
+				if (
+					manualCompactionSessionIdRef.current === activeSessionId &&
+					!shouldQueue
+				) {
+					manualCompactionSessionIdRef.current = null;
+					setCompactionSessionId((current) =>
+						current === activeSessionId ? null : current,
+					);
+				}
 				if (!replySuperseded && failureOwnerCurrent()) {
 					clearAbortFallbackTimeout();
 				}
@@ -3720,14 +3932,18 @@ export function useChatSession(environmentId: string) {
 			const leavingTaskWorktree = isTaskWorktreePath(
 				prev.workspaceRoot || prev.cwd || "",
 			);
+			const switchingTarget = prev.executionTarget !== initial.executionTarget;
 			return {
 				...prev,
 				sessionId: undefined,
+				executionTarget: initial.executionTarget,
+				repoUrl: undefined,
+				branch: undefined,
 				provider: initial.provider,
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
-				...(leavingTaskWorktree
+				...(switchingTarget || leavingTaskWorktree
 					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
 					: {}),
 			};
@@ -3786,6 +4002,7 @@ export function useChatSession(environmentId: string) {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			setHistoryPreview([]);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3829,12 +4046,14 @@ export function useChatSession(environmentId: string) {
 				lastCoreErrorBySessionRef.current = {};
 				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
-					applyCloudSnapshotMessages({
-						sessionId: session.sessionId,
-						messages: msgs,
-						preserveUnmatchedLive: true,
-						preserveLiveRouting: sessionStatus === "running",
-					});
+					if (cloudSnapshotHydrationIdRef.current !== requestId) {
+						applyCloudSnapshotMessages({
+							sessionId: session.sessionId,
+							messages: msgs,
+							preserveUnmatchedLive: true,
+							preserveLiveRouting: sessionStatus === "running",
+						});
+					}
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
 						hydrated: msgs,
@@ -3861,6 +4080,25 @@ export function useChatSession(environmentId: string) {
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
+			let loadingHistory = true;
+			if (session.origin === "cloud" && session.status !== "expired") {
+				void desktopClient
+					.invoke<ChatMessage[] | null>("read_archived_cloud_messages", {
+						sessionId: session.sessionId,
+					})
+					.then((preview) => {
+						if (
+							hydrationRequestIdRef.current !== requestId ||
+							!loadingHistory ||
+							!preview?.length
+						)
+							return;
+						setHistoryPreview(preview);
+					})
+					.catch(() => {
+						// Archives are optional; live history owns startup errors.
+					});
+			}
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
@@ -3871,6 +4109,8 @@ export function useChatSession(environmentId: string) {
 					},
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
+				loadingHistory = false;
+				setHistoryPreview([]);
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
 					applyHydratedMessages(historyMessages, session.status);
@@ -3997,7 +4237,9 @@ export function useChatSession(environmentId: string) {
 				setStatus("error");
 				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
+				loadingHistory = false;
 				if (hydrationRequestIdRef.current === requestId) {
+					setHistoryPreview([]);
 					setIsHydratingSession(false);
 				}
 			}
@@ -4182,8 +4424,13 @@ export function useChatSession(environmentId: string) {
 		isHydratingSession,
 		activeAssistantMessageId,
 		activityLabel,
+		isCompacting:
+			compactionSessionId !== null &&
+			compactionSessionId === sessionId &&
+			(status === "starting" || status === "running" || status === "stopping"),
 		config,
 		messages,
+		historyPreview: isHydratingSession ? historyPreview : [],
 		rawTranscript,
 		error,
 		summary,

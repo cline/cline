@@ -3,6 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import {
+	EXECUTION_TARGET_STORAGE_KEY,
+	writeExecutionTargetToWindow,
+} from "@/lib/model-selection";
 import type { RemoteEnvironmentProfile } from "@/lib/remote-environments";
 import {
 	buildEnvironmentSelectorModel,
@@ -51,6 +56,7 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	window.localStorage.removeItem(EXECUTION_TARGET_STORAGE_KEY);
 	vi.restoreAllMocks();
 });
 
@@ -205,6 +211,60 @@ describe("EnvironmentSelector", () => {
 		expect(onSelectEnvironment).not.toHaveBeenCalled();
 	});
 
+	it("remembers an explicit Local pick after Cloud falls back to Local", async () => {
+		writeExecutionTargetToWindow("cloud");
+		const onSelectExecutionTarget = vi.fn(writeExecutionTargetToWindow);
+		const onSelectEnvironment = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					executionTarget="local"
+					cloudEnabled={false}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		// Displaying the automatic fallback alone preserves the saved preference.
+		expect(getInitialChatConfig("local").executionTarget).toBe("cloud");
+		await pointerDown(trigger());
+		await click(menuItemContaining("Local"));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("local");
+		expect(onSelectEnvironment).not.toHaveBeenCalled();
+		expect(getInitialChatConfig("local").executionTarget).toBe("local");
+	});
+
+	it("picking Local from an SSH host also selects the local execution target", async () => {
+		const onSelectExecutionTarget = vi.fn();
+		const onSelectEnvironment = vi.fn(async () => undefined);
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="pi-server"
+					executionTarget="local"
+					cloudEnabled
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					onSelectEnvironment={onSelectEnvironment}
+					onAddSshHost={vi.fn()}
+					profiles={profiles}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		await click(menuItemContaining("Build box"));
+		// Another SSH host is not a Cloud/Local decision.
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		expect(onSelectEnvironment).toHaveBeenCalledExactlyOnceWith("build-box");
+
+		await pointerDown(trigger());
+		await click(menuItemContaining("Local"));
+		expect(onSelectExecutionTarget).toHaveBeenCalledExactlyOnceWith("local");
+		expect(onSelectEnvironment).toHaveBeenLastCalledWith("local");
+	});
+
 	it.each([
 		["Local", "local"],
 		["Build box", "build-box"],
@@ -240,6 +300,52 @@ describe("EnvironmentSelector", () => {
 			expect(onSelectEnvironment).toHaveBeenCalledExactlyOnceWith(
 				environmentId,
 			);
+	});
+
+	it.each([
+		{
+			activeEnvironmentId: "pi-server",
+			executionTarget: "local" as const,
+			choice: "Local",
+		},
+		{
+			activeEnvironmentId: "local",
+			executionTarget: "cloud" as const,
+			choice: "Build box",
+		},
+	])("keeps the target unchanged when switching from $activeEnvironmentId to $choice fails", async ({
+		activeEnvironmentId,
+		executionTarget,
+		choice,
+	}) => {
+		let rejectSwitch!: (error: Error) => void;
+		const onSelectEnvironment = vi.fn(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectSwitch = reject;
+				}),
+		);
+		const onSelectExecutionTarget = vi.fn();
+		await act(async () =>
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId={activeEnvironmentId}
+					executionTarget={executionTarget}
+					cloudEnabled
+					profiles={profiles}
+					onAddSshHost={vi.fn()}
+					onSelectEnvironment={onSelectEnvironment}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+				/>,
+			),
+		);
+		await pointerDown(trigger());
+		await click(menuItemContaining(choice));
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		await act(async () => rejectSwitch(new Error("switch failed")));
+		expect(onSelectExecutionTarget).not.toHaveBeenCalled();
+		expect(menuItemContaining(choice)).toBeDefined();
+		expect(trigger().disabled).toBe(false);
 	});
 
 	it("reopens the menu after a rejected environment switch", async () => {

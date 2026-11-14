@@ -86,9 +86,9 @@ OAuth-supported providers (`cline`, `openai-codex`, `oca`) do not auto-launch a 
 Cline CLI runs in a few different shapes depending on what you need:
 
 - Interactive TUI: `cline` or `cline -i` opens a full terminal UI with plan/act toggle, slash commands, file mentions, and live tool approvals
-- One-shot: `cline "your prompt"` runs a single turn and exits
+- One-shot: `cline "your prompt"` runs a single turn in yolo mode and exits. Pass `--auto-approve false` to run in act mode with approval prompts, or `--act`/`--plan` to pick a mode
 - JSON: `cline --json "..."` streams NDJSON events for piping into other tools
-- Yolo: `cline --yolo "..."` skips approval prompts and exits when the turn finishes
+- Yolo: `cline --yolo "..."` skips approval prompts and exits when the turn finishes. This is the default for one-shot and piped runs
 - Zen: `cline --zen "..."` fires the task to the background hub daemon and exits immediately (see below)
 
 ## Headless mode for CI/CD
@@ -124,8 +124,11 @@ cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and
 # Start Cline CLI without a prompt to enter interactive mode
 cline
 
-# Single prompt (one-shot) - includes tools, spawn, and teams
+# Single prompt (one-shot) - runs in yolo mode: no spawn or teams
 cline "Audit this package and propose fixes"
+
+# One-shot in act mode - keeps the full tool set, spawn, and teams
+cline --act "Audit this package and propose fixes"
 
 # Interactive mode with a starting prompt
 cline -i "Let's work on this together. First, analyze the current state."
@@ -142,9 +145,9 @@ cline --yolo --retries 5 "Refactor this package"
 # Override consecutive internal mistake (retry) limit (default: 3)
 cline --retries 5 "Fix failing tests"
 
-# Team workflow with persistent name
-cline --team-name my-team "Plan, implement, and verify release checklist"
-cline --team-name my-team "Continue yesterday's team workflow"
+# Team workflow with persistent name (teams need act mode in one-shot runs)
+cline --act --team-name my-team "Plan, implement, and verify release checklist"
+cline --act --team-name my-team "Continue yesterday's team workflow"
 
 # Show verbose run stats (elapsed time, tokens, estimated cost when available)
 cline -v "Explain quantum computing"
@@ -249,25 +252,25 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 |------|-------------|
 | `-s, --system <prompt>` | Override the system prompt |
 | `-P, --provider <id>` | Provider id (default: `cline`) |
-| `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-4.6`) |
-| `-k, --key <api-key>` | API key override for this run |
-| `-p, --plan` | Run in plan mode (default is act mode) |
+| `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-5.5`) |
+| `-k, --key <api-key>` | API key for this run, also saved as the provider's key |
+| `-p, --plan` | Run in plan mode (default is act mode in the TUI and yolo mode for one-shot runs) |
 | `-i, --tui` | Interactive TUI multi-turn mode |
 | `-t, --timeout <seconds>` | Optional run timeout in seconds |
 | `-c, --cwd <path>` | Working directory for tools |
 | `--config <path>` | Configuration directory (used for CLI home resolution) |
 | `--hooks-dir <path>` | Additional hooks directory hint for runtime hook injection |
 | `--acp` | ACP (Agent Client Protocol) mode |
-| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level; thinking is off when the flag is omitted. |
+| `--thinking [none\|low\|medium\|high\|xhigh]` | Model thinking level when supported. Defaults to `medium` when the flag is provided without a level. Without the flag, the CLI uses the level you last chose with `/model`, or the provider default. |
 | `--compaction <agentic\|basic\|off>` | Context compaction mode. Defaults to `agentic`; use `basic` for local truncation or `off` to disable. |
 | `--retries <count>` | Maximum consecutive mistakes (retries) before halting (default: `3`) |
 | `--json` | Output NDJSON instead of styled text |
 | `--data-dir <path>` | Use isolated local state at `<path>` instead of `~/.cline/data` (enables sandbox mode automatically) |
-| `--auto-approve [true\|false]` | Set tool auto-approval for all tools |
+| `--auto-approve [true\|false]` | Set tool auto-approval for all tools. `false` also keeps one-shot runs in act mode instead of yolo |
 | `--kanban` | Run the external `kanban` app |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
 | `-z, --zen` | Dispatch the task to the background hub and exit the CLI immediately |
-| `--team-name <name>` | Override the runtime team state name |
+| `--team-name <name>` | Override the runtime team state name. Ignored in yolo mode, so pass `--act` with it on one-shot runs |
 | `-h, --help` | Show help and exit |
 | `-v, --verbose` | Show verbose runtime diagnostics |
 | `-V, --version` | Show version and exit |
@@ -286,10 +289,33 @@ Schedules can route results back to chat surfaces with `--delivery-adapter`, `--
 - `cline schedule <command>` - Create and manage scheduled runs
 - `cline doctor` - Inspect local CLI health and stale processes
 - `cline doctor fix` - Kill stale local RPC listeners and old CLI processes
-- `cline doctor log` - Open the CLI runtime log file
+- `cline doctor log` - Open the CLI runtime log file (`CLINE_LOG_PATH` when set)
 - `cline hook` - Handle a hook payload from stdin
 - `cline hub` - Manage the local hub daemon
 - `cline kanban` - Run the external `kanban` app, installing it first when needed
+
+Compiled CLI binaries embed the plugin bootstrap, SDK modules, and dashboard
+assets. They can start the Hub, load SDK plugins, and serve the dashboard without
+a separate Node/Bun installation or adjacent runtime files. Resources are read directly from the binary’s read-only Bun filesystem; no
+runtime cache is extracted. `--plugin-sandbox` is an internal subprocess dispatch
+flag, not a user command.
+
+## Hub dashboard
+
+Run `cline hub` to list hub subcommands. To start the browser dashboard:
+
+```sh
+cline hub dashboard
+```
+
+The dashboard opens in your default browser and stays running until you press Ctrl+C. Use `--no-open` to print the URL without opening a browser, or `--port` to change the dashboard's HTTP/WebSocket port (default: `8787`):
+
+```sh
+cline hub dashboard --port 9090 --no-open
+cline hub dashboard --help
+```
+
+Dashboard options also include `--cwd`, `--config`, `--data-dir`, `--host`, `--public-url`, and `--room-secret`. For LAN or tunnel access, see the [Cline Hub configuration and security guidance](../cline-hub/README.md). The old `cline dashboard` invocation remains a hidden compatibility alias; use `cline hub dashboard` in new scripts.
 
 ## Zen mode
 
@@ -309,7 +335,7 @@ Behavior:
 
 ## Tool approval
 
-Tool calls are auto-approved by default. Use `--auto-approve false` to require review before tool execution.
+Tool calls are auto-approved by default, and one-shot runs (`cline "..."` or piped stdin) use yolo mode. Use `--auto-approve false` to run in act mode and require review before tool execution.
 
 ```sh
 cline --auto-approve false "Inspect and modify this repository"
@@ -349,6 +375,7 @@ Desktop-integrated approval mode is also supported via env wiring (`CLINE_TOOL_A
 - `CLINE_LOG_PATH` - Runtime log file path (default `<CLINE_DATA_DIR>/logs/cline.log`)
 - `CLINE_LOG_NAME` - Logger name embedded in runtime log records
 - `CLINE_DEBUG` - Set to `1`/`true` to print wrapper diagnostics (e.g. the CA bundle summary)
+- `CLINE_CLOUD_SESSIONS` - Set to `1`/`true` to enable the experimental Local/Cloud toggle (`Ctrl+O`) for running tasks in Cline Cloud sandboxes
 
 `--key` takes precedence over environment variables.
 

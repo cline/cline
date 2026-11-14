@@ -13,7 +13,7 @@ styles or adopting desktop product structure.
 
 The theme provides:
 
-- Cline-owned Slate, Violet, Ruby, Green, Amber, and Sky solid/alpha palettes
+- Cline-owned Slate, Iris, Vermilion, Emerald, Amber, and Sky solid/alpha palettes
 - Light and dark semantic colors
 - Standard shadcn token names
 - Typography families, sizes, weights, line heights, and letter spacing
@@ -67,6 +67,23 @@ Shared modules like these keep read/edit/command rows identical across
 products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
+
+`AgentChangesPanel` and `AgentChangedFile` share the Changes pane header,
+scrolling, file disclosure, path, copy feedback, and diff counts. Pass rendered
+diff children and clipboard/native-editor callbacks; each host retains its
+change collector, workspace paths, and conversation focus restoration.
+
+`AgentPullRequestBar` shares PR state, merge readiness, diff counts, and check
+presentation. Hosts provide normalized data, refresh/navigation callbacks,
+and their accessible checks popover through `renderChecks`. Fetching, polling,
+authentication, and telemetry stay in the host. Import these components from
+`@cline/ui` and their styles through the existing `@cline/ui/components.css`.
+
+`AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
+Pass ANSI-rendered or normalized output as children; transport and output limits
+stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
+close action, and close control; hosts retain their dialog, focus, keyboard, and
+image navigation. Import both from `@cline/ui` with `@cline/ui/components.css`.
 
 ## Current status
 
@@ -144,14 +161,14 @@ intentionally wants to move to a newer release:
 bun update @cline/ui
 ```
 
-For deliberate previews, UI releases can publish an unstable `next` npm tag:
+`@cline/ui` is released with the SDK packages and shares their version. For
+deliberate previews, install an unstable `nightly` build:
 
 ```bash
-bun add --exact @cline/ui@next
+bun add --exact @cline/ui@nightly
 ```
 
-Do not use `next` for production applications. UI versions move independently
-from the runtime SDK packages.
+Do not use `nightly` for production applications.
 
 ## Option 1: complete Tailwind v4 theme
 
@@ -243,6 +260,90 @@ For native controls that should follow the selected theme:
 }
 ```
 
+## Buttons
+
+Import `Button` and `IconButton` from `@cline/ui` after loading the theme and
+`@cline/ui/components.css`. Use `primary` for main actions, `secondary` for
+supporting actions, and `ghost` for low-emphasis actions. Existing `fill` and
+`surface` variants remain aliases for `primary` and `secondary`.
+
+Both controls support `accent`, `neutral`, and `destructive` tones and
+`xs`, `sm`, `md`, and `lg` sizes. `Button` defaults to primary/accent/md;
+`IconButton` defaults to ghost/neutral/sm.
+
+Both controls use the same height and corner radius for each size:
+
+| Size | Height with `--spacing: 0.25rem` | Corner radius |
+| --- | --- | --- |
+| `xs` | `1.75rem` | `--radius-md` |
+| `sm` | `2rem` | `--radius-md` |
+| `md` | `2.25rem` | `--radius-lg` |
+| `lg` | `2.5rem` | `--radius-lg` |
+
+Heights use 7, 8, 9, and 10 spacing units respectively. Icon buttons use the
+same dimension for width, keeping them square.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+import { Plus, X } from "lucide-react";
+
+<Button leadingIcon={Plus}>New session</Button>
+<Button tone="neutral" variant="secondary">More options</Button>
+<IconButton icon={X} aria-label="Close" />
+```
+
+Pass SVG components through `leadingIcon`, `trailingIcon`, or `icon`; the button
+handles sizing, spacing, and decorative accessibility. Custom icons must forward
+SVG props, including `className`. `IconButton` requires an accessible label.
+Existing icon children remain supported.
+
+Use `iconTone="muted"` to give managed icons a quieter color while leaving the
+label unchanged; the default `"inherit"` follows the button's text color.
+Prefer inherited color on solid buttons where the foreground supplies contrast.
+
+Set `loading` to replace the leading icon (or the `IconButton` icon) with a
+spinner and expose `aria-busy`. `Button` keeps its label unless `loadingLabel`
+is supplied. `loadingIcon` accepts an alternative SVG component, such as
+`RefreshCw`; the control owns rotation and respects reduced motion.
+Loading does not disable activation: set `disabled={loading}` for an action
+that must wait, or leave it enabled when clicking should cancel the operation.
+The host owns async work, errors, and the loading state.
+
+```tsx
+<Button loading={saving} loadingLabel="Saving…" disabled={saving}>
+  Save
+</Button>
+<Button loading={refreshing} loadingLabel="Cancel refresh"
+  onClick={refreshing ? cancelRefresh : refresh}>
+  Refresh
+</Button>
+```
+
+Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
+the child's native type behavior is preserved, so set `type="button"` explicitly
+when needed. Custom composed children must forward props, refs, and children;
+place Radix slot triggers outside the control.
+
+When a `Button` label or icon changes (for example, from “Save” to a loading
+spinner and “Saving…”), its width transitions over 180 ms. Fixed and full-width
+buttons retain their sizing. Reduced-motion preferences disable the transition.
+The host continues to own loading state, labels, and disabled behavior.
+
+Use `className` to override component styles and `pressScale={false}` to disable
+press feedback. See the button stories for more examples.
+
+## Badges
+
+`Badge` renders a span by default. Choose a neutral, accent, info, success,
+warning, or error tone; a soft or ghost variant; and an `sm`, `xs`, or `xxs` size.
+Use `interactive` for a native button with disabled behavior and a button ref.
+`BadgeProps` describes the span; `InteractiveBadgeProps` describes the button.
+
+```tsx
+<Badge tone="success">Connected</Badge>
+<Badge interactive tone="error" onClick={retry}>Retry</Badge>
+```
+
 ## Switch
 
 Import `Switch` from `@cline/ui` after setting up the theme and
@@ -283,13 +384,25 @@ Uncontrolled switches follow native form reset behavior; controlled switches
 must be reset by their owner. Disabled switches, including those in disabled
 fieldsets, are excluded from form submission.
 
-The switch scales with the root font size and reserves a minimum 24px hit area
-on each axis by default.
+Use `pending={saving}` for a temporary lock that retains the current checked or
+unchecked appearance and sets `aria-busy`. Pending still disables the native
+input, including within a disabled fieldset, so it cannot toggle and is omitted
+from form submission. Explicit `disabled` takes precedence over pending's visual
+treatment; reserve it for unavailable controls instead of repeating the saving
+condition in both props.
 
-Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
-`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
-remain white. The switch supports light/dark themes, system colors in
-forced-colors mode, and reduced motion.
+```tsx
+<Switch checked={enabled} pending={saving} disabled={!canEdit}
+  onCheckedChange={setEnabled} aria-label="Enable schedule" />
+```
+
+The default `size="md"` preserves the original switch dimensions. Use
+`size="sm"` for a compact switch. Both sizes scale with the root font size and
+reserve a minimum 24px hit area on each axis.
+
+The default `tone="accent"` uses the shared accent colors. Use `tone="neutral"`
+for a checked track that is dark in light mode and light in dark mode. Both tones
+support keyboard focus, forced colors, and reduced motion.
 
 When migrating from the desktop's Radix wrapper, update button refs to
 `HTMLInputElement` and read the native `checked` property in tests instead of
@@ -503,9 +616,20 @@ semantics:
 }
 ```
 
+See [Theme usage](./README.md#theme-usage) for palette generation and choosing
+readable text and fill roles.
+
 Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to
 work across light, dark, and future theme layers.
+
+## Radius utilities
+
+Use `rounded-cline-ui-lg` and other `rounded-cline-ui-*` theme sizes in
+shared components. They use Cline's radius tokens without taking over the
+host application's `rounded-lg` utility. Desktop's equivalent utilities
+resolve to the same radius values. Keep structural shapes such as
+`rounded-full` unchanged; there is no `rounded-cline-ui-full` token.
 
 ## Product overrides
 
@@ -614,3 +738,195 @@ current product contracts should be compared before standardizing them.
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
+
+## Conversation layout and header
+
+`AgentConversationLayout` takes host-rendered `welcomeHeader`, `body`, `composer`,
+`notice`, `welcomeSetup`, and `welcomeFooter` slots. `AgentSessionContent`
+provides the shared content width; `AgentConversationHeader` groups title/status
+children with optional `actions`. Import `components.css` and theme tokens as
+described above.
+
+`welcome` selects the layout; the body remains mounted when hidden.
+`hideWelcomeComposer` hides the welcome composer without unmounting it, but
+switching layouts can remount the composer. Keep drafts in host state.
+`bodyClassName` accepts host animation classes. Hosts retain scrolling, title
+editing, menus, native title-bar behavior, and all event handlers.
+
+## Composer presentation
+
+`AgentComposer` and its body, field, textarea, action, attachment-list, and
+settings primitives preserve the desktop composer's welcome/conversation
+presentation. They render the original native elements without extra wrappers;
+refs and native event/ARIA props forward to those elements. Import
+`@cline/ui/components.css` and the shared tokens as described above.
+
+Compose the host's PR bar before `AgentComposerBody`. Inside the body, render
+`AgentPromptQueue`, the host's suggestion positioning wrapper and
+`AgentComposerField` (textarea and actions), feedback, and optional
+`AgentComposerAttachments`, in that order. Nested variant-aware primitives
+inherit the `AgentComposer` variant unless they set an explicit override. Pass
+`hasQueue` to the body. Render model/settings controls in
+`AgentComposerSettingsGroup`, with workspace/usage controls in
+`AgentComposerSettingsEnd`, both inside `AgentComposerSettings`.
+
+The host owns draft state, textarea sizing, IME/keyboard/paste behavior, focus
+forwarding, suggestion menus, attachment chips and uploads, queue operations,
+model/settings popovers, voice controls, and send/stop callbacks and visibility.
+The shared send/stop buttons style host-provided children; supply their accessible
+labels, titles, `type="button"`, disabled state, and handlers. This is an additive
+presentation API, not a runtime composer or a form with implicit submission.
+
+## Session rows
+
+`AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
+exported from `@cline/ui`. Import `components.css` with the shared theme (or
+scoped tokens inside `.cline-ui-theme`) as for the other root components.
+
+The row owns the desktop row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread dot precedence. Pass
+already-formatted `label` and `timestamp`, optional `leading` icons, a
+`pinnedIndicator`, and an `action` element. The action remains a sibling of the
+navigation button; the host supplies its hover/focus styles, disabled state,
+accessible label, and event cancellation. `onSelect` handles row activation.
+Root DOM props and refs pass through to the existing wrapper so host-owned
+hover-card/context-menu triggers can use `asChild` without another DOM node.
+
+By default, the navigation control is the same native `button` used by desktop.
+For URL-addressable navigation, use `renderControl` to render the supplied
+class and row content through the host's link component. The optional action
+stays a sibling:
+
+```tsx
+<AgentSessionRow
+  label={session.title}
+  timestamp={session.updatedLabel}
+  action={<DeleteSessionButton session={session} />}
+  renderControl={({ className, children }) => (
+    <Link
+      className={className}
+      href={`/sessions/${session.id}`}
+      target="_blank"
+    >
+      {children}
+    </Link>
+  )}
+/>
+```
+
+The host link owns `href`, click, accessibility, disabled, and router behavior.
+`disabled` and `onSelect` apply only to the default desktop button.
+
+`AgentSessionRowEditor` provides the matching edit frame; the host still owns
+the input, focus, Enter/Escape/blur handling, and saving indicator.
+`AgentSessionOverview` presents a title and `[label, value, fullValue?]` metadata
+rows inside the host's hover card. Formatting, open state, positioning, context
+menus, pin/fork/delete permissions, routing, grouping, and persistence stay in
+the application. These primitives do not add new statuses or cloud actions.
+
+## Context usage
+
+`AgentContextUsage` extracts the desktop context ring and detail body without
+changing the host's button, popover, positioning, focus, or dismissal behavior.
+It does not insert a wrapper. Import `components.css` and the appropriate theme
+tokens as usual. When the context limit or token usage is unavailable, it renders
+nothing and does not invoke the child callback.
+
+```tsx
+import { AgentContextUsage } from "@cline/ui";
+
+<AgentContextUsage
+  usage={{ tokensIn: 1200, tokensOut: 300, cacheReadTokens: 400, contextWindow: 200000 }}
+  costLabel="$0.014"
+>
+  {({ triggerLabel, ring, details }) => (
+    <HostPopover>
+      <HostPopoverTrigger asChild>
+        <HostButton aria-label={triggerLabel}>{ring}</HostButton>
+      </HostPopoverTrigger>
+      <HostPopoverContent>{details}</HostPopoverContent>
+    </HostPopover>
+  )}
+</AgentContextUsage>;
+```
+
+The `Host*` names above are host controls, not package exports. Desktop retains
+its existing trigger classes, IDs, top/end placement, eight-pixel offset, and
+Radix interaction. The shared body uses namespaced utilities mapped to the same
+desktop tokens. Current request input/output drives context pressure and the
+existing 50%/75% warnings; lifetime token traffic must not be passed as context
+usage. `costLabel` is a separate optional, host-formatted cumulative cost.
+Fetching metrics, choosing the model limit, and computing cumulative cost remain
+host responsibilities.
+
+## Message scroller
+
+Use `@cline/ui/components/message-scroller` with React 19 for transcripts that
+anchor new user turns and preserve the reader's position during streaming.
+The behavior comes from `@shadcn/react`; the shared wrapper adds Cline styles.
+Import `@cline/ui/components.css`, or import
+`@cline/ui/components/message-scroller.css` with theme tokens for a plain CSS
+host. Place the scroller in a parent with a constrained height.
+
+```tsx
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+  useMessageScroller,
+  useMessageScrollerVisibility,
+} from "@cline/ui/components/message-scroller";
+
+function Transcript({ messages }) {
+  return (
+    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor">
+      <MessageScroller>
+        <MessageScrollerViewport aria-label="Conversation">
+          <MessageScrollerContent>
+            {messages.map((message) => (
+              <MessageScrollerItem
+                key={message.id}
+                messageId={message.id}
+                scrollAnchor={message.role === "user"}
+              >
+                {message.content}
+              </MessageScrollerItem>
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+        <Outline messages={messages} />
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+function Outline({ messages }) {
+  const { scrollToMessage } = useMessageScroller();
+  const { currentAnchorId } = useMessageScrollerVisibility();
+  return (
+    <nav aria-label="Transcript outline">
+      {messages.filter((message) => message.role === "user").map((message) => (
+        <button
+          key={message.id}
+          type="button"
+          aria-current={currentAnchorId === message.id ? "location" : undefined}
+          onClick={() => scrollToMessage(message.id, { align: "start" })}
+        >
+          {message.content}
+        </button>
+      ))}
+    </nav>
+  );
+}
+```
+
+Every direct transcript child, including tool groups, loading rows, and
+approval panels, must be a `MessageScrollerItem`. Use stable IDs to support
+jumps and reader-position tracking. A collapsed tool group can keep the same
+row ID as its expanded form. The host chooses which rows anchor turns and
+which messages appear in its outline; transport and session state remain in
+the app. Key the provider by session ID when switching transcripts.

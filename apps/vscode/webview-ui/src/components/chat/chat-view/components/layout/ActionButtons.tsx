@@ -58,7 +58,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	// message) changes on every new ask, making it the reliable signal that a fresh decision is
 	// due even when the config object is identical. Folding the config's button text in also
 	// covers a same-anchor transition between different button sets.
-	const askIdentity = `${turnState?.anchorTs ?? lastMessage?.ts ?? ""}:${buttonConfig.primaryText ?? ""}:${buttonConfig.secondaryText ?? ""}`
+	const askIdentity = `${turnState?.seq ?? ""}:${turnState?.anchorTs ?? lastMessage?.ts ?? ""}:${buttonConfig.primaryText ?? ""}:${buttonConfig.secondaryText ?? ""}`
 
 	// The buttons are "processing" only while the user's click is being handled for the current
 	// ask. Because the latch is keyed on the ask identity, a new ask (even one reusing the same
@@ -81,14 +81,20 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 			processedAskRef.current = askIdentity
 			bumpRender((n) => n + 1)
 
-			void messageHandlers.executeButtonAction(invocation).catch(() => {
-				// Re-enable on error so the user is not stuck; a later ask would clear the latch
-				// on its own, but failures keep the same ask.
+			const releaseLatch = () => {
 				if (processedAskRef.current === askIdentity) {
 					processedAskRef.current = undefined
 					bumpRender((n) => n + 1)
 				}
-			})
+			}
+			void messageHandlers
+				.executeButtonAction(invocation)
+				.then((started) => {
+					if (!started) {
+						releaseLatch()
+					}
+				})
+				.catch(releaseLatch)
 		},
 		[messageHandlers, askIdentity],
 	)
@@ -117,7 +123,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
 	const hasButtons = primaryText || secondaryText
 	const isStreaming = task.partial === true
-	const canInteract = enableButtons && !isProcessing
+	const canInteract = enableButtons && !isProcessing && !messageHandlers.recoveryActionInFlight
 
 	if (!hasButtons) {
 		return null
