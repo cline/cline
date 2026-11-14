@@ -572,6 +572,44 @@ describe("UnifiedSessionPersistenceService", () => {
 
 	it.each(
 		adapterKinds,
+	)("adopts on the next pass when the status lock moves between read and write (%s)", async (kind) => {
+		const sessionId = "moved-lock-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+		const { adapter } = service as unknown as {
+			adapter: SessionPersistenceAdapter;
+		};
+		const updateSession = adapter.updateSession.bind(adapter);
+		const writes = vi
+			.spyOn(adapter, "updateSession")
+			.mockImplementation(async (input) => {
+				if (input.status === "idle" && writes.mock.calls.length === 1) {
+					await service.updateSessionStatus(
+						sessionId,
+						"running",
+						null,
+						deadPid,
+					);
+				}
+				return updateSession(input);
+			});
+
+		await expect(
+			service.adoptOrphanedSession(sessionId, process.pid),
+		).resolves.toEqual({ updated: true });
+
+		expect(
+			writes.mock.calls.filter(([input]) => input.status === "idle"),
+		).toHaveLength(2);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "idle",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
 	)("does not adopt a live row or a failure written after the reconciler (%s)", async (kind) => {
 		const service = await createServiceWithDeadRoot(kind, "live-root");
 		await service.updateSessionStatus(

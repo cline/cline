@@ -2473,12 +2473,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private async adoptOrphanedSession(session: ActiveSession): Promise<void> {
 		try {
-			const result = await this.invokeOptionalValue<{ updated: boolean }>(
+			const result = await this.invoke<{ updated: boolean }>(
 				"adoptOrphanedSession",
 				session.sessionId,
 				process.pid,
 			);
-			if (result?.updated) await this.mirrorStatus(session, "idle");
+			if (result.updated) await this.mirrorStatus(session, "idle");
 		} catch (error) {
 			session.config.logger?.error?.("Failed to adopt resumed session", {
 				sessionId: session.sessionId,
