@@ -47,6 +47,14 @@ export type McpSdkAuthCapableTransport =
 	| SSEClientTransport
 	| StreamableHTTPClientTransport;
 
+class McpOAuthScopeChallenge extends UnauthorizedError {
+	constructor(
+		readonly params: ReturnType<typeof extractWWWAuthenticateParams>,
+	) {
+		super("MCP server requires additional OAuth scopes");
+	}
+}
+
 const MCP_REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const MAX_MCP_REDIRECTS = 20;
 const CROSS_ORIGIN_SENSITIVE_HEADERS = new Set([
@@ -758,11 +766,23 @@ export async function authorizeMcpServerOAuth(
 		options.signal?.throwIfAborted();
 		await oauthContext.resetInteractiveState();
 		let challenge: ReturnType<typeof extractWWWAuthenticateParams> = {};
+		let needsScopeConsent = false;
 		const tokens = await oauthContext.provider.tokens();
 		const probeFetch: FetchLike = async (input, init) => {
 			const response = await authFetch(input, init);
-			if (response.status === 401)
+			if (response.status === 401) {
 				challenge = extractWWWAuthenticateParams(response);
+			} else if (
+				registration.transport.type === "streamableHttp" &&
+				init?.method === "POST" &&
+				response.status === 403
+			) {
+				const params = extractWWWAuthenticateParams(response);
+				if (params.error === "insufficient_scope") {
+					await response.body?.cancel().catch(() => undefined);
+					throw new McpOAuthScopeChallenge(params);
+				}
+			}
 			return response;
 		};
 		probeClient = buildClient(options);
@@ -798,13 +818,22 @@ export async function authorizeMcpServerOAuth(
 				};
 			}
 		} catch (error) {
-			if (!isMcpUnauthorizedError(error)) throw error;
+			if (error instanceof McpOAuthScopeChallenge) {
+				challenge = error.params;
+				needsScopeConsent = true;
+			} else if (!isMcpUnauthorizedError(error)) {
+				throw error;
+			}
 		} finally {
 			await probeClient.close().catch(() => undefined);
 			probeClient = undefined;
 		}
 		// Lazy servers may expose their challenge on GET after public initialization.
-		if (!challenge.resourceMetadataUrl && !challenge.scope) {
+		if (
+			!needsScopeConsent &&
+			!challenge.resourceMetadataUrl &&
+			!challenge.scope
+		) {
 			const response = await probeFetch(endpointUrl, {
 				method: "GET",
 			});
@@ -815,7 +844,11 @@ export async function authorizeMcpServerOAuth(
 			oauthProvider: oauthContext.provider,
 			fetch: authFetch,
 		});
-		const authResult = await auth(oauthContext.provider, {
+		// Refresh cannot expand a grant. Keep saved credentials until consent completes.
+		const authorizationProvider = needsScopeConsent
+			? { ...oauthContext.provider, tokens: () => undefined }
+			: oauthContext.provider;
+		const authResult = await auth(authorizationProvider, {
 			serverUrl: endpointUrl,
 			...challenge,
 			fetchFn: authFetch,

@@ -6,13 +6,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { updateMcpServerOAuthStateAsync } from "./config-loader";
+import {
+	getMcpServerOAuthState,
+	updateMcpServerOAuthStateAsync,
+} from "./config-loader";
 import {
 	authorizeMcpServerOAuth,
 	createOriginBoundMcpHeadersFetch,
 } from "./oauth";
 
 const issuer = "https://auth.example.test";
+const scopeChallenge =
+	'Bearer error="insufficient_scope", resource_metadata="https://mcp.example.test/tenant/protected-resource", scope="tenant:write"';
+const limitedTokens = {
+	access_token: "fixture-limited",
+	refresh_token: "fixture-refresh",
+	token_type: "Bearer",
+	scope: "tenant:read",
+	issuer,
+};
 
 describe("explicit MCP OAuth authorization", () => {
 	const roots: string[] = [];
@@ -412,6 +424,107 @@ describe("explicit MCP OAuth authorization", () => {
 			closed: 1,
 		});
 		expect(f.headerCounts().acceptedRequests).toBe(2);
+	});
+
+	async function scopeFixture(
+		method: "initialize" | "tools/list",
+		header: string | null = scopeChallenge,
+	) {
+		const f = await fixture({ customChallenge: true });
+		f.releaseMetadata();
+		await updateMcpServerOAuthStateAsync(
+			"remote",
+			() => ({
+				clientInformation: { client_id: "fixture-client", issuer },
+				tokens: limitedTokens,
+			}),
+			{ filePath: f.filePath },
+		);
+		let challenged = 0;
+		const fetch: FetchLike = async (input, init) => {
+			const headers = new Headers(init?.headers);
+			if (
+				init?.method === "POST" &&
+				headers.get("authorization") === "Bearer fixture-limited" &&
+				JSON.parse(
+					await new Response(
+						init.body as ConstructorParameters<typeof Response>[0],
+					).text(),
+				).method === method
+			) {
+				challenged++;
+				return new Response("Fixture forbidden", {
+					status: 403,
+					headers: header ? { "www-authenticate": header } : undefined,
+				});
+			}
+			return f.fetchFixture(input, init);
+		};
+		return {
+			...f,
+			challenges: () => challenged,
+			options: { ...f.options, fetch },
+		};
+	}
+
+	it.each([
+		"initialize",
+		"tools/list",
+	] as const)("upgrades a saved token when %s reports insufficient scope", async (method) => {
+		const f = await scopeFixture(method);
+		await expect(authorizeMcpServerOAuth(f.options)).resolves.toMatchObject({
+			authorized: true,
+		});
+		expect(f.challenges()).toBe(1);
+		expect(f.counts()).toEqual({
+			opened: 1,
+			tokenExchanges: 1,
+			refreshes: 0,
+			closed: 1,
+		});
+	});
+
+	it.each([
+		null,
+		'Basic error="insufficient_scope"',
+		'Bearer error="access_denied"',
+	])("rejects a forbidden probe without a Bearer scope challenge (%s)", async (header) => {
+		const f = await scopeFixture("tools/list", header);
+		await expect(authorizeMcpServerOAuth(f.options)).rejects.toThrow(
+			"Fixture forbidden",
+		);
+		expect(f.challenges()).toBe(1);
+		expect(f.counts()).toEqual({
+			opened: 0,
+			tokenExchanges: 0,
+			refreshes: 0,
+			closed: 1,
+		});
+	});
+
+	it("keeps the saved credentials when scope consent is cancelled", async () => {
+		const f = await scopeFixture("tools/list");
+		const controller = new AbortController();
+		let consentOpened = false;
+		await expect(
+			authorizeMcpServerOAuth({
+				...f.options,
+				signal: controller.signal,
+				openUrl: () => {
+					consentOpened = true;
+					controller.abort();
+				},
+			}),
+		).rejects.toThrow("cancelled");
+		expect(consentOpened).toBe(true);
+		expect(f.counts()).toMatchObject({
+			tokenExchanges: 0,
+			refreshes: 0,
+			closed: 1,
+		});
+		expect(
+			getMcpServerOAuthState("remote", { filePath: f.filePath })?.tokens,
+		).toEqual(limitedTokens);
 	});
 
 	it("strips configured headers when the challenge probe follows a same-origin hop cross-origin", async () => {
