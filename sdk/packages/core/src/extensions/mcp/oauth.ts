@@ -3,7 +3,11 @@ import type {
 	OAuthClientProvider,
 	OAuthDiscoveryState,
 } from "@modelcontextprotocol/sdk/client/auth.js";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+	auth,
+	extractWWWAuthenticateParams,
+	UnauthorizedError,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
 	SSEClientTransport,
@@ -42,6 +46,14 @@ const DEFAULT_MCP_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 export type McpSdkAuthCapableTransport =
 	| SSEClientTransport
 	| StreamableHTTPClientTransport;
+
+class McpOAuthScopeChallenge extends UnauthorizedError {
+	constructor(
+		readonly params: ReturnType<typeof extractWWWAuthenticateParams>,
+	) {
+		super("MCP server requires additional OAuth scopes");
+	}
+}
 
 const MCP_REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const MAX_MCP_REDIRECTS = 20;
@@ -124,8 +136,17 @@ export function createOriginBoundMcpHeadersFetch(input: {
 				redirect: "manual",
 				signal: initialRequest.signal,
 			});
-			if (!MCP_REDIRECT_STATUS_CODES.has(response.status)) {
+			if (
+				initialRequest.redirect === "manual" ||
+				!MCP_REDIRECT_STATUS_CODES.has(response.status)
+			) {
 				return response;
+			}
+			if (initialRequest.redirect === "error") {
+				await response.body?.cancel().catch(() => undefined);
+				throw new TypeError(
+					"MCP request encountered a redirect with redirect mode error.",
+				);
 			}
 			if (redirectCount >= MAX_MCP_REDIRECTS) {
 				await response.body?.cancel().catch(() => undefined);
@@ -658,21 +679,52 @@ export async function authorizeMcpServerOAuth(
 		registration.timeoutSeconds,
 	);
 
-	const flowSignal = options.signal;
-	const flowFetch: FetchLike | undefined = flowSignal
-		? (input, init) => {
-				options.signal?.throwIfAborted();
-				const requestSignal =
-					init?.signal ?? (input instanceof Request ? input.signal : undefined);
-				return (options.fetch ?? globalThis.fetch)(input, {
-					...init,
-					signal: AbortSignal.any([
-						flowSignal,
-						...(requestSignal ? [requestSignal] : []),
-					]),
-				});
-			}
-		: options.fetch;
+	const endpointUrl = registration.transport.url;
+	const configuredOrigin = new URL(endpointUrl).origin;
+	const configuredHeaders = resolveConfiguredMcpHeaders({
+		headers: registration.transport.headers,
+		restrictConfiguredHeadersToOrigin: true,
+	});
+	// SDK transport base headers also reach OAuth endpoints; authFetch owns their origin scope.
+	const authorizationRegistration = {
+		...registration,
+		transport: { ...registration.transport, headers: undefined },
+	};
+
+	const authFetch: FetchLike = (input, init) => {
+		options.signal?.throwIfAborted();
+		const signals = [AbortSignal.timeout(requestTimeoutMs)];
+		if (options.signal) signals.push(options.signal);
+		if (init?.signal) signals.push(init.signal);
+		if (input instanceof Request) signals.push(input.signal);
+		const requestUrl = new URL(
+			input instanceof Request ? input.url : input.toString(),
+		);
+		const headers = new Headers(
+			requestUrl.origin === configuredOrigin ? configuredHeaders : undefined,
+		);
+		const requestHeaders = new Headers(
+			init?.headers ?? (input instanceof Request ? input.headers : undefined),
+		);
+		requestHeaders.forEach((value, name) => {
+			headers.set(name, value);
+		});
+		// Issuer requests contain SDK headers only; their redirect policy still applies.
+		return createOriginBoundMcpHeadersFetch({
+			endpointUrl:
+				requestUrl.origin === configuredOrigin
+					? endpointUrl
+					: requestUrl.toString(),
+			configuredHeaders:
+				requestUrl.origin === configuredOrigin ? (configuredHeaders ?? {}) : {},
+			baseFetch: options.fetch,
+		})(input, {
+			...init,
+			headers,
+			signal: AbortSignal.any(signals),
+		});
+	};
+
 	const callbackServer = await startLocalOAuthServer({
 		host: options.callbackHost,
 		ports: options.callbackPorts?.length
@@ -709,14 +761,99 @@ export async function authorizeMcpServerOAuth(
 
 	const client = buildClient(options);
 	let retryClient: Client | undefined;
+	let probeClient: Client | undefined;
 	try {
+		options.signal?.throwIfAborted();
 		await oauthContext.resetInteractiveState();
-		const transport = createMcpSdkTransport({
-			registration,
-			oauthProvider: oauthContext.provider,
-			fetch: flowFetch,
+		let challenge: ReturnType<typeof extractWWWAuthenticateParams> = {};
+		let needsScopeConsent = false;
+		const tokens = await oauthContext.provider.tokens();
+		const probeFetch: FetchLike = async (input, init) => {
+			const response = await authFetch(input, init);
+			if (response.status === 401) {
+				challenge = extractWWWAuthenticateParams(response);
+			} else if (
+				registration.transport.type === "streamableHttp" &&
+				init?.method === "POST" &&
+				response.status === 403
+			) {
+				const params = extractWWWAuthenticateParams(response);
+				if (params.error === "insufficient_scope") {
+					await response.body?.cancel().catch(() => undefined);
+					throw new McpOAuthScopeChallenge(params);
+				}
+			}
+			return response;
+		};
+		probeClient = buildClient(options);
+		const probeTransport = createMcpSdkTransport({
+			registration: {
+				...authorizationRegistration,
+				transport: {
+					...authorizationRegistration.transport,
+					headers: tokens?.access_token
+						? { Authorization: `Bearer ${tokens.access_token}` }
+						: undefined,
+				},
+			},
+			fetch: probeFetch,
+			restrictConfiguredHeadersToOrigin: true,
 		});
 		try {
+			await probeClient.connect(probeTransport, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
+			await probeClient.listTools(undefined, {
+				timeout: requestTimeoutMs,
+				signal: options.signal,
+			});
+			// Public discovery alone does not authorize a tokenless server.
+			if (tokens?.access_token) {
+				await oauthContext.clearError();
+				return {
+					serverName,
+					authorized: true,
+					message: `MCP server "${serverName}" is already authorized.`,
+				};
+			}
+		} catch (error) {
+			if (error instanceof McpOAuthScopeChallenge) {
+				challenge = error.params;
+				needsScopeConsent = true;
+			} else if (!isMcpUnauthorizedError(error)) {
+				throw error;
+			}
+		} finally {
+			await probeClient.close().catch(() => undefined);
+			probeClient = undefined;
+		}
+		// Lazy servers may expose their challenge on GET after public initialization.
+		if (
+			!needsScopeConsent &&
+			!challenge.resourceMetadataUrl &&
+			!challenge.scope
+		) {
+			const response = await probeFetch(endpointUrl, {
+				method: "GET",
+			});
+			await response.body?.cancel().catch(() => undefined);
+		}
+		const transport = createMcpSdkTransport({
+			registration: authorizationRegistration,
+			oauthProvider: oauthContext.provider,
+			fetch: authFetch,
+		});
+		// Refresh cannot expand a grant. Keep saved credentials until consent completes.
+		const authorizationProvider = needsScopeConsent
+			? { ...oauthContext.provider, tokens: () => undefined }
+			: oauthContext.provider;
+		const authResult = await auth(authorizationProvider, {
+			serverUrl: endpointUrl,
+			...challenge,
+			fetchFn: authFetch,
+		});
+		if (authResult === "AUTHORIZED") {
 			await client.connect(transport, {
 				timeout: requestTimeoutMs,
 				signal: options.signal,
@@ -725,76 +862,77 @@ export async function authorizeMcpServerOAuth(
 				timeout: requestTimeoutMs,
 				signal: options.signal,
 			});
+			if (!(await oauthContext.provider.tokens())) {
+				throw new Error("OAuth authorization completed without saved tokens.");
+			}
 			await oauthContext.clearError();
 			return {
 				serverName,
 				authorized: true,
 				message: `MCP server "${serverName}" is already authorized.`,
 			};
-		} catch (error) {
-			if (!isMcpUnauthorizedError(error)) {
-				throw error;
-			}
-			await oauthContext.markAuthorizationRequired(
-				`MCP server "${serverName}" requires OAuth authorization.`,
-			);
-			const authUrl = oauthContext.getLastAuthorizationUrl();
-			if (!authUrl) {
-				throw new Error(
-					`MCP server "${serverName}" did not provide an authorization URL.`,
-				);
-			}
-			const callback = await callbackServer.waitForCallback();
-			if (!callback) {
-				if (options.signal?.aborted) {
-					throw new Error(
-						`MCP server "${serverName}" OAuth authorization was cancelled.`,
-					);
-				}
-				throw new Error(
-					"Timed out waiting for MCP OAuth authorization callback.",
-				);
-			}
-			if (callback.error) {
-				throw new Error(`OAuth authorization failed: ${callback.error}`);
-			}
-			if (!callback.code) {
-				throw new Error(
-					"OAuth callback did not include an authorization code.",
-				);
-			}
-			const expectedState = oauthContext.getLastOAuthState();
-			if (!expectedState) {
-				throw new Error(
-					`MCP server "${serverName}" did not start an OAuth stateful authorization flow.`,
-				);
-			}
-			if (callback.state !== expectedState) {
-				throw new Error("OAuth authorization failed: state mismatch.");
-			}
-
-			await transport.finishAuth(callback.code);
-			retryClient = buildClient(options);
-			const retryTransport = createMcpSdkTransport({
-				registration,
-				oauthProvider: oauthContext.provider,
-				fetch: flowFetch,
-			});
-			await retryClient.connect(retryTransport, {
-				timeout: requestTimeoutMs,
-				signal: options.signal,
-			});
-			await retryClient.listTools(undefined, {
-				timeout: requestTimeoutMs,
-				signal: options.signal,
-			});
-			await oauthContext.clearError();
-			return {
-				serverName,
-				authorized: true,
-				message: `MCP server "${serverName}" OAuth authorization completed.`,
-			};
 		}
+		const authUrl = oauthContext.getLastAuthorizationUrl();
+		if (!authUrl) {
+			throw new Error(
+				`MCP server "${serverName}" did not provide an authorization URL.`,
+			);
+		}
+		const callback = await callbackServer.waitForCallback();
+		if (!callback) {
+			if (options.signal?.aborted) {
+				throw new Error(
+					`MCP server "${serverName}" OAuth authorization was cancelled.`,
+				);
+			}
+			throw new Error(
+				"Timed out waiting for MCP OAuth authorization callback.",
+			);
+		}
+		if (callback.error) {
+			throw new Error(`OAuth authorization failed: ${callback.error}`);
+		}
+		if (!callback.code) {
+			throw new Error("OAuth callback did not include an authorization code.");
+		}
+		const expectedState = oauthContext.getLastOAuthState();
+		if (!expectedState) {
+			throw new Error(
+				`MCP server "${serverName}" did not start an OAuth stateful authorization flow.`,
+			);
+		}
+		if (callback.state !== expectedState) {
+			throw new Error("OAuth authorization failed: state mismatch.");
+		}
+
+		const completedAuth = await auth(oauthContext.provider, {
+			serverUrl: endpointUrl,
+			authorizationCode: callback.code,
+			...challenge,
+			fetchFn: authFetch,
+		});
+		if (completedAuth !== "AUTHORIZED")
+			throw new Error("OAuth code exchange did not complete authorization.");
+		retryClient = buildClient(options);
+		const retryTransport = createMcpSdkTransport({
+			registration: authorizationRegistration,
+			oauthProvider: oauthContext.provider,
+			fetch: authFetch,
+		});
+		await retryClient.connect(retryTransport, {
+			timeout: requestTimeoutMs,
+			signal: options.signal,
+		});
+		await retryClient.listTools(undefined, {
+			timeout: requestTimeoutMs,
+			signal: options.signal,
+		});
+		await oauthContext.clearError();
+		return {
+			serverName,
+			authorized: true,
+			message: `MCP server "${serverName}" OAuth authorization completed.`,
+		};
 	} catch (error) {
 		const cancelled = options.signal?.aborted === true;
 		const message = cancelled
@@ -809,6 +947,7 @@ export async function authorizeMcpServerOAuth(
 	} finally {
 		options.signal?.removeEventListener("abort", cancelCallbackWait);
 		await client.close().catch(() => undefined);
+		await probeClient?.close().catch(() => undefined);
 		await retryClient?.close().catch(() => undefined);
 		callbackServer.close();
 	}
