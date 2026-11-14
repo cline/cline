@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import sinon from "sinon"
 import {
 	DEFAULT_RECONNECT_CONFIG,
@@ -9,11 +10,12 @@ import {
 } from "../StreamableHttpReconnectHandler"
 
 /** Build a mock connection object whose status can be inspected. */
-function makeConnection(overrides: Partial<{ status: string; disabled: boolean }> = {}) {
+function makeConnection(overrides: Partial<{ status: string; disabled: boolean; oauthRequired: boolean }> = {}) {
 	return {
 		server: {
 			status: overrides.status ?? "connected",
 			disabled: overrides.disabled ?? false,
+			oauthRequired: overrides.oauthRequired ?? false,
 		},
 	}
 }
@@ -96,6 +98,35 @@ describe("StreamableHttpReconnectHandler", () => {
 
 		cbs.stubs.deleteConnection.called.should.be.false()
 		handler.attemptCount.should.equal(0)
+	})
+
+	it("should leave an OAuth-required connection to the authenticate action", async () => {
+		const conn = makeConnection({ status: "disconnected", oauthRequired: true })
+		const cbs = makeCallbacks(conn)
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new UnauthorizedError("OAuth authorization required"))
+
+		cbs.stubs.deleteConnection.called.should.be.false()
+		cbs.stubs.connectToServer.called.should.be.false()
+		handler.attemptCount.should.equal(0)
+	})
+
+	it("should abort reconnect when the server becomes OAuth-required during the delay", async () => {
+		const conn = makeConnection()
+		const cbs = makeCallbacks(conn)
+		cbs.stubs.delay.callsFake(async () => {
+			// callTool handled the same 401 and marked the connection as
+			// waiting for the user to re-authenticate.
+			conn.server.status = "disconnected"
+			conn.server.oauthRequired = true
+		})
+		const handler = new StreamableHttpReconnectHandler("test-server", cbs, TEST_CONFIG)
+
+		await handler.handleError(new UnauthorizedError("OAuth authorization required"))
+
+		cbs.stubs.deleteConnection.called.should.be.false()
+		cbs.stubs.connectToServer.called.should.be.false()
 	})
 
 	// ── successful reconnect ────────────────────────────────────────────
