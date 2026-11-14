@@ -40,7 +40,11 @@ export const ToolPresets = {
 	 * Plan mode (read-only)
 	 * Good for analysis and documentation agents. Shell access stays enabled
 	 * for read-only investigation; file-editing commands are hard-blocked by
-	 * the plan-mode command-guard hook the runtime builder registers.
+	 * the plan-mode command-guard hook the runtime builder registers. The
+	 * editor tool stays ENABLED so the serialized tool set is byte-identical
+	 * between plan and act (stable LLM prompt prefix across mode switches);
+	 * its calls are hard-blocked before execution by the plan-mode editor-guard
+	 * extension the runtime builder registers.
 	 */
 	plan: {
 		enableReadFiles: true,
@@ -48,7 +52,7 @@ export const ToolPresets = {
 		enableBash: true,
 		enableWebFetch: true,
 		enableApplyPatch: false,
-		enableEditor: false,
+		enableEditor: true, // guarded at runtime in plan mode (see above)
 		enableSkills: true,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,

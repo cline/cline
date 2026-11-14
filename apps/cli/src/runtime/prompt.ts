@@ -19,8 +19,8 @@ export async function resolveSystemPrompt(input: {
 	mode?: AgentMode;
 }): Promise<string> {
 	const metadata = await buildWorkspaceMetadata(input.cwd);
-	// Mode-tag and plan-mode instructions are appended by the shared prompt
-	// builder itself (see MODE_TAG_INSTRUCTIONS / PLAN_MODE_INSTRUCTIONS in
+	// Mode-tag and mode-contract instructions are appended by the shared
+	// prompt builder itself (see MODE_TAG_INSTRUCTIONS / MODE_CONTRACTS in
 	// @cline/shared), so only the caller-specific rules are merged here.
 	const rules = mergeRulesForSystemPrompt(undefined, input.rules);
 	return buildClineSystemPrompt({

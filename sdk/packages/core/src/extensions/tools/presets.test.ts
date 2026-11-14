@@ -27,12 +27,24 @@ describe("default tool presets", () => {
 		expect(ToolPresets.yolo.enableWebFetch).toBe(false);
 	});
 
-	it("keeps shell access enabled in plan mode", () => {
+	it("keeps shell access and a stable tool set in plan mode", () => {
 		// Plan mode keeps run_commands for read-only investigation; the
 		// plan-mode command-guard hook registered by the runtime builder is
-		// the hard backstop behind the prompt contract.
+		// the hard backstop behind the prompt contract. The editor stays
+		// enabled so the serialized tool set is byte-identical between plan
+		// and act (stable LLM prompt prefix across mode switches); the
+		// plan-mode editor-guard hook blocks its calls before execution.
 		expect(ToolPresets.plan.enableBash).toBe(true);
-		expect(ToolPresets.plan.enableEditor).toBe(false);
+		expect(ToolPresets.plan.enableEditor).toBe(true);
+		// Plan and act expose exactly the same flags.
+		const actFlags = ToolPresets.act as Record<string, boolean>;
+		const planFlags = ToolPresets.plan as Record<string, boolean>;
+		for (const [key, value] of Object.entries(actFlags)) {
+			if (key === "enableSpawnAgent" || key === "enableAgentTeams") {
+				continue;
+			}
+			expect(planFlags[key]).toBe(value);
+		}
 	});
 
 	it("yolo preset excludes ask_question even when its executor exists", () => {

@@ -298,9 +298,9 @@ export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export {
 	buildClineSystemPrompt,
+	MODE_CONTRACTS,
+	MODE_CONTRACTS_MANUAL_SWITCH,
 	MODE_TAG_INSTRUCTIONS,
-	PLAN_MODE_INSTRUCTIONS,
-	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 } from "./prompt/cline";
 export type {
 	ModeSwitchNotice,

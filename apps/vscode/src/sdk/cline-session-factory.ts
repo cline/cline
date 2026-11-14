@@ -62,6 +62,21 @@ import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
+// System prompt stability
+// ---------------------------------------------------------------------------
+
+/**
+ * Date frozen at extension-host startup for {{CURRENT_DATE}} in the system
+ * prompt. The session config — and therefore the system prompt — is rebuilt on
+ * every Plan<->Act switch (sdk-mode-coordinator) and on session resume;
+ * evaluating `new Date()` there would change the serialized prompt prefix when
+ * a working session crosses midnight (night work), forcing a full LLM
+ * re-prefill on local models with KV/prompt caching. Freezing per host process
+ * keeps the prefix byte-stable; the date refreshes on window reload/restart.
+ */
+const SYSTEM_PROMPT_DATE = new Date().toLocaleDateString()
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -1059,6 +1074,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			// toggle themselves, so the plan contract must not tell the model to
 			// call a tool it does not have.
 			planModeSwitchTool: false,
+			// Frozen per host process so midnight crossings and mode-switch
+			// rebuilds never change the serialized prompt prefix (see
+			// SYSTEM_PROMPT_DATE above).
+			currentDate: SYSTEM_PROMPT_DATE,
 		})
 		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
 	} catch (error) {
