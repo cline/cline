@@ -15,6 +15,7 @@ import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
+import type { SessionPersistenceAdapter } from "./persistence-service";
 
 const require = createRequire(import.meta.url);
 const sqliteAvailable = (() => {
@@ -395,6 +396,257 @@ describe("UnifiedSessionPersistenceService", () => {
 		},
 		15_000,
 	);
+
+	const deadPid = 999_999_999;
+	const adapterKinds = sqliteAvailable
+		? (["file", "sqlite"] as const)
+		: (["file"] as const);
+	const createServiceWithDeadRoot = async (
+		kind: (typeof adapterKinds)[number],
+		sessionId: string,
+	) => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), `pid-rebind-${kind}-`));
+		tempDirs.push(sessionsDir);
+		let service: FileSessionService | CoreSessionService;
+		if (kind === "file") {
+			service = new FileSessionService(sessionsDir);
+		} else {
+			const store = new SqliteSessionStore({ sessionsDir });
+			stores.push(store);
+			service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+		}
+		await addDeadRoot(service, sessionId);
+		return service;
+	};
+	const addDeadRoot = (
+		service: FileSessionService | CoreSessionService,
+		sessionId: string,
+	) =>
+		service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: deadPid,
+			interactive: true,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			prompt: "hello",
+		});
+
+	it.each(
+		adapterKinds,
+	)("rebinds a live status update to the new pid so the reconciler keeps it running (%s)", async (kind) => {
+		const sessionId = "resumed-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await expect(
+			service.updateSessionStatus(sessionId, "running", null, process.pid),
+		).resolves.toMatchObject({ updated: true });
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "running",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps a row running when its owner takes it during reconcile (%s)", async (kind) => {
+		const sessionId = "raced-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+		const { adapter } = service as unknown as {
+			adapter: SessionPersistenceAdapter;
+		};
+		const updateSession = adapter.updateSession.bind(adapter);
+		let raced = false;
+		vi.spyOn(adapter, "updateSession").mockImplementation(async (input) => {
+			if (input.status === "failed" && !raced) {
+				raced = true;
+				await service.updateSessionStatus(
+					sessionId,
+					"running",
+					null,
+					process.pid,
+				);
+			}
+			return updateSession(input);
+		});
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "running",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps the recorded pid when no pid is given (%s)", async (kind) => {
+		const sessionId = "no-pid-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await service.updateSessionStatus(sessionId, "idle", null);
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(1);
+	});
+
+	it.each(
+		adapterKinds,
+	)("keeps the recorded pid on terminal statuses (%s)", async (kind) => {
+		const sessionId = "terminal-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+
+		await service.updateSessionStatus(sessionId, "completed", 0, process.pid);
+
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "completed",
+			pid: deadPid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("moves a reused subagent row to the root's current pid (%s)", async (kind) => {
+		const rootSessionId = "subagent-root";
+		const service = await createServiceWithDeadRoot(kind, rootSessionId);
+		const subagent = {
+			rootSessionId,
+			parentAgentId: "lead",
+			agentId: "worker",
+			conversationId: "conv-worker",
+			prompt: "task",
+		};
+		const childSessionId = await service.upsertSubagentSession(subagent);
+
+		await service.updateSessionStatus(
+			rootSessionId,
+			"running",
+			null,
+			process.pid,
+		);
+		await service.upsertSubagentSession(subagent);
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const child = (await service.listSessions(10)).find(
+			(row) => row.sessionId === childSessionId,
+		);
+		expect(child).toMatchObject({ status: "running", pid: process.pid });
+	});
+
+	it.each(
+		adapterKinds,
+	)("adopts a dead running row and a row the reconciler failed (%s)", async (kind) => {
+		const service = await createServiceWithDeadRoot(kind, "reconciled-root");
+		await service.reconcileDeadSessions();
+		await addDeadRoot(service, "dead-root");
+
+		for (const sessionId of ["dead-root", "reconciled-root"]) {
+			await expect(
+				service.adoptOrphanedSession(sessionId, process.pid),
+			).resolves.toEqual({ updated: true });
+		}
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		for (const sessionId of ["dead-root", "reconciled-root"]) {
+			expect(rows.find((row) => row.sessionId === sessionId)).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+				endedAt: null,
+			});
+		}
+	});
+
+	it.each(
+		adapterKinds,
+	)("adopts on the next pass when the status lock moves between read and write (%s)", async (kind) => {
+		const sessionId = "moved-lock-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+		const { adapter } = service as unknown as {
+			adapter: SessionPersistenceAdapter;
+		};
+		const updateSession = adapter.updateSession.bind(adapter);
+		const writes = vi
+			.spyOn(adapter, "updateSession")
+			.mockImplementation(async (input) => {
+				if (input.status === "idle" && writes.mock.calls.length === 1) {
+					await service.updateSessionStatus(
+						sessionId,
+						"running",
+						null,
+						deadPid,
+					);
+				}
+				return updateSession(input);
+			});
+
+		await expect(
+			service.adoptOrphanedSession(sessionId, process.pid),
+		).resolves.toEqual({ updated: true });
+
+		expect(
+			writes.mock.calls.filter(([input]) => input.status === "idle"),
+		).toHaveLength(2);
+		const rows = await service.listSessions(10);
+		expect(rows[0]).toMatchObject({
+			sessionId,
+			status: "idle",
+			pid: process.pid,
+		});
+	});
+
+	it.each(
+		adapterKinds,
+	)("does not adopt a live row or a failure written after the reconciler (%s)", async (kind) => {
+		const service = await createServiceWithDeadRoot(kind, "live-root");
+		await service.updateSessionStatus(
+			"live-root",
+			"running",
+			null,
+			process.ppid,
+		);
+		await addDeadRoot(service, "own-failure-root");
+		await service.updateSessionStatus("own-failure-root", "failed", 1);
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			await addDeadRoot(service, "failed-again-root");
+			vi.setSystemTime(new Date("2026-11-14T10:00:00.000Z"));
+			await service.reconcileDeadSessions();
+			await service.updateSessionStatus(
+				"failed-again-root",
+				"running",
+				null,
+				deadPid,
+			);
+			vi.setSystemTime(new Date("2026-11-14T10:00:01.000Z"));
+			await service.updateSessionStatus("failed-again-root", "failed", 1);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		for (const sessionId of [
+			"live-root",
+			"own-failure-root",
+			"failed-again-root",
+		]) {
+			await expect(
+				service.adoptOrphanedSession(sessionId, process.pid),
+			).resolves.toEqual({ updated: false });
+		}
+	});
 
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",

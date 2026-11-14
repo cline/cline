@@ -1135,6 +1135,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 		}
 		if (resumedArtifacts) {
+			await this.adoptOrphanedSession(active);
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
@@ -2470,8 +2471,41 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	private async adoptOrphanedSession(session: ActiveSession): Promise<void> {
+		try {
+			const result = await this.invoke<{ updated: boolean }>(
+				"adoptOrphanedSession",
+				session.sessionId,
+				process.pid,
+			);
+			if (result.updated) await this.mirrorStatus(session, "idle");
+		} catch (error) {
+			session.config.logger?.error?.("Failed to adopt resumed session", {
+				sessionId: session.sessionId,
+				error,
+			});
+			captureSdkError(session.config.telemetry, {
+				component: "core",
+				operation: "session.adopt_orphaned",
+				error,
+				severity: "warn",
+				handled: true,
+				context: {
+					sessionId: session.sessionId,
+					providerId: session.config.providerId,
+					modelId: session.config.modelId,
+				},
+			});
+		}
+	}
+
 	private async markTurnRunning(session: ActiveSession): Promise<void> {
-		if (session.status === "running") return;
+		if (
+			session.status === "running" &&
+			session.artifacts?.manifest.pid === process.pid
+		) {
+			return;
+		}
 		await this.updateStatus(session, "running", null);
 	}
 
@@ -2746,14 +2780,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) return;
+		if (await this.persistStatus(session, status, exitCode)) {
+			this.emitStatus(session.sessionId, status);
+		}
+	}
+
+	private async persistStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		exitCode?: number | null,
+	): Promise<boolean> {
+		if (!session.artifacts) return false;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
 			status,
 			exitCode,
+			process.pid,
 		);
-		if (!result.updated) return;
+		return (
+			result.updated &&
+			(await this.mirrorStatus(session, status, result.endedAt, exitCode))
+		);
+	}
+
+	private async mirrorStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		endedAt?: string,
+		exitCode?: number | null,
+	): Promise<boolean> {
 		const latestManifest = await this.mutateSessionManifest(
 			session,
 			(manifest) => {
@@ -2761,20 +2817,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (isNonTerminalSessionStatus(status)) {
 					delete manifest.ended_at;
 					manifest.exit_code = null;
+					manifest.pid = process.pid;
 				} else {
-					manifest.ended_at = result.endedAt ?? nowIso();
+					manifest.ended_at = endedAt ?? nowIso();
 					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
 				}
 			},
 		);
-		if (!latestManifest) return;
+		if (!latestManifest) return false;
 		session.status = status;
-		session.updatedAt = result.endedAt ?? nowIso();
+		session.updatedAt = endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		this.emitStatus(session.sessionId, status);
+		return true;
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────

@@ -187,6 +187,7 @@ export class UnifiedSessionPersistenceService {
 		sessionId: string,
 		status: SessionStatus,
 		exitCode?: number | null,
+		pid?: number,
 	): Promise<{ updated: boolean; endedAt?: string }> {
 		let endedAt: string | undefined;
 		const result = await withOccRetry(
@@ -202,6 +203,7 @@ export class UnifiedSessionPersistenceService {
 						: typeof exitCode === "number"
 							? exitCode
 							: null,
+					pid: isNonTerminalSessionStatus(status) ? pid : undefined,
 					expectedStatusLock: row.statusLock,
 				});
 			},
@@ -215,6 +217,26 @@ export class UnifiedSessionPersistenceService {
 				);
 			}
 			return { updated: true, endedAt };
+		}
+		return { updated: false };
+	}
+
+	async adoptOrphanedSession(
+		sessionId: string,
+		pid: number,
+	): Promise<{ updated: boolean }> {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+			const row = await this.adapter.getSession(sessionId);
+			if (!row || !this.isOrphaned(row)) return { updated: false };
+			const changed = await this.adapter.updateSession({
+				sessionId,
+				status: "idle",
+				endedAt: null,
+				exitCode: null,
+				pid,
+				expectedStatusLock: row.statusLock,
+			});
+			if (changed.updated) return { updated: true };
 		}
 		return { updated: false };
 	}
@@ -442,6 +464,18 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
+	private isOrphaned(row: SessionRow): boolean {
+		if (isNonTerminalSessionStatus(row.status)) {
+			return !this.isPidAlive(row.pid);
+		}
+		return (
+			row.status === "failed" &&
+			row.metadata?.terminal_marker ===
+				UnifiedSessionPersistenceService.STALE_REASON &&
+			row.metadata.terminal_marker_at === row.endedAt
+		);
+	}
+
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
@@ -459,6 +493,7 @@ export class UnifiedSessionPersistenceService {
 			const latest = await this.adapter.getSession(row.sessionId);
 			if (!latest) return undefined;
 			if (isNonTerminalSessionStatus(latest.status) === false) return latest;
+			if (this.isPidAlive(latest.pid)) return latest;
 
 			const nextMetadata = {
 				...(latest.metadata ?? {}),
