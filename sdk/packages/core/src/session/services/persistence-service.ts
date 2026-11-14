@@ -40,21 +40,6 @@ export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
 const OCC_MAX_RETRIES = 4;
 
-export function isPidAlive(pid: number): boolean {
-	if (!Number.isFinite(pid) || pid <= 0) return false;
-	try {
-		process.kill(Math.floor(pid), 0);
-		return true;
-	} catch (error) {
-		return (
-			typeof error === "object" &&
-			error !== null &&
-			"code" in error &&
-			(error as { code?: string }).code === "EPERM"
-		);
-	}
-}
-
 export class UnifiedSessionPersistenceService {
 	private readonly manifestStore: SessionManifestStore;
 	private readonly teamChildren: TeamChildSessionManager;
@@ -232,6 +217,26 @@ export class UnifiedSessionPersistenceService {
 				);
 			}
 			return { updated: true, endedAt };
+		}
+		return { updated: false };
+	}
+
+	async adoptOrphanedSession(
+		sessionId: string,
+		pid: number,
+	): Promise<{ updated: boolean }> {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+			const row = await this.adapter.getSession(sessionId);
+			if (!row || !this.isOrphaned(row)) return { updated: false };
+			const changed = await this.adapter.updateSession({
+				sessionId,
+				status: "idle",
+				endedAt: null,
+				exitCode: null,
+				pid,
+				expectedStatusLock: row.statusLock,
+			});
+			if (changed.updated) return { updated: true };
 		}
 		return { updated: false };
 	}
@@ -444,12 +449,39 @@ export class UnifiedSessionPersistenceService {
 		return this.teamChildren.handleSubAgentEnd(rootSessionId, context);
 	}
 
+	private isPidAlive(pid: number): boolean {
+		if (!Number.isFinite(pid) || pid <= 0) return false;
+		try {
+			process.kill(Math.floor(pid), 0);
+			return true;
+		} catch (error) {
+			return (
+				typeof error === "object" &&
+				error !== null &&
+				"code" in error &&
+				(error as { code?: string }).code === "EPERM"
+			);
+		}
+	}
+
+	private isOrphaned(row: SessionRow): boolean {
+		if (isNonTerminalSessionStatus(row.status)) {
+			return !this.isPidAlive(row.pid);
+		}
+		return (
+			row.status === "failed" &&
+			row.metadata?.terminal_marker ===
+				UnifiedSessionPersistenceService.STALE_REASON &&
+			row.metadata.terminal_marker_at === row.endedAt
+		);
+	}
+
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
 		if (
 			isNonTerminalSessionStatus(row.status) === false ||
-			isPidAlive(row.pid)
+			this.isPidAlive(row.pid)
 		) {
 			return row;
 		}
@@ -461,7 +493,7 @@ export class UnifiedSessionPersistenceService {
 			const latest = await this.adapter.getSession(row.sessionId);
 			if (!latest) return undefined;
 			if (isNonTerminalSessionStatus(latest.status) === false) return latest;
-			if (isPidAlive(latest.pid)) return latest;
+			if (this.isPidAlive(latest.pid)) return latest;
 
 			const nextMetadata = {
 				...(latest.metadata ?? {}),

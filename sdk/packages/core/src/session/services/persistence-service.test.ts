@@ -417,7 +417,14 @@ describe("UnifiedSessionPersistenceService", () => {
 				sessionArtifactsDir: sessionsDir,
 			});
 		}
-		await service.createRootSessionWithArtifacts({
+		await addDeadRoot(service, sessionId);
+		return service;
+	};
+	const addDeadRoot = (
+		service: FileSessionService | CoreSessionService,
+		sessionId: string,
+	) =>
+		service.createRootSessionWithArtifacts({
 			sessionId,
 			source: SessionSource.CLI,
 			pid: deadPid,
@@ -431,8 +438,6 @@ describe("UnifiedSessionPersistenceService", () => {
 			enableTeams: false,
 			prompt: "hello",
 		});
-		return service;
-	};
 
 	it.each(
 		adapterKinds,
@@ -539,6 +544,70 @@ describe("UnifiedSessionPersistenceService", () => {
 			(row) => row.sessionId === childSessionId,
 		);
 		expect(child).toMatchObject({ status: "running", pid: process.pid });
+	});
+
+	it.each(
+		adapterKinds,
+	)("adopts a dead running row and a row the reconciler failed (%s)", async (kind) => {
+		const service = await createServiceWithDeadRoot(kind, "reconciled-root");
+		await service.reconcileDeadSessions();
+		await addDeadRoot(service, "dead-root");
+
+		for (const sessionId of ["dead-root", "reconciled-root"]) {
+			await expect(
+				service.adoptOrphanedSession(sessionId, process.pid),
+			).resolves.toEqual({ updated: true });
+		}
+
+		await expect(service.reconcileDeadSessions()).resolves.toBe(0);
+		const rows = await service.listSessions(10);
+		for (const sessionId of ["dead-root", "reconciled-root"]) {
+			expect(rows.find((row) => row.sessionId === sessionId)).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+				endedAt: null,
+			});
+		}
+	});
+
+	it.each(
+		adapterKinds,
+	)("does not adopt a live row or a failure written after the reconciler (%s)", async (kind) => {
+		const service = await createServiceWithDeadRoot(kind, "live-root");
+		await service.updateSessionStatus(
+			"live-root",
+			"running",
+			null,
+			process.ppid,
+		);
+		await addDeadRoot(service, "own-failure-root");
+		await service.updateSessionStatus("own-failure-root", "failed", 1);
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			await addDeadRoot(service, "failed-again-root");
+			vi.setSystemTime(new Date("2026-11-14T10:00:00.000Z"));
+			await service.reconcileDeadSessions();
+			await service.updateSessionStatus(
+				"failed-again-root",
+				"running",
+				null,
+				deadPid,
+			);
+			vi.setSystemTime(new Date("2026-11-14T10:00:01.000Z"));
+			await service.updateSessionStatus("failed-again-root", "failed", 1);
+		} finally {
+			vi.useRealTimers();
+		}
+
+		for (const sessionId of [
+			"live-root",
+			"own-failure-root",
+			"failed-again-root",
+		]) {
+			await expect(
+				service.adoptOrphanedSession(sessionId, process.pid),
+			).resolves.toEqual({ updated: false });
+		}
 	});
 
 	sqliteIt(

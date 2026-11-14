@@ -598,9 +598,17 @@ describe("LocalRuntimeHost", () => {
 	describe("resuming a session from disk", () => {
 		const deadPid = 999_999_999;
 		const resumeFromDisk = async (
-			status: "running" | "completed",
+			status: "running" | "completed" | "failed",
 			pid: number,
-			statusWriteError?: Error,
+			{
+				rowPid = pid,
+				readMessagesFirst = false,
+				adoptError,
+			}: {
+				rowPid?: number;
+				readMessagesFirst?: boolean;
+				adoptError?: Error;
+			} = {},
 		) => {
 			const sessionId = "sess-resume-from-disk";
 			const sessionService = new FileSessionService(
@@ -622,12 +630,24 @@ describe("LocalRuntimeHost", () => {
 					enableTeams: false,
 					prompt: "hello",
 				});
+			if (rowPid !== pid) {
+				await sessionService.updateSessionStatus(
+					sessionId,
+					status,
+					null,
+					rowPid,
+				);
+			}
 			const updateSessionStatus = vi.spyOn(
 				sessionService,
 				"updateSessionStatus",
 			);
-			if (statusWriteError) {
-				updateSessionStatus.mockRejectedValue(statusWriteError);
+			const adoptOrphanedSession = vi.spyOn(
+				sessionService,
+				"adoptOrphanedSession",
+			);
+			if (adoptError) {
+				adoptOrphanedSession.mockRejectedValue(adoptError);
 			}
 			const agent = {
 				run: vi.fn().mockResolvedValue(createResult()),
@@ -655,6 +675,9 @@ describe("LocalRuntimeHost", () => {
 				}
 			});
 
+			if (readMessagesFirst) {
+				await manager.readSessionMessages(sessionId);
+			}
 			await manager.startSession(
 				normalizeStartInput({
 					config: createConfig({
@@ -678,6 +701,7 @@ describe("LocalRuntimeHost", () => {
 				manager,
 				sessionService,
 				updateSessionStatus,
+				adoptOrphanedSession,
 				emittedStatuses,
 				readRow,
 				readManifest,
@@ -686,6 +710,7 @@ describe("LocalRuntimeHost", () => {
 
 		it.each([
 			["a terminal manifest", "completed", deadPid],
+			["a failed manifest", "failed", deadPid],
 			["the same pid", "running", process.pid],
 			["an old pid that is still alive", "running", process.ppid],
 		] as const)("writes nothing when resuming %s", async (_case, status, pid) => {
@@ -697,13 +722,11 @@ describe("LocalRuntimeHost", () => {
 		});
 
 		it("still starts when adopting a dead row fails to write", async () => {
-			const resumed = await resumeFromDisk(
-				"running",
-				deadPid,
-				new Error("database is locked"),
-			);
+			const resumed = await resumeFromDisk("running", deadPid, {
+				adoptError: new Error("database is locked"),
+			});
 
-			expect(resumed.updateSessionStatus).toHaveBeenCalledTimes(1);
+			expect(resumed.adoptOrphanedSession).toHaveBeenCalledTimes(1);
 			await expect(
 				resumed.manager.getSession(resumed.sessionId),
 			).resolves.toMatchObject({ status: "running" });
@@ -755,10 +778,37 @@ describe("LocalRuntimeHost", () => {
 					pid,
 				]),
 			).toEqual([
-				["idle", process.pid],
 				["running", process.pid],
 				["idle", process.pid],
 			]);
+		});
+
+		it.each([
+			["only the row has a dead pid", process.ppid, { rowPid: deadPid }],
+			[
+				"reading its messages already marked it failed",
+				deadPid,
+				{ readMessagesFirst: true },
+			],
+			[
+				"only the row has a dead pid and reading its messages marked it failed",
+				process.ppid,
+				{ rowPid: deadPid, readMessagesFirst: true },
+			],
+		] as const)("parks the row as idle on this pid when %s", async (_case, pid, options) => {
+			const resumed = await resumeFromDisk("running", pid, options);
+
+			await expect(
+				resumed.sessionService.reconcileDeadSessions(),
+			).resolves.toBe(0);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
 		});
 
 		it("moves a resumed completed session to this pid when its next turn starts", async () => {
