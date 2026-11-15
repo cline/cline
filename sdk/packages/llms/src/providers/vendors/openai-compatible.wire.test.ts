@@ -182,4 +182,60 @@ describe("OpenAI-compatible reasoning disable wire contract", () => {
 		});
 		expect(body).not.toHaveProperty("reasoning_effort");
 	});
+
+	describe("OpenAI-compatible reasoning-off preference wire contract", () => {
+		it("sends nothing about reasoning to a model the catalog does not list", async () => {
+			const body = await wireBody({
+				modelId: "gpt-6-astra",
+				reasoning: { preferOff: true },
+				reasoningOptions: undefined,
+			});
+			expect(body).not.toHaveProperty("reasoning_effort");
+		});
+
+		it("keeps the caller's level for a model the catalog does not list", async () => {
+			const body = await wireBody({
+				modelId: "gpt-6-astra",
+				reasoning: { effort: "high", preferOff: true },
+				reasoningOptions: undefined,
+			});
+			expect(body.reasoning_effort).toBe("high");
+		});
+
+		it("sends none to a model that advertises it", async () => {
+			const body = await wireBody({
+				modelId: "gpt-6-astra",
+				reasoning: { effort: "high", preferOff: true },
+				reasoningOptions: [{ type: "effort", values: ["none", "low", "high"] }],
+			});
+			expect(body.reasoning_effort).toBe("none");
+		});
+
+		it("sends nothing about reasoning to a model with no off option", async () => {
+			const body = await wireBody({
+				modelId: KIMI_K3_ID,
+				reasoning: { preferOff: true },
+				reasoningOptions: KIMI_K3_EFFORTS,
+			});
+			expect(body).not.toHaveProperty("reasoning_effort");
+		});
+
+		it("still sends an explicit disable to a model the catalog does not list", async () => {
+			const body = await wireBody({
+				modelId: "gpt-6-astra",
+				reasoning: { enabled: false, preferOff: true },
+				reasoningOptions: undefined,
+			});
+			expect(body.reasoning_effort).toBe("none");
+		});
+	});
+
+	it("keeps the caller's level for a model with no off option", async () => {
+		const body = await wireBody({
+			modelId: KIMI_K3_ID,
+			reasoning: { effort: "high", preferOff: true },
+			reasoningOptions: KIMI_K3_EFFORTS,
+		});
+		expect(body.reasoning_effort).toBe("high");
+	});
 });

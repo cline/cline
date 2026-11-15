@@ -2,6 +2,11 @@ import type { AgentMessage, AgentTool } from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type {
+	McpServerConfigInput,
+	McpServerInspection,
+	McpServersResponse,
+} from "./mcp-management";
+import type {
 	AddProviderActionRequest,
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
@@ -25,6 +30,7 @@ export const MAX_CLIENT_HUB_PROTOCOL_VERSION: HubProtocolVersion = "v1";
 
 export type HubCapabilityName =
 	| HubProviderCommandName
+	| HubMcpCommandName
 	| "client.register"
 	| "client.list"
 	| "session.create"
@@ -58,6 +64,17 @@ export type HubCapabilityName =
 	| "stream.replay";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
+	"mcp.oauth.start",
+	"mcp.oauth.next",
+	"mcp.oauth.cancel",
+	"mcp.servers.list",
+	"mcp.servers.upsert",
+	"mcp.servers.set_disabled",
+	"mcp.servers.delete",
+	"mcp.settings.ensure",
+	"mcp.servers.inspect",
+	"mcp.servers.install",
+
 	"providers.list",
 	"providers.models.list",
 	"providers.models.recommended",
@@ -627,6 +644,18 @@ export interface HubProviderMutationResult {
 
 /** Typed Hub command payloads shared by native and browser clients. */
 export interface HubCommandInputMap {
+	"mcp.oauth.start": { name: string; loginId: string };
+	"mcp.oauth.next": { loginId: string };
+	"mcp.oauth.cancel": { loginId: string; reason: "user" | "disconnected" };
+
+	"mcp.servers.list": Record<string, never>;
+	"mcp.servers.upsert": McpServerConfigInput;
+	"mcp.servers.set_disabled": { name: string; disabled: boolean };
+	"mcp.servers.delete": { name: string };
+	"mcp.settings.ensure": Record<string, never>;
+	"mcp.servers.inspect": { name: string };
+	"mcp.servers.install": { args: string[] };
+
 	"providers.list": { isClinePassEnabled?: boolean };
 	"providers.models.list": { providerId: string; includeCloudModels?: boolean };
 	"providers.models.recommended": Record<string, never>;
@@ -650,6 +679,35 @@ export interface HubCommandInputMap {
 
 /** Typed command results returned in {@link HubReplyEnvelope.payload}. */
 export interface HubCommandOutputMap {
+	"mcp.oauth.start": { loginId: string };
+	"mcp.oauth.next": HubMcpOAuthSnapshot;
+	"mcp.oauth.cancel": { cancelled: boolean };
+
+	"mcp.servers.list": McpServersResponse;
+	"mcp.servers.upsert": McpServersResponse;
+	"mcp.servers.set_disabled": McpServersResponse;
+	"mcp.servers.delete": McpServersResponse;
+	"mcp.settings.ensure": { settingsPath: string };
+	"mcp.servers.inspect": McpServerInspection;
+	"mcp.servers.install": {
+		name: string;
+		status: "installed";
+		transport:
+			| {
+					type: "stdio";
+					command: string;
+					args?: string[];
+					cwd?: string;
+					env?: Record<string, string>;
+			  }
+			| {
+					type: "sse" | "streamableHttp";
+					url: string;
+					headers?: Record<string, string>;
+			  };
+		warnings: string[];
+	};
+
 	"providers.list": ProviderCatalogResponse;
 	"providers.models.list": ProviderModelsResponse;
 	"providers.models.recommended": ClineRecommendedModelsData;
@@ -686,6 +744,7 @@ export type HubProviderCommandName =
 	| "providers.models.update";
 
 export type HubCommandName =
+	| HubMcpCommandName
 	| HubProviderCommandName
 	| "cloud.command"
 	| "cloud.watch"
@@ -1214,3 +1273,20 @@ export function describeOutdatedHubSessions(counts: {
 	}
 	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
 }
+
+export interface HubMcpOAuthSnapshot {
+	urls: string[];
+	result?: { name: string; authorized: true };
+	error?: { code: string; message: string };
+}
+export type HubMcpCommandName =
+	| "mcp.oauth.start"
+	| "mcp.oauth.next"
+	| "mcp.oauth.cancel"
+	| "mcp.servers.list"
+	| "mcp.servers.upsert"
+	| "mcp.servers.set_disabled"
+	| "mcp.servers.delete"
+	| "mcp.settings.ensure"
+	| "mcp.servers.inspect"
+	| "mcp.servers.install";

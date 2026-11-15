@@ -779,6 +779,68 @@ describe("buildSessionConfig", () => {
 		expect(await shownAndRequested()).toEqual({ shown: "medium", thinking: true, reasoningEffort: undefined })
 	})
 
+	it("keeps an OpenAI Compatible model with saved overrides able to reason, so a disable reaches the wire", async () => {
+		// A Model Configuration edit (e.g. the Supports Images tick) writes a
+		// stored entry that says nothing about reasoning; the gateway skips a
+		// reasoning disable for a model whose capability list lacks it. Goes
+		// through the real ProviderSettingsManager and registry, like
+		// production.
+		const { ProviderSettingsManager } = await import("../../node_modules/@cline/core/dist/index.js")
+		const realManager = new ProviderSettingsManager({
+			filePath: path.join(tempDir, "settings", "providers.json"),
+		})
+		realManager.saveProviderSettings(
+			{
+				provider: "openai-compatible",
+				apiKey: "azure-key",
+				model: "gpt-6-sol",
+				baseUrl: "https://example.openai.azure.com/openai/v1",
+				reasoning: { enabled: false },
+			},
+			{ setLastUsed: false },
+		)
+		mocks.getProviderSettingsManager.mockReturnValue(realManager as never)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "gpt-6-sol",
+			openAiApiKey: "azure-key",
+			openAiBaseUrl: "https://example.openai.azure.com/openai/v1",
+		} as any)
+		const providerId = parseProviderId("openai")
+		createProviderConfigStore().commitSelection(providerId, "act", {
+			providerId,
+			modelId: "gpt-6-sol",
+			overrides: { supportsVision: true },
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["gpt-6-sol"]
+
+		expect(config.thinking).toBe(false)
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "reasoning", "tools"]))
+
+		// The same config through the real handler and gateway: the endpoint
+		// must receive the disable.
+		let body: Record<string, unknown> | undefined
+		const fetchStub = (async (_input: unknown, init?: RequestInit) => {
+			body = JSON.parse((init?.body as string) ?? "{}")
+			return new Response(JSON.stringify({ error: { message: "stub" } }), {
+				status: 400,
+				headers: { "content-type": "application/json" },
+			})
+		}) as unknown as typeof fetch
+		const handler = await LlmsModels.createHandlerAsync({
+			...(config.providerConfig as LlmsModels.ProviderConfig),
+			thinking: config.thinking,
+			reasoningEffort: config.reasoningEffort,
+			fetch: fetchStub,
+		})
+		for await (const _chunk of handler.createMessage("Summarize.", [{ role: "user", content: "hi" }])) {
+			// drain
+		}
+		expect(body?.reasoning_effort).toBe("none")
+	})
+
 	it("does not rewrite providers.json when the stored Azure settings already match", () => {
 		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
 			if (providerId !== "openai-compatible") {
@@ -1217,6 +1279,37 @@ describe("buildSessionConfig", () => {
 
 		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
 		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it.each([
+		["says nothing about reasoning", {}, true],
+		["denies reasoning explicitly", { supportsReasoning: false }, false],
+		["generates images", { operation: "image-generation" }, false],
+	])("treats a dynamic-list model that %s accordingly", async (_label, reasoningFlag, expectReasoning) => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/custom-model",
+			openRouterApiKey: "openrouter-key",
+			// Legacy boolean snapshot with no SDK capability list: the rebuilt
+			// list must not deny reasoning the snapshot never mentioned.
+			actModeOpenRouterModelInfo: {
+				name: "Mock Custom Model",
+				contextWindow: 16_000,
+				supportsImages: true,
+				supportsPromptCache: false,
+				...reasoningFlag,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "tools"]))
+		if (expectReasoning) {
+			expect(knownModel.capabilities).toContain("reasoning")
+		} else {
+			expect(knownModel.capabilities).not.toContain("reasoning")
+		}
 	})
 
 	it("defaults tool-calling on when the preserved capability list is defined but empty", async () => {

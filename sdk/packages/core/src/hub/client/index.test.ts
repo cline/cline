@@ -5,6 +5,7 @@ import {
 	isHubReconnectableTransportError,
 	NodeHubClient,
 } from "../client";
+import { createHubMcpApi } from "./mcp";
 
 type SocketListener = (...args: unknown[]) => void;
 type MessageListener = (event: { data: string }) => void;
@@ -441,6 +442,45 @@ describe("NodeHubClient", () => {
 			);
 			await vi.advanceTimersByTimeAsync(30_001);
 			await expectation;
+		});
+
+		it("bounds an unanswered MCP catalog read while allowing queued mutations to wait", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connecting = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) throw new Error("expected fake websocket instance");
+			socket.open();
+			await connecting;
+			const api = createHubMcpApi(client);
+			try {
+				let catalogError: unknown;
+				const listing = api.list().catch((error: unknown) => {
+					catalogError = error;
+				});
+				const mutation = api.setDisabled("local", true);
+				let mutationSettled = false;
+				void mutation.then(
+					() => {
+						mutationSettled = true;
+					},
+					() => {
+						mutationSettled = true;
+					},
+				);
+				await vi.advanceTimersByTimeAsync(30_001);
+				expect(catalogError).toMatchObject({ code: "hub_command_timeout" });
+				await listing;
+				await vi.advanceTimersByTimeAsync(120_000);
+				expect(mutationSettled).toBe(false);
+				expect(socket.readyState).toBe(1);
+				const closed = expect(mutation).rejects.toMatchObject({
+					code: "hub_connection_closed",
+				});
+				client.close();
+				await closed;
+			} finally {
+				client.close();
+			}
 		});
 
 		it("allows commands to opt out of the reply timeout", async () => {
@@ -1581,6 +1621,21 @@ describe("hasActiveHubSessions", () => {
 		expect(
 			hasActiveHubSessions({ sessions: [], activeProviderMutations: 0 }),
 		).toBe(false);
+	});
+
+	it("counts MCP management requests without attached sessions", async () => {
+		const { hasActiveHubSessions, summarizeHubSessionActivity } = await import(
+			"."
+		);
+		expect(hasActiveHubSessions({ sessions: [], activeMcpRequests: 1 })).toBe(
+			true,
+		);
+		expect(
+			summarizeHubSessionActivity({ sessions: [], activeMcpRequests: 2 }),
+		).toMatchObject({ activeSessionCount: 0, activeMcpRequests: 2 });
+		expect(hasActiveHubSessions({ sessions: [], activeMcpRequests: 0 })).toBe(
+			false,
+		);
 	});
 
 	const payload = (sessions: unknown[]) => ({ sessions });

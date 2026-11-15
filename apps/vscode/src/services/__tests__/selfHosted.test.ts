@@ -58,12 +58,12 @@ describe("SelfHosted Mode - PostHog Disabling", () => {
 			assert.strictEqual(config.type, "no-op", "Should return no-op type in selfHosted mode")
 		})
 
-		it("should return posthog config when NOT in selfHosted mode", () => {
+		it("should return no-op config when NOT in selfHosted mode", () => {
 			isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
 
 			const config = ErrorProviderFactory.getDefaultConfig()
 
-			assert.strictEqual(config.type, "posthog", "Should return posthog type when not in selfHosted mode")
+			assert.strictEqual(config.type, "no-op", "PostHog error tracking is disabled")
 		})
 
 		it("should create NoOp provider when in selfHosted mode", async () => {

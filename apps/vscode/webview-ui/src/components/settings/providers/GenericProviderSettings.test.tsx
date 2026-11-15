@@ -417,6 +417,7 @@ describe("GenericProviderSettings", () => {
 
 	it("can render and update an optional base URL field through provider config", async () => {
 		const write = vi.fn(async () => undefined)
+		const refresh = vi.fn(async () => undefined)
 		vi.mocked(useProviderModels).mockReturnValue({
 			models: {
 				"gemini-3.1-pro-preview": {
@@ -430,7 +431,7 @@ describe("GenericProviderSettings", () => {
 			isLoading: false,
 			isStale: false,
 			error: undefined,
-			refresh: vi.fn(),
+			refresh,
 			fingerprint: "fingerprint",
 		})
 		vi.mocked(useProviderConfig).mockReturnValue({
@@ -455,11 +456,122 @@ describe("GenericProviderSettings", () => {
 
 		const baseUrlInput = screen.getByPlaceholderText("Default: https://generativelanguage.googleapis.com")
 		fireEvent.input(baseUrlInput, { target: { value: "https://new.example" } })
+		fireEvent.blur(baseUrlInput)
 
 		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "https://new.example" }))
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 
 		fireEvent.click(screen.getByText("Use custom base URL"))
 
-		expect(write).toHaveBeenCalledWith({ baseUrl: "" })
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ baseUrl: "" }))
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(2))
+	})
+
+	it("debounces model refreshes while typing and refreshes immediately on blur", async () => {
+		const write = vi.fn(async () => undefined)
+		const refresh = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: { "baseten-static": { name: "Baseten Static", supportsPromptCache: false, contextWindow: 128_000 } },
+			defaultModelId: "baseten-static",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh,
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 0 }),
+			write,
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="baseten"
+				providerName="Baseten"
+				showModelOptions={true}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.focus(apiKeyInput)
+		fireEvent.input(apiKeyInput, { target: { value: "bt-" } })
+
+		await waitFor(() => expect(write).toHaveBeenCalledWith({ apiKey: "bt-" }))
+		// Still focused inside the 500ms refresh debounce window: no refresh yet.
+		expect(refresh).not.toHaveBeenCalled()
+
+		fireEvent.input(apiKeyInput, { target: { value: "bt-secret-key" } })
+		await waitFor(() => expect(write).toHaveBeenLastCalledWith({ apiKey: "bt-secret-key" }))
+		expect(refresh).not.toHaveBeenCalled()
+
+		// Blurring flushes the pending refresh immediately.
+		fireEvent.blur(apiKeyInput)
+		await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+	})
+
+	it("does not refresh on blur when nothing changed", () => {
+		const refresh = vi.fn(async () => undefined)
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: { "deepseek-chat": { name: "DeepSeek Chat", supportsPromptCache: false, contextWindow: 128_000 } },
+			defaultModelId: "deepseek-chat",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh,
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 8 }),
+			write: vi.fn(async () => undefined),
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="deepseek"
+				providerName="DeepSeek"
+				showModelOptions={true}
+			/>,
+		)
+
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		fireEvent.focus(apiKeyInput)
+		fireEvent.blur(apiKeyInput)
+
+		expect(refresh).not.toHaveBeenCalled()
+	})
+
+	it("surfaces model refresh errors in the model picker", () => {
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {},
+			defaultModelId: "",
+			isLoading: false,
+			isStale: false,
+			error: "Baseten model refresh failed: HTTP 401",
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		vi.mocked(useProviderConfig).mockReturnValue({
+			config: providerConfig({ apiKeyLength: 10 }),
+			write: vi.fn(),
+			commitSelection: vi.fn(),
+		})
+
+		render(
+			<GenericProviderSettings
+				allowsCustomIds={false}
+				currentMode="act"
+				providerId="baseten"
+				providerName="Baseten"
+				showModelOptions={true}
+			/>,
+		)
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Baseten model refresh failed: HTTP 401")
 	})
 })

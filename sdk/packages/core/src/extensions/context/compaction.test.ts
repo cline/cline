@@ -1459,8 +1459,37 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
-		expect(codexConfig.thinking).toBe(false);
+		expect(codexConfig.preferThinkingOff).toBe(true);
+		expect(codexConfig).not.toHaveProperty("thinking");
 		expect(anthropicConfig.maxOutputTokens).toBe(8_192);
+	});
+
+	it("asks for thinking off while keeping the session's own reasoning settings", () => {
+		const fromLevel = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai-compatible",
+				modelId: "gpt-6-astra",
+				thinking: true,
+				reasoningEffort: "high",
+			},
+		});
+		expect(fromLevel).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+			preferThinkingOff: true,
+		});
+
+		const fromDisable = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai-compatible",
+				modelId: "gpt-6-astra",
+				thinking: false,
+			},
+		});
+		expect(fromDisable).toMatchObject({
+			thinking: false,
+			preferThinkingOff: true,
+		});
 	});
 
 	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
@@ -2662,7 +2691,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				providerId: "openai",
 				modelId: "gpt-summary",
 				maxOutputTokens: 512,
-				thinking: false,
+				preferThinkingOff: true,
 			}),
 		);
 	});

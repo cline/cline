@@ -1061,6 +1061,7 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { createHubMcpApi, type HubMcpApi } from "./hub/client/mcp";
 export { createHubPluginCommandsApi } from "./hub/client/plugin-commands";
 export { createHubProvidersApi } from "./hub/client/providers";
 export * from "./remote/remote-environments";

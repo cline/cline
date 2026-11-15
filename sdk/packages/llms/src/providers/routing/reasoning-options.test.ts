@@ -4,7 +4,10 @@ import type {
 	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { normalizeReasoningRequest } from "./reasoning-options";
+import {
+	normalizeReasoningRequest,
+	resolveReasoningPreference,
+} from "./reasoning-options";
 
 function makeRequest(
 	reasoning: GatewayStreamRequest["reasoning"],
@@ -198,5 +201,66 @@ describe("normalizeReasoningRequest", () => {
 				makeContext(undefined),
 			).reasoning?.effort,
 		).toBe("high");
+	});
+
+	describe("resolveReasoningPreference", () => {
+		const model = (
+			reasoningOptions: readonly ModelReasoningOption[] | undefined,
+		) => makeContext(reasoningOptions).model;
+
+		it("leaves settings without a preference alone", () => {
+			const reasoning = { enabled: true, effort: "high" } as const;
+			expect(resolveReasoningPreference(reasoning, model(undefined))).toBe(
+				reasoning,
+			);
+			expect(
+				resolveReasoningPreference(undefined, model(undefined)),
+			).toBeUndefined();
+		});
+
+		it("disables reasoning for a model that advertises an off option", () => {
+			expect(
+				resolveReasoningPreference(
+					{ effort: "high", preferOff: true },
+					model([{ type: "effort", values: ["none", "low", "high"] }]),
+				),
+			).toEqual({ enabled: false });
+			expect(
+				resolveReasoningPreference(
+					{ preferOff: true },
+					model([{ type: "toggle" }]),
+				),
+			).toEqual({ enabled: false });
+		});
+
+		it("keeps the caller's settings for a model the catalog does not describe", () => {
+			expect(
+				resolveReasoningPreference(
+					{ effort: "high", preferOff: true },
+					model(undefined),
+				),
+			).toEqual({ effort: "high" });
+			expect(
+				resolveReasoningPreference({ preferOff: true }, model(undefined)),
+			).toBeUndefined();
+		});
+
+		it("keeps the caller's settings for a model with no off option", () => {
+			expect(
+				resolveReasoningPreference(
+					{ enabled: true, preferOff: true },
+					model([{ type: "effort", values: ["low", "high"] }]),
+				),
+			).toEqual({ enabled: true });
+		});
+
+		it("leaves an explicit disable as it is", () => {
+			expect(
+				resolveReasoningPreference(
+					{ enabled: false, preferOff: true },
+					model(undefined),
+				),
+			).toEqual({ enabled: false });
+		});
 	});
 });

@@ -1,0 +1,26 @@
+/* Resolve shared geometry on each control so nested theme overrides still apply. */
+@layer components {
+	.cline-ui-control-size-xs,
+	.cline-ui-button-xs {
+		--cline-ui-control-height: calc(7 * var(--spacing, 0.25rem));
+		--cline-ui-control-radius: var(--radius-md);
+	}
+
+	.cline-ui-control-size-sm,
+	.cline-ui-button-sm {
+		--cline-ui-control-height: calc(8 * var(--spacing, 0.25rem));
+		--cline-ui-control-radius: var(--radius-md);
+	}
+
+	.cline-ui-control-size-md,
+	.cline-ui-button-md {
+		--cline-ui-control-height: calc(9 * var(--spacing, 0.25rem));
+		--cline-ui-control-radius: var(--radius-lg);
+	}
+
+	.cline-ui-control-size-lg,
+	.cline-ui-button-lg {
+		--cline-ui-control-height: calc(10 * var(--spacing, 0.25rem));
+		--cline-ui-control-radius: var(--radius-lg);
+	}
+}

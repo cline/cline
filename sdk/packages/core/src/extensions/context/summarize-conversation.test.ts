@@ -178,7 +178,8 @@ describe("summarizeConversation", () => {
 		expect(createHandlerMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiKey: "fresh-token",
-				thinking: false,
+				thinking: true,
+				preferThinkingOff: true,
 				maxOutputTokens: 8192,
 			}),
 		);

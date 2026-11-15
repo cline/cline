@@ -1,12 +1,19 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin, SKILLS_CLI_PACKAGE } from "@cline/core";
+import {
+	installMcpServer,
+	installPlugin,
+	parseMcpInstallArgs,
+	SKILLS_CLI_PACKAGE,
+} from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
 	installMarketplaceEntry,
 	listMarketplaceInstalledEntries,
+	uninstallLocalPrimitive,
+	uninstallMarketplaceEntry,
 } from "./marketplace";
 import type { JsonRecord } from "./types";
 
@@ -138,22 +145,64 @@ describe("official plugin install detection", () => {
 		expect(installPluginMock).not.toHaveBeenCalled();
 	});
 
-	it("registers MCP servers in-process, honoring the -- args separator", async () => {
+	it("uses the Hub inventory and deletion API for Marketplace MCP removal", async () => {
+		const entry = {
+			id: "local",
+			type: "mcp",
+			install: { args: ["local", "--", "node"] },
+		};
+		expect(
+			listMarketplaceInstalledEntries(
+				{ entries: [entry] },
+				{ mcp: { servers: [{ name: "local" }] } },
+			).installedKeys,
+		).toEqual(["mcp:local"]);
+		const remove = vi.fn(async () => ({
+			settingsPath: "/hub/settings.json",
+			hasSettingsFile: true,
+			servers: [],
+		}));
+		const mcp = { install: vi.fn(), delete: remove };
+		expect(await uninstallMarketplaceEntry({ entry }, { mcp })).toMatchObject({
+			status: "uninstalled",
+			details: { mcp: { servers: [] } },
+		});
+		expect(
+			await uninstallLocalPrimitive({ type: "mcp", id: "local" }, { mcp }),
+		).toMatchObject({ status: "uninstalled" });
+		expect(remove).toHaveBeenNthCalledWith(1, "local");
+		expect(remove).toHaveBeenNthCalledWith(2, "local");
+	});
+
+	it("registers MCP servers through the Hub API, honoring the -- args separator", async () => {
 		const settingsPath = join(tempClineDir, "cline_mcp_settings.json");
 		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
 		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
 		try {
-			const result = await installMarketplaceEntry({
-				entry: {
-					id: "aikido",
-					type: "mcp",
-					name: "Aikido",
-					install: {
-						args: ["aikido", "--", "npx", "-y", "@aikidosec/mcp@1.0.9"],
+			const install = vi.fn(async (args: string[]) =>
+				installMcpServer(parseMcpInstallArgs(args)),
+			);
+			const result = await installMarketplaceEntry(
+				{
+					entry: {
+						id: "aikido",
+						type: "mcp",
+						name: "Aikido",
+						install: {
+							args: ["aikido", "--", "npx", "-y", "@aikidosec/mcp@1.0.9"],
+						},
 					},
 				},
-			});
+				{ mcp: { install, delete: vi.fn() } },
+			);
 
+			expect(install).toHaveBeenCalledWith([
+				"aikido",
+				"--",
+				"npx",
+				"-y",
+				"@aikidosec/mcp@1.0.9",
+			]);
 			expect(result).toMatchObject({
 				status: "installed",
 				message: "Installed Aikido.",

@@ -238,8 +238,8 @@ export const AgentComposerStopButton = forwardRef<
 			ref={ref}
 			className={clsx(
 				variant === "welcome"
-					? "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive rounded-cline-ui-md"
-					: "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive rounded-full",
+					? "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive hover:text-cline-ui-destructive-foreground rounded-cline-ui-md"
+					: "bg-cline-ui-foreground p-1.5 text-cline-ui-background hover:bg-cline-ui-destructive hover:text-cline-ui-destructive-foreground rounded-full",
 				className,
 			)}
 		/>
@@ -263,8 +263,8 @@ export const AgentComposerSendButton = forwardRef<
 			ref={ref}
 			className={clsx(
 				variant === "welcome"
-					? "p-1.5 disabled:cursor-not-allowed disabled:opacity-50 rounded-cline-ui-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-					: "p-1.5 disabled:cursor-not-allowed disabled:opacity-50 rounded-full bg-cline-ui-primary text-cline-ui-background hover:bg-cline-ui-primary/80",
+					? "p-1.5 disabled:cursor-not-allowed disabled:opacity-50 rounded-cline-ui-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-cline-ui-primary-foreground shadow-sm hover:bg-cline-ui-primary-emphasis hover:bg-none"
+					: "p-1.5 disabled:cursor-not-allowed disabled:opacity-50 rounded-full bg-cline-ui-primary text-cline-ui-primary-foreground hover:bg-cline-ui-primary-emphasis",
 				className,
 			)}
 		/>

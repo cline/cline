@@ -56,6 +56,7 @@ export interface ManagedHubBuildMismatchEvent {
 	activePluginRequests?: number;
 	/** Accepted provider settings and model-file writes on the running Hub. */
 	activeProviderMutations?: number;
+	activeMcpRequests?: number;
 }
 
 /**
@@ -76,6 +77,7 @@ async function withHubSessionActivity(
 			participantClientCount: activity.participantClientCount,
 			activePluginRequests: activity.activePluginRequests,
 			activeProviderMutations: activity.activeProviderMutations,
+			activeMcpRequests: activity.activeMcpRequests,
 		};
 	} catch {
 		return event;

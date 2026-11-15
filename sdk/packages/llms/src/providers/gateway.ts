@@ -21,6 +21,7 @@ import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { providerManifestSupportsModelOperation } from "./model-operations";
 import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
+import { resolveReasoningPreference } from "./routing/reasoning-options";
 import { isPositiveFiniteNumber } from "./utils";
 
 export type * from "@cline/shared";
@@ -367,11 +368,15 @@ export class DefaultGateway implements Gateway {
 			request.providerId,
 		);
 		const provider = await providerRecord.createProvider(providerRecord.config);
+		const reasoning = resolveReasoningPreference(
+			request.reasoning,
+			resolved.model,
+		);
 		const maxTokens = resolveGatewayRequestMaxTokens({
 			requestedMaxTokens: request.maxTokens,
 			model: resolved.model,
 			estimatedInputTokens: estimateRequestInputTokens(request),
-			reasoningBudgetTokens: request.reasoning?.budgetTokens,
+			reasoningBudgetTokens: reasoning?.budgetTokens,
 			onContextOverflow: (details) => {
 				this.logger?.log(
 					"Estimated prompt tokens exceed model context window",
@@ -389,6 +394,7 @@ export class DefaultGateway implements Gateway {
 				...request,
 				modelId: resolved.model.id,
 				providerId: resolved.provider.id,
+				reasoning,
 				maxTokens,
 				defaultedMaxTokens:
 					maxTokens !== undefined && !isPositiveFiniteNumber(request.maxTokens),
