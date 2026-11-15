@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ensureLoopbackProxyBypass } from "./loopback-proxy-bypass";
 
-const LOOPBACK_LIST = "localhost,127.0.0.1,::1,[::1]";
+const LOOPBACK_LIST = "localhost,127.0.0.1,::1";
 
 describe("ensureLoopbackProxyBypass", () => {
 	it("does nothing when no proxy variable is set", () => {
@@ -31,15 +31,26 @@ describe("ensureLoopbackProxyBypass", () => {
 		expect(env.no_proxy).toBe(LOOPBACK_LIST);
 	});
 
+	it("keeps bracketed IPv6 out of NO_PROXY so Python clients accept it", () => {
+		const env: Record<string, string | undefined> = {
+			HTTPS_PROXY: "http://proxy.corp:8080",
+		};
+		ensureLoopbackProxyBypass(env);
+		expect(env.NO_PROXY).toBe(LOOPBACK_LIST);
+		// httpx parses `[::1]` as a URL with an empty port and throws
+		// `InvalidURL: Invalid port: ':1]'`, so Python stdio MCP servers exit
+		// during initialize when this value reaches them (cline/cline#15732).
+		expect(env.NO_PROXY).not.toContain("[");
+		expect(env.no_proxy).not.toContain("[");
+	});
+
 	it("appends missing loopback hosts to an existing NO_PROXY", () => {
 		const env: Record<string, string | undefined> = {
 			HTTPS_PROXY: "http://proxy.corp:8080",
 			NO_PROXY: ".corp.example.com, localhost",
 		};
 		ensureLoopbackProxyBypass(env);
-		expect(env.NO_PROXY).toBe(
-			".corp.example.com,localhost,127.0.0.1,::1,[::1]",
-		);
+		expect(env.NO_PROXY).toBe(".corp.example.com,localhost,127.0.0.1,::1");
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
 
@@ -49,7 +60,7 @@ describe("ensureLoopbackProxyBypass", () => {
 			no_proxy: "127.0.0.1",
 		};
 		ensureLoopbackProxyBypass(env);
-		expect(env.no_proxy).toBe("127.0.0.1,localhost,::1,[::1]");
+		expect(env.no_proxy).toBe("127.0.0.1,localhost,::1");
 		expect(env.NO_PROXY).toBe(env.no_proxy);
 	});
 
@@ -65,7 +76,7 @@ describe("ensureLoopbackProxyBypass", () => {
 		};
 		ensureLoopbackProxyBypass(env);
 		expect(env.NO_PROXY).toBe(
-			".corp.example.com,internal.db,10.0.0.5,localhost,127.0.0.1,::1,[::1]",
+			".corp.example.com,internal.db,10.0.0.5,localhost,127.0.0.1,::1",
 		);
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
@@ -78,7 +89,7 @@ describe("ensureLoopbackProxyBypass", () => {
 		};
 		ensureLoopbackProxyBypass(env);
 		expect(env.NO_PROXY).toBe(
-			"Corp.Example.COM,localhost,extra.host,127.0.0.1,::1,[::1]",
+			"Corp.Example.COM,localhost,extra.host,127.0.0.1,::1",
 		);
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
@@ -90,9 +101,7 @@ describe("ensureLoopbackProxyBypass", () => {
 			no_proxy: "*",
 		};
 		ensureLoopbackProxyBypass(env);
-		expect(env.NO_PROXY).toBe(
-			".corp.example.com,localhost,127.0.0.1,::1,[::1]",
-		);
+		expect(env.NO_PROXY).toBe(".corp.example.com,localhost,127.0.0.1,::1");
 		expect(env.no_proxy).toBe("*");
 	});
 
@@ -120,10 +129,10 @@ describe("ensureLoopbackProxyBypass", () => {
 	it("matches loopback entries case-insensitively", () => {
 		const env: Record<string, string | undefined> = {
 			HTTP_PROXY: "http://127.0.0.1:7890",
-			NO_PROXY: "LOCALHOST,127.0.0.1,::1,[::1]",
+			NO_PROXY: "LOCALHOST,127.0.0.1,::1",
 		};
 		ensureLoopbackProxyBypass(env);
-		expect(env.NO_PROXY).toBe("LOCALHOST,127.0.0.1,::1,[::1]");
+		expect(env.NO_PROXY).toBe("LOCALHOST,127.0.0.1,::1");
 	});
 
 	it("leaves a wildcard NO_PROXY alone and fills in the unset casing", () => {
@@ -133,6 +142,6 @@ describe("ensureLoopbackProxyBypass", () => {
 		};
 		ensureLoopbackProxyBypass(env);
 		expect(env.NO_PROXY).toBe("*");
-		expect(env.no_proxy).toBe("localhost,127.0.0.1,::1,[::1]");
+		expect(env.no_proxy).toBe("localhost,127.0.0.1,::1");
 	});
 });
