@@ -13,7 +13,9 @@
 //      clean finish;
 //   3. an attachment-only user turn must serialize `content` as a string
 //      (Ollama declares `Message.content` as a string), never `[]`;
-//   4. tool results must carry the documented `tool_name` field.
+//   4. tool results must carry the documented `tool_name` field;
+//   5. a tool call a model writes as JSON text (Qwen 2.5 Coder) must surface
+//      as a tool-call part, not assistant text.
 import type {
 	LanguageModelV4CallOptions,
 	LanguageModelV4Prompt,
@@ -68,10 +70,12 @@ async function streamThroughVendor({
 	responseLines,
 	prompt,
 	providerOptions,
+	tools,
 }: {
 	responseLines: Array<Record<string, unknown>>;
 	prompt: LanguageModelV4Prompt;
 	providerOptions?: LanguageModelV4CallOptions["providerOptions"];
+	tools?: LanguageModelV4CallOptions["tools"];
 }): Promise<WireResult> {
 	const requests: OllamaChatRequest[] = [];
 	const fetchStub = (async (_input, init) => {
@@ -99,6 +103,7 @@ async function streamThroughVendor({
 	const result = await model.doStream({
 		prompt,
 		...(providerOptions ? { providerOptions } : {}),
+		...(tools ? { tools } : {}),
 	} as LanguageModelV4CallOptions);
 
 	const parts: LanguageModelV4StreamPart[] = [];
@@ -245,5 +250,35 @@ describe("ollama wire contract (real provider package)", () => {
 		// `ai-sdk.ts`, outside this vendor module) must not mask the failure
 		// by re-issuing the request; error finishes are never retried.
 		expect(requests).toHaveLength(1);
+	});
+
+	it("recovers a tool call returned as JSON text in message.content", async () => {
+		const { parts } = await streamThroughVendor({
+			responseLines: [
+				textChunk('{"name":"read_file",'),
+				textChunk('"arguments":{"path":"a.ts"}}'),
+				DONE_CHUNK,
+			],
+			prompt: userText("read a.ts"),
+			tools: [
+				{
+					type: "function",
+					name: "read_file",
+					description: "Read a file",
+					inputSchema: {
+						type: "object",
+						properties: { path: { type: "string" } },
+					},
+				},
+			],
+		});
+
+		expect(parts.some((part) => part.type === "text-delta")).toBe(false);
+		expect(parts.find((part) => part.type === "tool-call")).toMatchObject({
+			toolName: "read_file",
+			input: '{"path":"a.ts"}',
+		});
+		const finish = parts.find((part) => part.type === "finish");
+		expect(finish).toMatchObject({ finishReason: { unified: "tool-calls" } });
 	});
 });
