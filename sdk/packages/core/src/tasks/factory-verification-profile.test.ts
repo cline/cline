@@ -10,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	FACTORY_VERIFICATION_PROFILE_PATH,
 	type FactoryVerificationProfile,
@@ -185,6 +185,26 @@ describe("factoryVerificationProfileHash", () => {
 });
 
 describe("writeFactoryVerificationProfile", () => {
+	it("leaves the same profile in the repository's own formatting untouched, and replaces a different one", async () => {
+		const root = tempRoot();
+		const file = join(root, FACTORY_VERIFICATION_PROFILE_PATH);
+		mkdirSync(dirname(file), { recursive: true });
+		const tabbed = `${JSON.stringify(profile, null, "\t")}\n`;
+		writeFileSync(file, tabbed);
+		await expect(
+			writeFactoryVerificationProfile(root, profile),
+		).resolves.toMatchObject({ changed: false });
+		expect(readFileSync(file, "utf8")).toBe(tabbed);
+		writeFileSync(
+			file,
+			JSON.stringify({ ...profile, exercise: "Something a builder wrote." }),
+		);
+		await expect(
+			writeFactoryVerificationProfile(root, profile),
+		).resolves.toMatchObject({ changed: true });
+		expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(profile);
+	});
+
 	it("creates the file, then is idempotent, and the reader agrees on the hash", async () => {
 		const root = tempRoot();
 		const first = await writeFactoryVerificationProfile(root, profile);

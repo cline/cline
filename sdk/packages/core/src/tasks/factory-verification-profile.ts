@@ -205,13 +205,22 @@ export function factoryVerificationProfileFileContent(
 	)}\n`;
 }
 
+function sameProfile(fileContent: string, hash: string): boolean {
+	try {
+		return factoryVerificationProfileHash(JSON.parse(fileContent)) === hash;
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Writes the canonical profile to `.cline/factory/verification.json` inside
  * the worktree, creating directories. Refuses (FactoryVerificationProfileError,
  * stage "write") when a path component is not a directory or resolves outside
  * the worktree, so a symlinked `.cline` cannot redirect the write. The file
  * itself is replaced atomically, so a symlinked file is replaced, never
- * followed. Returns whether the content changed.
+ * followed. A file that already holds this profile, however it is formatted,
+ * is left untouched. Returns whether the file was written.
  */
 export async function writeFactoryVerificationProfile(
 	worktreeRoot: string,
@@ -271,7 +280,10 @@ export async function writeFactoryVerificationProfile(
 	} catch {
 		existing = undefined;
 	}
-	if (existing === content) return { changed: false, hash, path: file };
+	// The same profile in the repository's own formatting stays as it is, so
+	// a card's diff never carries a reformat nobody asked for.
+	if (existing !== undefined && sameProfile(existing, hash))
+		return { changed: false, hash, path: file };
 	await writeFileAtomic(file, content);
 	return { changed: true, hash, path: file };
 }
