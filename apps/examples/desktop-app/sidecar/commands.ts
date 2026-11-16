@@ -134,6 +134,10 @@ import {
 import { getHubStatus, restartHub } from "./hub-admin";
 import { isHubIndependentCommand } from "./hub-startup";
 import {
+	getInstalledSkillPreview,
+	readInstalledSkillFile,
+} from "./installed-skill-preview";
+import {
 	readKeybindings,
 	resolveKeybindingsPath,
 	writeKeybindings,
@@ -149,6 +153,10 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 
+import {
+	getMarketplaceSkillPreview,
+	readMarketplaceSkillFile,
+} from "./marketplace-skill-preview";
 import {
 	cancelMcpOAuthAuthorization,
 	runMcpOAuthAuthorization,
@@ -173,6 +181,7 @@ import {
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
+import { revealPath } from "./reveal-path";
 import {
 	getSessionChanges,
 	localGit,
@@ -3732,6 +3741,20 @@ export async function handleCommand(
 			requestedEnvironmentId(args),
 		);
 	}
+	if (command === "get_marketplace_skill_preview") {
+		return getMarketplaceSkillPreview(args);
+	}
+	if (command === "read_marketplace_skill_file") {
+		return readMarketplaceSkillFile(args);
+	}
+	if (command === "get_installed_skill_preview") {
+		const inventory = await listUserInstructionConfigs(ctx);
+		return getInstalledSkillPreview(args, inventory.skills);
+	}
+	if (command === "read_installed_skill_file") {
+		const inventory = await listUserInstructionConfigs(ctx);
+		return readInstalledSkillFile(args, inventory.skills);
+	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
@@ -3864,6 +3887,10 @@ export async function handleCommand(
 		).settingsPath;
 		openFileInEditor(path);
 		return path;
+	}
+	if (command === "reveal_path") {
+		await revealPath(args?.path);
+		return { revealed: true };
 	}
 	if (command === "list_available_editors") {
 		return await listAvailableCodeEditors();

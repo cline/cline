@@ -130,6 +130,10 @@ let catalogCache: { value: MarketplaceCatalog; fetchedAt: number } | null =
 	null;
 let catalogRequest: Promise<MarketplaceCatalog> | null = null;
 
+export function getCachedMarketplaceCatalog(): MarketplaceCatalog | null {
+	return catalogCache?.value ?? null;
+}
+
 export function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	if (catalogRequest) return catalogRequest;
 	if (

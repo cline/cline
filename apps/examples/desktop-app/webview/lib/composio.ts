@@ -5,6 +5,7 @@ import type {
 	ComposioToolkitSlug,
 } from "./composio-types";
 import { desktopClient } from "./desktop-client";
+import { invalidateExtensionInventoryCache } from "./extension-inventory";
 
 /**
  * Webview client for the sidecar's `composio_integrations` command — the
@@ -48,6 +49,42 @@ const EMPTY_STATUS_SNAPSHOT: ComposioStatusSnapshot = {
 };
 let statusSnapshot = EMPTY_STATUS_SNAPSHOT;
 const statusListeners = new Set<() => void>();
+
+export type ComposioCatalogSnapshot = {
+	catalog: ComposioCatalogResponse | null;
+	loading: boolean;
+	error: string | null;
+};
+const EMPTY_CATALOG_SNAPSHOT: ComposioCatalogSnapshot = {
+	catalog: null,
+	loading: false,
+	error: null,
+};
+let catalogSnapshot = EMPTY_CATALOG_SNAPSHOT;
+const catalogListeners = new Set<() => void>();
+
+function publishCatalog(next: ComposioCatalogSnapshot) {
+	if (
+		next.catalog === catalogSnapshot.catalog &&
+		next.loading === catalogSnapshot.loading &&
+		next.error === catalogSnapshot.error
+	)
+		return;
+	catalogSnapshot = next;
+	for (const listener of catalogListeners) listener();
+}
+
+export const getComposioCatalogSnapshot = () => catalogSnapshot;
+export const getServerComposioCatalogSnapshot = () => EMPTY_CATALOG_SNAPSHOT;
+
+export function subscribeComposioCatalog(listener: () => void) {
+	observeAccountChanges();
+	catalogListeners.add(listener);
+	return () => {
+		catalogListeners.delete(listener);
+	};
+}
+
 const inventoryChangeListeners = new Set<() => void>();
 let inventorySignature: string | null = null;
 let statusPoll: ReturnType<typeof setInterval> | undefined;
@@ -56,10 +93,7 @@ function updateStatusPolling() {
 	const pending = statusSnapshot.status?.integrations.some(
 		(integration) => integration.status === "pending",
 	);
-	if (
-		(statusListeners.size === 0 && inventoryChangeListeners.size === 0) ||
-		!pending
-	) {
+	if (!pending) {
 		clearInterval(statusPoll);
 		statusPoll = undefined;
 	} else if (statusPoll === undefined) {
@@ -94,6 +128,7 @@ function getInventorySignature(status: ComposioStatusResponse) {
 }
 
 function publishInventoryChange() {
+	invalidateExtensionInventoryCache();
 	for (const listener of inventoryChangeListeners) listener();
 }
 
@@ -150,12 +185,7 @@ let availabilityGeneration = 0;
 let unsubscribeInvalidations: (() => void) | null = null;
 const availabilityListeners = new Set<() => void>();
 
-/** Retain expired snapshots for rendering while the next read refreshes them. */
-function getCachedComposioStatus(): ComposioStatusResponse | null {
-	return statusCache?.value ?? null;
-}
-
-function invalidateComposioCache() {
+export function invalidateComposioCache() {
 	availabilityGeneration++;
 	statusRevision++;
 	statusCache = null;
@@ -166,6 +196,7 @@ function invalidateComposioCache() {
 	inventorySignature = null;
 	publishAvailability(null);
 	publishStatus(EMPTY_STATUS_SNAPSHOT);
+	publishCatalog(EMPTY_CATALOG_SNAPSHOT);
 	if (statusListeners.size > 0 || inventoryChangeListeners.size > 0) {
 		void fetchComposioStatus().catch(() => {});
 	}
@@ -176,6 +207,7 @@ export function resetComposioCacheForTesting() {
 	unsubscribeInvalidations = null;
 	availabilityListeners.clear();
 	statusListeners.clear();
+	catalogListeners.clear();
 	inventoryChangeListeners.clear();
 	invalidateComposioCache();
 }
@@ -291,7 +323,7 @@ export function fetchComposioStatus(options?: {
 					return resolveCurrentStatus();
 				}
 				publishStatus({
-					status: getCachedComposioStatus(),
+					status: statusCache?.value ?? null,
 					loading: false,
 					error: error instanceof Error ? error.message : String(error),
 				});
@@ -303,7 +335,7 @@ export function fetchComposioStatus(options?: {
 		});
 	statusRequest = { promise, refresh };
 	publishStatus({
-		status: getCachedComposioStatus(),
+		status: statusCache?.value ?? null,
 		loading: true,
 		error: null,
 	});
@@ -331,7 +363,7 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 		{ operation: "listToolkits" },
 		{ timeoutMs: CONNECT_TIMEOUT_MS },
 	);
-	const promise = request
+	const promise: Promise<ComposioCatalogResponse> = request
 		.then(
 			(catalog) => {
 				if (
@@ -341,6 +373,7 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 					return resolveCurrentCatalog(promise);
 				}
 				catalogCache = { value: catalog, fetchedAt: Date.now() };
+				publishCatalog({ catalog, loading: false, error: null });
 				return catalog;
 			},
 			(error: unknown) => {
@@ -350,6 +383,11 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 				) {
 					return resolveCurrentCatalog(promise);
 				}
+				publishCatalog({
+					catalog: catalogCache?.value ?? null,
+					loading: false,
+					error: error instanceof Error ? error.message : String(error),
+				});
 				throw error;
 			},
 		)
@@ -357,6 +395,11 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 			if (catalogRequest === promise) catalogRequest = null;
 		});
 	catalogRequest = promise;
+	publishCatalog({
+		catalog: catalogCache?.value ?? null,
+		loading: true,
+		error: null,
+	});
 	return promise;
 }
 

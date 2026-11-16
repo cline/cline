@@ -169,6 +169,7 @@ describe("connector connection state across navigation", () => {
 			),
 		).toEqual({
 			toolkit: "gmail",
+			operation,
 			message: "Request was rejected",
 		});
 		expect(container.querySelector("[data-busy]")?.textContent).toBe("");

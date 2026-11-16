@@ -12,6 +12,8 @@ import type {
 } from "./composio-types";
 import { useComposioStatus } from "./use-composio-status";
 
+type ConnectionAction = "connect" | "cancel" | "disconnect";
+
 /**
  * Shared state machine for Composio connections, used by both the Customize >
  * Connectors tab and the Marketplace connector browser.
@@ -30,6 +32,7 @@ export function useComposioConnections() {
 	// failure is never rendered as another connector's error.
 	const [actionError, setActionError] = useState<{
 		toolkit: ComposioToolkitSlug;
+		operation: ConnectionAction;
 		message: string;
 	} | null>(null);
 	const [busyToolkit, setBusyToolkit] = useState<ComposioToolkitSlug | null>(
@@ -41,7 +44,11 @@ export function useComposioConnections() {
 	);
 
 	const runAction = useCallback(
-		(toolkit: ComposioToolkitSlug, action: () => Promise<unknown>) => {
+		(
+			toolkit: ComposioToolkitSlug,
+			operation: ConnectionAction,
+			action: () => Promise<unknown>,
+		) => {
 			const existing = pendingActionsRef.current.get(toolkit);
 			if (existing) return existing;
 			const run = async () => {
@@ -54,6 +61,7 @@ export function useComposioConnections() {
 				} catch (error) {
 					setActionError({
 						toolkit,
+						operation,
 						message: error instanceof Error ? error.message : String(error),
 					});
 				} finally {
@@ -75,21 +83,25 @@ export function useComposioConnections() {
 
 	const connect = useCallback(
 		(toolkit: ComposioToolkitSlug) => {
-			return runAction(toolkit, () => connectComposioIntegration(toolkit));
+			return runAction(toolkit, "connect", () =>
+				connectComposioIntegration(toolkit),
+			);
 		},
 		[runAction],
 	);
 
 	const cancelConnect = useCallback(
 		(toolkit: ComposioToolkitSlug) => {
-			return runAction(toolkit, () => cancelComposioConnect(toolkit));
+			return runAction(toolkit, "cancel", () => cancelComposioConnect(toolkit));
 		},
 		[runAction],
 	);
 
 	const disconnect = useCallback(
 		(toolkit: ComposioToolkitSlug) => {
-			return runAction(toolkit, () => disconnectComposioIntegration(toolkit));
+			return runAction(toolkit, "disconnect", () =>
+				disconnectComposioIntegration(toolkit),
+			);
 		},
 		[runAction],
 	);
