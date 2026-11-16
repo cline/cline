@@ -1741,6 +1741,37 @@ export class McpHub {
 				content: result.content ?? [],
 			}
 		} catch (error) {
+			// An expired refresh token is handled inside the MCP SDK's auth(): on
+			// invalid_grant it clears the stored tokens and retries, so a genuinely
+			// dead session surfaces here as a plain UnauthorizedError with the tokens
+			// already gone. Only the server state is left to update - do not clear
+			// credentials here, since other OAuth error types (temporarily_unavailable,
+			// invalid_request, HTTP 500, ...) leave valid tokens in place and clearing
+			// them would also log out the CLI and other windows sharing the settings file.
+			if (error instanceof UnauthorizedError) {
+				// Skip the state update if this connection has since been replaced,
+				// so a failed call from a stale connection does not knock a fresh,
+				// healthy replacement back to unauthenticated.
+				if (this.connections.find((conn) => conn.server.name === serverName) === connection) {
+					connection.server.oauthRequired = true
+					connection.server.oauthAuthStatus = "unauthenticated"
+					connection.server.status = "disconnected"
+					connection.server.error = "Authentication expired. Please re-authenticate."
+					await this.notifyWebviewOfServerChanges()
+				}
+				this.telemetryService.captureMcpToolCall(
+					ulid,
+					serverName,
+					toolName,
+					"error",
+					error.message,
+					toolArguments ? Object.keys(toolArguments) : undefined,
+				)
+				throw new Error(`Authentication failed for "${serverName}". Please click "Authenticate" to re-authenticate.`, {
+					cause: error,
+				})
+			}
+
 			this.telemetryService.captureMcpToolCall(
 				ulid,
 				serverName,

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
@@ -65,8 +66,12 @@ function createMcpHub(
 	const hub = Object.create(McpHub.prototype) as McpHub
 	;(hub as any).telemetryService = telemetryService
 	;(hub as any).connections = [connection]
+	// callTool's auth branch notifies the webview; stub it so the real method
+	// isn't invoked on the partially-initialized instance.
+	const notifyWebviewOfServerChanges = sinon.stub().resolves()
+	;(hub as any).notifyWebviewOfServerChanges = notifyWebviewOfServerChanges
 
-	return { hub, client, telemetryService, connection }
+	return { hub, client, telemetryService, connection, notifyWebviewOfServerChanges }
 }
 
 describe("McpHub.callTool", () => {
@@ -357,6 +362,88 @@ describe("McpHub.callTool", () => {
 			const errorCall = telemetryService.captureMcpToolCall.secondCall.args
 			errorCall[3].should.equal("error")
 			errorCall[4].should.equal("Network timeout")
+		})
+	})
+
+	// ── OAuth authentication failures ───────────────────────────────────
+
+	describe("authentication errors", () => {
+		it("should mark the server unauthenticated, notify, record error telemetry and throw on UnauthorizedError", async () => {
+			const client = createMockClient()
+			client.request.rejects(new UnauthorizedError("token expired"))
+			const { hub, telemetryService, connection, notifyWebviewOfServerChanges } = createMcpHub({ client })
+
+			let thrown: any
+			try {
+				await hub.callTool("test-server", "failing_tool", { key: "value" }, "ulid-auth-01")
+			} catch (error) {
+				thrown = error
+			}
+
+			// Throws the friendly "click Authenticate" message, chaining the cause.
+			thrown.should.be.instanceOf(Error)
+			thrown.message.should.containEql('Authentication failed for "test-server"')
+			thrown.message.should.containEql("Authenticate")
+			thrown.cause.should.be.instanceOf(UnauthorizedError)
+
+			// Live connection state updated for the webview.
+			const srv = connection.server as any
+			srv.oauthRequired.should.be.true()
+			srv.oauthAuthStatus.should.equal("unauthenticated")
+			srv.status.should.equal("disconnected")
+			srv.error.should.equal("Authentication expired. Please re-authenticate.")
+			notifyWebviewOfServerChanges.calledOnce.should.be.true()
+
+			// Telemetry: "started" then "error" (not left dangling).
+			telemetryService.captureMcpToolCall.calledTwice.should.be.true()
+			telemetryService.captureMcpToolCall.firstCall.args[3].should.equal("started")
+			const errorCall = telemetryService.captureMcpToolCall.secondCall.args
+			errorCall[3].should.equal("error")
+			errorCall[4].should.equal("token expired")
+		})
+
+		it("should not touch a replacement connection when the failing one was already replaced", async () => {
+			const client = createMockClient()
+			const { hub, connection, notifyWebviewOfServerChanges } = createMcpHub({ client })
+
+			// The healthy replacement that a concurrent reconnect installs under
+			// the same name while the tool request is in flight.
+			const replacement = {
+				server: {
+					name: "test-server",
+					config: connection.server.config,
+					status: "connected",
+					disabled: false,
+					oauthRequired: false,
+					oauthAuthStatus: "authenticated",
+				},
+				client: createMockClient(),
+				transport: {},
+			}
+
+			// callTool captures `connection` at the top, then awaits the request.
+			// Reject it and, at that moment, swap the live entry for the
+			// replacement - exactly the mid-flight reconnect the guard defends against.
+			client.request.callsFake(async () => {
+				;(hub as any).connections = [replacement]
+				throw new UnauthorizedError("token expired")
+			})
+
+			let threw = false
+			try {
+				await hub.callTool("test-server", "failing_tool", undefined, "ulid-auth-02")
+			} catch {
+				threw = true
+			}
+
+			threw.should.be.true()
+			// The stale connection callTool held must NOT have its state mutated...
+			;(connection.server as any).status.should.equal("connected")
+			// ...and the healthy replacement is left untouched.
+			replacement.server.status.should.equal("connected")
+			replacement.server.oauthRequired.should.be.false()
+			replacement.server.oauthAuthStatus.should.equal("authenticated")
+			notifyWebviewOfServerChanges.called.should.be.false()
 		})
 	})
 
