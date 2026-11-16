@@ -162,6 +162,17 @@
 		margin-block-start: -0.2rem;
 		margin-inline-end: -0.2rem;
 	}
+	.cline-ui-item-card__actions > * {
+		min-width: 0;
+		max-width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.cline-ui-item-card__actions > .cline-ui-button:not(.cline-ui-icon-button) {
+		/* Preserve the size variant's height until a wrapped label needs more room. */
+		min-height: min-content;
+		padding-block: calc(var(--spacing, 0.25rem) * 1.5);
+	}
 	.cline-ui-item-card__description {
 		display: -webkit-box;
 		min-height: calc(var(--text-sm--line-height) * 2);

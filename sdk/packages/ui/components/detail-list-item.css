@@ -276,6 +276,18 @@
 		align-items: center;
 		gap: 0.5rem;
 	}
+	.cline-ui-detail-list-item__actions > * {
+		min-width: 0;
+		max-width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.cline-ui-detail-list-item__actions
+		> .cline-ui-button:not(.cline-ui-icon-button) {
+		/* Preserve the size variant's height until a wrapped label needs more room. */
+		min-height: min-content;
+		padding-block: calc(var(--spacing, 0.25rem) * 1.5);
+	}
 	.cline-ui-detail-list-item[data-stacked="true"] {
 		grid-template-columns: minmax(0, 1fr);
 	}

@@ -106,6 +106,18 @@
 		justify-content: end;
 		gap: 0.5rem;
 	}
+	.cline-ui-section-heading__actions > * {
+		min-width: 0;
+		max-width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.cline-ui-section-heading__actions
+		> .cline-ui-button:not(.cline-ui-icon-button) {
+		/* Preserve the size variant's height until a wrapped label needs more room. */
+		min-height: min-content;
+		padding-block: calc(var(--spacing, 0.25rem) * 1.5);
+	}
 	.cline-ui-section-heading__description {
 		min-width: 0;
 		flex-basis: 100%;
