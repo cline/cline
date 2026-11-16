@@ -12,7 +12,7 @@ import type {
 	AgendaTaskRuntimeResult,
 } from "./agenda-task-manager";
 import { parseFactoryReview } from "./factory-agents";
-import { FactoryDecisionError } from "./factory-errors";
+import { FactoryDecisionError, FactoryDeferredError } from "./factory-errors";
 import {
 	createFactorySessionRunner,
 	FactoryPersistenceError,
@@ -366,7 +366,8 @@ describe("thrown Factory session errors", () => {
 		h.runtime.factoryAdmissionBlocker = vi.fn(
 			async () => "Daily limit reached.",
 		);
-		await expect(h.review()).rejects.toBeInstanceOf(FactoryDecisionError);
+		// The card waits for the limit; it is not stopped.
+		await expect(h.review()).rejects.toBeInstanceOf(FactoryDeferredError);
 		expect(h.startSession).not.toHaveBeenCalled();
 	});
 
@@ -532,7 +533,7 @@ describe("spending limits while a session runs", () => {
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
-	it("aborts a session once the Hub-wide daily limit is reached and stops with its reason", async () => {
+	it("aborts a session once the Hub-wide daily limit is reached and leaves its attempt to resume", async () => {
 		vi.useFakeTimers();
 		const h = setup();
 		running(h, () => 0.1);
@@ -544,9 +545,11 @@ describe("spending limits while a session runs", () => {
 		daily = "Factory reached its $50 daily spending limit.";
 		await vi.advanceTimersByTimeAsync(30_000);
 		const error = await outcome;
-		expect(error).toBeInstanceOf(FactoryDecisionError);
+		expect(error).toBeInstanceOf(FactoryDeferredError);
 		expect((error as Error).message).toBe(daily);
 		expect(h.startSession).toHaveBeenCalledTimes(1);
+		// Not a failed attempt: the resumed run reconciles and continues it.
+		expect(h.attempts()).toMatchObject([{ status: "running" }]);
 		expect(vi.getTimerCount()).toBe(0);
 	});
 

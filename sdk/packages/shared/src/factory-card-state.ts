@@ -124,11 +124,15 @@ export const FACTORY_CARD_REASON_CODES = [
 	"rule_proposed",
 	/** A hands-off run's one automatic retry is queued. */
 	"auto_retry",
-	/** The Hub stopped mid-run (restart queued, or restart limit reached). */
+	/**
+	 * A run stopped for a cause outside the card: the Hub stopped mid-run
+	 * (restart queued, or restart limit reached), or a queued run waits for
+	 * origin (the run's recorded reason).
+	 */
 	"interrupted",
 	/** The card's own spending limit (FACTORY_SPENDING_LIMIT_PREFIX). */
 	"spend_limit",
-	/** Factory's daily spending limit. */
+	/** Factory's daily spending limit: a queued card waits for it to clear. */
 	"daily_spend_limit",
 	/** The plan's checks are at fault; Try again re-scopes (FACTORY_PLAN_FAULT_PREFIX). */
 	"plan_fault",
@@ -302,6 +306,8 @@ export interface FactoryCardLiveFacts {
 	slotsFull?: boolean;
 	/** Factory is paused. */
 	paused?: boolean;
+	/** Today's spend reached Factory's daily limit: nothing queued starts. */
+	dailyLimitReached?: boolean;
 }
 
 export interface FactoryCardStateInput {
@@ -676,21 +682,40 @@ function deriveFactoryCardState({
 				recovery &&
 				Date.parse(run.createdAt) > Date.parse(recovery.at)
 			);
+		// Why the last run was interrupted: a deferral records its reason
+		// (the daily limit, origin down); a Hub stop records none.
+		const deferral =
+			task.status === "approved" && run?.status === "interrupted"
+				? factoryErrorReasonCode(run.error)
+				: undefined;
 		const reason: Pick<Fields, "reasonCode" | "reasonText"> = live.paused
 			? { reasonCode: "factory_paused", reasonText: "Factory is paused" }
-			: live.slotsFull
+			: live.dailyLimitReached
 				? {
-						reasonCode: "slots_full",
-						reasonText: "Every working slot is in use",
+						reasonCode: "daily_spend_limit",
+						reasonText:
+							deferral === "daily_spend_limit"
+								? "Stopped at the daily spending limit; resumes when the limit clears"
+								: "Starts when the daily spending limit clears",
 					}
-				: task.status === "approved" && run?.status === "interrupted"
-					? { reasonCode: "interrupted" }
-					: autoRetry
+				: live.slotsFull
+					? {
+							reasonCode: "slots_full",
+							reasonText: "Every working slot is in use",
+						}
+					: deferral
 						? {
-								reasonCode: "auto_retry",
-								reasonText: text(recovery?.reason),
+								reasonCode: "interrupted",
+								...(deferral === "unknown"
+									? { reasonText: text(run?.error) }
+									: {}),
 							}
-						: { reasonCode: "none" };
+						: autoRetry
+							? {
+									reasonCode: "auto_retry",
+									reasonText: text(recovery?.reason),
+								}
+							: { reasonCode: "none" };
 		return make(
 			{ kind: "queued", waitingOn: "slot", ...reason, deliverable },
 			// The automatic retry works again; it is not back in Waiting.

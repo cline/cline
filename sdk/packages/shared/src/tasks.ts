@@ -402,6 +402,12 @@ export interface AgendaTaskListInput {
 	factoryOnly?: boolean;
 	limit?: number;
 	/**
+	 * With `includeArchived`, archived tasks are listed after the unarchived
+	 * ones and bounded by this instead of `limit`, so archived history never
+	 * displaces an unarchived task.
+	 */
+	archivedLimit?: number;
+	/**
 	 * Also return the cards a split links to the listed ones (a parent's
 	 * parts, a part's parent and earlier parts), whatever the filters and
 	 * `limit`, so a host can read every link of what it lists.

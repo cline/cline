@@ -44,6 +44,7 @@ import {
 } from "./factory-app-environment";
 import {
 	FactoryDecisionError,
+	FactoryDeferredError,
 	FactoryPlanConfigurationError,
 	FactoryVerificationProfileError,
 } from "./factory-errors";
@@ -1567,7 +1568,12 @@ export async function runFactoryWorkflow(
 		}
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		if (!signal.aborted && !(error instanceof FactoryPersistenceError))
+		// A deferred run resumes at the phase it reached; it is not blocked.
+		if (
+			!signal.aborted &&
+			!(error instanceof FactoryPersistenceError) &&
+			!(error instanceof FactoryDeferredError)
+		)
 			save({
 				phase: "blocked",
 				error: message,

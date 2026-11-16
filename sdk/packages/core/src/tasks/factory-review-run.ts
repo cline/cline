@@ -18,7 +18,7 @@ import {
 	factorySensitivePaths,
 } from "@cline/shared";
 import type { AgendaTaskRuntimeResult } from "./agenda-task-manager";
-import { FactoryDecisionError } from "./factory-errors";
+import { FactoryDecisionError, FactoryDeferredError } from "./factory-errors";
 import {
 	assertOwnedWorkspace,
 	FACTORY_DIFF_BYTES,
@@ -244,7 +244,11 @@ export async function runFactoryPullRequestReview(
 			const reviewerIndex = indices[position] as number;
 			if (result.status === "fulfilled")
 				return { reviewerIndex, ...result.value };
-			if (result.reason instanceof FactoryPersistenceError) throw result.reason;
+			if (
+				result.reason instanceof FactoryPersistenceError ||
+				result.reason instanceof FactoryDeferredError
+			)
+				throw result.reason;
 			return { reviewerIndex, error: errorMessage(result.reason) };
 		},
 	);

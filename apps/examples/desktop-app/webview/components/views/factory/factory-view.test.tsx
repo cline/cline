@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => ({
 	updateAgendaTask: vi.fn(),
 	approveAgendaTask: vi.fn(),
 	getFactoryTask: vi.fn(async () => ({ runs: [] as AgendaTaskRunRecord[] })),
-	designFactoryTask: vi.fn(async () => ({ sessionId: "design-1" })),
+	designFactoryTask: vi.fn(async () => ({ task: {} })),
 	listAgendaTasks: vi.fn(async () => [] as AgendaTaskRecord[]),
 	invoke: vi.fn(
 		async (_command: string, _args?: unknown): Promise<unknown> => [],
@@ -1543,7 +1543,7 @@ describe("Factory workflow", () => {
 		expect(mocks.startFactoryQueue).toHaveBeenCalledWith([approved]);
 		expect(container.textContent).toContain("Starting “Export activity”.");
 	});
-	it("approves the saved revision and starts the design interview without leaving the feature", async () => {
+	it("approves the saved revision and queues scoping without leaving the feature", async () => {
 		mocks.tasks = [task({ status: "pending_approval" })];
 		mocks.updateAgendaTask.mockResolvedValue(task({ revision: 4 }));
 		mocks.approveAgendaTask.mockResolvedValue(task({ revision: 5 }));
@@ -1561,13 +1561,12 @@ describe("Factory workflow", () => {
 		});
 		await act(async () => button("Start scoping").click());
 		expect(mocks.designFactoryTask).toHaveBeenCalledWith("feature-1");
-		// The started interview is this feature's design session from here on.
-		await act(async () => button("Refine design").click());
 		expect(mocks.updateAgendaTask).not.toHaveBeenCalled();
 		expect(openSession).not.toHaveBeenCalled();
-		expect(document.body.textContent).toContain("Questions will appear here");
-		await act(async () => button("View design transcript").click());
-		expect(openSession).toHaveBeenCalledWith("design-1");
+		// Queued, so it says so rather than claiming the interview started.
+		expect(document.body.textContent).toContain(
+			"Scoping is queued and starts as soon as Factory has room",
+		);
 	});
 	it("collects a running feature question in Needs you and answers it through the existing protocol", async () => {
 		mocks.tasks = [

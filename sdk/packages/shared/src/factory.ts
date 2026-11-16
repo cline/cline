@@ -308,22 +308,38 @@ export const factoryReviewSelectionSchema = z
 		if (selection.size === "trivial" || selection.size === "local")
 			return selection;
 		return { ...selection, impact: selection.size };
-	})
-	.superRefine((selection, context) => {
-		if (
-			selection.impact !== "local" &&
-			(selection.planReviewerIndices.length < 1 ||
-				selection.reviewerIndices.length < 2)
-		)
-			context.addIssue({
-				code: "custom",
-				message:
-					"Shared-contract and cross-cutting changes require at least one plan reviewer and two final reviewers from the configured pools",
-			});
 	});
 export type FactoryReviewSelection = z.infer<
 	typeof factoryReviewSelectionSchema
 >;
+
+/** Why a designer's selection is short of reviewers its pools could supply. */
+export const FACTORY_REVIEW_MINIMUM_MESSAGE =
+	"Shared-contract and cross-cutting changes require at least one plan reviewer and two final reviewers; when a configured pool has fewer, select every reviewer it has";
+
+/**
+ * Whether a selection has fewer reviewers than its impact needs
+ * (FACTORY_REVIEW_SIZE_POLICY: one plan reviewer and two final reviewers
+ * beyond local). With `pools`, a need is capped at that pool's size, so a
+ * selection holding every reviewer of a smaller pool is not short. A
+ * recorded selection that is short (no `pools`) means its pools could not
+ * staff its impact; factoryStampRequirement then asks a person.
+ */
+export function factoryReviewShortfall(
+	selection: Pick<
+		FactoryReviewSelection,
+		"impact" | "planReviewerIndices" | "reviewerIndices"
+	>,
+	pools?: { planReviewers: number; reviewers: number },
+): boolean {
+	const need = FACTORY_REVIEW_SIZE_POLICY[selection.impact];
+	return (
+		selection.planReviewerIndices.length <
+			Math.min(need.planReviewers, pools?.planReviewers ?? Infinity) ||
+		selection.reviewerIndices.length <
+			Math.min(need.codeReviewers, pools?.reviewers ?? Infinity)
+	);
+}
 
 /** The selection's size; an older selection without one reads as its impact. */
 export function factoryReviewSize(
@@ -2967,7 +2983,9 @@ export const FACTORY_PLAN_APPROVED_REASON = "plan approved by a person";
  * Whether a delivered run needs a human stamp. Unset `humanStamp` is `by_risk`
  * for hands-off configs and `always` otherwise. `by_risk` requires a stamp
  * when review escalated, when no review selection was recorded (fail closed),
- * when impact is not local, or when the card changed the verification profile
+ * when the selection has fewer reviewers than its impact needs
+ * (factoryReviewShortfall, asked even after a plan approval), when impact is
+ * not local, or when the card changed the verification profile
  * (`verificationProfile.origin === "proposed"`). When a person approved the
  * run's plan (`planApprovedByPerson`), the plan's own size and the sensitive
  * paths it named were asked about then and are not asked again; escalation
@@ -3001,6 +3019,10 @@ export function factoryStampRequirement(
 		return { required: true, reason: "review escalated" };
 	if (!state.reviewSelection)
 		return { required: true, reason: "impact unknown" };
+	// Fewer agents reviewed the work than its impact needs: a person checks
+	// the result even when they approved the plan.
+	if (factoryReviewShortfall(state.reviewSelection))
+		return { required: true, reason: "too few reviewers configured" };
 	// Asked once: a person who approved the plan saw its size and paths.
 	const askedAtPlan = Boolean(state.planApprovedByPerson);
 	if (

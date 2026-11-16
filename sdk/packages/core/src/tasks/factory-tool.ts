@@ -1178,6 +1178,8 @@ export type FactoryStatusToolInput = z.input<
 /** Where a card is, in the words the Factory board uses. */
 export type FactoryStage =
 	| "Waiting for a free slot"
+	| "Waiting for the daily spending limit"
+	| "Waiting to resume"
 	| "Not started"
 	| "On hold"
 	| "Scoping"
@@ -1625,10 +1627,17 @@ function describeFactoryStage(
 			return "Not started";
 		case "queued":
 			// Automatic approval of a settled plan has not run yet.
-			return task.status === "pending_approval" &&
+			if (
+				task.status === "pending_approval" &&
 				task.factoryDesignProgress?.revision === task.revision &&
 				task.factoryDesignProgress.phase === "complete"
-				? "Waiting for plan approval"
+			)
+				return "Waiting for plan approval";
+			if (card.reasonCode === "daily_spend_limit")
+				return "Waiting for the daily spending limit";
+			// A deferred run waits for its recorded reason (origin down, say).
+			return card.reasonCode === "interrupted" && card.reasonText
+				? "Waiting to resume"
 				: "Waiting for a free slot";
 		case "scoping":
 			return scopingReview ? "Checking the plan" : "Scoping";
@@ -1745,6 +1754,10 @@ function describeFactoryNext(
 		case "queued":
 			if (paused)
 				return "Waits: Factory is paused. It starts when Factory resumes.";
+			if (card.reasonCode === "daily_spend_limit")
+				return "Waits: Factory reached its daily spending limit. It starts on its own when spend in the last 24 hours drops below the limit or someone raises it.";
+			if (card.reasonCode === "interrupted" && card.reasonText)
+				return `Waits: ${card.reasonText}`;
 			return task.status === "pending_approval" && card.waitingOn === "nobody"
 				? "Continues on its own."
 				: "Starts on its own when a working slot frees up.";
@@ -1903,6 +1916,7 @@ export function factoryStatusCardState(
 			designLive: live && task.status === "pending_approval",
 			runLive: live && task.status !== "pending_approval",
 			paused: queue?.paused,
+			dailyLimitReached: queue?.dailyLimitReached,
 		},
 	});
 }

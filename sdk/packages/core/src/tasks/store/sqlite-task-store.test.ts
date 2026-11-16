@@ -846,6 +846,40 @@ describe("SqliteAgendaTaskStore", () => {
 		}
 	});
 
+	it("lists every open Factory card newest first with archived history bounded separately", () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			const factory = factoryTaskConfigSchema.parse({});
+			let minute = 0;
+			const create = (input: AgendaTaskCreateInput) => {
+				vi.setSystemTime(Date.UTC(2030, 0, 1, 0, minute++));
+				return store.createTask(input);
+			};
+			create({ ...createInput("old-open", 0), factory });
+			const archived: string[] = [];
+			for (let i = 0; i < 250; i++) {
+				const card = create({ ...createInput(`archived_${i}`, 0), factory });
+				store.updateTaskState(card.taskId, { archivedAt: nowIso() });
+				archived.push(card.taskId);
+			}
+			for (let i = 0; i < 50; i++) create(createInput(`plain_${i}`, 0));
+			create({ ...createInput("newest", 5), factory });
+
+			const listed = store
+				.listTasks({
+					factoryOnly: true,
+					includeArchived: true,
+					limit: 1000,
+					archivedLimit: 200,
+				})
+				.map((task) => task.taskId);
+			expect(listed.slice(0, 2)).toEqual(["newest", "old-open"]);
+			expect(listed.slice(2)).toEqual(archived.slice(50).reverse());
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("lists distinct canonical workspace roots including archived tasks", () => {
 		store.createTask(createInput("workspace-active"));
 		const canonicalOther = resolve(directory, "other-workspace");

@@ -16,7 +16,7 @@ import type {
 	AgendaTaskRuntimeResult,
 } from "./agenda-task-manager";
 import { resolveFactoryAgent } from "./factory-agents";
-import { FactoryDecisionError } from "./factory-errors";
+import { FactoryDecisionError, FactoryDeferredError } from "./factory-errors";
 
 export class FactoryPersistenceError extends Error {}
 
@@ -180,19 +180,30 @@ export function createFactorySessionRunner(input: {
 			spent += factorySessionCostUsd(known.get(id), !unstarted.has(id));
 		return spent;
 	};
-	/** The card's, then the Hub-wide daily, spending limit reason once reached. */
-	const spendingLimitReason = async () => {
+	/** The Hub-wide daily limit, once reached: the card waits for it, it is not stopped. */
+	const dailyLimitStop = async () => {
+		const reason = await runtime.factoryAdmissionBlocker?.();
+		return reason ? new FactoryDeferredError(reason) : undefined;
+	};
+	/** The card's, then the Hub-wide daily, spending limit once reached. */
+	const spendingLimitStop = async () => {
 		if (costLimit !== undefined && (await cardSpentUsd()) >= costLimit)
-			return factorySpendingLimitReason(costLimit);
-		return runtime.factoryAdmissionBlocker?.();
+			return new FactoryDecisionError(factorySpendingLimitReason(costLimit));
+		return dailyLimitStop();
 	};
 	/**
 	 * Checks spend every FACTORY_SPENDING_POLL_MS while a session runs and
-	 * aborts it once a limit is reached; `reason` is then that limit's
-	 * sentence. `stop` clears the timer.
+	 * aborts it once a limit is reached; `stop` is then that limit's error.
+	 * `clear` clears the timer.
 	 */
 	const watchSpending = (sessionId: string) => {
-		const watch = { reason: undefined as string | undefined, stop() {} };
+		const watch = {
+			stop: undefined as
+				| FactoryDecisionError
+				| FactoryDeferredError
+				| undefined,
+			clear() {},
+		};
 		if (costLimit === undefined && !runtime.factoryAdmissionBlocker)
 			return watch;
 		let stopped = false;
@@ -200,17 +211,17 @@ export function createFactorySessionRunner(input: {
 		const tick = async () => {
 			// A failed read leaves the session running; new sessions still
 			// fail closed at admission.
-			const reason = await spendingLimitReason().catch(() => undefined);
+			const stop = await spendingLimitStop().catch(() => undefined);
 			if (stopped) return;
-			if (!reason) {
+			if (!stop) {
 				timer = setTimeout(tick, FACTORY_SPENDING_POLL_MS);
 				return;
 			}
-			watch.reason = reason;
-			await abortQuietly(sessionId, reason);
+			watch.stop = stop;
+			await abortQuietly(sessionId, stop.message);
 		};
 		timer = setTimeout(tick, FACTORY_SPENDING_POLL_MS);
-		watch.stop = () => {
+		watch.clear = () => {
 			stopped = true;
 			clearTimeout(timer);
 		};
@@ -277,12 +288,16 @@ export function createFactorySessionRunner(input: {
 				);
 			const recovering =
 				attempt?.status === "intent" || attempt?.status === "running";
-			if (!recovering) {
+			if (recovering) {
+				// A session the daily limit stopped is resumed only once it clears.
+				const waiting = await dailyLimitStop();
+				if (waiting) throw waiting;
+			} else {
 				if (costLimit !== undefined) await refreshUsage();
 				// The card's limit, then the Hub-wide daily limit, which also stops
 				// running cards from starting new sessions.
-				const limitReached = await spendingLimitReason();
-				if (limitReached) throw new FactoryDecisionError(limitReached);
+				const limitReached = await spendingLimitStop();
+				if (limitReached) throw limitReached;
 				const sessionId = createSessionId();
 				attempt = {
 					id: sessionId,
@@ -307,7 +322,7 @@ export function createFactorySessionRunner(input: {
 			let failure: "runtime" | "output" = "runtime";
 			let reconciled = !recovering;
 			let resultReceived = false;
-			let spendingStop: string | undefined;
+			let spendingStop: FactoryDecisionError | FactoryDeferredError | undefined;
 			try {
 				let result: AgendaTaskRuntimeResult | undefined;
 				let needsStart = !recovering;
@@ -374,8 +389,8 @@ export function createFactorySessionRunner(input: {
 							run,
 						);
 					} finally {
-						watch.stop();
-						spendingStop = watch.reason;
+						watch.clear();
+						spendingStop = watch.stop;
 					}
 				}
 				resultReceived = true;
@@ -391,9 +406,8 @@ export function createFactorySessionRunner(input: {
 							.catch(() => undefined)) ?? attempt.sessionModel,
 				};
 				signal.throwIfAborted();
-				// Stopped for spending: a decision, never retried automatically.
-				if (spendingStop && result.status !== "completed")
-					throw new FactoryDecisionError(spendingStop);
+				// Stopped for spending: never retried automatically.
+				if (spendingStop && result.status !== "completed") throw spendingStop;
 				if (result.status !== "completed")
 					throw new Error(
 						result.error ??
@@ -417,15 +431,18 @@ export function createFactorySessionRunner(input: {
 					error instanceof FactoryPersistenceError
 				)
 					throw error;
+				// The daily limit: the attempt stays running, so the resumed run
+				// reconciles the stopped session and continues it.
+				if (spendingStop instanceof FactoryDeferredError) throw spendingStop;
 				if (spendingStop) {
 					recordAttempt({
 						...attempt,
 						status: "failed",
 						failure,
-						error: spendingStop,
+						error: spendingStop.message,
 						completedAt: new Date().toISOString(),
 					});
-					throw new FactoryDecisionError(spendingStop);
+					throw spendingStop;
 				}
 				// A thrown start or run (hub timeout, transport failure) leaves the
 				// session's state unknown. Stop it, then retry only once the runtime

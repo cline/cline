@@ -38,7 +38,7 @@ const mocks = vi.hoisted(() => {
 			},
 		),
 		getFactoryTask: vi.fn<() => Promise<{ runs: AgendaTaskRunRecord[] }>>(),
-		designFactoryTask: vi.fn(async () => ({ sessionId: "designer" })),
+		designFactoryTask: vi.fn(async () => ({ task })),
 		approveAgendaTask: vi.fn(async () => task),
 		startFactoryQueue: vi.fn(async () => ({ queued: 1 })),
 		updateAgendaTask: vi.fn(),
@@ -992,18 +992,35 @@ it("disables cached result actions on connection loss until a refreshed reply ar
 });
 
 it("does not label an intake session as the designer before scoping starts", async () => {
-	await render({
+	const intake = {
 		...task,
-		status: "pending_approval",
+		status: "pending_approval" as const,
 		originSessionId: "scheduled-intake",
 		factory: factoryTaskConfigSchema.parse({
 			...task.factory,
 			intake: { source: "issue-watch", key: "issue-42" },
 		}),
-	});
+	};
+	await render(intake);
 	expect(document.body.textContent).not.toContain("View design transcript");
 	await act(async () => button("Start scoping").click());
 	expect(mocks.designFactoryTask).toHaveBeenCalledWith(task.taskId);
+	// Queued, not started: still no designer to show.
+	expect(document.body.textContent).not.toContain("View design transcript");
+	// Scoping starts: the card records its designer session.
+	await render({
+		...intake,
+		factoryDesignProgress: factoryDesignProgressSchema.parse({
+			phase: "designing",
+			revision: task.revision,
+			repairRound: 0,
+			agents: {},
+			designerSessionId: "designer",
+			findings: [],
+			reviewerSessions: [],
+			reviews: [],
+		}),
+	});
 	// The transcript opens in the app, so it carries no outside-link arrow.
 	expect(button("View design transcript").querySelector("svg")).toBeNull();
 	await act(async () => button("View design transcript").click());

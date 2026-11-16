@@ -416,15 +416,16 @@ export class HubAgendaTaskCommandService {
 				}
 				case "task.factory.design": {
 					await this.requireScopedTask(payload, workspaceRoot);
-					if (!this.tasks.startFactoryDesign)
+					if (!this.tasks.queueFactoryScoping)
 						throw new Error("Feature design is unavailable");
-					return okReply(
-						envelope,
-						await this.tasks.startFactoryDesign(
+					// Through the queue, so pause, slots and the daily limit apply.
+					return okReply(envelope, {
+						task: await this.tasks.queueFactoryScoping(
 							taskIdOf(payload),
+							actor,
 							envelope.clientId,
 						),
-					);
+					});
 				}
 				case "task.factory.watch": {
 					await this.requireScopedTask(payload, workspaceRoot);

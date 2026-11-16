@@ -115,6 +115,8 @@ export function factoryReviewReason(reason: string): string {
 			return "a reviewer found it riskier than planned";
 		case "impact unknown":
 			return "Factory could not tell how far the change reaches";
+		case "too few reviewers configured":
+			return "fewer reviewers are set up than this change needs";
 		case "sensitive paths":
 			return "it changes sensitive files";
 		case "verification profile changed":
@@ -899,7 +901,7 @@ export const FACTORY_LINE = {
 	/** Beside "Delivered": how many of them were delivered today. */
 	deliveredToday: (count: number) => `${count} today`,
 	limitReached: (spent: string, limit: string) =>
-		`Stopped at the spending limit: ${spent} of ${limit} spent today. Nothing new starts; running work finishes.`,
+		`Stopped at the spending limit: ${spent} of ${limit} spent today. Working cards wait and resume when the limit clears or you raise it.`,
 	changeLimit: "Change the limit",
 	/** Today's spend in the header: "$12.40 of $50 today". */
 	spend: (spent: string, limit?: string) =>

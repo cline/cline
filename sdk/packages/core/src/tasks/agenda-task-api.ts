@@ -110,10 +110,6 @@ export interface AgendaTaskManagerApi {
 		expectedRevision: number,
 		requestedByClientId?: string,
 	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }>;
-	startFactoryDesign?(
-		taskId: string,
-		requestedByClientId?: string,
-	): Promise<{ sessionId: string }>;
 	getTaskRuns?(taskId: string): AgendaTaskRunRecord[];
 	setFactoryWatch?(
 		taskId: string,
@@ -237,16 +233,19 @@ export interface AgendaTaskManagerApi {
 	/** Queue order and the cards being worked, for status reports. */
 	getFactoryQueueState?(): {
 		paused: boolean;
+		/** Today's spend reached the daily limit: nothing queued starts. */
+		dailyLimitReached?: boolean;
 		concurrency: number;
 		working: string[];
 		queued: Array<{ taskId: string; stage: "design" | "run" }>;
 	};
 	/** Holds a card that is not being worked; never stops running work. */
 	holdFactoryTask?(taskId: string): Promise<AgendaTaskRecord>;
-	/** Clears an explicit hold and queues scoping. */
+	/** Clears an explicit hold and queues scoping; a person's request scopes afresh. */
 	queueFactoryScoping?(
 		taskId: string,
 		actor?: AgendaTaskActor,
+		requestedByClientId?: string,
 	): Promise<AgendaTaskRecord>;
 	recordFactoryAudit?(
 		taskId: string,

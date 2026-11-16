@@ -664,19 +664,29 @@ export class SqliteAgendaTaskStore {
 			params.push(value);
 		}
 		if (input.factoryOnly) where.push("factory_json IS NOT NULL");
-		const limit = Math.min(1000, Math.max(1, Math.floor(input.limit ?? 200)));
 		const order =
 			input.factoryReplaySourceRunId || input.factoryOnly
 				? "created_at DESC, task_id DESC"
 				: "priority ASC, available_at ASC, created_at ASC, task_id ASC";
-		const rows = this.db
-			.prepare(
-				`${SELECT_TASKS}
-				${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
-				ORDER BY ${order}
-				LIMIT ?`,
-			)
-			.all(...params, limit);
+		const select = (clauses: string[], limit: number | undefined) =>
+			this.db
+				.prepare(
+					`${SELECT_TASKS}
+					${clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : ""}
+					ORDER BY ${order}
+					LIMIT ?`,
+				)
+				.all(...params, Math.min(1000, Math.max(1, Math.floor(limit ?? 200))));
+		const rows =
+			input.includeArchived && input.archivedLimit !== undefined
+				? [
+						...select([...where, "archived_at IS NULL"], input.limit),
+						...select(
+							[...where, "archived_at IS NOT NULL"],
+							input.archivedLimit,
+						),
+					]
+				: select(where, input.limit);
 		const tasks = rows.map(taskRowToRecord);
 		return input.factoryLinks ? this.withFactoryLinks(tasks) : tasks;
 	}

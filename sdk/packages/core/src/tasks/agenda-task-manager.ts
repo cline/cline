@@ -55,6 +55,7 @@ import {
 	FACTORY_PLAN_HOLD_TEXT,
 	FACTORY_PRIORITY_REASON_MAX,
 	FACTORY_PULL_REQUEST_REVIEW_BOUNDS,
+	FACTORY_REVIEW_MINIMUM_MESSAGE,
 	FACTORY_REVIEW_POST_BOUND_MS,
 	FACTORY_REVIEW_SIZE_BOUNDS,
 	FACTORY_VERIFICATION_EXERCISE_HEADING,
@@ -80,6 +81,7 @@ import {
 	factoryReviewInertMarkdown,
 	factoryReviewMode,
 	factoryReviewSelectionSchema,
+	factoryReviewShortfall,
 	factoryReviewSize,
 	factorySessionCostUsd,
 	factorySpendingLimitReason,
@@ -123,6 +125,7 @@ import {
 } from "./factory-duplicates";
 import {
 	FactoryDecisionError,
+	FactoryDeferredError,
 	FactoryPlanConfigurationError,
 	FactoryPreparedBaseError,
 	FactoryVerificationProfileError,
@@ -161,6 +164,7 @@ import {
 	sealFactoryPreparedScope,
 } from "./factory-prepared";
 import {
+	closedPullRequest,
 	FACTORY_OUTCOME_WATCH_MAX_AGE_DAYS,
 	readFactoryPullRequest,
 	readFactoryPullRequestMerge,
@@ -1315,6 +1319,13 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private factoryPumpPass: Promise<void> = Promise.resolve();
 	/** A pump request that arrived mid-pass; one more pass picks up its work. */
 	private factoryPumpRequested = false;
+	/**
+	 * Projects whose origin could not be reached when a publishing run
+	 * started, with when the pump may look again: their queued publishing
+	 * runs wait, without new runs, until origin answers. In memory only; a
+	 * new Hub tries once more.
+	 */
+	private readonly factoryOriginRetryAt = new Map<string, number>();
 	private lastFactoryFollowupTaskId?: string;
 	private readonly backgroundRuns = new Set<Promise<void>>();
 	private readonly factoryGuidance?: FactoryGuidanceStore;
@@ -2260,12 +2271,15 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	/** Queue and slot state for status reports: queue order and cards being worked. */
 	getFactoryQueueState(): {
 		paused: boolean;
+		/** Today's spend reached the daily limit: nothing queued starts. */
+		dailyLimitReached: boolean;
 		concurrency: number;
 		working: string[];
 		queued: Array<{ taskId: string; stage: "design" | "run" }>;
 	} {
 		return {
 			paused: this.factoryPaused,
+			dailyLimitReached: this.factorySpendingLimitReached,
 			concurrency: this.factoryConcurrency,
 			working: [
 				...new Set([
@@ -2320,24 +2334,25 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 
 	/**
 	 * Clears an explicit hold and queues scoping, which starts as soon as a
-	 * working slot is free and Factory is not paused. Like a person's Start,
-	 * it applies only before execution: pending or failed cards not being worked.
+	 * working slot is free, Factory is not paused and the daily limit allows.
+	 * A person's Start scoping comes here too (`actor` a user): it scopes
+	 * afresh once it starts. It applies only before execution: pending,
+	 * approved or stopped cards no run is working; scoping already running
+	 * is left as it is. A stopped card no longer reads as stopped once queued.
 	 */
 	async queueFactoryScoping(
 		taskId: string,
 		actor: AgendaTaskActor = TASK_MANAGER_ACTOR,
+		requestedByClientId?: string,
 	): Promise<AgendaTaskRecord> {
 		this.assertUsable();
 		let task = this.requireTask(taskId);
 		if (!task.factory) throw new Error("Only Factory cards can be scoped");
-		if (!["pending_approval", "failed"].includes(task.status))
+		if (!["pending_approval", "approved", "failed"].includes(task.status))
 			throw new Error("Scoping is available before feature execution");
-		if (
-			this.designControllers.has(taskId) ||
-			this.factoryControllers.has(taskId) ||
-			task.currentRunId
-		)
+		if (this.factoryControllers.has(taskId) || task.currentRunId)
 			throw new Error("This card is already being worked");
+		if (this.designControllers.has(taskId)) return task;
 		this.runtime.validateFactoryAgents?.(task);
 		// An agent re-scoping a stopped card spends the same retry budget as an
 		// agent re-running one (see startFactoryQueue).
@@ -2372,10 +2387,22 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				updatedBy: TASK_MANAGER_ACTOR,
 			});
 		}
+		// Scoping clears these as it starts (startFactoryDesign); cleared now,
+		// a queued card does not read as stopped while it waits.
+		if (task.status === "failed" || task.error)
+			this.store.updateTaskState(
+				taskId,
+				{
+					...(task.status === "failed" ? { status: "pending_approval" } : {}),
+					error: null,
+				},
+				task.revision,
+			);
 		this.store.enqueueFactory({
 			taskId,
 			expectedRevision: task.revision,
-			actor: TASK_MANAGER_ACTOR,
+			actor: actor.kind === "user" ? actor : TASK_MANAGER_ACTOR,
+			requestedByClientId,
 			stage: "design",
 		});
 		task = this.requireTask(taskId);
@@ -4196,13 +4223,17 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		if (this.activeRuns.has(taskId) || current.currentRunId) {
 			throw new Error(`task ${taskId} already has an active run`);
 		}
+		// Checked again after the read above: a pause or a full slot arriving
+		// meanwhile leaves the card queued, not stopped.
 		if (
 			current.factory &&
 			this.factoryWorkingCount(taskId) >= this.factoryConcurrency
 		)
-			throw new Error("The factory is at its concurrency limit");
+			throw new FactoryDeferredError("The factory is at its concurrency limit");
 		if (current.factory && this.factoryPaused)
-			throw new Error("Factory is paused; resume it to start new work");
+			throw new FactoryDeferredError(
+				"Factory is paused; resume it to start new work",
+			);
 		if (current.factory) {
 			// Every run, retry and recovery counts toward the card's spending
 			// limit. Scoping sessions no run recorded yet are counted by the run
@@ -4350,6 +4381,15 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 								}
 							: {}),
 						signal: active.controller.signal,
+					}).catch((error: unknown) => {
+						// Origin is down: this project's other publishing runs wait
+						// for it too (see pumpFactoryQueue).
+						if (error instanceof FactoryDeferredError && current.workspaceRoot)
+							this.factoryOriginRetryAt.set(
+								current.workspaceRoot,
+								Date.now() + MAINTENANCE_INTERVAL_MS,
+							);
+						throw error;
 					}));
 				const design =
 					task.factoryDesignProgress?.revision === task.revision
@@ -4694,6 +4734,13 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		return reviewer ? [reviewer] : [];
 	}
 
+	/**
+	 * Starts scoping now, whatever the pause, slots or daily limit: the
+	 * queue's own start (`pumpFactoryQueue`) and tools that drive one card
+	 * directly (the decision evals). People's and agents' requests go
+	 * through `queueFactoryScoping`. `resume` keeps scoping a settled plan
+	 * as it is instead of designing afresh.
+	 */
 	async startFactoryDesign(
 		taskId: string,
 		requestedByClientId?: string,
@@ -5902,13 +5949,23 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							? recovered
 							: await runDesigner(
 									sessionId,
-									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${splitOffered ? `${factorySplitInstruction(Boolean(config.publishPullRequest))} ` : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. ${selectionRequired ? "If the pool cannot support the impact, report the setup gap; never understate risk or invent agents." : "If the configured pools cannot support the impact, omit reviewSelection rather than understate risk; a person then reviews the result. Never invent agents."} Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For one change whose pieces can be built in parallel but merge together, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${partBlock}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
+									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${splitOffered ? `${factorySplitInstruction(Boolean(config.publishPullRequest))} ` : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. If a configured pool has fewer reviewers than that, select every reviewer it has and keep the impact; a person then reviews the result. Never understate risk or invent agents. Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For one change whose pieces can be built in parallel but merge together, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${partBlock}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
 								));
 					assertCurrent();
 					if (!result || result.status === "cancelled")
 						throw new Error(
 							result?.error ?? "Design interview did not complete.",
 						);
+					// Pools that cannot staff the impact are selected whole and the
+					// shortfall stays on the selection (factoryReviewShortfall).
+					const reviewSelectionSchema = factoryReviewSelectionSchema.refine(
+						(selection) =>
+							!factoryReviewShortfall(selection, {
+								planReviewers: baseAgents.planReviewers.length,
+								reviewers: baseAgents.reviewers.length,
+							}),
+						FACTORY_REVIEW_MINIMUM_MESSAGE,
+					);
 					const designSchema = z
 						.object({
 							instructions: z.string().trim().min(1).max(100_000),
@@ -5917,8 +5974,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							implementationUnits:
 								factoryTaskConfigSchema.shape.implementationUnits,
 							reviewSelection: selectionRequired
-								? factoryReviewSelectionSchema
-								: factoryReviewSelectionSchema.optional(),
+								? reviewSelectionSchema
+								: reviewSelectionSchema.optional(),
 							verificationProfile: factoryVerificationProfileSchema.optional(),
 							// The scoper's estimate: never Urgent, and a bad value never
 							// fails scoping.
@@ -7139,7 +7196,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	 * most every FACTORY_MERGE_CHECK_INTERVAL_MS, at most
 	 * FACTORY_MERGE_CHECKS_PER_PASS per pass, each bounded and stopped on
 	 * dispose. After FACTORY_MERGE_CHECK_FAILURES failed reads in a row the
-	 * part asks the person (`unreadable`) while reads go on. Independent of
+	 * part asks the person (`unreadable`) while reads go on. A pull request
+	 * closed unmerged is recorded on the earlier part's run (its
+	 * `pullRequestOutcome`, final as PR follow-up's is), so the part asks the
+	 * person too. Independent of
 	 * PR follow-up, the pause, the daily limit and free slots; never throws.
 	 */
 	private checkFactoryMerges(): Promise<void> {
@@ -7158,7 +7218,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		let reads = 0;
 		let changed = false;
 		const waitedOn = new Set<string>();
-		const views = new Map<string, { merged: boolean; baseBranch: string }>();
+		const views = new Map<
+			string,
+			Awaited<ReturnType<typeof readFactoryPullRequestMerge>>
+		>();
 		for (const waiting of this.store.listFactoryWaitingParts()) {
 			if (this.disposed) return;
 			const task = this.settleRecordedFactoryMerges(waiting);
@@ -7169,9 +7232,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				if (blockedBy.met[earlierId] || blockedBy.mergedElsewhere?.[earlierId])
 					continue;
 				const earlier = this.store.getTask(earlierId);
-				const state = earlier && this.factoryCurrentRun(earlier)?.factory;
+				const run = earlier && this.factoryCurrentRun(earlier);
+				const state = run?.factory;
 				const prUrl = state?.pullRequestUrl;
-				if (!earlier || !state || !prUrl || state.pullRequestOutcome) continue;
+				if (!earlier || !run || !state || !prUrl || state.pullRequestOutcome)
+					continue;
 				waitedOn.add(prUrl);
 				let view = views.get(prUrl);
 				if (!view) {
@@ -7222,7 +7287,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					views.set(prUrl, view);
 					this.factoryMergeChecks.set(prUrl, { at: Date.now(), failures: 0 });
 				}
-				if (view.merged)
+				if (view.state === "MERGED")
 					changed ||= Boolean(
 						this.settleFactoryMerge(task.taskId, earlierId, {
 							prUrl,
@@ -7230,19 +7295,37 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							earlierBase: state.workspace.baseBranch,
 						}),
 					);
-				else if (blockedBy.unreadable?.[earlierId])
-					changed ||= Boolean(
-						this.writeFactoryBlockedBy(task.taskId, (current) => {
-							const { [earlierId]: _cleared, ...unreadable } =
-								current.unreadable ?? {};
-							return {
-								...current,
-								unreadable: Object.keys(unreadable).length
-									? unreadable
-									: undefined,
-							};
-						}),
-					);
+				else {
+					// Recorded on the earlier part's run as PR follow-up records it,
+					// which may no longer be polling (archived, stopped, too old).
+					if (view.state === "CLOSED" && state.pullRequestWatch)
+						try {
+							const updated = this.store.updateFactoryOutcome(earlier, run, {
+								...state,
+								...closedPullRequest(view, state.pullRequestWatch.headCommit),
+							});
+							this.publish("task.updated", earlier, updated);
+							changed = true;
+						} catch (error) {
+							this.logError("factory closed pull request not recorded", error, {
+								taskId: task.taskId,
+								prerequisite: earlierId,
+							});
+						}
+					if (blockedBy.unreadable?.[earlierId])
+						changed ||= Boolean(
+							this.writeFactoryBlockedBy(task.taskId, (current) => {
+								const { [earlierId]: _cleared, ...unreadable } =
+									current.unreadable ?? {};
+								return {
+									...current,
+									unreadable: Object.keys(unreadable).length
+										? unreadable
+										: undefined,
+								};
+							}),
+						);
+				}
 			}
 		}
 		for (const prUrl of this.factoryMergeChecks.keys())
@@ -7789,12 +7872,20 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				}
 				// A part waiting for earlier merges keeps its place and holds no slot.
 				if (this.factoryDependencyBlocker(task)) continue;
+				if (
+					next.stage !== "design" &&
+					task.factory?.publishPullRequest &&
+					!(await this.factoryOriginAnswers(task))
+				)
+					continue;
 				try {
 					if (next.stage === "design") {
+						// A person's request not started yet scopes afresh, as their
+						// Start always did; Factory's own entries resume.
 						await this.startFactoryDesign(
 							next.taskId,
 							next.requestedByClientId,
-							true,
+							next.actor.kind !== "user",
 						);
 						continue;
 					}
@@ -7817,8 +7908,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					);
 				} catch (error) {
 					// A Hub stop is not the card's failure: it stays queued for the
-					// next Hub.
+					// next Hub. Nor is a deferral: it stays queued, and the loop's
+					// checks or the origin wait hold back what else cannot start.
 					if (this.disposed) break;
+					if (error instanceof FactoryDeferredError) continue;
 					drop(next);
 					const latest = this.store.getTask(next.taskId);
 					if (
@@ -7844,6 +7937,28 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			if (resumeFollowup) this.queueFactoryFollowup();
 			if (this.factoryPumpRequested) void this.pumpFactoryQueue();
 		}
+	}
+
+	/**
+	 * Whether a publishing card's project may start a run: true unless origin
+	 * could not be reached there lately (factoryOriginRetryAt). Then origin
+	 * is read again at most once per maintenance interval, without a run, so
+	 * a long outage adds no runs; once it answers, the project's cards start.
+	 */
+	private async factoryOriginAnswers(task: AgendaTaskRecord): Promise<boolean> {
+		const root = task.workspaceRoot;
+		const retryAt = root ? this.factoryOriginRetryAt.get(root) : undefined;
+		if (!root || retryAt === undefined) return true;
+		if (retryAt > Date.now()) return false;
+		this.factoryOriginRetryAt.set(root, Date.now() + MAINTENANCE_INTERVAL_MS);
+		const unreachable = await chooseFactoryPublishBase({
+			sourceRoot: root,
+		}).then(
+			() => false,
+			(error: unknown) => error instanceof FactoryDeferredError,
+		);
+		if (!unreachable) this.factoryOriginRetryAt.delete(root);
+		return !unreachable;
 	}
 
 	private renewFactoryClaims(): void {
@@ -9207,6 +9322,59 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		const latestRun = this.store.getRun(run.runId);
 		if (!latestRun || TERMINAL_RUN_STATUSES.has(latestRun.status)) return false;
 		if (run.factory && latestRun.claimToken !== this.factoryOwner) return false;
+		// Not the card's failure (paused, the daily limit, origin down): the
+		// run ends interrupted with the reason, like a Hub stop, and the card
+		// waits in its queue entry to resume this run's state. A run that had
+		// not left the queue keeps its entry and place.
+		if (
+			task.factory &&
+			error instanceof FactoryDeferredError &&
+			!aborted &&
+			!this.disposed &&
+			latestRun.claimToken === this.factoryOwner
+		) {
+			try {
+				const finished = this.store.finishFactoryRun(
+					run.runId,
+					this.factoryOwner,
+					{
+						status: "interrupted",
+						completedAt: nowIso(),
+						error: error.message,
+						claimToken: null,
+						claimUntilAt: null,
+					},
+					{
+						status: "approved",
+						currentRunId: null,
+						error: null,
+						updatedBy: TASK_MANAGER_ACTOR,
+					},
+					this.store
+						.listFactoryQueue()
+						.some((entry) => entry.taskId === task.taskId)
+						? undefined
+						: {
+								taskId: task.taskId,
+								expectedRevision: run.taskRevision,
+								actor: TASK_MANAGER_ACTOR,
+								requestedByClientId: run.requestedByClientId,
+							},
+				);
+				if (this.activeRuns.get(task.taskId)?.runId === run.runId)
+					this.activeRuns.delete(task.taskId);
+				this.logger.log("factory run waits", {
+					taskId: task.taskId,
+					reason: error.message,
+				});
+				this.publish("task.updated", finished.task, finished.run);
+			} catch (failure) {
+				this.logError("factory deferral ownership changed", failure, {
+					taskId: task.taskId,
+				});
+			}
+			return false;
+		}
 		if (run.factory && this.disposed) {
 			const current = this.store.getTask(task.taskId);
 			if (
@@ -9809,7 +9977,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				earlier.status !== "interrupted"
 			)
 				break;
-			restarts++;
+			// A deferral records its reason (see finishRunFailure); it is not
+			// a restart after the Hub stopped.
+			if (!earlier.error) restarts++;
 		}
 		return restarts >= FACTORY_MAX_INTERRUPT_RECOVERIES
 			? `Factory restarted this run ${restarts} times after the Hub stopped mid-run, so it stops here: check the card's workspace, then try again.`

@@ -37,6 +37,7 @@ import {
 	factoryReviewReadableText,
 	factoryReviewSchema,
 	factoryReviewSelectionSchema,
+	factoryReviewShortfall,
 	factoryReviewSize,
 	factoryReviewSizeEscalation,
 	factoryRunRoute,
@@ -137,13 +138,36 @@ describe("adaptive Factory selection boundary", () => {
 		{ reviewerIndices: [-1] },
 		{ affectedPaths: ["/tmp/feature.ts"] },
 		{ affectedPaths: ["src/../feature.ts"] },
-		{ impact: "shared_contract" },
-		{ impact: "cross_cutting", planReviewerIndices: [0] },
-	])("rejects invalid or insufficient risk selection %j", (patch) => {
+	])("rejects invalid risk selection %j", (patch) => {
 		expect(
 			factoryReviewSelectionSchema.safeParse({ ...selection, ...patch })
 				.success,
 		).toBe(false);
+	});
+	it("finds a selection short of reviewers for its impact, unless its pools have no more", () => {
+		const twoAndTwo = { planReviewers: 2, reviewers: 2 };
+		const shared = { ...selection, impact: "shared_contract" as const };
+		expect(factoryReviewShortfall(shared)).toBe(true);
+		expect(factoryReviewShortfall(shared, twoAndTwo)).toBe(true);
+		expect(
+			factoryReviewShortfall(
+				{ ...shared, impact: "cross_cutting", planReviewerIndices: [0] },
+				twoAndTwo,
+			),
+		).toBe(true);
+		// The default pool: no plan reviewer and one final reviewer.
+		expect(
+			factoryReviewShortfall(shared, { planReviewers: 0, reviewers: 1 }),
+		).toBe(false);
+		expect(
+			factoryReviewShortfall(
+				{ ...shared, planReviewerIndices: [0], reviewerIndices: [0, 1] },
+				twoAndTwo,
+			),
+		).toBe(false);
+		expect(factoryReviewShortfall({ ...selection, impact: "local" })).toBe(
+			false,
+		);
 	});
 	it("reports insufficient configured pool capacity instead of downgrading shared-contract review", () => {
 		const parsed = factoryReviewSelectionSchema.parse({
@@ -1273,6 +1297,8 @@ describe("Factory human stamp", () => {
 		planReviewerIndices: [],
 		reviewerIndices: [0],
 	};
+	/** Reviewers enough for a shared-contract or cross-cutting impact. */
+	const wide = { ...local, planReviewerIndices: [0], reviewerIndices: [0, 1] };
 	const escalation = { commit: "c", affectedPaths: ["x"], rationale: "r" };
 
 	it("has no schema default, so recipe revisions are unchanged when absent", () => {
@@ -1326,14 +1352,14 @@ describe("Factory human stamp", () => {
 		[
 			"by_risk, shared contract",
 			{ humanStamp: "by_risk" },
-			{ reviewSelection: { ...local, impact: "shared_contract" } },
+			{ reviewSelection: { ...wide, impact: "shared_contract" } },
 			true,
 			"shared contract",
 		],
 		[
 			"by_risk, cross-cutting",
 			{ autonomy: "hands_off" },
-			{ reviewSelection: { ...local, impact: "cross_cutting" } },
+			{ reviewSelection: { ...wide, impact: "cross_cutting" } },
 			true,
 			"cross cutting",
 		],
@@ -1387,7 +1413,7 @@ describe("Factory human stamp", () => {
 			{ autonomy: "hands_off" },
 			{
 				reviewSelection: {
-					...local,
+					...wide,
 					impact: "shared_contract",
 					affectedPaths: ["src/auth/session.ts"],
 				},
@@ -1400,7 +1426,7 @@ describe("Factory human stamp", () => {
 			"by_risk, person-approved plan whose diff went beyond it",
 			{ autonomy: "hands_off" },
 			{
-				reviewSelection: { ...local, impact: "shared_contract" },
+				reviewSelection: { ...wide, impact: "shared_contract" },
 				reviewEscalation: escalation,
 				planApprovedByPerson: { revision: 3, at: "2035-01-01T00:00:00.000Z" },
 			},
@@ -1411,7 +1437,7 @@ describe("Factory human stamp", () => {
 			"by_risk, person-approved plan with a changed profile",
 			{ autonomy: "hands_off", verificationProfile: { origin: "proposed" } },
 			{
-				reviewSelection: { ...local, impact: "shared_contract" },
+				reviewSelection: { ...wide, impact: "shared_contract" },
 				planApprovedByPerson: { revision: 3, at: "2035-01-01T00:00:00.000Z" },
 			},
 			true,
@@ -1788,12 +1814,14 @@ describe("Factory safety gates", () => {
 			}),
 		).toMatchObject({ impact: "shared_contract", size: "shared_contract" });
 		expect(
-			factoryReviewSelectionSchema.safeParse({
-				...selection,
-				size: "shared_contract",
-				planReviewerIndices: [],
-			}).success,
-		).toBe(false);
+			factoryReviewShortfall(
+				factoryReviewSelectionSchema.parse({
+					...selection,
+					size: "shared_contract",
+					planReviewerIndices: [],
+				}),
+			),
+		).toBe(true);
 	});
 
 	it("scales participants and the repair budget with the size", () => {

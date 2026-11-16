@@ -822,7 +822,8 @@ class DesktopClient {
 		return this.invoke("task.factory.stop", { allWorkspaces: true });
 	}
 
-	async designFactoryTask(taskId: string): Promise<{ sessionId: string }> {
+	/** Queues scoping; it starts when Factory is not paused, has a free slot and is under its daily limit. */
+	async designFactoryTask(taskId: string): Promise<{ task: AgendaTaskRecord }> {
 		return this.invoke("task.factory.design", { taskId, allWorkspaces: true });
 	}
 

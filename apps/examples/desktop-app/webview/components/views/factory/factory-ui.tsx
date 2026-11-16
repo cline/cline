@@ -392,11 +392,16 @@ export type FactoryBoardData = {
 	attention: ReturnType<typeof useFactoryAttention>;
 };
 
-/** The task list Factory reads; every Factory card in every workspace. */
+/**
+ * The task list Factory reads, in every workspace: every unarchived Factory
+ * card (up to the Hub's cap of 1000), then the newest archived ones.
+ */
 export const FACTORY_AGENDA_FILTERS = {
 	allWorkspaces: true,
+	factoryOnly: true,
 	includeArchived: true,
-	limit: 200,
+	limit: 1000,
+	archivedLimit: 200,
 	// A split's parent, parts and earlier parts, even beyond the limit.
 	factoryLinks: true,
 } as const;
@@ -833,9 +838,12 @@ function factoryPlacement(
 		};
 	if (state?.humanApproval)
 		return { column: "Done", label: FACTORY_ACTIVITY.reviewed };
+	// An approved card's run state is its last run's: one interrupted (the
+	// Hub stopped, or the daily limit) waits in the queue to resume.
 	if (
 		task.status === "in_progress" ||
 		(state &&
+			task.status !== "approved" &&
 			[
 				"implementing",
 				"verifying",

@@ -227,7 +227,7 @@ async function harness(
 				? "echo 'not logged in' >&2; exit 4"
 				: state === "slow"
 					? "sleep 10"
-					: `echo '{"state":"${state}","baseRefName":"${base}"}'`;
+					: `echo '{"state":"${state}","headRefOid":"head","baseRefName":"${base}"}'`;
 		writeFileSync(
 			join(bin, "gh"),
 			`#!/bin/sh\necho "$@" >> "${log}"\n${answer}\n`,
@@ -720,7 +720,9 @@ describe("ordered parts", () => {
 		const calls = h.gh("OPEN");
 		await h.internals().checkFactoryMerges();
 		await h.internals().checkFactoryMerges();
-		expect(calls()).toEqual([`pr view 41 --repo o/r --json state,baseRefName`]);
+		expect(calls()).toEqual([
+			`pr view 41 --repo o/r --json state,headRefOid,baseRefName`,
+		]);
 		expect((await h.get(linking.taskId)).factoryBlockedBy?.met).toEqual({});
 
 		h.gh("MERGED");
@@ -1004,6 +1006,44 @@ describe("settling a waiting part", () => {
 		expect((await status({ task_id: id(parent) })).cards[0]).toMatchObject({
 			parts: expect.stringMatching(/^0 of 3 delivered, 1 closed/),
 		});
+	});
+
+	it("asks the person when the earlier pull request closed unmerged after its follow-up stopped watching", async () => {
+		const h = await harness();
+		const { parts } = await h.approvedSplit();
+		const [exporting, , linking] = parts as [
+			AgendaTaskRecord,
+			AgendaTaskRecord,
+			AgendaTaskRecord,
+		];
+		h.deliver(exporting.taskId, {
+			pullRequestWatch: { headCommit: "head", handledFeedbackIds: [] },
+		});
+		// Archiving pauses PR follow-up, so only the merge check sees the close.
+		const earlier = await h.get(exporting.taskId);
+		await h.manager.archiveTask(
+			earlier.taskId,
+			{ kind: "user" },
+			earlier.revision,
+		);
+		const calls = h.gh("CLOSED");
+		await h.internals().checkFactoryMerges();
+		const name = `F${exporting.factoryNumber}`;
+		await expect(h.manager.startFactoryDesign(linking.taskId)).rejects.toThrow(
+			`${name} was closed without merging. Start anyway or cancel.`,
+		);
+		const status = statusTool(h.manager, h.workspaceRoot);
+		expect((await status({ task_id: name })).cards[0]).toMatchObject({
+			pullRequestOutcome: "closed without merging",
+		});
+		expect((await h.get(linking.taskId)).factoryBlockedBy).toEqual({
+			taskIds: [exporting.taskId],
+			met: {},
+		});
+		// Settled like PR follow-up's record: it is not read again.
+		h.internals().factoryMergeChecks.clear();
+		await h.internals().checkFactoryMerges();
+		expect(calls()).toHaveLength(1);
 	});
 
 	it("asks the person, on both paths, when the earlier pull request merged into another branch, and reads a settled pull request no more", async () => {

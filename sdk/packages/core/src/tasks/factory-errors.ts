@@ -10,6 +10,17 @@ export class FactoryDecisionError extends Error {
 	override name = "FactoryDecisionError";
 }
 
+/**
+ * Not now, and not the card's fault: Factory is paused or every slot is in
+ * use, the daily spending limit is reached, or origin cannot be reached.
+ * The card is never stopped for it: it waits in the queue (a run this
+ * interrupted ends `interrupted` with the message and resumes from there)
+ * and starts once the cause clears. The message says what it waits for.
+ */
+export class FactoryDeferredError extends Error {
+	override name = "FactoryDeferredError";
+}
+
 /** Where a verification profile failed: a preflight stage, or writing it into the worktree. */
 export type FactoryVerificationProfileStage =
 	| "setup"
@@ -68,8 +79,9 @@ export class FactoryPreparedBaseError extends FactoryDecisionError {
  * Factory cannot open the draft PR for a reason only a person can fix: no
  * `origin` remote, the GitHub CLI missing or signed out, a base branch that
  * is not on the remote, or GitHub refusing the PR. The message is one
- * sentence saying what to do. Transient failures (network, rate limits) are
- * plain errors, so hands-off recovery may still retry those.
+ * sentence saying what to do. An origin that cannot be reached when a run
+ * starts is a `FactoryDeferredError`; other transient failures (network,
+ * rate limits) are plain errors, so hands-off recovery may still retry those.
  */
 export class FactoryPublishError extends FactoryDecisionError {
 	override name = "FactoryPublishError";

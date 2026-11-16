@@ -311,7 +311,6 @@ export function FeatureDetail({
 	const [questionErrors, setQuestionErrors] = useState<
 		Record<string, string | undefined>
 	>({});
-	const [startedDesignSession, setDesignSession] = useState<string>();
 	const replay = task.factory?.replay;
 	// A pull request review drafts a review of someone else's change: it has
 	// no plan, checks or draft PR of its own, and nothing scoped it.
@@ -320,8 +319,7 @@ export function FeatureDetail({
 	const designSession =
 		replay || review
 			? undefined
-			: (startedDesignSession ??
-				task.factoryDesignProgress?.designerSessionId ??
+			: (task.factoryDesignProgress?.designerSessionId ??
 				(task.factory?.intake ? undefined : task.originSessionId));
 	const [designStarted, setDesignStarted] = useState(false);
 	const [savedDraft, setSavedDraft] = useState({
@@ -791,9 +789,9 @@ export function FeatureDetail({
 			});
 		});
 	}
+	/** Queues scoping: it starts when Factory has room (see the card's state). */
 	async function startScoping(taskId: string) {
-		const result = await desktopClient.designFactoryTask(taskId);
-		setDesignSession(result.sessionId);
+		await desktopClient.designFactoryTask(taskId);
 		setDesignStarted(true);
 	}
 	/** Saves an edited hands-off plan; core sends it back to scoping. */
@@ -1429,8 +1427,8 @@ export function FeatureDetail({
 			{designStarted ? (
 				<output className="flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
 					<Sparkles className="size-3.5 shrink-0" />
-					Design interview started. Questions will appear here as the agent
-					reads the context.
+					Scoping is queued and starts as soon as Factory has room. Questions
+					will appear here as the agent reads the context.
 				</output>
 			) : null}
 			{dirty && task.revision !== draftRevision ? (

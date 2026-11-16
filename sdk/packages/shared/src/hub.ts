@@ -1072,7 +1072,8 @@ export interface HubCommandOutputMap {
 		analysis?: FactoryFeedbackAnalysis;
 	};
 	"task.factory.answer": { task: AgendaTaskRecord };
-	"task.factory.design": { sessionId: string };
+	/** Scoping is queued: it starts when Factory has a free slot, is not paused and is under its daily limit. */
+	"task.factory.design": { task: AgendaTaskRecord };
 	"task.factory.watch": { task: AgendaTaskRecord };
 	"task.factory.priority": { task: AgendaTaskRecord };
 	"task.factory.split.approve": {

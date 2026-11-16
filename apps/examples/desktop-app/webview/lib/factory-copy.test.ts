@@ -85,6 +85,9 @@ describe("Factory copy", () => {
 		expect(factoryReviewReason("sensitive paths")).toBe(
 			"it changes sensitive files",
 		);
+		expect(factoryReviewReason("too few reviewers configured")).toBe(
+			"fewer reviewers are set up than this change needs",
+		);
 		// The reasons core freezes for findings it could not clear.
 		expect(factoryReviewReason(FACTORY_UNRESOLVED_FINDINGS_REVIEW)).toBe(
 			"the reviewer left findings it could not clear",

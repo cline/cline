@@ -33,7 +33,11 @@ import {
 } from "./factory-errors";
 import * as factoryLocal from "./factory-local";
 import { FACTORY_REPO_RULES_SOURCE } from "./factory-repo-rules";
-import { createFactoryStatusTool } from "./factory-tool";
+import { createFactorySessionRunner } from "./factory-session";
+import {
+	createFactoryStatusTool,
+	factoryStatusCardState,
+} from "./factory-tool";
 import {
 	FileFactoryVerificationProfileStore,
 	factoryVerificationProfileHash,
@@ -1113,6 +1117,168 @@ describe("safety gates", () => {
 		h.manager.setFactoryDailyCostUsd(5);
 		await vi.waitFor(() =>
 			expect(h.runtime.startDesignSession).toHaveBeenCalled(),
+		);
+	});
+
+	it("keeps a card the daily limit interrupted queued, and resumes it without its finished sessions once the limit is raised", async () => {
+		const h = await harness({ planReviewers: 0 });
+		const spent = vi
+			.spyOn(h.manager, "getFactorySpentTodayUsd")
+			.mockResolvedValue(0);
+		vi.mocked(h.runtime.startSession).mockImplementation(
+			async (_task, _run, _client, options) => ({
+				sessionId: options?.sessionId ?? "session",
+			}),
+		);
+		h.manager.setFactoryDailyCostUsd(5);
+		await h.manager.start();
+		stubRuns(async (input) => {
+			let state = input.state;
+			const runner = createFactorySessionRunner({
+				...input,
+				getState: () => state,
+				save: (patch) => {
+					state = { ...state, ...patch };
+					input.save(state);
+				},
+			});
+			await runner.execute("builder:0", "Build", {}, "builder");
+			// Today's spend reaches the limit between two sessions.
+			spent.mockResolvedValue(10);
+			await runner.execute("reviewer:0", "Review", {}, "reviewer");
+			return { status: "completed" };
+		});
+		const task = await h.create("Overnight", { autonomy: undefined });
+		const approved = await h.manager.approveTask(
+			task.taskId,
+			{ kind: "user" },
+			task.revision,
+		);
+		const started = await h.manager.runTask(
+			task.taskId,
+			{ kind: "user" },
+			approved.revision,
+		);
+		const finished = () =>
+			h.manager
+				.getTaskRuns(task.taskId)
+				.find((run) => run.runId === started.run?.runId);
+		await vi.waitFor(() =>
+			expect(["failed", "interrupted"]).toContain(finished()?.status),
+		);
+		const run = finished();
+		expect(run?.status).toBe("interrupted");
+		const waiting = await h.get(task.taskId);
+		expect(waiting).toMatchObject({ status: "approved", factoryQueued: "run" });
+		expect(waiting.error).toBeUndefined();
+		expect(
+			factoryStatusCardState(waiting, run, h.manager.getFactoryQueueState()),
+		).toMatchObject({
+			kind: "queued",
+			waitingOn: "slot",
+			reasonCode: "daily_spend_limit",
+		});
+		// Raising the limit resumes it; the builder's finished session is kept.
+		h.manager.setFactoryDailyCostUsd(50);
+		await vi.waitFor(async () =>
+			expect((await h.get(task.taskId)).status).toBe("completed"),
+		);
+		expect(
+			vi
+				.mocked(h.runtime.startSession)
+				.mock.calls.map(([, , , options]) => options?.factoryRole),
+		).toEqual(["builder", "reviewer"]);
+	});
+
+	it("leaves queued cards waiting when origin cannot be reached, trying one card per project", async () => {
+		const h = await harness({ planReviewers: 0 });
+		execFileSync("git", [
+			"-C",
+			h.workspaceRoot,
+			"remote",
+			"add",
+			"origin",
+			join(h.workspaceRoot, "..", "missing.git"),
+		]);
+		const workflow = vi.spyOn(factoryWorkflow, "runFactoryWorkflow");
+		const cards: AgendaTaskRecord[] = [];
+		for (const title of ["First", "Second"]) {
+			const card = await h.create(title, {
+				autonomy: undefined,
+				publishPullRequest: true,
+			});
+			cards.push(
+				await h.manager.approveTask(
+					card.taskId,
+					{ kind: "user" },
+					card.revision,
+				),
+			);
+		}
+		await h.manager.startFactoryQueue(
+			cards.map((card) => ({
+				taskId: card.taskId,
+				expectedRevision: card.revision,
+			})),
+			{ kind: "user" },
+		);
+		await vi.waitFor(() =>
+			expect(h.manager.getTaskRuns(cards[0]?.taskId ?? "")[0]?.status).toBe(
+				"interrupted",
+			),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		for (const card of cards)
+			expect(await h.get(card.taskId)).toMatchObject({
+				status: "approved",
+				factoryQueued: "run",
+			});
+		// The second card of the project was not tried in the same pass.
+		expect(h.manager.getTaskRuns(cards[1]?.taskId ?? "")).toEqual([]);
+		expect(workflow).not.toHaveBeenCalled();
+		const first = await h.get(cards[0]?.taskId ?? "");
+		expect(
+			factoryStatusCardState(
+				first,
+				h.manager.getTaskRuns(first.taskId)[0],
+				h.manager.getFactoryQueueState(),
+			),
+		).toMatchObject({
+			kind: "queued",
+			waitingOn: "slot",
+			reasonCode: "interrupted",
+			reasonText: expect.stringContaining("could not reach origin"),
+		});
+	});
+
+	it("keeps a card queued when Factory is paused while its run is starting", async () => {
+		const h = await harness({ planReviewers: 0 });
+		stubRuns(async () => ({ status: "completed" }));
+		const card = await h.create("Paused", { autonomy: undefined });
+		// Approved before the Hub starts, so the start's pump runs it.
+		await h.manager.approveTask(card.taskId, { kind: "user" }, card.revision);
+		const internals = h.manager as unknown as {
+			refreshAndVerifyTaskIntent(taskId: string): Promise<AgendaTaskRecord>;
+		};
+		const intent = internals.refreshAndVerifyTaskIntent.bind(h.manager);
+		let reads = 0;
+		// The person pauses while the run reads its card.
+		vi.spyOn(internals, "refreshAndVerifyTaskIntent").mockImplementation(
+			async (taskId) => {
+				const task = await intent(taskId);
+				if (++reads === 1) h.manager.setFactoryPaused(true);
+				return task;
+			},
+		);
+		await h.manager.start();
+		await vi.waitFor(() => expect(reads).toBe(1));
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		const waiting = await h.get(card.taskId);
+		expect(waiting).toMatchObject({ status: "approved", factoryQueued: "run" });
+		expect(waiting.error).toBeUndefined();
+		h.manager.setFactoryPaused(false);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).status).toBe("completed"),
 		);
 	});
 

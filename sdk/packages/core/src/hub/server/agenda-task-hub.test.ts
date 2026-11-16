@@ -684,13 +684,6 @@ Verify acceptance criteria.`,
 			expect(feature.payload?.task).toMatchObject({
 				status: "pending_approval",
 			});
-			const design = await transport.handleCommand({
-				version: "v1",
-				command: "task.factory.design",
-				clientId: "desktop",
-				payload: { taskId: featureTask.taskId },
-			});
-			expect(design.ok).toBe(true);
 			const reopenDesign = () =>
 				transport.handleCommand({
 					version: "v1",
@@ -698,14 +691,26 @@ Verify acceptance criteria.`,
 					clientId: "desktop",
 					payload: { taskId: featureTask.taskId },
 				});
-			expect((await reopenDesign()).payload?.sessionId).toBe(
-				design.payload?.sessionId,
-			);
-			expect(
-				capturedStarts.filter(
-					(input) => input.sessionMetadata?.factoryRole === "designer",
-				),
-			).toHaveLength(1);
+			const designers = () =>
+				capturedStarts
+					.filter((input) => input.sessionMetadata?.factoryRole === "designer")
+					.map((input) => input.config.sessionId);
+			/** Queues scoping and waits for the designer session it starts. */
+			const designAgain = async () => {
+				const before = designers().length;
+				const reply = await reopenDesign();
+				expect(reply.ok, reply.error?.message).toBe(true);
+				await vi.waitFor(() =>
+					expect(designers().length).toBeGreaterThan(before),
+				);
+				return designers().at(-1);
+			};
+			// Filing queued scoping; the person's Start joins it, and asking
+			// again starts no second designer.
+			for (let request = 0; request < 2; request++)
+				expect((await reopenDesign()).ok).toBe(true);
+			await vi.waitFor(() => expect(designers()).toHaveLength(1));
+			const designerId = designers()[0];
 			await vi.waitFor(async () => {
 				const current = await transport.handleCommand({
 					version: "v1",
@@ -720,7 +725,7 @@ Verify acceptance criteria.`,
 				expect(task.status).toBe("pending_approval");
 				featureTask.revision = task.revision;
 			});
-			let priorDesignerId = z.string().parse(design.payload?.sessionId);
+			let priorDesignerId = z.string().parse(designerId);
 			const assigned = sessions.get(priorDesignerId);
 			if (!assigned) throw new Error("Designer session missing");
 			for (const updates of [
@@ -767,10 +772,9 @@ Verify acceptance criteria.`,
 			});
 			// Simulate a persisted session changed by an older host.
 			assigned.model = "different-model";
-			const corrected = await reopenDesign();
-			expect(corrected.ok).toBe(true);
-			expect(corrected.payload?.sessionId).not.toBe(priorDesignerId);
-			priorDesignerId = z.string().parse(corrected.payload?.sessionId);
+			const corrected = await designAgain();
+			expect(corrected).not.toBe(priorDesignerId);
+			priorDesignerId = z.string().parse(corrected);
 			expect(sessions.get(priorDesignerId)?.model).toBe("gpt-4.1");
 			await vi.waitFor(async () => {
 				const current = await transport.handleCommand({
@@ -788,14 +792,8 @@ Verify acceptance criteria.`,
 			updateSessionConnection.mockRejectedValueOnce(
 				new SessionNotFoundError(priorDesignerId),
 			);
-			const resumed = await transport.handleCommand({
-				version: "v1",
-				command: "task.factory.design",
-				clientId: "desktop",
-				payload: { taskId: featureTask.taskId },
-			});
-			expect(resumed.ok).toBe(true);
-			expect(resumed.payload?.sessionId).not.toBe(priorDesignerId);
+			const resumed = await designAgain();
+			expect(resumed).not.toBe(priorDesignerId);
 			expect(capturedStarts.at(-1)).toMatchObject({
 				initialMessages: transcript,
 				sessionMetadata: {
@@ -819,7 +817,7 @@ Verify acceptance criteria.`,
 				payload: { taskId: featureTask.taskId },
 			});
 			expect(resumedTask.payload?.task).toMatchObject({
-				originSessionId: resumed.payload?.sessionId,
+				originSessionId: resumed,
 			});
 			await vi.waitFor(async () => {
 				const current = await transport.handleCommand({
@@ -865,7 +863,7 @@ Verify acceptance criteria.`,
 					});
 					expect(current.payload?.task).toMatchObject({
 						status: "completed",
-						originSessionId: resumed.payload?.sessionId,
+						originSessionId: resumed,
 					});
 					expect(current.payload?.runs).toEqual([
 						expect.objectContaining({

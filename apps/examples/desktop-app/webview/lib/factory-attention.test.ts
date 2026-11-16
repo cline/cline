@@ -589,6 +589,36 @@ describe("factoryUnreadable", () => {
 	});
 });
 
+describe("a run that waits to resume", () => {
+	it("lists an approved card whose last run stopped mid-build as queued, not working", () => {
+		const queued = {
+			...task({ status: "approved", error: undefined }),
+			title: "Overnight",
+			revision: 1,
+			factoryQueued: "run",
+		} as unknown as AgendaTaskRecord;
+		const activity = factoryActivity(queued, {
+			taskId: queued.taskId,
+			revision: 1,
+			questions: [],
+			needsAttention: false,
+			// The interrupted run's state: its builder attempt is left to resume.
+			outcome: {
+				phase: "implementing",
+				repairRound: 0,
+				activeRoles: ["builder"],
+				activeSessions: [],
+				followupPaused: false,
+			} as FactoryAttention["outcome"],
+		});
+		expect(activity).toMatchObject({
+			column: "Queued",
+			label: "Waiting to build",
+		});
+		expect(factoryNeedsYou(activity)).toBe(false);
+	});
+});
+
 describe("feedback is optional", () => {
 	const done = {
 		...task({ status: "completed", error: undefined }),

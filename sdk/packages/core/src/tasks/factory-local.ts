@@ -25,7 +25,11 @@ import {
 	factoryWorkspaceSchema,
 } from "@cline/shared";
 import { z } from "zod";
-import { FactoryDecisionError, FactoryPublishError } from "./factory-errors";
+import {
+	FactoryDecisionError,
+	FactoryDeferredError,
+	FactoryPublishError,
+} from "./factory-errors";
 import {
 	type FactoryChangedFile,
 	type FactoryPullRequestContext,
@@ -489,8 +493,10 @@ async function fetchFactoryBaseCommit(input: {
  * otherwise it is deleted before returning. The project's checked-out
  * branch is never used implicitly, so a card does not inherit an unrelated
  * working branch as its PR base. Throws a `FactoryPublishError` with a
- * one-sentence fix when there is no `origin`, it cannot be reached or
- * signed in to without a prompt, or the named branch is not on it.
+ * one-sentence fix when there is no `origin`, it cannot be signed in to
+ * without a prompt, or the branch is not on it; a `FactoryDeferredError`
+ * when reading or fetching from origin fails otherwise (the network or the
+ * remote is down), so the card waits instead of stopping.
  */
 export async function chooseFactoryPublishBase(input: {
 	sourceRoot: string;
@@ -513,8 +519,11 @@ export async function chooseFactoryPublishBase(input: {
 		throw new FactoryPublishError(
 			"This project has no origin remote; add the GitHub remote as origin, or turn off draft PRs for this card.",
 		);
-	const unreachable = new FactoryPublishError(
-		"Factory could not reach origin to find a published branch to start from; check the network and the origin remote, then try again.",
+	const unreachable = new FactoryDeferredError(
+		"Factory could not reach origin to read the branch to start from; it tries again on its own. If this lasts, check the network and the origin remote.",
+	);
+	const noDefault = new FactoryPublishError(
+		"Factory could not find origin's default branch to start from; name the card's base branch, or set origin's HEAD.",
 	);
 	const named = input.baseBranch?.trim();
 	const current = await run(["symbolic-ref", "--short", "HEAD"]);
@@ -536,7 +545,7 @@ export async function chooseFactoryPublishBase(input: {
 			).output
 				.trim()
 				.replace(/^origin\//, "");
-		if (!fallback) throw unreachable;
+		if (!fallback) throw noDefault;
 		baseBranch = fallback;
 	}
 	const baseCommit = await originBranchTip({
@@ -550,7 +559,7 @@ export async function chooseFactoryPublishBase(input: {
 			? new FactoryPublishError(
 					`The card's base branch ${named} is not on origin; push it, or clear the card's base branch to start from origin's default branch.`,
 				)
-			: unreachable;
+			: noDefault;
 	const baseRef = await fetchFactoryBaseCommit({
 		cwd,
 		branch: baseBranch,

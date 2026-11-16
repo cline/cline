@@ -10,7 +10,9 @@ import { join } from "node:path";
 import type { AgendaTaskRecord, FactoryReviewSelection } from "@cline/shared";
 import {
 	FACTORY_PRIORITY_RANK,
+	FACTORY_REVIEW_MINIMUM_MESSAGE,
 	factoryPriorityRank,
+	factoryStampRequirement,
 	factoryTaskConfigSchema,
 } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -56,6 +58,8 @@ async function harness(
 		maxRepairRounds?: number;
 		reviewMode?: "fixed" | "adaptive";
 		reviewSelection?: FactoryReviewSelection;
+		/** Replaces the two-and-two pools; `{}` is the default pool. */
+		agents?: Record<string, unknown>;
 		maxRuntimeRetries?: number;
 		queueFactoryDesign?: boolean;
 		startReview?: (index: number) => Promise<void>;
@@ -143,7 +147,7 @@ async function harness(
 			reviewMode: options.reviewMode,
 			maxRuntimeRetries: options.maxRuntimeRetries,
 			checks: [{ name: "Behavior", kind: "test", command: "true" }],
-			agents: {
+			agents: options.agents ?? {
 				designer: participant("designer-model", 3, 20),
 				reviewers: [
 					participant("final-first", 3, 20),
@@ -252,6 +256,57 @@ describe("Factory design review", () => {
 		);
 		expect(h.runtime.startDesignReviewSession).not.toHaveBeenCalled();
 		await expect(h.approve()).resolves.toMatchObject({ status: "approved" });
+	});
+
+	it("scopes a shared contract on a pool too small for it, with every reviewer it has, and asks a person to review the result", async () => {
+		const h = await harness({
+			reviewMode: "adaptive",
+			agents: {},
+			reviewSelection: {
+				...localSelection,
+				impact: "shared_contract",
+				planReviewerIndices: [],
+				reviewerIndices: [0],
+			},
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		const selection = (await h.current()).factoryDesignProgress
+			?.reviewSelection;
+		expect(selection).toMatchObject({
+			impact: "shared_contract",
+			planReviewerIndices: [],
+			reviewerIndices: [0],
+		});
+		// Even a person's plan approval leaves the missing reviewers to them.
+		expect(
+			factoryStampRequirement(
+				{ autonomy: "hands_off" },
+				{ reviewSelection: selection, planApprovedByPerson: true },
+			),
+		).toEqual({ required: true, reason: "too few reviewers configured" });
+	});
+
+	it("still sends a selection short of reviewers its pools have back to the designer", async () => {
+		const h = await harness({
+			reviewMode: "adaptive",
+			reviewSelection: {
+				...localSelection,
+				impact: "shared_contract",
+				planReviewerIndices: [],
+				reviewerIndices: [0],
+			},
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain("Designer recovery limit"),
+		);
+		expect((await h.current()).error).toContain(FACTORY_REVIEW_MINIMUM_MESSAGE);
+		expect(
+			vi.mocked(h.runtime.runDesignSession).mock.calls[1]?.[1].instructions,
+		).toContain(FACTORY_REVIEW_MINIMUM_MESSAGE);
 	});
 
 	it.each([

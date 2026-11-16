@@ -811,13 +811,15 @@ describe("Factory commands", () => {
 			on: ["F45"],
 			reason: "F45 was archived before it opened a pull request",
 		});
-		// One list that carries every linked card, and the one delivered
-		// card's runs: no read per link.
+		// One list of the unarchived Factory cards that carries every linked
+		// card, and the one delivered card's runs: no read per link.
 		expect(readTask).toHaveBeenCalledTimes(2);
-		expect(readTask).toHaveBeenCalledWith(
-			"task.list",
-			expect.objectContaining({ factoryLinks: true }),
-		);
+		expect(readTask).toHaveBeenCalledWith("task.list", {
+			allWorkspaces: true,
+			factoryOnly: true,
+			limit: 1000,
+			factoryLinks: true,
+		});
 	});
 
 	it("reports a card whose data fails validation as unreadable and keeps every other card", async () => {

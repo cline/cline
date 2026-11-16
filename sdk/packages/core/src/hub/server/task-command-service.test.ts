@@ -1116,6 +1116,77 @@ describe("HubAgendaTaskCommandService", () => {
 		}
 	});
 
+	it("queues a person's Start scoping while Factory is paused and starts it on resume", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "cline-hub-factory-design-")),
+		);
+		const startDesignSession = vi.fn(
+			async (
+				_task: unknown,
+				_client?: string,
+				_agent?: unknown,
+				id?: string,
+			) => ({
+				sessionId: id ?? "designer",
+			}),
+		);
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+				startDesignSession,
+				runDesignSession: vi.fn(async () => ({
+					status: "failed" as const,
+					error: "Not designed in this test",
+				})),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+			factoryStorageDir: join(root, "factory"),
+		});
+		try {
+			await manager.start();
+			manager.setFactoryPaused(true);
+			const card = await manager.createTask({
+				type: "follow-up",
+				title: "Scope me",
+				instructions: "Scope this",
+				scope: "workspace",
+				workspaceRoot: root,
+				expiresAt: "2099-01-01T00:00:00.000Z",
+				createdBy: { kind: "user" },
+				queueFactoryDesign: false,
+				factory: {
+					execution: "local",
+					approval: "required",
+					maxRepairRounds: 2,
+					checks: [],
+					publishPullRequest: false,
+				},
+			});
+			const service = new HubAgendaTaskCommandService(manager);
+			const reply = await service.handleCommand(
+				envelope("task.factory.design", { taskId: card.taskId }),
+				{ ...AUTHORITY, workspaceContext: { workspaceRoot: root, cwd: root } },
+			);
+			expect(reply.ok, reply.error?.message).toBe(true);
+			await new Promise((resolve) => setTimeout(resolve, 20));
+			expect(startDesignSession).not.toHaveBeenCalled();
+			expect(await manager.getTask(card.taskId)).toMatchObject({
+				status: "pending_approval",
+				factoryQueued: "design",
+			});
+			manager.setFactoryPaused(false);
+			await vi.waitFor(() => expect(startDesignSession).toHaveBeenCalled());
+		} finally {
+			await manager.dispose();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("round-trips the Factory pause beside the limit, alone or with it", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-factory-pause-cmd-"));
 		try {

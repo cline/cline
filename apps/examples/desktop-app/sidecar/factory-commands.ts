@@ -591,10 +591,12 @@ export async function handleFactoryCommand(
 	};
 	const list = async () =>
 		readFactoryListTasks(
+			// Every unarchived card, as on the board; only split links bring
+			// archived cards, which attention reads just for a part's dependency.
 			await readTask("task.list", {
 				allWorkspaces: true,
-				includeArchived: true,
-				limit: 200,
+				factoryOnly: true,
+				limit: 1000,
 				factoryLinks: true,
 			}),
 			reportUnreadable,

@@ -120,14 +120,18 @@ function pullRequestIdentity(url: string) {
 }
 
 /**
- * Whether a pull request was merged, and into which branch: one read-only
+ * A pull request's state, head commit and base branch: one read-only
  * `gh pr view`, bounded by `timeoutMs`. Throws when gh fails or answers
  * something else.
  */
 export async function readFactoryPullRequestMerge(
 	input: { url: string; cwd: string; signal?: AbortSignal; timeoutMs: number },
 	run: Command = runFactoryCommand,
-): Promise<{ merged: boolean; baseBranch: string }> {
+): Promise<
+	Pick<FactoryPullRequestSnapshot, "state" | "headCommit"> & {
+		baseBranch: string;
+	}
+> {
 	const { owner, name, number } = pullRequestIdentity(input.url);
 	const output = await checkedCommand(
 		{
@@ -141,7 +145,7 @@ export async function readFactoryPullRequestMerge(
 				"--repo",
 				`${owner}/${name}`,
 				"--json",
-				"state,baseRefName",
+				"state,headRefOid,baseRefName",
 			],
 			timeoutMs: input.timeoutMs,
 			maxBytes: 64 * 1024,
@@ -151,10 +155,15 @@ export async function readFactoryPullRequestMerge(
 	const view = z
 		.object({
 			state: z.enum(["OPEN", "CLOSED", "MERGED"]),
+			headRefOid: z.string(),
 			baseRefName: z.string(),
 		})
 		.parse(JSON.parse(output));
-	return { merged: view.state === "MERGED", baseBranch: view.baseRefName };
+	return {
+		state: view.state,
+		headCommit: view.headRefOid,
+		baseBranch: view.baseRefName,
+	};
 }
 
 export async function readFactoryPullRequest(
@@ -378,7 +387,7 @@ export async function readFactoryPullRequest(
  * Ends follow-up on a PR that is no longer open and records its outcome
  * against `publishedCommit`, the commit Factory last pushed to it.
  */
-function closedPullRequest(
+export function closedPullRequest(
 	snapshot: Pick<
 		FactoryPullRequestSnapshot,
 		"state" | "headCommit" | "baseBranch"
