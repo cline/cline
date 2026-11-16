@@ -145,6 +145,9 @@ cline --yolo --retries 5 "Refactor this package"
 # Override consecutive internal mistake (retry) limit (default: 3)
 cline --retries 5 "Fix failing tests"
 
+# A /team prompt stays in act mode, so the team tools are available
+cline "/team Plan and implement user authentication with tests"
+
 # Team workflow with persistent name (teams need act mode in one-shot runs)
 cline --act --team-name my-team "Plan, implement, and verify release checklist"
 cline --act --team-name my-team "Continue yesterday's team workflow"

@@ -3,6 +3,9 @@
 //
 // This file intentionally isolates persisted-artifact assertions so it can be
 // executed independently of the broader headless suite.
+//
+// The run passes --act because the cassette was recorded in act mode; the
+// default yolo mode sends a follow-up request the cassette lacks.
 // ---------------------------------------------------------------------------
 
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
@@ -45,7 +48,7 @@ test.describe("cline --json persisted messages contract - authenticated @live", 
 		join(tmpdir(), "cline-headless-messages-contract-"),
 	);
 	test.use({
-		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["--act", "--json", "tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
 			CLINE_VCR_CASSETTE: "./fixtures/headless-json.json",
