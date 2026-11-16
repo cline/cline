@@ -3747,13 +3747,19 @@ export async function handleCommand(
 	if (command === "read_marketplace_skill_file") {
 		return readMarketplaceSkillFile(args);
 	}
-	if (command === "get_installed_skill_preview") {
+	if (
+		command === "get_installed_skill_preview" ||
+		command === "read_installed_skill_file"
+	) {
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error(
+				"installed skill files require a trusted desktop connection",
+			);
+		}
 		const inventory = await listUserInstructionConfigs(ctx);
-		return getInstalledSkillPreview(args, inventory.skills);
-	}
-	if (command === "read_installed_skill_file") {
-		const inventory = await listUserInstructionConfigs(ctx);
-		return readInstalledSkillFile(args, inventory.skills);
+		return command === "get_installed_skill_preview"
+			? getInstalledSkillPreview(args, inventory.skills)
+			: readInstalledSkillFile(args, inventory.skills);
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
