@@ -25,8 +25,8 @@ interface CompletionOutputRowProps {
 	// QuoteButton coordinates are computed relative to this element's rect, and the
 	// button is absolutely positioned against it — keep ref, onMouseUp, and `relative`
 	// on the same element.
-	contentRef?: Ref<HTMLDivElement>
-	onMouseUp?: (event: MouseEvent<HTMLDivElement>) => void
+	contentRef: Ref<HTMLDivElement>
+	onMouseUp: (event: MouseEvent<HTMLDivElement>) => void
 }
 
 /**
