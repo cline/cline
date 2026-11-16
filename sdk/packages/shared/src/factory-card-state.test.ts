@@ -351,7 +351,7 @@ const CASES: Case[] = [
 			task: card({
 				factory: handsOff,
 				factoryDesignProgress: design("complete"),
-				error: `${FACTORY_AUTO_APPROVAL_WAITING_PREFIX}no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself.`,
+				error: `${FACTORY_AUTO_APPROVAL_WAITING_PREFIX}no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself. Factory will not ask again about this when it delivers.`,
 			}),
 		},
 		{
@@ -359,7 +359,7 @@ const CASES: Case[] = [
 			waitingOn: "person",
 			reasonCode: "plan_held",
 			reasonText:
-				"no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself.",
+				"no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself. Factory will not ask again about this when it delivers.",
 		},
 	],
 	// concluded

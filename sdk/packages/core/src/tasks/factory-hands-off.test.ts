@@ -1390,15 +1390,34 @@ describe("safety gates", () => {
 		const designed = await h.designed(task);
 		expect(designed.status).toBe("pending_approval");
 		expect(designed.error).toBe(
-			`${FACTORY_AUTO_APPROVAL_WAITING_PREFIX}no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself.`,
+			`${FACTORY_AUTO_APPROVAL_WAITING_PREFIX}no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself. Factory will not ask again about this when it delivers.`,
 		);
 		// An agent cannot approve it either; a person can.
 		await expect(
 			h.manager.approveTask(task.taskId, { kind: "agent" }, designed.revision),
 		).rejects.toThrow("no independent reviewer");
-		await expect(
-			h.manager.approveTask(task.taskId, { kind: "user" }, designed.revision),
-		).resolves.toMatchObject({ status: "approved" });
+		const approved = await h.manager.approveTask(
+			task.taskId,
+			{ kind: "user" },
+			designed.revision,
+		);
+		expect(approved).toMatchObject({
+			status: "approved",
+			factoryDesignProgress: {
+				approvedByPerson: { withoutIndependentReview: true },
+			},
+		});
+		// A new plan needs its own approval: the old one is not carried over.
+		const edited = await h.manager.updateTask({
+			taskId: task.taskId,
+			expectedRevision: approved.revision,
+			instructions: "Edited brief",
+			updatedBy: { kind: "user" },
+		});
+		const rescoped = await h.designed(edited);
+		expect(rescoped.factoryDesignProgress?.revision).toBe(rescoped.revision);
+		expect(rescoped.revision).toBeGreaterThan(approved.revision);
+		expect(rescoped.factoryDesignProgress?.approvedByPerson).toBeUndefined();
 		// A workflow may turn the requirement off.
 		const relaxed = await h.designed(
 			await h.create("Relaxed", {

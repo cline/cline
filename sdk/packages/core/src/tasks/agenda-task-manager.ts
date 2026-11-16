@@ -641,7 +641,7 @@ export { FACTORY_BUILT_IN_POLICY };
 
 /** Waiting reason when automatic approval has no reviewer on another model. */
 const FACTORY_NO_INDEPENDENT_REVIEWER =
-	"no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself.";
+	"no independent reviewer is configured: add a reviewer on a different model in Factory settings, or approve this plan yourself. Factory will not ask again about this when it delivers.";
 
 /** How long a computed daily spend is reused before it is summed again. */
 const FACTORY_SPEND_CACHE_MS = 5_000;
@@ -3786,6 +3786,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			current.factoryDesignProgress?.revision === current.revision
 				? current.factoryDesignProgress
 				: undefined;
+		// Automatic approval held this plan for lack of an independent
+		// reviewer (FACTORY_NO_INDEPENDENT_REVIEWER), so the person was told.
+		const withoutIndependentReview =
+			design &&
+			current.factory?.approval === "automatic" &&
+			this.factoryIndependentReviewBlocker(current) !== undefined;
 		const task = this.store.updateTaskState(
 			taskId,
 			{
@@ -3797,7 +3803,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					? {
 							factoryDesignProgress: {
 								...design,
-								approvedByPerson: { at: nowIso() },
+								approvedByPerson: {
+									at: nowIso(),
+									...(withoutIndependentReview
+										? { withoutIndependentReview: true as const }
+										: {}),
+								},
 							},
 						}
 					: {}),
@@ -4523,7 +4534,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 											? {
 													planApprovedByPerson: {
 														revision: design.revision,
-														at: design.approvedByPerson.at,
+														...design.approvedByPerson,
 													},
 												}
 											: {}),

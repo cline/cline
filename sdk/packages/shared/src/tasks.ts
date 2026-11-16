@@ -137,8 +137,15 @@ const factoryDesignProgressFields = {
 	 * A person (not automatic approval) approved this plan revision, and when.
 	 * Runs freeze it as `planApprovedByPerson`, so delivery asks only about
 	 * what went beyond the plan (factoryStampRequirement).
+	 * `withoutIndependentReview`: automatic approval held this plan because no
+	 * reviewer runs on a different model, and the person approved it anyway.
 	 */
-	approvedByPerson: z.object({ at: z.string() }).optional(),
+	approvedByPerson: z
+		.object({
+			at: z.string(),
+			withoutIndependentReview: z.literal(true).optional(),
+		})
+		.optional(),
 };
 export const factoryDesignProgressSchema = z
 	.discriminatedUnion("phase", [

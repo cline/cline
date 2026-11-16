@@ -592,6 +592,32 @@ describe("a person is asked once, at the plan", () => {
 		).toEqual({ required: false, reason: "plan approved by a person" });
 	});
 
+	it("records that a person approved a plan held for lack of an independent reviewer", async () => {
+		const h = await harness();
+		// Every reviewer on the builder's model: none is independent.
+		const held = await h.scope(
+			await h.create({}, person, {
+				agents: { planReviewers: [{}], reviewers: [{}] },
+			}),
+		);
+		expect(held.error).toContain("no independent reviewer is configured");
+		const approved = await h.manager.approveTask(
+			held.taskId,
+			person,
+			held.revision,
+		);
+		expect(
+			approved.factoryDesignProgress?.approvedByPerson
+				?.withoutIndependentReview,
+		).toBe(true);
+		const state = await runOf(h, approved);
+		expect(state?.planApprovedByPerson).toEqual({
+			revision: approved.revision,
+			at: approved.factoryDesignProgress?.approvedByPerson?.at,
+			withoutIndependentReview: true,
+		});
+	});
+
 	it("records nothing when the engine approved the plan", async () => {
 		const h = await harness();
 		const task = await h.scope(await h.create({}, agent));

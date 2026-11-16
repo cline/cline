@@ -26,6 +26,7 @@ import {
 	factoryModelFamily,
 	factoryPlanApprovalBlocker,
 	factoryPreparedScopeProblems,
+	factoryPullRequestReadyAllowed,
 	factoryRecordedReviewIndependence,
 	factoryRepairRounds,
 	factoryReplayRequestSchema,
@@ -1536,6 +1537,79 @@ describe("Factory human stamp", () => {
 					attempt("reviewer", "r"),
 				]),
 			).toEqual({ required: true, reason: "reviewer model unknown" });
+		});
+
+		describe("after a person approved the plan", () => {
+			const sameModel = [
+				attempt("builder", "b", "anthropic/claude-sonnet-4"),
+				attempt("reviewer", "r", "anthropic/claude-sonnet-4"),
+			];
+			const approvedState = (
+				planApprovedByPerson: Record<string, unknown>,
+				impact = "local",
+			) =>
+				factoryRunStateSchema.parse({
+					...runStateBase,
+					reviewSelection: { ...wide, impact },
+					attempts: sameModel,
+					planApprovedByPerson: {
+						revision: 3,
+						at: "2035-01-01T00:00:00.000Z",
+						...planApprovedByPerson,
+					},
+				});
+
+			it("does not ask again when it was held for lack of an independent reviewer", () => {
+				const state = approvedState({ withoutIndependentReview: true });
+				const humanReview = factoryStampRequirement(
+					{ autonomy: "hands_off" },
+					state,
+				);
+				expect(humanReview).toEqual({
+					required: false,
+					reason: "plan approved by a person",
+				});
+				// Without a stamp, a same-model review still never marks the PR ready.
+				expect(
+					factoryPullRequestReadyAllowed(
+						{ pullRequestReady: "when_no_review_required" },
+						{
+							humanReview,
+							candidate: factoryCandidateSchema.parse({
+								commit: "c",
+								checks: [
+									{
+										name: "Unit",
+										kind: "test",
+										command: "bun test",
+										status: "passed",
+										exitCode: 0,
+										output: "",
+										artifacts: [],
+									},
+								],
+								reviews: [
+									{
+										reviewerIndex: 0,
+										sessionId: "r",
+										review: { verdict: "pass", summary: "ok", findings: [] },
+									},
+								],
+							}),
+						},
+						factoryRecordedReviewIndependence(state)?.independent === true,
+					),
+				).toBe(false);
+			});
+
+			it("still asks when it was approved for another reason and the reviewer did not run independently", () => {
+				expect(
+					factoryStampRequirement(
+						{ autonomy: "hands_off" },
+						approvedState({}, "shared_contract"),
+					),
+				).toEqual({ required: true, reason: "reviewer model not independent" });
+			});
 		});
 
 		it("needs no stamp for a reviewer on another model, and keeps older runs as they were", () => {

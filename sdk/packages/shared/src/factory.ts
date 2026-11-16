@@ -2706,9 +2706,15 @@ export const factoryRunStateSchema = z.object({
 	 * design progress `approvedByPerson`). The delivery stamp then does not
 	 * ask again for what the plan already showed (its size and the sensitive
 	 * paths it named); it still asks when the result went beyond the plan.
+	 * `withoutIndependentReview`: the person approved it while it was held
+	 * for lack of an independent reviewer, so they already know about that.
 	 */
 	planApprovedByPerson: z
-		.object({ revision: z.number().int().positive(), at: z.string() })
+		.object({
+			revision: z.number().int().positive(),
+			at: z.string(),
+			withoutIndependentReview: z.literal(true).optional(),
+		})
 		.optional(),
 	reviewEscalation: z
 		.object({
@@ -3085,8 +3091,12 @@ export const FACTORY_PLAN_APPROVED_REASON = "plan approved by a person";
  * (`verificationProfile.origin === "proposed"`). When a person approved the
  * run's plan (`planApprovedByPerson`), the plan's own size and the sensitive
  * paths it named were asked about then and are not asked again; escalation
- * (changes beyond the plan), an unknown impact, a changed profile and a
- * reviewer that is not independent still are. A change to the UI delivered
+ * (changes beyond the plan), an unknown impact and a changed profile still
+ * are. A reviewer that ran on the builder's model is asked about unless the
+ * person approved the plan while it was held for lack of an independent
+ * reviewer (`withoutIndependentReview`); one that was configured as
+ * independent but did not run as one is a surprise and is asked about, as is
+ * a reviewer or builder model that went unrecorded. A change to the UI delivered
  * without a screenshot and a recording (factoryVisualProof `missing`) asks a
  * person to look instead of failing the card. `never` is never required.
  * Reasons are short phrases for "Human review: required (<reason>)".
@@ -3140,13 +3150,18 @@ export function factoryStampRequirement(
 	const recorded = factoryRequiresIndependentReview(config)
 		? factoryRecordedReviewIndependence(state)
 		: undefined;
-	if (recorded && !recorded.independent)
+	// Asked once: the plan was held for lack of an independent reviewer.
+	const independenceApproved =
+		recorded?.independent === false &&
+		state.planApprovedByPerson?.withoutIndependentReview === true;
+	if (recorded && !recorded.independent && !independenceApproved)
 		return { required: true, reason: recorded.reason };
 	if (factoryVisualProof(config, state).status === "missing")
 		return { required: true, reason: "not visually verified" };
-	return askedAtPlan &&
-		(state.reviewSelection.impact !== "local" ||
-			factorySensitivePaths(state.reviewSelection.affectedPaths).length)
+	return independenceApproved ||
+		(askedAtPlan &&
+			(state.reviewSelection.impact !== "local" ||
+				factorySensitivePaths(state.reviewSelection.affectedPaths).length))
 		? { required: false, reason: FACTORY_PLAN_APPROVED_REASON }
 		: { required: false, reason: "local change" };
 }
