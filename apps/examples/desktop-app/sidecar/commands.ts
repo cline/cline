@@ -2323,13 +2323,24 @@ export async function handleCommand(
 			binding.hubClient.getUrl() ??
 			binding.sessionManager.runtimeAddress?.trim() ??
 			null;
-		const runningSessionCount = Array.from(ctx.liveSessions.entries()).filter(
-			([sessionId, session]) =>
-				(session.busy || session.status === "running") &&
-				(session.environmentId ??
-					ctx.sessionEnvironmentIds.get(sessionId) ??
-					LOCAL_ENVIRONMENT_ID) === binding.environmentId,
-		).length;
+		const targetEnvironmentId = requestedEnvironmentId(args);
+		const contexts = targetEnvironmentId
+			? [getEnvironmentContext(ctx, targetEnvironmentId)]
+			: getEnvironmentContexts(ctx);
+		const runningSessionCount = contexts.reduce(
+			(total, scoped) =>
+				total +
+				Array.from(scoped.liveSessions.entries()).filter(
+					([sessionId, session]) =>
+						(session.busy || session.status === "running") &&
+						(!targetEnvironmentId ||
+							(session.environmentId ??
+								scoped.sessionEnvironmentIds.get(sessionId) ??
+								scoped.activeEnvironmentId ??
+								LOCAL_ENVIRONMENT_ID) === targetEnvironmentId),
+				).length,
+			0,
+		);
 		return {
 			environmentId: binding.environmentId,
 			workspaceRoot: binding.workspaceRoot,
