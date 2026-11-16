@@ -228,6 +228,12 @@ export class HubAgendaTaskCommandService {
 							.object({
 								factoryReplaySourceRunId: z.string().trim().min(1).optional(),
 								factoryOnly: z.boolean().optional(),
+								factoryBefore: z
+									.object({
+										createdAt: z.string().datetime(),
+										taskId: z.string().min(1),
+									})
+									.optional(),
 								factoryComparisonId:
 									factoryReplayRequestSchema.shape.comparisonId.optional(),
 							})

@@ -160,6 +160,26 @@ describe("HubAgendaTaskCommandService", () => {
 			expect(listed.payload?.tasks).not.toContainEqual(
 				expect.objectContaining({ taskId: ordinary.taskId }),
 			);
+			const nextPage = await service.handleCommand(
+				envelope("task.list", {
+					factoryOnly: true,
+					factoryBefore: {
+						createdAt: factory.createdAt,
+						taskId: factory.taskId,
+					},
+				}),
+				{ ...AUTHORITY, workspaceContext: { workspaceRoot: root, cwd: root } },
+			);
+			expect(nextPage.ok).toBe(true);
+			expect(nextPage.payload?.tasks).toEqual([]);
+			const badCursor = await service.handleCommand(
+				envelope("task.list", {
+					factoryOnly: true,
+					factoryBefore: { createdAt: "not-a-date", taskId: factory.taskId },
+				}),
+				{ ...AUTHORITY, workspaceContext: { workspaceRoot: root, cwd: root } },
+			);
+			expect(badCursor.ok).toBe(false);
 			const invalid = await service.handleCommand(
 				envelope("task.list", { factoryOnly: "true" }),
 				{ ...AUTHORITY, workspaceContext: { workspaceRoot: root, cwd: root } },

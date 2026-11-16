@@ -30,6 +30,7 @@ import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
+import { configureBundledVideoEncoder } from "./video-encoder";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 let activeObservability:
@@ -245,6 +246,7 @@ async function runEntrypoint(): Promise<void> {
 	disableCurrentDirectoryExecutableSearch();
 	// Before the Hub daemon and agent-spawned processes inherit this env.
 	ensureLoopbackProxyBypass();
+	configureBundledVideoEncoder();
 	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
 	// daemon import resolves to the dist build of @cline/core while this bundle
 	// resolves the source build, and a daemon from the other copy publishes a

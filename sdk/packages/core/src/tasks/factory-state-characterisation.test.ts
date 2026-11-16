@@ -277,7 +277,13 @@ async function harness(
 		},
 		/** Scopes a card directly and waits until the plan settles or records an error. */
 		async designed(task: AgendaTaskRecord) {
+			// Scoping does not start while Factory is paused. A test that pauses
+			// to keep the approved run queued still scopes: start it, then pause
+			// again before the designer answers.
+			const paused = current.manager.getFactoryQueueState().paused;
+			if (paused) current.manager.setFactoryPaused(false);
 			await current.manager.startFactoryDesign(task.taskId);
+			if (paused) current.manager.setFactoryPaused(true);
 			await vi.waitFor(async () => {
 				const latest = await h.get(task.taskId);
 				expect(

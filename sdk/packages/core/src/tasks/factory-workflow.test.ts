@@ -991,20 +991,41 @@ describe("durable Factory execution", () => {
 		if (!run || !state?.candidate) throw new Error("Missing delivered run");
 		const store = (h.manager as unknown as { store: SqliteAgendaTaskStore })
 			.store;
-		const current = await h.manager.getTask(task.taskId);
-		// Read-only watching: published, without PR follow-up.
-		const readOnly = {
-			...current,
-			factory: {
-				...current?.factory,
+		const readOnly = store.createTask({
+			...task,
+			taskId: "read-only",
+			specPath: undefined,
+			factory: factoryTaskConfigSchema.parse({
+				...task.factory,
 				watchPullRequest: false,
 				publishPullRequest: true,
-			},
-		} as AgendaTaskRecord;
-		vi.spyOn(store, "listTasks").mockReturnValue([readOnly]);
+			}),
+		});
+		store.updateTaskState(task.taskId, {
+			archivedAt: new Date().toISOString(),
+		});
+		const watchedRun = store.createRun({
+			taskId: readOnly.taskId,
+			taskRevision: readOnly.revision,
+			status: "completed",
+			factory: state,
+		});
+		store.updateTaskState(readOnly.taskId, {
+			status: "completed",
+			lastRunId: watchedRun.runId,
+		});
+		for (let i = 0; i < 1000; i++) {
+			const older = store.createTask({
+				...task,
+				taskId: `finished-${i}`,
+				priority: 0,
+				specPath: undefined,
+			});
+			store.updateTaskState(older.taskId, { status: "completed" });
+		}
 		const claim = vi.spyOn(store, "claimRun").mockReturnValue(undefined);
 		const watchingSince = (days: number) =>
-			store.updateRun(run.runId, {
+			store.updateRun(watchedRun.runId, {
 				completedAt: new Date(Date.now() - days * 86_400_000).toISOString(),
 				factory: {
 					...state,

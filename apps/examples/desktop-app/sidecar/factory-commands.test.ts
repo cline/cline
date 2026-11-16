@@ -445,9 +445,65 @@ describe("Factory commands", () => {
 			3,
 		);
 		expect(gets()).toBe(23);
-		forgetFactoryRuns("done-3");
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const eventContext = createSidecarContext("/workspace/project");
+		handleHubLiveEvent(eventContext, {
+			event: "task.factory.activity",
+			payload: {
+				taskId: "live",
+				sessionId: "builder-live",
+				role: "builder",
+				toolName: "read_files",
+				summary: "Reading",
+				at: 1,
+			},
+		});
 		await sweep();
-		expect(gets()).toBe(25);
+		expect(gets()).toBe(24);
+		handleHubLiveEvent(eventContext, {
+			event: "task.updated",
+			payload: { task: { taskId: "done-3" } },
+		});
+		await sweep();
+		expect(gets()).toBe(26);
+	});
+
+	it("reads attention beyond the first Factory page", async () => {
+		const cards = Array.from({ length: 201 }, (_, index) => ({
+			taskId: `card-${String(201 - index).padStart(3, "0")}`,
+			createdAt: "2026-01-01T00:00:00.000Z",
+			status: "pending_approval",
+			instructions: "Build the feature",
+			revision: 1,
+			factory,
+		}));
+		const readTask = vi.fn<Parameters<typeof handleFactoryCommand>[3]>(
+			async (command, args) => {
+				if (command !== "task.list") return { runs: [] };
+				return {
+					tasks: args.factoryBefore ? cards.slice(200) : cards.slice(0, 200),
+				};
+			},
+		);
+		const items = await handleFactoryCommand(
+			ctx,
+			"factory_attention",
+			undefined,
+			readTask,
+		);
+		expect(items).toHaveLength(201);
+		expect(readTask).toHaveBeenCalledWith(
+			"task.list",
+			expect.objectContaining({
+				factoryOnly: true,
+				factoryBefore: {
+					createdAt: cards[199].createdAt,
+					taskId: cards[199].taskId,
+				},
+			}),
+		);
 	});
 
 	it("lists running role sessions from the run it already reads, with one read per card", async () => {
@@ -811,15 +867,13 @@ describe("Factory commands", () => {
 			on: ["F45"],
 			reason: "F45 was archived before it opened a pull request",
 		});
-		// One list of the unarchived Factory cards that carries every linked
-		// card, and the one delivered card's runs: no read per link.
+		// The complete Factory page includes archived dependency records;
+		// only the delivered card needs its runs read.
 		expect(readTask).toHaveBeenCalledTimes(2);
-		expect(readTask).toHaveBeenCalledWith("task.list", {
-			allWorkspaces: true,
-			factoryOnly: true,
-			limit: 1000,
-			factoryLinks: true,
-		});
+		expect(readTask).toHaveBeenCalledWith(
+			"task.list",
+			expect.objectContaining({ factoryOnly: true, factoryLinks: false }),
+		);
 	});
 
 	it("reports a card whose data fails validation as unreadable and keeps every other card", async () => {

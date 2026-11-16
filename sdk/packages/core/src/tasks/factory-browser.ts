@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { type AgentTool, createTool, zodToJsonSchema } from "@cline/shared";
@@ -27,6 +28,41 @@ export const FACTORY_CAPTURE_NOTES = {
 	notOpened: "The tester did not open the app.",
 	videoTooLarge: "The recording was larger than 20 MB and was not kept.",
 } as const;
+
+/**
+ * A Playwright browsers directory the host ships (the desktop app bundles the
+ * video encoder there). Recording uses it unless PLAYWRIGHT_BROWSERS_PATH is set.
+ */
+export const FACTORY_BROWSERS_PATH_ENV = "CLINE_PLAYWRIGHT_BROWSERS_PATH";
+
+/** The browsers directory to load Playwright with, or undefined for its own default. */
+export function factoryPlaywrightBrowsersPath(
+	env: NodeJS.ProcessEnv,
+	exists: (dir: string) => boolean,
+): string | undefined {
+	if (env.PLAYWRIGHT_BROWSERS_PATH?.trim()) return undefined;
+	const bundled = env[FACTORY_BROWSERS_PATH_ENV]?.trim();
+	return bundled && exists(bundled) ? bundled : undefined;
+}
+
+let playwrightImport: Promise<typeof import("playwright-core")> | undefined;
+
+// Playwright resolves its browsers directory once, when first imported. Set
+// the variable only for that import so the processes the Hub spawns (an
+// agent's own Playwright tests) keep the user's setup.
+function importPlaywright(): Promise<typeof import("playwright-core")> {
+	playwrightImport ??= (async () => {
+		const browsersPath = factoryPlaywrightBrowsersPath(process.env, existsSync);
+		if (!browsersPath) return import("playwright-core");
+		process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath;
+		try {
+			return await import("playwright-core");
+		} finally {
+			delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+		}
+	})();
+	return playwrightImport;
+}
 
 /** A file the capture wrote under its directory, with what the card shows beside it. */
 export type FactoryCaptureFile = {
@@ -186,7 +222,7 @@ export async function openFactoryCapture(input: {
 	const startSession = async (): Promise<Session> => {
 		let playwright: typeof import("playwright-core");
 		try {
-			playwright = await import("playwright-core");
+			playwright = await importPlaywright();
 		} catch {
 			note ??= FACTORY_CAPTURE_NOTES.notInstalled;
 			throw new Error(FACTORY_CAPTURE_NOTES.notInstalled);
@@ -238,7 +274,7 @@ export async function openFactoryCapture(input: {
 			try {
 				page = await context.newPage();
 			} catch (error) {
-				// Video needs Playwright's ffmpeg from its browsers cache.
+				// Video needs Playwright's ffmpeg in its browsers directory.
 				if (!recording || !/ffmpeg/i.test(String(error))) throw error;
 				await context.close().catch(() => undefined);
 				note ??= FACTORY_CAPTURE_NOTES.noEncoder;

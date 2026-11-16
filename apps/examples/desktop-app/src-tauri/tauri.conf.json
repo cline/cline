@@ -45,7 +45,9 @@
 		"resources": [
 			"icons/app/*.png",
 			"icons/app/macos/*.png",
-			"bin/remote-helpers/*"
+			"bin/remote-helpers/*",
+			"bin/playwright/**/*",
+			"THIRD-PARTY-NOTICES.md"
 		],
 		"icon": [
 			"icons/32x32.png",

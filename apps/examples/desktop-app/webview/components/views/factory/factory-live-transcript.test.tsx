@@ -339,3 +339,29 @@ describe("FactoryAgentLanes", () => {
 		).toBe("Waiting for a free slot");
 	});
 });
+
+it("refreshes the final answer when persisted role completion arrives without a chat attachment", async () => {
+	await render({ sessions: [{ sessionId: "builder-1", role: "builder" }] });
+	expect(stateLine()).toBe("Live · Builder");
+	mocks.invoke.mockResolvedValueOnce([
+		{
+			id: "final",
+			sessionId: "builder-1",
+			role: "assistant",
+			content: "Verified and finished",
+			createdAt: 4,
+		},
+	]);
+	await render({
+		sessions: [
+			{
+				sessionId: "builder-1",
+				role: "builder",
+				endedAt: "2026-01-01T00:04:00Z",
+			},
+		],
+	});
+	expect(container.textContent).toContain("Verified and finished");
+	expect(stateLine()).toBe("Builder finished");
+	expect(mocks.invoke).toHaveBeenCalledTimes(2);
+});

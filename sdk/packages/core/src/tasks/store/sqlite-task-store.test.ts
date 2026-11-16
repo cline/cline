@@ -65,6 +65,35 @@ describe("SqliteAgendaTaskStore", () => {
 		};
 	}
 
+	it("pages all Factory cards without ordinary history hiding live work", () => {
+		for (let index = 0; index < 200; index++) {
+			store.createTask(createInput(`ordinary-${index}`));
+		}
+		const config = factoryTaskConfigSchema.parse({});
+		for (let index = 0; index < 205; index++) {
+			store.createTask({ ...createInput(`factory-${index}`), factory: config });
+		}
+		const first = store.listTasks({
+			factoryOnly: true,
+			includeArchived: true,
+			limit: 200,
+		});
+		const last = first.at(-1);
+		if (!last) throw new Error("Expected a first page");
+		const second = store.listTasks({
+			factoryOnly: true,
+			includeArchived: true,
+			limit: 200,
+			factoryBefore: { createdAt: last.createdAt, taskId: last.taskId },
+		});
+		expect(first).toHaveLength(200);
+		expect(second).toHaveLength(5);
+		expect(new Set([...first, ...second].map((task) => task.taskId)).size).toBe(
+			205,
+		);
+		expect([...first, ...second].every((task) => task.factory)).toBe(true);
+	});
+
 	it("advances design queue revision with the proposed brief and preserves it after reopening", () => {
 		const task = store.createTask(
 			{
@@ -549,6 +578,7 @@ describe("SqliteAgendaTaskStore", () => {
 				"agenda_tasks_factory_intake_idx",
 				"agenda_tasks_factory_replay_run_idx",
 				"agenda_tasks_factory_comparison_idx",
+				"agenda_tasks_factory_created_idx",
 				"agenda_tasks_factory_number_idx",
 				"agenda_tasks_factory_unnumbered_idx",
 			])
@@ -911,6 +941,63 @@ describe("SqliteAgendaTaskStore", () => {
 			[WORKSPACE_ROOT, canonicalOther].sort((left, right) =>
 				left.localeCompare(right),
 			),
+		);
+	});
+
+	it("rotates bounded PR-watch pages beyond the first page and survives a removed cursor", () => {
+		for (let i = 0; i < 101; i++) {
+			const task = store.createTask({
+				...createInput(`watch-${String(i).padStart(3, "0")}`),
+				factory: factoryTaskConfigSchema.parse({ watchPullRequest: true }),
+			});
+			const run = store.createRun({
+				taskId: task.taskId,
+				taskRevision: task.revision,
+				status: "completed",
+				factory: factoryRunStateSchema.parse({
+					phase: i === 100 ? "ready" : "watching",
+					repairRound: 0,
+					sessions: [],
+					workspace: {
+						path: WORKSPACE_ROOT,
+						branch: "feature",
+						baseBranch: "main",
+						baseCommit: "base",
+					},
+					pullRequestWatch: {
+						headCommit: "head",
+						handledFeedbackIds: [],
+						...(i === 100
+							? {
+									pending: {
+										feedbackIds: ["feedback"],
+										instructions: "Repair",
+										phase: "repair",
+									},
+								}
+							: {}),
+					},
+				}),
+			});
+			store.updateTaskState(task.taskId, {
+				status: "completed",
+				lastRunId: run.runId,
+			});
+		}
+		const input = { outcomeSince: new Date().toISOString() };
+		const first = store.listFactoryFollowupTasks(input);
+		expect(first).toHaveLength(100);
+		const cursor = first.at(-1)?.taskId;
+		if (!cursor) throw new Error("Missing cursor");
+		store.updateTaskState(cursor, { archivedAt: new Date().toISOString() });
+		const next = store.listFactoryFollowupTasks({
+			...input,
+			afterTaskId: cursor,
+		});
+		expect(next).toHaveLength(100);
+		expect(next[0]?.taskId).toBe("watch-100");
+		expect(new Set([...first, ...next].map((task) => task.taskId)).size).toBe(
+			101,
 		);
 	});
 

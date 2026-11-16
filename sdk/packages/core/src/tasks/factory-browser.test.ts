@@ -1,8 +1,21 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import {
+	cp,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { createRequire } from "node:module";
 import type { AddressInfo } from "node:net";
-import { networkInterfaces, tmpdir } from "node:os";
+import { homedir, networkInterfaces, tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { chromium } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -10,12 +23,67 @@ import {
 	stopFactoryAppEnvironment,
 } from "./factory-app-environment";
 import {
+	FACTORY_BROWSERS_PATH_ENV,
 	FACTORY_CAPTURE_NOTES,
 	type FactoryCapture,
 	factoryCaptureFor,
+	factoryPlaywrightBrowsersPath,
 	openFactoryCapture,
 } from "./factory-browser";
 import { collectFactoryCapture } from "./factory-local";
+
+describe("factoryPlaywrightBrowsersPath", () => {
+	const exists = (dir: string) => dir === "/app/browsers";
+	it("uses the host's directory only when it exists and the user set none", () => {
+		expect(
+			factoryPlaywrightBrowsersPath(
+				{ [FACTORY_BROWSERS_PATH_ENV]: "/app/browsers" },
+				exists,
+			),
+		).toBe("/app/browsers");
+		expect(
+			factoryPlaywrightBrowsersPath(
+				{ [FACTORY_BROWSERS_PATH_ENV]: "/app/missing" },
+				exists,
+			),
+		).toBeUndefined();
+		expect(
+			factoryPlaywrightBrowsersPath(
+				{
+					[FACTORY_BROWSERS_PATH_ENV]: "/app/browsers",
+					PLAYWRIGHT_BROWSERS_PATH: "/user/browsers",
+				},
+				exists,
+			),
+		).toBeUndefined();
+		expect(factoryPlaywrightBrowsersPath({}, exists)).toBeUndefined();
+	});
+});
+
+/** This machine's copy of the encoder in Playwright's default cache, if any. */
+function localEncoderDir(): string | undefined {
+	const packageJson = createRequire(import.meta.url).resolve(
+		"playwright-core/package.json",
+	);
+	const { browsers } = JSON.parse(
+		readFileSync(path.join(path.dirname(packageJson), "browsers.json"), "utf8"),
+	) as { browsers: Array<{ name: string; revision: string }> };
+	const revision = browsers.find((entry) => entry.name === "ffmpeg")?.revision;
+	const cache =
+		process.env.PLAYWRIGHT_BROWSERS_PATH ||
+		path.join(
+			process.platform === "darwin"
+				? path.join(homedir(), "Library", "Caches")
+				: process.platform === "win32"
+					? process.env.LOCALAPPDATA || path.join(homedir(), "AppData", "Local")
+					: process.env.XDG_CACHE_HOME || path.join(homedir(), ".cache"),
+			"ms-playwright",
+		);
+	const dir = path.join(cache, `ffmpeg-${revision}`);
+	return revision && existsSync(path.join(dir, "INSTALLATION_COMPLETE"))
+		? dir
+		: undefined;
+}
 
 /** Whether Chrome or Edge is installed; the capture never downloads one. */
 async function installedBrowser(): Promise<boolean> {
@@ -182,6 +250,53 @@ describe.skipIf(!(await installedBrowser()))("factory browser capture", () => {
 		if (note === FACTORY_CAPTURE_NOTES.noEncoder) return;
 		expect(files.map((file) => file.mimeType)).toEqual(["video/webm"]);
 	});
+
+	// Playwright fixes its browsers directory when first imported, so this runs
+	// in a fresh process whose HOME has no Playwright cache.
+	it.skipIf(!localEncoderDir())(
+		"records with a browsers directory that holds only the encoder",
+		async () => {
+			const encoder = localEncoderDir() as string;
+			const browsers = path.join(root, "bundled", "browsers");
+			await cp(encoder, path.join(browsers, path.basename(encoder)), {
+				recursive: true,
+			});
+			const home = path.join(root, "bundled", "home");
+			await mkdir(home);
+			const script = path.join(root, "bundled", "record.ts");
+			const capture = path.join(root, "bundled", "capture");
+			await writeFile(
+				script,
+				`import { openFactoryCapture } from ${JSON.stringify(fileURLToPath(new URL("./factory-browser.ts", import.meta.url)))};
+const capture = await openFactoryCapture({ worktree: ${JSON.stringify(path.join(root, "bundled", "worktree"))}, origin: "http://localhost:${port}", dir: ${JSON.stringify(capture)}, token: "bundled-token", signal: new AbortController().signal });
+await capture.run({ action: "open", path: "/" });
+const result = await capture.finish();
+console.log(JSON.stringify({ ...result, leaked: process.env.PLAYWRIGHT_BROWSERS_PATH ?? null }));`,
+			);
+			const env = { ...process.env };
+			for (const name of [
+				"PLAYWRIGHT_BROWSERS_PATH",
+				"XDG_CACHE_HOME",
+				"LOCALAPPDATA",
+			])
+				delete env[name];
+			const { stdout } = await promisify(execFile)(
+				process.versions.bun ? process.execPath : "bun",
+				[script],
+				{
+					env: { ...env, HOME: home, [FACTORY_BROWSERS_PATH_ENV]: browsers },
+				},
+			);
+			const result = JSON.parse(stdout.trim().split("\n").at(-1) as string);
+			expect(result.note).toBeUndefined();
+			expect(result.leaked).toBeNull();
+			const video = result.files.find(
+				(file: { mimeType: string }) => file.mimeType === "video/webm",
+			);
+			expect((await stat(video.file)).size).toBeGreaterThan(0);
+		},
+		60_000,
+	);
 
 	it("refuses the action after the per-session limit", async () => {
 		const capture = await start("limit");

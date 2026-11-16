@@ -10,6 +10,7 @@ import type {
 import { compareAgendaTasks } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { desktopClient } from "@/lib/desktop-client";
+import { readFactoryTaskPages } from "../../shared/factory-task-pages";
 
 const TASK_EVENTS = [
 	"task.created",
@@ -163,12 +164,15 @@ export function useAgendaAutomation(enabled = true): UseAgendaAutomationResult {
  * the current projection and reconnects cannot leave stale Agenda state.
  */
 export function useAgendaTasks(
-	filters: AgendaTaskListInput & { allWorkspaces?: boolean } = {},
+	filters: AgendaTaskListInput & {
+		allWorkspaces?: boolean;
+		allFactoryPages?: boolean;
+	} = {},
 	enabled = true,
 ): UseAgendaTasksResult {
 	const filtersKey = JSON.stringify(filters);
 	const parsedFilters = useMemo(
-		() => JSON.parse(filtersKey) as AgendaTaskListInput,
+		() => JSON.parse(filtersKey) as typeof filters,
 		[filtersKey],
 	);
 	const [tasks, setTasks] = useState<AgendaTaskRecord[]>([]);
@@ -189,7 +193,14 @@ export function useAgendaTasks(
 		const requestId = ++requestSequence.current;
 		setIsLoading(true);
 		try {
-			const nextTasks = await desktopClient.listAgendaTasks(parsedFilters);
+			const { allFactoryPages, ...listFilters } = parsedFilters;
+			const nextTasks = allFactoryPages
+				? await readFactoryTaskPages((page) =>
+						requestId === requestSequence.current
+							? desktopClient.listAgendaTasks({ ...listFilters, ...page })
+							: Promise.resolve([]),
+					)
+				: await desktopClient.listAgendaTasks(listFilters);
 			if (requestId !== requestSequence.current) return;
 			setTasks(sortAgendaTasks(nextTasks));
 			setError(null);

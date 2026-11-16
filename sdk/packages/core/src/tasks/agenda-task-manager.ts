@@ -645,8 +645,6 @@ const FACTORY_NO_INDEPENDENT_REVIEWER =
 
 /** How long a computed daily spend is reused before it is summed again. */
 const FACTORY_SPEND_CACHE_MS = 5_000;
-/** Runs per card that both spend sums (the card's and the daily) read. */
-const FACTORY_SPEND_RUNS_LIMIT = 100;
 /** How long "Remove finished copies" waits before replying that it goes on. */
 const FACTORY_STORAGE_CLEAN_REPLY_MS = 20_000;
 
@@ -2073,10 +2071,16 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				judges.add(sessionId);
 			else this.factoryJudgeSessions.delete(sessionId);
 		}
-		for (const task of this.store.listTasks({
-			factoryOnly: true,
-			includeArchived: true,
-			limit: 1000,
+		for (const task of this.store.iterateFactorySpendTasks({
+			since: new Date(since).toISOString(),
+			activeTaskIds: [
+				...new Set([
+					...this.designControllers.keys(),
+					...[...this.feedbackAnalysisStarts]
+						.filter(([, startedAt]) => startedAt >= since)
+						.map(([taskId]) => taskId),
+				]),
+			],
 		})) {
 			const check = task.factory?.duplicateCheck;
 			if (check?.sessionId && Date.parse(check.at) >= since)
@@ -2084,19 +2088,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			for (const report of task.factoryDuplicateReports?.recent ?? [])
 				if (report.judgeSessionId && Date.parse(report.at) >= since)
 					judges.add(report.judgeSessionId);
-			if (
-				Date.parse(task.updatedAt) < since &&
-				!task.currentRunId &&
-				!this.designControllers.has(task.taskId) &&
-				!((this.feedbackAnalysisStarts.get(task.taskId) ?? 0) >= since)
-			)
-				continue;
+
 			const known = new Map<string, SessionUsageMetadata>();
 			const counted = new Set<string>();
-			const runs = this.store.listRuns({
-				taskId: task.taskId,
-				limit: FACTORY_SPEND_RUNS_LIMIT,
-			});
+			const runs = this.store.listFactorySpendRuns(task.taskId);
 			for (const run of runs) {
 				const state = run.factory;
 				if (!state) continue;
@@ -2219,10 +2214,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	): { usd: number; unrecorded: string[] } {
 		const known = new Map<string, SessionUsageMetadata>();
 		const sessions = new Set<string>();
-		const runs = this.store.listRuns({
-			taskId: task.taskId,
-			limit: FACTORY_SPEND_RUNS_LIMIT,
-		});
+		const runs = this.store.listFactorySpendRuns(task.taskId);
 		for (const run of runs)
 			for (const entry of [
 				...(run.factory?.sessionUsage ?? []),
@@ -2289,6 +2281,17 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				? reason
 				: undefined,
 		);
+	}
+
+	private async assertFactoryDesignSpending(taskId: string): Promise<void> {
+		const cardLimit = await this.factorySpendingLimitBlocker(
+			this.requireTask(taskId),
+		);
+		if (cardLimit) throw new Error(cardLimit);
+		// A preceding designer or reviewer may have spent since the cached sum.
+		this.factorySpendCache = undefined;
+		const dailyLimit = await this.factoryRuntime.factoryAdmissionBlocker?.();
+		if (dailyLimit) throw new FactoryDeferredError(dailyLimit);
 	}
 
 	/** Queue and slot state for status reports: queue order and cards being worked. */
@@ -4771,11 +4774,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	}
 
 	/**
-	 * Starts scoping now, whatever the pause, slots or daily limit: the
-	 * queue's own start (`pumpFactoryQueue`) and tools that drive one card
-	 * directly (the decision evals). People's and agents' requests go
-	 * through `queueFactoryScoping`. `resume` keeps scoping a settled plan
-	 * as it is instead of designing afresh.
+	 * Starts the queue's scoping work, checking pause, slots and fresh-session
+	 * spending limits again. People's and agents' requests go through
+	 * `queueFactoryScoping`. `resume` keeps a settled plan instead of
+	 * designing afresh; completed sessions can be adopted at the limit.
 	 */
 	async startFactoryDesign(
 		taskId: string,
@@ -4798,8 +4800,19 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		const existing = this.designSessions.get(taskId);
 		if (existing) return existing;
 		this.runtime.validateFactoryAgents?.(task);
-		// Scoping and redesigns count toward the card's spending limit.
-		const limitCheck = this.factorySpendingLimitBlocker(task);
+		const resuming =
+			task.factoryDesignProgress?.revision === task.revision &&
+			(resume || task.factoryDesignProgress.phase !== "complete");
+		if (!resuming && this.factoryPaused)
+			throw new FactoryDeferredError(
+				"Factory is paused; resume it to start new work",
+			);
+		if (this.factoryWorkingCount(taskId) >= this.factoryConcurrency)
+			throw new FactoryDeferredError("The factory is at its concurrency limit");
+		// Recorded sessions can be adopted at the limit; fresh sessions check below.
+		const limitCheck = resuming
+			? undefined
+			: this.factorySpendingLimitBlocker(task);
 		const spendingLimit =
 			limitCheck instanceof Promise ? await limitCheck : limitCheck;
 		const started = this.designSessions.get(taskId);
@@ -4830,6 +4843,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			if (!task.factory)
 				throw new Error("Only feature tasks have a design interview");
 		}
+		const admitted = this.designSessions.get(taskId);
+		if (admitted) return admitted;
+		if (this.factoryWorkingCount(taskId) >= this.factoryConcurrency)
+			throw new FactoryDeferredError("The factory is at its concurrency limit");
 		this.store.enqueueFactory({
 			taskId,
 			expectedRevision: task.revision,
@@ -4924,6 +4941,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					return { sessionId: progress.designerSessionId };
 				if (recovered?.status === "running")
 					throw new Error("Feature design is already running");
+				await this.assertFactoryDesignSpending(taskId);
+				if (this.factoryPaused)
+					throw new FactoryDeferredError(
+						"Factory is paused; resume it to start new work",
+					);
+				active.controller.signal.throwIfAborted();
 				return createDesignSession(
 					resolveFactoryAgent(task, agents.designer),
 					requestedByClientId,
@@ -5000,6 +5023,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				this.designSessions.delete(taskId);
 			if (this.designControllers.get(taskId) === active)
 				this.designControllers.delete(taskId);
+			if (error instanceof FactoryDeferredError) throw error;
 			const current =
 				!this.disposed && !active.controller.signal.aborted
 					? this.store.getTask(taskId)
@@ -5818,6 +5842,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						recovered?.status !== "cancelled" &&
 						!active.sessions.has(sessionId)
 					) {
+						await this.assertFactoryDesignSpending(task.taskId);
+						assertCurrent();
 						const created = await this.runtime.startDesignSession?.(
 							resolveFactoryAgent(proposal, agents.designer),
 							clientId,
@@ -6398,6 +6424,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							assertCurrent();
 							if (recovered?.status === "running")
 								throw new Error("Plan review is already running");
+							if (
+								recovered?.status !== "completed" &&
+								recovered?.status !== "failed" &&
+								recovered?.status !== "cancelled"
+							) {
+								await this.assertFactoryDesignSpending(task.taskId);
+								assertCurrent();
+							}
 							const started: { sessionId: string } =
 								recovered?.status === "completed" ||
 								recovered?.status === "failed" ||
@@ -6674,6 +6708,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			}
 		} catch (error) {
 			if (this.disposed || active.controller.signal.aborted) return;
+			if (error instanceof FactoryDeferredError) return;
 			const current = this.store.getTask(task.taskId);
 			// Edited during scoping: updateTask queued the new brief, which the
 			// pump scopes once this designer is gone.
@@ -7380,32 +7415,34 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							failures,
 						});
 						if (failures >= FACTORY_MERGE_CHECK_FAILURES)
-							changed ||= Boolean(
-								this.writeFactoryBlockedBy(task.taskId, (current) =>
-									current.unreadable?.[earlierId]
-										? undefined
-										: {
-												...current,
-												unreadable: {
-													...current.unreadable,
-													[earlierId]: { at: nowIso(), prUrl },
+							changed =
+								Boolean(
+									this.writeFactoryBlockedBy(task.taskId, (current) =>
+										current.unreadable?.[earlierId]
+											? undefined
+											: {
+													...current,
+													unreadable: {
+														...current.unreadable,
+														[earlierId]: { at: nowIso(), prUrl },
+													},
 												},
-											},
-								),
-							);
+									),
+								) || changed;
 						continue;
 					}
 					views.set(prUrl, view);
 					this.factoryMergeChecks.set(prUrl, { at: Date.now(), failures: 0 });
 				}
 				if (view.state === "MERGED")
-					changed ||= Boolean(
-						this.settleFactoryMerge(task.taskId, earlierId, {
-							prUrl,
-							into: view.baseBranch,
-							earlierBase: state.workspace.baseBranch,
-						}),
-					);
+					changed =
+						Boolean(
+							this.settleFactoryMerge(task.taskId, earlierId, {
+								prUrl,
+								into: view.baseBranch,
+								earlierBase: state.workspace.baseBranch,
+							}),
+						) || changed;
 				else {
 					// Recorded on the earlier part's run as PR follow-up records it,
 					// which may no longer be polling (archived, stopped, too old).
@@ -7424,18 +7461,19 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							});
 						}
 					if (blockedBy.unreadable?.[earlierId])
-						changed ||= Boolean(
-							this.writeFactoryBlockedBy(task.taskId, (current) => {
-								const { [earlierId]: _cleared, ...unreadable } =
-									current.unreadable ?? {};
-								return {
-									...current,
-									unreadable: Object.keys(unreadable).length
-										? unreadable
-										: undefined,
-								};
-							}),
-						);
+						changed =
+							Boolean(
+								this.writeFactoryBlockedBy(task.taskId, (current) => {
+									const { [earlierId]: _cleared, ...unreadable } =
+										current.unreadable ?? {};
+									return {
+										...current,
+										unreadable: Object.keys(unreadable).length
+											? unreadable
+											: undefined,
+									};
+								}),
+							) || changed;
 				}
 			}
 		}
@@ -7628,15 +7666,14 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			this.factoryWorkingCount() >= this.factoryConcurrency
 		)
 			return;
-		const tasks = this.store.listTasks({
-			statuses: ["completed"],
-			limit: 1000,
+		const tasks = this.store.listFactoryFollowupTasks({
+			afterTaskId: this.lastFactoryFollowupTaskId,
+			outcomeSince: new Date(
+				Date.now() - FACTORY_OUTCOME_WATCH_MAX_AGE_DAYS * DAY_MS,
+			).toISOString(),
 		});
-		const start =
-			tasks.findIndex(
-				(task) => task.taskId === this.lastFactoryFollowupTaskId,
-			) + 1;
-		for (const task of [...tasks.slice(start), ...tasks.slice(0, start)]) {
+		for (const task of tasks) {
+			this.lastFactoryFollowupTaskId = task.taskId;
 			if (
 				(!factoryWatchesPullRequest(task.factory) &&
 					!task.factory?.publishPullRequest) ||
@@ -7696,7 +7733,6 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				followup: true as const,
 			};
 			this.factoryControllers.set(task.taskId, active);
-			this.lastFactoryFollowupTaskId = task.taskId;
 			const completion = this.finishFactoryFollowup(
 				current,
 				claimed,

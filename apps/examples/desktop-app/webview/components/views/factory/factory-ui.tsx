@@ -393,17 +393,14 @@ export type FactoryBoardData = {
 };
 
 /**
- * The task list Factory reads, in every workspace: every unarchived Factory
- * card (up to the Hub's cap of 1000), then the newest archived ones.
+ * Read all Factory cards across workspaces in bounded pages, including
+ * archived history and linked parts.
  */
 export const FACTORY_AGENDA_FILTERS = {
 	allWorkspaces: true,
 	factoryOnly: true,
 	includeArchived: true,
-	limit: 1000,
-	archivedLimit: 200,
-	// A split's parent, parts and earlier parts, even beyond the limit.
-	factoryLinks: true,
+	allFactoryPages: true,
 } as const;
 
 /**

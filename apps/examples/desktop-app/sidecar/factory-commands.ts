@@ -24,6 +24,7 @@ import {
 	isFactoryHandsOff,
 } from "@cline/shared";
 import { z } from "zod";
+import { readFactoryTaskPages } from "../shared/factory-task-pages";
 import {
 	currentFactoryRunState,
 	type FactoryCardLinks,
@@ -617,18 +618,19 @@ export async function handleFactoryCommand(
 			error: error instanceof Error ? error.message : String(error),
 		});
 	};
-	const list = async () =>
-		readFactoryListTasks(
-			// Every unarchived card, as on the board; only split links bring
-			// archived cards, which attention reads just for a part's dependency.
-			await readTask("task.list", {
-				allWorkspaces: true,
-				factoryOnly: true,
-				limit: 1000,
-				factoryLinks: true,
-			}),
-			reportUnreadable,
+	const list = async () => {
+		const tasks = await readFactoryTaskPages(
+			async (page) =>
+				tasksReplySchema.parse(
+					await readTask("task.list", {
+						allWorkspaces: true,
+						includeArchived: true,
+						...page,
+					}),
+				).tasks,
 		);
+		return readFactoryListTasks({ tasks }, reportUnreadable);
+	};
 	if (command === "factory_get_diff") {
 		const input = z
 			.object({

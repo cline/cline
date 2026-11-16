@@ -21,6 +21,7 @@ import {
 	FACTORY_VERIFICATION_PROFILE_PATH,
 	factoryTaskConfigSchema,
 } from "@cline/shared";
+import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	AgendaTaskManager,
@@ -1093,6 +1094,86 @@ describe("safety gates", () => {
 		).rejects.toThrow("This card reached its $10 spending limit");
 		expect(states).toHaveLength(2);
 		expect((await h.get(task.taskId)).status).toBe("failed");
+	});
+
+	it("keeps spend from earlier runs after more than 100 retries", async () => {
+		const h = await harness();
+		const task = await h.create("Many runs", { maxCostUsd: 2 });
+		const store = (h.manager as unknown as { store: SqliteAgendaTaskStore })
+			.store;
+		const at = new Date().toISOString();
+		for (let i = 0; i < 101; i++)
+			store.createRun({
+				taskId: task.taskId,
+				taskRevision: task.revision,
+				status: "completed",
+				factory: {
+					phase: "ready",
+					repairRound: 0,
+					sessions: [],
+					workspace: {
+						path: h.workspaceRoot,
+						branch: "feature",
+						baseBranch: "main",
+						baseCommit: "base",
+					},
+					attempts: i
+						? []
+						: [
+								{
+									id: "first",
+									key: "build",
+									role: "builder",
+									repairRound: 0,
+									createdAt: at,
+									completedAt: at,
+									sessionId: "first-builder",
+									instructions: "",
+									agent: {},
+									status: "completed",
+									summary: "Completed",
+									usage: usage(3),
+								},
+							],
+				},
+			});
+		// Run updates (such as feedback analysis) need not refresh the card timestamp.
+		const db = loadSqliteDb(join(h.workspaceRoot, "..", "tasks.db"));
+		try {
+			db.prepare(
+				"UPDATE agenda_tasks SET updated_at = ? WHERE task_id = ?",
+			).run(new Date(Date.now() - 2 * 86_400_000).toISOString(), task.taskId);
+		} finally {
+			db.close?.();
+		}
+
+		expect(await h.manager.getFactorySpentTodayUsd()).toBe(3);
+		await expect(h.manager.startFactoryDesign(task.taskId)).rejects.toThrow(
+			"This card reached its $2 spending limit",
+		);
+		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+	});
+
+	it("counts older active cards beyond the board history limit", async () => {
+		const h = await harness();
+		const spent = await h.create("Older active card");
+		h.patch(spent.taskId, {
+			factoryDesignSessionIds: [`factory_design_${Date.now()}_abcde`],
+		});
+		const store = (h.manager as unknown as { store: SqliteAgendaTaskStore })
+			.store;
+		for (let i = 0; i < 1000; i++) {
+			const task = store.createTask({
+				...spent,
+				taskId: `newer-${i}`,
+				specPath: undefined,
+			});
+			store.updateTaskState(task.taskId, {
+				archivedAt: new Date().toISOString(),
+			});
+		}
+		h.runtime.getSessionUsage = vi.fn(async () => usage(3));
+		expect(await h.manager.getFactorySpentTodayUsd()).toBe(3);
 	});
 
 	it("starts no queued work once today's spend reached the daily limit, and resumes when it is raised", async () => {

@@ -694,8 +694,27 @@ describe("a parent and its parts", () => {
 });
 
 describe("ordered parts", () => {
-	it("holds no slot while waiting, and latches the merge while paused, at the daily limit and with every slot busy, even after the earlier part's follow-up stopped", async () => {
+	it("latches every successor of the same merged pull request in one pass", async () => {
 		const h = await harness();
+		const { parts } = await h.approvedSplit();
+		const [earlier, first, second] = parts;
+		if (!earlier || !first || !second) throw new Error("Missing parts");
+		h.store().setFactoryBlockedBy(first.taskId, {
+			taskIds: [earlier.taskId],
+			met: {},
+		});
+		h.deliver(earlier.taskId);
+		const calls = h.gh("MERGED");
+		await h.internals().checkFactoryMerges();
+		for (const successor of [first, second])
+			expect((await h.get(successor.taskId)).factoryBlockedBy?.met).toEqual({
+				[earlier.taskId]: { at: expect.any(String), prUrl: PR },
+			});
+		expect(calls()).toHaveLength(1);
+	});
+
+	it("holds no slot while waiting, and latches the merge while paused, at the daily limit and with every slot busy, even after the earlier part's follow-up stopped", async () => {
+		const h = await harness({ approval: "required" });
 		const { parts } = await h.approvedSplit();
 		const [exporting, footer, linking] = parts as [
 			AgendaTaskRecord,

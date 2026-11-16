@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { stageVideoEncoder } from "./stage-video-encoder";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
 const resolveTargetTriple = async (): Promise<string> => {
@@ -139,6 +140,7 @@ const main = async () => {
 		await buildSidecar(targetTriple);
 	}
 	await buildRemoteHelpers();
+	await stageVideoEncoder(targetTriple);
 };
 
 main().catch((error: unknown) => {

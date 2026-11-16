@@ -932,9 +932,10 @@ export function handleHubLiveEvent(
 	// surfaces stay current without polling.
 	if (event.event.startsWith("task.")) {
 		const task = event.payload?.task as { taskId?: unknown } | undefined;
-		forgetFactoryRuns(
-			typeof task?.taskId === "string" ? task.taskId : undefined,
-		);
+		if (event.event !== "task.factory.activity") {
+			const taskId = task?.taskId ?? event.payload?.taskId;
+			forgetFactoryRuns(typeof taskId === "string" ? taskId : undefined);
+		}
 		sendEvent(ctx, event.event, {
 			...(event.payload ?? {}),
 			...(event.sessionId ? { sessionId: event.sessionId } : {}),

@@ -130,7 +130,8 @@ export function FactoryLiveTranscript({
 	const selected = sessions.find((session) => session.sessionId === selectedId);
 	const transcript = useFactorySessionTranscript(selected?.sessionId, {
 		ended: selected
-			? activity?.sessions.get(selected.sessionId)?.ended === true
+			? Boolean(selected.endedAt) ||
+				activity?.sessions.get(selected.sessionId)?.ended === true
 			: false,
 	});
 	if (!selected) return null;

@@ -187,6 +187,185 @@ async function harness(
 }
 
 describe("Factory design review", () => {
+	it("blocks direct scoping while Factory is paused", async () => {
+		const h = await harness();
+		h.manager.setFactoryPaused(true);
+		await expect(h.manager.startFactoryDesign(h.task.taskId)).rejects.toThrow(
+			"Factory is paused",
+		);
+		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+	});
+
+	it("queues scoping at the daily limit and resumes when it is raised", async () => {
+		const h = await harness();
+		const store = new SqliteAgendaTaskStore({ dbPath: h.dbPath });
+		try {
+			store.updateTaskState(h.task.taskId, {
+				factoryDesignSessionIds: ["earlier-design"],
+			});
+		} finally {
+			store.close();
+		}
+		h.runtime.getSessionUsage = vi.fn(async () => ({
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 2,
+		}));
+		h.manager.setFactoryDailyCostUsd(1);
+		await expect(h.manager.startFactoryDesign(h.task.taskId)).rejects.toThrow(
+			"daily spending limit",
+		);
+		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+		expect(await h.current()).toMatchObject({
+			status: "pending_approval",
+			factoryQueued: "design",
+		});
+		expect((await h.current()).error).toBeUndefined();
+		await h.manager.start();
+		h.manager.setFactoryDailyCostUsd(50);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("reserves the last card slot before asynchronous scoping admission", async () => {
+		const held = gate();
+		const h = await harness();
+		h.manager.setFactoryConcurrency(1);
+		vi.mocked(h.runtime.startDesignSession).mockImplementation(async () => {
+			await held.promise;
+			return { sessionId: "designer" };
+		});
+		const second = await h.manager.createTask({
+			title: "Another feature",
+			type: "follow-up",
+			instructions: "Another brief",
+			scope: "workspace",
+			workspaceRoot: h.task.workspaceRoot,
+			expiresAt: h.task.expiresAt,
+			createdBy: { kind: "user" },
+			factory: h.task.factory,
+		});
+		const starting = h.manager.startFactoryDesign(h.task.taskId);
+		const other = h.manager.startFactoryDesign(second.taskId);
+		held.release();
+		await expect(other).rejects.toThrow("concurrency limit");
+		await starting;
+	});
+
+	it.each([
+		"daily",
+		"card",
+	] as const)("rechecks the %s limit before plan reviewers and designer retries", async (limit) => {
+		for (const invalidOutput of [false, true]) {
+			const h = await harness();
+			if (limit === "daily") h.manager.setFactoryDailyCostUsd(1);
+			else
+				await h.manager.updateTask({
+					taskId: h.task.taskId,
+					expectedRevision: h.task.revision,
+					factory: factoryTaskConfigSchema.parse({
+						...h.task.factory,
+						maxCostUsd: 1,
+					}),
+					updatedBy: { kind: "user" },
+				});
+			let spent = 0;
+			h.runtime.getSessionUsage = vi.fn(async () => ({
+				inputTokens: 1,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: spent,
+			}));
+			const run = vi.mocked(h.runtime.runDesignSession).getMockImplementation();
+			if (!run) throw new Error("Missing design runtime");
+			vi.mocked(h.runtime.runDesignSession).mockImplementation(
+				async (sessionId, task) => {
+					spent = 2;
+					return invalidOutput
+						? { status: "completed", summary: "Unusable output" }
+						: run(sessionId, task);
+				},
+			);
+			await h.manager.startFactoryDesign(h.task.taskId);
+			await vi.waitFor(async () => {
+				expect(h.manager.getFactoryQueueState().working).not.toContain(
+					h.task.taskId,
+				);
+				const current = await h.current();
+				if (limit === "daily")
+					expect(current).toMatchObject({
+						status: "pending_approval",
+						factoryQueued: "design",
+					});
+				else expect(current.error).toContain("spending limit");
+			});
+			expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+			expect(h.runtime.startDesignReviewSession).not.toHaveBeenCalled();
+			if (limit === "daily") {
+				expect((await h.current()).error).toBeUndefined();
+				vi.mocked(h.runtime.runDesignSession).mockImplementation(run);
+				await h.manager.start();
+				h.manager.setFactoryDailyCostUsd(null);
+				await vi.waitFor(async () =>
+					expect((await h.current()).factoryDesignProgress?.phase).toBe(
+						"complete",
+					),
+				);
+				expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(
+					invalidOutput ? 2 : 1,
+				);
+				expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(2);
+			}
+		}
+	});
+
+	it("adopts a completed plan reviewer while paused and at the spending limit", async () => {
+		const h = await harness({
+			startReview: async (index) => {
+				if (index === 1) throw new Error("Review start response lost");
+			},
+		});
+		await h.manager.updateTask({
+			taskId: h.task.taskId,
+			expectedRevision: h.task.revision,
+			factory: factoryTaskConfigSchema.parse({
+				...h.task.factory,
+				maxCostUsd: 10,
+			}),
+			updatedBy: { kind: "user" },
+		});
+		await h.manager.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).error).toContain("Review start response lost"),
+		);
+		const starts = vi.mocked(h.runtime.startDesignReviewSession).mock.calls
+			.length;
+		h.runtime.reconcileSession = vi.fn<
+			NonNullable<AgendaTaskRuntime["reconcileSession"]>
+		>(async () => ({ status: "completed", summary: pass }));
+		h.runtime.getSessionUsage = vi.fn(async () => ({
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 20,
+		}));
+		const restarted = await h.restart();
+		restarted.setFactoryPaused(true);
+		restarted.setFactoryDailyCostUsd(1);
+		await restarted.startFactoryDesign(h.task.taskId);
+		await vi.waitFor(async () =>
+			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
+		);
+		expect(h.runtime.startDesignReviewSession).toHaveBeenCalledTimes(starts);
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+	});
+
 	const localSelection: FactoryReviewSelection = {
 		impact: "local",
 		rationale: "A local behavior change",
@@ -273,8 +452,8 @@ describe("Factory design review", () => {
 		await vi.waitFor(async () =>
 			expect((await h.current()).factoryDesignProgress?.phase).toBe("complete"),
 		);
-		const selection = (await h.current()).factoryDesignProgress
-			?.reviewSelection;
+		const current = await h.current();
+		const selection = current.factoryDesignProgress?.reviewSelection;
 		expect(selection).toMatchObject({
 			impact: "shared_contract",
 			planReviewerIndices: [],
@@ -284,7 +463,13 @@ describe("Factory design review", () => {
 		expect(
 			factoryStampRequirement(
 				{ autonomy: "hands_off" },
-				{ reviewSelection: selection, planApprovedByPerson: true },
+				{
+					reviewSelection: selection,
+					planApprovedByPerson: {
+						revision: current.revision,
+						at: current.updatedAt,
+					},
+				},
 			),
 		).toEqual({ required: true, reason: "too few reviewers configured" });
 	});

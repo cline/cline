@@ -672,6 +672,15 @@ export class SqliteAgendaTaskStore {
 			params.push(value);
 		}
 		if (input.factoryOnly) where.push("factory_json IS NOT NULL");
+		if (input.factoryBefore) {
+			if (!input.factoryOnly)
+				throw new Error("Factory pagination requires factoryOnly");
+			where.push("(created_at, task_id) < (?, ?)");
+			params.push(
+				isoTimestamp(input.factoryBefore.createdAt, "factoryBefore.createdAt"),
+				input.factoryBefore.taskId,
+			);
+		}
 		const order =
 			input.factoryReplaySourceRunId || input.factoryOnly
 				? "created_at DESC, task_id DESC"
@@ -1027,10 +1036,80 @@ export class SqliteAgendaTaskStore {
 		}
 	}
 
-	/**
-	 * Parts that may still wait for earlier merges: linked, not started
-	 * anyway, not archived, and not past approval.
-	 */
+	/** Spend candidates, including archived cards, in bounded task-id pages. */
+	public *iterateFactorySpendTasks(input: {
+		since: string;
+		activeTaskIds: string[];
+	}): Generator<AgendaTaskRecord> {
+		let after = "";
+		const active = input.activeTaskIds.length
+			? ` OR task_id IN (${placeholders(input.activeTaskIds.length)})`
+			: "";
+		while (true) {
+			const tasks = this.db
+				.prepare(`${SELECT_TASKS}
+				WHERE factory_json IS NOT NULL AND task_id > ? AND (
+					updated_at >= ? OR current_run_id IS NOT NULL
+					OR EXISTS (SELECT 1 FROM agenda_task_runs AS run
+						WHERE run.task_id = agenda_tasks.task_id AND run.factory_json IS NOT NULL
+						AND run.updated_at >= ?)
+					OR json_extract(factory_json, '$.duplicateCheck.at') >= ?
+					OR EXISTS (SELECT 1 FROM json_each(factory_duplicate_reports_json, '$.recent')
+						WHERE json_extract(value, '$.at') >= ?)${active})
+				ORDER BY task_id LIMIT 100`)
+				.all(
+					after,
+					input.since,
+					input.since,
+					input.since,
+					input.since,
+					...input.activeTaskIds,
+				)
+				.map(taskRowToRecord);
+			for (const task of tasks) {
+				after = task.taskId;
+				yield task;
+			}
+			if (tasks.length < 100) return;
+		}
+	}
+
+	/** Accounting must include every persisted run, independent of UI list limits. */
+	public listFactorySpendRuns(taskId: string): AgendaTaskRunRecord[] {
+		return this.db
+			.prepare(`SELECT * FROM agenda_task_runs
+			WHERE task_id = ? AND factory_json IS NOT NULL
+			ORDER BY created_at DESC, attempt DESC`)
+			.all(taskId)
+			.map(runRowToRecord);
+	}
+
+	/** A bounded, rotating page of current PR watches, filtered before limiting. */
+	public listFactoryFollowupTasks(input: {
+		afterTaskId?: string;
+		outcomeSince: string;
+	}): AgendaTaskRecord[] {
+		return this.db
+			.prepare(`${SELECT_TASKS}
+			WHERE archived_at IS NULL AND status = 'completed'
+			AND EXISTS (SELECT 1 FROM agenda_task_runs AS run
+				WHERE run.run_id = agenda_tasks.last_run_id
+				AND run.task_revision = agenda_tasks.revision
+				AND json_type(run.factory_json, '$.pullRequestWatch') = 'object'
+				AND coalesce(json_extract(run.factory_json, '$.pullRequestWatch.paused'), 0) = 0
+				AND json_extract(run.factory_json, '$.phase') != 'blocked'
+				AND (json_extract(run.factory_json, '$.phase') = 'watching'
+					OR json_type(run.factory_json, '$.pullRequestWatch.pending') = 'object')
+				AND (coalesce(json_extract(agenda_tasks.factory_json, '$.watchPullRequest'),
+					json_extract(agenda_tasks.factory_json, '$.autonomy') = 'hands_off', 0) = 1
+					OR (json_extract(agenda_tasks.factory_json, '$.publishPullRequest') = 1
+						AND (run.completed_at IS NULL OR run.completed_at >= ?))))
+			ORDER BY CASE WHEN task_id > ? THEN 0 ELSE 1 END, task_id
+			LIMIT 100`)
+			.all(input.outcomeSince, input.afterTaskId ?? "")
+			.map(taskRowToRecord);
+	}
+
 	/**
 	 * Unarchived delivered Factory cards after `afterTaskId` in id order, at
 	 * most `limit`: one auto-archive pass. Archived history is never read.
@@ -1049,6 +1128,10 @@ export class SqliteAgendaTaskStore {
 			.map(taskRowToRecord);
 	}
 
+	/**
+	 * Parts that may still wait for earlier merges: linked, not started
+	 * anyway, not archived, and not past approval.
+	 */
 	public listFactoryWaitingParts(): AgendaTaskRecord[] {
 		return this.db
 			.prepare(

@@ -178,6 +178,8 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 			"ALTER TABLE agenda_tasks ADD COLUMN factory_design_review_json TEXT",
 		);
 	}
+	db.exec(`CREATE INDEX IF NOT EXISTS agenda_tasks_factory_created_idx
+		ON agenda_tasks(created_at DESC, task_id DESC) WHERE factory_json IS NOT NULL`);
 	db.exec(`CREATE INDEX IF NOT EXISTS agenda_tasks_factory_parent_idx
 		ON agenda_tasks(factory_parent_task_id) WHERE factory_parent_task_id IS NOT NULL`);
 	db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS agenda_tasks_factory_number_idx

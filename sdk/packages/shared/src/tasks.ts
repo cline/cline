@@ -403,6 +403,8 @@ export interface AgendaTaskListInput {
 	factoryComparisonId?: string;
 	/** Only Factory cards, newest first. */
 	factoryOnly?: boolean;
+	/** Continue a Factory-only listing before this creation-time/id pair. */
+	factoryBefore?: { createdAt: string; taskId: string };
 	limit?: number;
 	/**
 	 * With `includeArchived`, archived tasks are listed after the unarchived

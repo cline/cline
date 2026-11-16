@@ -120,8 +120,10 @@ beforeEach(() => {
 					{ pendingQuestions: new Map() },
 					"factory_attention",
 					undefined,
-					async (read) =>
-						read === "task.list" ? { tasks: mocks.tasks } : { runs: [] },
+					async (read, args) =>
+						read === "task.list"
+							? { tasks: args.factoryBefore ? [] : mocks.tasks }
+							: { runs: [] },
 				)
 			: command === "get_desktop_settings"
 				? {}
