@@ -1520,14 +1520,6 @@ export function useSessionHistory({
 		(threadId: string) => {
 			const session = getSessionByThreadId(threadId);
 			if (session) {
-				setUnreadSessionIds((current) => {
-					if (!current.has(threadId)) {
-						return current;
-					}
-					const next = new Set(current);
-					next.delete(threadId);
-					return next;
-				});
 				onOpenSession?.(session);
 			}
 		},

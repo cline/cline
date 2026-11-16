@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowRight } from "lucide-react";
+import { ConnectorLogo } from "@/components/connectors/connector-logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { ConnectorLogo } from "@/components/views/settings/composio-connectors-view";
 import { COMPOSIO_RECIPES } from "@/lib/composio-recipes";
 import type { WhatsNewRelease } from "@/lib/whats-new-content";
 

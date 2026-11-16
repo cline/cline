@@ -50,6 +50,8 @@ import { EnvironmentSelector } from "@/components/views/chat/environment-selecto
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import type { CustomizeSection } from "@/components/views/customize/customize-sections";
+import type { CustomizeTab } from "@/components/views/customize/navigation/customize-categories";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -119,6 +121,10 @@ import {
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	type DetailNavigationHost,
+	DetailNavigationProvider,
+} from "@/lib/detail-navigation";
+import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
@@ -175,6 +181,10 @@ import {
 	writeTerminalPanelState,
 } from "@/lib/terminal-panel-state";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	UnsavedChangesProvider,
+	useUnsavedChangesRegistry,
+} from "@/lib/unsaved-changes";
 import { cn } from "@/lib/utils";
 import {
 	markCurrentWhatsNewSeen,
@@ -220,6 +230,14 @@ const SettingsView = dynamic(
 	() =>
 		import("@/components/views/settings/settings-view").then(
 			(module) => module.SettingsView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
+const CustomizePage = dynamic(
+	() =>
+		import("@/components/views/customize/customize-page").then(
+			(module) => module.CustomizePage,
 		),
 	{ loading: viewLoading, ssr: false },
 );
@@ -439,6 +457,12 @@ function App() {
 				LOCAL_WORKSPACE_ENVIRONMENT_ID,
 			),
 	);
+	// Navigation first lets an open editor ask about its unsaved changes. The
+	// ref keeps the navigating callbacks below independent of the guard.
+	const { registry: unsavedChanges, confirmLeave } =
+		useUnsavedChangesRegistry();
+	const leaveThen = useRef(confirmLeave);
+	leaveThen.current = confirmLeave;
 	const [handoffUiState, dispatchHandoffUi] = useReducer(
 		cloudHandoffUiReducer,
 		{},
@@ -514,6 +538,8 @@ function App() {
 		},
 		[updateTerminalPanel],
 	);
+	const [customizeCategory, setCustomizeCategory] =
+		useState<CustomizeTab>("all");
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
 	// "welcome" for the full first-run flow; "connect" when re-entered from
@@ -550,25 +576,46 @@ function App() {
 			if (!threadIds.has(threadId)) promptDrafts.delete(threadId);
 		}
 	}, [promptDrafts, threads]);
-	const { activeThreadId, settingsSection, view } = navigation.current;
+	const { activeThreadId, customizeSection, settingsSection, view } =
+		navigation.current;
+	const pageOverlayOpen = view === "settings" || view === "customize";
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
 	const navigate = useCallback((destination: AppLocation) => {
-		dispatchApp({ type: "navigate", destination });
+		leaveThen.current(() => dispatchApp({ type: "navigate", destination }));
 	}, []);
 	const navigateWith = useCallback(
 		(destination: Partial<AppLocation>) => {
-			navigate({ ...navigation.current, ...destination });
+			// A detail belongs to the place it was opened from, not the next one.
+			navigate({ ...navigation.current, detail: undefined, ...destination });
 		},
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
-		dispatchApp({ type: "back" });
+		leaveThen.current(() => dispatchApp({ type: "back" }));
 	}, []);
 	const handleNavigateForward = useCallback(() => {
-		dispatchApp({ type: "forward" });
+		leaveThen.current(() => dispatchApp({ type: "forward" }));
 	}, []);
+	const openDetail = navigation.current.detail;
+	const detailNavigation = useMemo<DetailNavigationHost>(
+		() => ({
+			detail: openDetail,
+			open: (detail) => navigateWith({ detail }),
+			replace: (detail, replacement) =>
+				dispatchApp({ type: "replace-detail", detail, replacement }),
+			close: (detail, options) =>
+				leaveThen.current(() =>
+					dispatchApp({
+						type: "close-detail",
+						detail,
+						forget: options?.forget,
+					}),
+				),
+		}),
+		[openDetail, navigateWith],
+	);
 
 	useAppUpdate();
 
@@ -668,12 +715,14 @@ function App() {
 	useEffect(() => watchDesktopNotifications(), []);
 
 	const createThreadForEnvironment = useCallback((environmentId: string) => {
-		dispatchApp({
-			type: "new-thread",
-			threadId: makeThreadId(),
-			environmentId,
+		leaveThen.current(() => {
+			dispatchApp({
+				type: "new-thread",
+				threadId: makeThreadId(),
+				environmentId,
+			});
+			requestPromptInputFocus();
 		});
-		requestPromptInputFocus();
 	}, []);
 	const handleNewThread = useCallback(() => {
 		createThreadForEnvironment(activeEnvironmentId);
@@ -871,14 +920,21 @@ function App() {
 					return { opened: false };
 				}
 			}
-			dispatchApp({
-				type: "open-session",
-				session,
-				environmentId: session.environmentId,
-				initialPromptDraft,
-				initialAttachments,
+			return new Promise<HandoffOpenResult>((resolve) => {
+				leaveThen.current(
+					() => {
+						dispatchApp({
+							type: "open-session",
+							session,
+							environmentId: session.environmentId,
+							initialPromptDraft,
+							initialAttachments,
+						});
+						resolve({ opened: true });
+					},
+					() => resolve({ opened: false }),
+				);
 			});
-			return { opened: true };
 		},
 		[promptDrafts],
 	);
@@ -949,14 +1005,22 @@ function App() {
 	const activeLocationRef = useRef(appState.navigation.current);
 	activeLocationRef.current = appState.navigation.current;
 	const handleHome = useCallback(() => {
-		if (activeThread?.historySession || activeThread?.hasStarted) {
-			selectEnvironmentDraft(activeEnvironmentId);
+		leaveThen.current(() => {
+			if (activeThread?.historySession || activeThread?.hasStarted) {
+				selectEnvironmentDraft(activeEnvironmentId);
+			} else {
+				dispatchApp({
+					type: "navigate",
+					destination: {
+						...activeLocationRef.current,
+						detail: undefined,
+						view: "chat",
+					},
+				});
+			}
 			requestPromptInputFocus();
-			return;
-		}
-		navigateWith({ view: "chat" });
-		requestPromptInputFocus();
-	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft, navigateWith]);
+		});
+	}, [activeThread, activeEnvironmentId, selectEnvironmentDraft]);
 	const handleViewChange = useCallback(
 		(nextView: DesktopAppView) => {
 			navigateWith({ view: nextView });
@@ -973,6 +1037,13 @@ function App() {
 	const handleSettingsSectionChange = useCallback(
 		(section: SettingsSection) => {
 			navigateWith({ settingsSection: section, view: "settings" });
+		},
+		[navigateWith],
+	);
+	const handleCustomizeSectionChange = useCallback(
+		(section: CustomizeSection, category?: CustomizeTab) => {
+			if (category !== undefined) setCustomizeCategory(category);
+			navigateWith({ customizeSection: section, view: "customize" });
 		},
 		[navigateWith],
 	);
@@ -1277,6 +1348,9 @@ function App() {
 								onNavigateBack={handleNavigateBack}
 								onNavigateForward={handleNavigateForward}
 								onOpenSearch={handleOpenCommandBar}
+								onOpenCustomize={() =>
+									handleCustomizeSectionChange(customizeSection)
+								}
 								onSettingsSectionChange={handleSettingsSectionChange}
 								sessionHistory={sessionHistory}
 								setView={handleViewChange}
@@ -1289,7 +1363,16 @@ function App() {
 						</Sidebar>
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-							<WindowTitleBar />
+							{/* Page headers own the desktop drag area; Providers
+							    retains the shell row above its independent panes. */}
+							<WindowTitleBar
+								className={
+									view === "customize" ||
+									(view === "settings" && settingsSection !== "Providers")
+										? "md:h-0"
+										: undefined
+								}
+							/>
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
 									<SessionsView
@@ -1298,9 +1381,9 @@ function App() {
 									/>
 								) : activeThread ? (
 									<div
-										aria-hidden={view === "settings" ? true : undefined}
+										aria-hidden={pageOverlayOpen ? true : undefined}
 										className="flex min-h-0 flex-1 flex-col"
-										inert={view === "settings" ? true : undefined}
+										inert={pageOverlayOpen ? true : undefined}
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}
@@ -1393,9 +1476,28 @@ function App() {
 										<SettingsView
 											onExportDiagnostics={() => setExportDiagnosticsOpen(true)}
 											onNavigateSection={handleSettingsSectionChange}
+											onOpenConnectors={() =>
+												handleCustomizeSectionChange("manage", "connectors")
+											}
 											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
+									</div>
+								) : view === "customize" ? (
+									<div className="absolute inset-0 z-30 bg-background text-foreground">
+										<UnsavedChangesProvider registry={unsavedChanges}>
+											<DetailNavigationProvider value={detailNavigation}>
+												<CustomizePage
+													customizeCategory={customizeCategory}
+													onCustomizeCategoryChange={setCustomizeCategory}
+													onNavigateSection={handleCustomizeSectionChange}
+													onOpenModelProviders={() =>
+														handleSettingsSectionChange("Providers")
+													}
+													section={customizeSection}
+												/>
+											</DetailNavigationProvider>
+										</UnsavedChangesProvider>
 									</div>
 								) : null}
 							</div>
@@ -1444,7 +1546,7 @@ function App() {
 					onOpenConnectors={() => {
 						markWhatsNewSeen(whatsNew.id);
 						setWhatsNew(null);
-						handleSettingsSectionChange("Customize");
+						handleCustomizeSectionChange("manage", "connectors");
 					}}
 					open={!showOnboarding}
 					release={whatsNew}
