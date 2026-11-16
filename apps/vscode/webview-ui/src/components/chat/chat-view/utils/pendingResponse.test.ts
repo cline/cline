@@ -1,4 +1,5 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { convertClineMessageToProto, convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { describe, expect, it } from "vitest"
 import type { PendingResponse } from "../types/chatTypes"
 import { isPendingResponseUnconfirmed, withPendingUserMessage } from "./pendingResponse"
@@ -39,6 +40,36 @@ describe("withPendingUserMessage", () => {
 		const confirmed: ClineMessage = { ...optimistic, ts: 11 }
 
 		expect(withPendingUserMessage([confirmed], { afterTs: 0, message: optimistic })).toEqual([confirmed])
+	})
+
+	it("replaces an attachment-only follow-up when its echo arrives over the partial-message stream", () => {
+		const message: ClineMessage = {
+			ts: 2,
+			type: "say",
+			say: "user_feedback",
+			text: "",
+			images: ["data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="],
+		}
+		const pending = { afterTs: 1, message }
+		const confirmed = convertProtoToClineMessage(convertClineMessageToProto({ ...message, ts: 3 }))
+
+		expect(withPendingUserMessage([confirmed], pending)).toEqual([confirmed])
+	})
+
+	it("keeps a pending attachment when a different or older message arrives", () => {
+		const message: ClineMessage = { ts: 2, type: "say", say: "user_feedback", text: "", images: ["first.png"] }
+		const pending = { afterTs: 1, message }
+		for (const other of [
+			{ ts: 1 },
+			{ images: [] },
+			{ images: ["second.png"] },
+			{ files: ["notes.md"] },
+			{ text: "a caption" },
+			{ say: "text" as const },
+		]) {
+			const row = convertProtoToClineMessage(convertClineMessageToProto({ ...message, ts: 3, ...other }))
+			expect(withPendingUserMessage([row], pending)).toEqual([row, message])
+		}
 	})
 
 	it("keeps a follow-up bubble until the matching backend message arrives", () => {
