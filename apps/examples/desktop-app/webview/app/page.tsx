@@ -1363,15 +1363,10 @@ function App() {
 						</Sidebar>
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-							{/* Page headers own the desktop drag area; Providers
-							    retains the shell row above its independent panes. */}
+							{/* Customize owns its desktop drag area. Settings keeps
+							    the shell row above its legacy pages. */}
 							<WindowTitleBar
-								className={
-									view === "customize" ||
-									(view === "settings" && settingsSection !== "Providers")
-										? "md:h-0"
-										: undefined
-								}
+								className={view === "customize" ? "md:h-0" : undefined}
 							/>
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (

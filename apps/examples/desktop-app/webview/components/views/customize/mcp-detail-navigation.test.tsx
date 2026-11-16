@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 
-import { act, type ReactNode, useMemo, useState } from "react";
+import { act, type ReactNode, useMemo, useReducer } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createDesktopAppState,
+	desktopAppReducer,
+} from "@/lib/desktop-app-state";
 import {
 	type DetailNavigationHost,
 	DetailNavigationProvider,
@@ -11,10 +15,6 @@ import {
 	invalidateExtensionInventoryCache,
 	type McpServer,
 } from "@/lib/extension-inventory";
-import {
-	createNavigationHistory,
-	navigationHistoryReducer,
-} from "@/lib/navigation-history";
 import { CustomizePage } from "./customize-page";
 import type { InstalledCustomizationActions } from "./installed-customization-sections";
 import type { McpServerUpsertInput } from "./mcp/mcp-types";
@@ -86,59 +86,37 @@ const inventory = () => ({
 });
 const appHistory = { back: () => {}, forward: () => {} };
 
-type HistoryLocation = {
-	customizeSection: "browse" | "manage";
-	detail?: object;
-};
-
 function HostedCustomizeHarness() {
-	const [history, setHistory] = useState(() =>
-		createNavigationHistory<HistoryLocation>({ customizeSection: "manage" }),
+	const [state, dispatch] = useReducer(
+		desktopAppReducer<"General">,
+		undefined,
+		() => {
+			const initial = createDesktopAppState("draft", "General", "local");
+			return desktopAppReducer(initial, {
+				type: "navigate",
+				destination: {
+					...initial.navigation.current,
+					view: "customize",
+					customizeSection: "manage",
+				},
+			});
+		},
 	);
-	const current = history.current;
+	const current = state.navigation.current;
 	const host = useMemo<DetailNavigationHost>(
 		() => ({
 			detail: current.detail,
 			open: (detail) =>
-				setHistory((history) =>
-					navigationHistoryReducer(history, {
-						type: "navigate",
-						destination: { ...history.current, detail },
-					}),
-				),
-			replace: (expected, replacement) =>
-				setHistory((history) =>
-					history.current.detail === expected
-						? navigationHistoryReducer(history, {
-								type: "replace",
-								destination: { ...history.current, detail: replacement },
-							})
-						: history,
-				),
-			close: (expected, options) =>
-				setHistory((history) => {
-					if (history.current.detail !== expected) return history;
-					const next = navigationHistoryReducer(history, { type: "back" });
-					if (!options?.forget) return next;
-					return {
-						...next,
-						back: next.back.filter((location) => location.detail !== expected),
-						forward: next.forward.filter(
-							(location) => location.detail !== expected,
-						),
-					};
-				}),
+				dispatch({ type: "navigate", destination: { ...current, detail } }),
+			replace: (detail, replacement) =>
+				dispatch({ type: "replace-detail", detail, replacement }),
+			close: (detail, options) =>
+				dispatch({ type: "close-detail", detail, forget: options?.forget }),
 		}),
 		[current],
 	);
-	appHistory.back = () =>
-		setHistory((history) =>
-			navigationHistoryReducer(history, { type: "back" }),
-		);
-	appHistory.forward = () =>
-		setHistory((history) =>
-			navigationHistoryReducer(history, { type: "forward" }),
-		);
+	appHistory.back = () => dispatch({ type: "back" });
+	appHistory.forward = () => dispatch({ type: "forward" });
 	return (
 		<DetailNavigationProvider value={host}>
 			<CustomizePage
