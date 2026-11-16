@@ -403,6 +403,16 @@ export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> 
 	return promise;
 }
 
+async function refreshStatusAfterMutations() {
+	// Wait without invalidating newer mutations, even if they fail.
+	while (statusMutation) await statusMutation.promise.catch(() => {});
+	// A settings reset can read status before a mutation finishes. Discard
+	// even an in-flight replacement read and fetch for the current account.
+	statusRevision++;
+	statusRequest = null;
+	await fetchComposioStatus({ refresh: true });
+}
+
 function runStatusMutation<T>(
 	load: () => Promise<T>,
 	readStatus: (result: T) => ComposioStatusResponse,
@@ -421,6 +431,8 @@ function runStatusMutation<T>(
 				mutation.revision === statusRevision
 			) {
 				commitStatus(readStatus(result), { mutation: true });
+			} else if (mutation.generation !== availabilityGeneration) {
+				void refreshStatusAfterMutations().catch(() => {});
 			}
 			return result;
 		})

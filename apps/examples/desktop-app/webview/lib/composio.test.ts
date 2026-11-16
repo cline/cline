@@ -9,14 +9,21 @@ beforeEach(() => {
 	vi.resetAllMocks();
 	mocks.subscribe.mockReturnValue(() => {});
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(async () => {
+	const api = await import("./composio");
+	api.resetComposioCacheForTesting();
+	vi.useRealTimers();
+	vi.restoreAllMocks();
+});
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((complete) => {
+	let reject!: (error: Error) => void;
+	const promise = new Promise<T>((complete, fail) => {
 		resolve = complete;
+		reject = fail;
 	});
-	return { promise, resolve };
+	return { promise, resolve, reject };
 }
 
 function emitDesktopEvent(name: string) {
@@ -278,15 +285,159 @@ describe("shared connector data cache", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(2);
 	});
 
-	it("does not publish a mutation response after an account/settings change", async () => {
+	it.each([
+		"before",
+		"after",
+	])("resumes OAuth polling when a settings refresh finishes %s connect", async (refreshCompletion) => {
+		vi.useFakeTimers();
+		const api = await import("./composio");
+		mocks.invoke.mockResolvedValueOnce(status("not_connected"));
+		api.subscribeComposioStatus(vi.fn());
+		await api.fetchComposioStatus();
+
+		const connection = deferred<{ status: ComposioStatusResponse }>();
+		const replacement = deferred<ComposioStatusResponse>();
+		const recovery = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(connection.promise)
+			.mockReturnValueOnce(replacement.promise)
+			.mockReturnValueOnce(recovery.promise);
+		const connect = api.connectComposioIntegration("gmail");
+		await Promise.resolve();
+		emitDesktopEvent("settings.changed");
+		const replacementRead = api.fetchComposioStatus();
+		if (refreshCompletion === "before") {
+			replacement.resolve(status("not_connected"));
+			await replacementRead;
+		}
+
+		connection.resolve({ status: status("pending") });
+		await connect;
+		expect(mocks.invoke).toHaveBeenCalledTimes(4);
+		expect(mocks.invoke).toHaveBeenLastCalledWith("composio_integrations", {
+			operation: "status",
+			refresh: true,
+		});
+		const recoveryRead = api.fetchComposioStatus();
+		const pending = status("pending");
+		recovery.resolve(pending);
+		await recoveryRead;
+		if (refreshCompletion === "after") {
+			replacement.resolve(status("not_connected"));
+			expect(await replacementRead).toBe(pending);
+		}
+		expect(api.getComposioStatusSnapshot().status).toBe(pending);
+
+		mocks.invoke.mockResolvedValueOnce(status());
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("connected");
+		expect(mocks.invoke).toHaveBeenCalledTimes(5);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(mocks.invoke).toHaveBeenCalledTimes(5);
+	});
+
+	it("reads current account status instead of publishing an old mutation response", async () => {
 		const api = await import("./composio");
 		const mutation = deferred<ComposioStatusResponse>();
-		mocks.invoke.mockReturnValueOnce(mutation.promise);
+		const recovery = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(mutation.promise)
+			.mockReturnValueOnce(recovery.promise);
 		const change = api.disconnectComposioIntegration("gmail");
-		emitDesktopEvent("settings.changed");
+		await Promise.resolve();
+		emitDesktopEvent("cloud_sessions_changed");
 		mutation.resolve(status("not_connected"));
 		await change;
 		expect(api.getComposioStatusSnapshot().status).toBeNull();
 		expect(api.getComposioAvailability()).toBeNull();
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		const current = { configured: false, integrations: [] };
+		const read = api.fetchComposioStatus();
+		recovery.resolve(current);
+		await read;
+		expect(api.getComposioStatusSnapshot().status).toBe(current);
+		expect(api.getComposioAvailability()).toBe(false);
+	});
+
+	it("lets a newer mutation publish after an invalidated mutation finishes", async () => {
+		const api = await import("./composio");
+		const connection = deferred<{ status: ComposioStatusResponse }>();
+		const cancellation = deferred<ComposioStatusResponse>();
+		const recovery = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(connection.promise)
+			.mockReturnValueOnce(cancellation.promise)
+			.mockReturnValueOnce(recovery.promise);
+		const connect = api.connectComposioIntegration("gmail");
+		await Promise.resolve();
+		emitDesktopEvent("settings.changed");
+		const cancel = api.cancelComposioConnect("gmail");
+		const read = api.fetchComposioStatus();
+		connection.resolve({ status: status("pending") });
+		await connect;
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		const cancelled = status("not_connected");
+		cancellation.resolve(cancelled);
+		await cancel;
+		expect(await read).toBe(cancelled);
+		expect(api.getComposioStatusSnapshot().status).toBe(cancelled);
+		const recoveryRead = api.fetchComposioStatus();
+		recovery.resolve(cancelled);
+		await recoveryRead;
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
+	});
+
+	it("recovers an invalidated connection after a newer mutation fails", async () => {
+		vi.useFakeTimers();
+		const api = await import("./composio");
+		const connection = deferred<{ status: ComposioStatusResponse }>();
+		const cancellation = deferred<ComposioStatusResponse>();
+		const recovery = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(connection.promise)
+			.mockReturnValueOnce(cancellation.promise)
+			.mockReturnValueOnce(recovery.promise);
+		const connect = api.connectComposioIntegration("gmail");
+		await Promise.resolve();
+		emitDesktopEvent("settings.changed");
+		const cancel = api.cancelComposioConnect("gmail");
+		connection.resolve({ status: status("pending") });
+		await connect;
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		cancellation.reject(new Error("cancel failed"));
+		await expect(cancel).rejects.toThrow("cancel failed");
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
+		const recoveryRead = api.fetchComposioStatus();
+		const pending = status("pending");
+		recovery.resolve(pending);
+		await recoveryRead;
+		expect(api.getComposioStatusSnapshot().status).toBe(pending);
+		mocks.invoke.mockResolvedValueOnce(status());
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(
+			api.getComposioStatusSnapshot().status?.integrations[0]?.status,
+		).toBe("connected");
+	});
+
+	it("keeps a successful mutation successful when its recovery read fails", async () => {
+		const api = await import("./composio");
+		const connection = deferred<{ status: ComposioStatusResponse }>();
+		mocks.invoke
+			.mockReturnValueOnce(connection.promise)
+			.mockRejectedValueOnce(new Error("offline"));
+		const connect = api.connectComposioIntegration("gmail");
+		await Promise.resolve();
+		emitDesktopEvent("settings.changed");
+		const result = { status: status("pending") };
+		connection.resolve(result);
+		await expect(connect).resolves.toBe(result);
+		expect(mocks.invoke).toHaveBeenCalledTimes(2);
+		expect(api.getComposioStatusSnapshot()).toEqual({
+			status: null,
+			loading: false,
+			error: "offline",
+		});
 	});
 });
