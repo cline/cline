@@ -8,6 +8,7 @@ import type {
 import {
 	evaluateFactoryAcceptance,
 	FACTORY_PLAN_APPROVED_REASON,
+	type FactoryVisualProof,
 	factoryIndependentReview,
 	factoryRecordedReviewIndependence,
 	factoryRepositoryRelative,
@@ -29,6 +30,7 @@ import {
 	StatusPill,
 	toneText,
 } from "./factory-ui";
+import { FactoryVisualProofStrip } from "./factory-visual-proof";
 
 /**
  * Whether a requirement's own text says the build cannot check it ("the
@@ -359,11 +361,15 @@ function Block({ label, children }: { label: string; children: ReactNode }) {
 export function FactoryProof({
 	state,
 	hasVerifier,
+	visualProof,
 	children,
 	className,
 }: {
 	state: ProofState & Pick<FactoryRunState, "usage">;
 	hasVerifier: boolean;
+	/** Screenshots and the recording, shown first; absent where there are none to show. */
+	visualProof?: { taskId: string; runId: string; proof: FactoryVisualProof };
+
 	children?: ReactNode;
 	className?: string;
 }) {
@@ -378,6 +384,7 @@ export function FactoryProof({
 			data-testid="factory-proof"
 			className={cn("space-y-4 rounded-lg border bg-card px-5 py-4", className)}
 		>
+			{visualProof ? <FactoryVisualProofStrip {...visualProof} /> : null}
 			<Block label={FACTORY_PROOF.proven}>
 				{requirements ? (
 					<p

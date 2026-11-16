@@ -85,15 +85,20 @@
 		"zod": "^4.3.6"
 	},
 	"peerDependencies": {
+		"playwright-core": "^1.62.1",
 		"posthog-node": "^5.8.0"
 	},
 	"peerDependenciesMeta": {
+		"playwright-core": {
+			"optional": true
+		},
 		"posthog-node": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@types/ws": "^8.18.1",
+		"playwright-core": "^1.62.1",
 		"posthog-node": "^5.8.0"
 	},
 	"engines": {

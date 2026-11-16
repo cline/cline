@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+	FactoryArchiveRecord,
 	FactoryDesignReview,
 	FactoryDuplicateReports,
 	FactoryRunState,
@@ -289,6 +290,8 @@ export interface AgendaTaskRecord {
 	updatedAt: string;
 	completedAt?: string;
 	archivedAt?: string;
+	/** Why Factory archived the card itself, and its last restore. */
+	factoryArchive?: FactoryArchiveRecord;
 }
 
 export interface AgendaTaskRunRecord {

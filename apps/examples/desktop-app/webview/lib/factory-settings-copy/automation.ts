@@ -21,6 +21,16 @@ export const FS_AUTOMATION = {
 		"Scoping may propose splitting a large request into up to 6 cards that each deliver on their own. Nothing starts until you approve the breakdown on the card.",
 	splitLargeWorkUnavailable:
 		"Splitting large work: update Cline to change this.",
+	finishedWorkGroup: "Finished work",
+	archiveOnClose: "Archive when the pull request is merged or closed",
+	archiveOnCloseHint:
+		"Delivered cards move to Archived once their pull request is merged or closed. Applies to all delivered work from Factory's next check, within a minute.",
+	archiveAfter: "Archive delivered work after",
+	archiveAfterHint:
+		"Delivered cards with no activity for this long move to Archived; cards waiting for you never do. Applies to all delivered work from Factory's next check, within a minute.",
+	archiveAfterNever: "Never",
+	archiveAfterDays: (days: number) => `${days} days`,
+	archiveUnavailable: "Archiving finished work: update Cline to change this.",
 	notificationsGroup: "Notifications",
 	needsReviewer:
 		"“Mark ready when no review is needed” needs a reviewer on a different model.",

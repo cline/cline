@@ -2,6 +2,9 @@
 
 import {
 	DEFAULT_FACTORY_AGENTS,
+	FACTORY_ARCHIVE_AFTER_DAYS,
+	FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT,
+	type FactoryAutoArchiveSettings,
 	type FactoryWorkflowConfig,
 	factoryIndependentReview,
 	factoryWatchesPullRequest,
@@ -255,6 +258,8 @@ function AutomationPage({ shell, headingId }: SettingsPageProps) {
 			<GroupHeading>{A.newWorkGroup}</GroupHeading>
 			<NewWorkSwitchRow shell={shell} setting="duplicateCheck" />
 			<NewWorkSwitchRow shell={shell} setting="splitLargeWork" />
+			<GroupHeading>{A.finishedWorkGroup}</GroupHeading>
+			<FinishedWorkRows shell={shell} />
 			<GroupHeading>{A.notificationsGroup}</GroupHeading>
 			<SettingRow
 				id="notifications"
@@ -341,6 +346,99 @@ function NewWorkSwitchRow({
 	);
 }
 
+/**
+ * When Factory archives delivered work by itself, read and set through the
+ * limits commands; the next auto-archive pass applies a change. A Hub that
+ * omits the fields cannot change them.
+ */
+function FinishedWorkRows({ shell }: { shell: SettingsShell }) {
+	const saves = useRowSaves(shell.saved);
+	// The values this page last saved; the shell's limits keep the values read.
+	const [saved, setSaved] = useState<Partial<FactoryAutoArchiveSettings>>({});
+	const { limits, loading } = shell.limits;
+	const reported = limits?.supported ? limits : undefined;
+	if (
+		!loading &&
+		(typeof reported?.archiveOnPullRequestClose !== "boolean" ||
+			reported.archiveAfterDays === undefined)
+	)
+		return (
+			<UnavailableNote reason="hub">{A.archiveUnavailable}</UnavailableNote>
+		);
+	const current = {
+		archiveOnPullRequestClose: reported?.archiveOnPullRequestClose ?? true,
+		archiveAfterDays:
+			reported?.archiveAfterDays === undefined
+				? FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT
+				: reported.archiveAfterDays,
+		...saved,
+	};
+	const disabled = loading || shell.readOnly || saves.busy !== undefined;
+	const save = async (
+		row: keyof FactoryAutoArchiveSettings,
+		update: Partial<FactoryAutoArchiveSettings>,
+	) => {
+		const previous = saved;
+		setSaved({ ...saved, ...update });
+		const result = await saves.save(row, () => shell.client.setLimits(update));
+		if (!result.ok) setSaved(previous);
+		else if (result.value.supported) {
+			const stored: Partial<FactoryAutoArchiveSettings> = result.value;
+			if (stored[row] !== undefined)
+				setSaved((now) => ({ ...now, [row]: stored[row] }));
+		}
+	};
+	return (
+		<>
+			<SettingRow
+				id="archiveOnPullRequestClose"
+				labelFor="archiveOnPullRequestClose-switch"
+				title={A.archiveOnClose}
+				description={A.archiveOnCloseHint}
+				error={saves.errorFor("archiveOnPullRequestClose")}
+			>
+				<Switch
+					checked={current.archiveOnPullRequestClose}
+					disabled={disabled}
+					id="archiveOnPullRequestClose-switch"
+					data-setting-control="archiveOnPullRequestClose"
+					{...rowLabels("archiveOnPullRequestClose")}
+					onCheckedChange={(archiveOnPullRequestClose) =>
+						save("archiveOnPullRequestClose", { archiveOnPullRequestClose })
+					}
+				/>
+			</SettingRow>
+			<SettingRow
+				id="archiveAfterDays"
+				title={A.archiveAfter}
+				description={A.archiveAfterHint}
+				error={saves.errorFor("archiveAfterDays")}
+			>
+				<SettingSelect
+					id="archiveAfterDays"
+					value={String(current.archiveAfterDays ?? "never")}
+					disabled={disabled}
+					options={[
+						{ value: "never", label: A.archiveAfterNever },
+						...FACTORY_ARCHIVE_AFTER_DAYS.map((days) => ({
+							value: String(days),
+							label: A.archiveAfterDays(days),
+						})),
+					]}
+					onChange={(value) =>
+						save("archiveAfterDays", {
+							archiveAfterDays:
+								FACTORY_ARCHIVE_AFTER_DAYS.find(
+									(days) => String(days) === value,
+								) ?? null,
+						})
+					}
+				/>
+			</SettingRow>
+		</>
+	);
+}
+
 export const settingsPage: SettingsPageDefinition = {
 	Page: AutomationPage,
 	search: [
@@ -380,6 +478,16 @@ export const settingsPage: SettingsPageDefinition = {
 			row: "splitLargeWork",
 			title: A.splitLargeWork,
 			description: A.splitLargeWorkHint,
+		},
+		{
+			row: "archiveOnPullRequestClose",
+			title: A.archiveOnClose,
+			description: A.archiveOnCloseHint,
+		},
+		{
+			row: "archiveAfterDays",
+			title: A.archiveAfter,
+			description: A.archiveAfterHint,
 		},
 		{
 			row: "notifications",

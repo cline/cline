@@ -37,6 +37,7 @@ import {
 	adoptFactoryPolicy,
 	factoryResumeState,
 } from "./agenda-task-manager";
+import * as factoryBrowser from "./factory-browser";
 import {
 	FactoryDecisionError,
 	FactoryPublishError,
@@ -3440,6 +3441,91 @@ describe.skipIf(process.platform === "win32")(
 			expect(existsSync(join(h.root, "factory", "factory-app-logs"))).toBe(
 				false,
 			);
+		});
+
+		it.each([
+			"findings",
+			"collection-failure",
+		] as const)("keeps the tester's capture whatever the verdict (%s)", async (scenario) => {
+			const png = Buffer.from(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=",
+				"base64",
+			);
+			// A capture that saved one screenshot; the real browser has its own tests.
+			const open = vi
+				.spyOn(factoryBrowser, "openFactoryCapture")
+				.mockImplementation(async ({ dir }) => {
+					mkdirSync(dir, { recursive: true });
+					const file = join(dir, "shot-1.png");
+					writeFileSync(file, png);
+					return {
+						dir,
+						run: vi.fn(),
+						finish: async () => ({
+							files: [
+								{
+									file,
+									mimeType: "image/png",
+									caption: "Counter after Add",
+									atMs: 1200,
+								},
+							],
+						}),
+					};
+				});
+			const collect =
+				scenario === "collection-failure"
+					? vi
+							.spyOn(factoryLocal, "collectFactoryCapture")
+							.mockRejectedValue(new Error("disk full"))
+					: undefined;
+			cleanup.push(async () => {
+				open.mockRestore();
+				collect?.mockRestore();
+			});
+			const e = environmentHarness(async () =>
+				scenario === "findings"
+					? JSON.stringify({
+							verdict: "changes_requested",
+							summary: "The counter stays at 0.",
+							findings: ["Add does not change the count"],
+						})
+					: verification(),
+			);
+			const task = await e.create();
+			await e.h.start(task);
+			const state = await e.settle(task.taskId);
+			const verified = state?.candidate?.verification;
+			expect(open).toHaveBeenCalled();
+			expect(e.prompts[0]).toContain(
+				"Exercise anything a person would see with the `browser` tool",
+			);
+			expect(e.prompts[0]).not.toContain("at these gitignored worktree paths");
+			if (scenario === "findings") {
+				expect(verified?.review.verdict).toBe("changes_requested");
+				expect(verified?.artifacts).toEqual([
+					expect.objectContaining({
+						mimeType: "image/png",
+						caption: "Counter after Add",
+						atMs: 1200,
+						bytes: png.length,
+						path: expect.stringContaining(
+							join(e.h.root, "factory", "factory-artifacts"),
+						),
+					}),
+				]);
+				expect(verified?.captureNote).toBeUndefined();
+			} else {
+				expect((await e.h.manager.getTask(task.taskId))?.status).toBe(
+					"completed",
+				);
+				expect(verified?.review.verdict).toBe("pass");
+				expect(verified?.artifacts).toEqual([]);
+				expect(verified?.captureNote).toBe(
+					"The tester's captures could not be saved.",
+				);
+			}
+			expect(state?.candidate?.changedPaths).toEqual(["feature.txt"]);
 		});
 
 		it("starts the app on its own port before the verifier and stops it after success", async () => {

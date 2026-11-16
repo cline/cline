@@ -1,6 +1,7 @@
 import type { AgentMessage } from "./agent";
 import {
 	FACTORY_REVIEW_POST_BOUND_MS,
+	type FactoryAutoArchiveSettings,
 	type FactoryFeedbackAnalysis,
 	type FactoryReplayRequest,
 	type FactoryReviewEvent,
@@ -641,6 +642,16 @@ export interface HubTaskFactoryLimits {
 		approved: number;
 		kept_whole: number;
 	};
+	/**
+	 * Factory archives a delivered card once its pull request is merged or
+	 * closed (on unless turned off). Older Hubs omit it.
+	 */
+	archiveOnPullRequestClose?: boolean;
+	/**
+	 * Days without activity after which Factory archives a delivered card
+	 * nobody waits on (7 unless changed); null is never. Older Hubs omit it.
+	 */
+	archiveAfterDays?: FactoryAutoArchiveSettings["archiveAfterDays"];
 }
 
 /**
@@ -654,7 +665,7 @@ export type HubTaskFactoryLimitsUpdate = {
 	dailyCostUsd?: number | null;
 	duplicateCheck?: boolean;
 	splitLargeWork?: boolean;
-};
+} & Partial<FactoryAutoArchiveSettings>;
 
 // ---------------------------------------------------------------------------
 // Factory settings (task.factory.guidance.*, verification.*, storage.*,

@@ -46,12 +46,22 @@ const mocks = vi.hoisted(() => {
 		createAgendaTask: vi.fn(),
 		listAgendaTasks: vi.fn(async (): Promise<AgendaTaskRecord[]> => []),
 		invoke: vi.fn(async (_command: string): Promise<unknown> => []),
+		visualProof: vi.fn(),
 	};
 });
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: mocks,
 	openExternalUrl: vi.fn(),
 }));
+vi.mock("@cline/shared/browser", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/shared/browser")>();
+	return {
+		...actual,
+		factoryVisualProof: (
+			...args: Parameters<typeof actual.factoryVisualProof>
+		) => mocks.visualProof(...args) ?? actual.factoryVisualProof(...args),
+	};
+});
 // The real diff renders into @pierre/diffs' shadow DOM, which jsdom lacks.
 vi.mock("@cline/ui/components/agent-chat/tool-diff", () => ({
 	ToolFileDiff: ({ newText }: { newText: string }) => (
@@ -152,6 +162,7 @@ const onClose = vi.fn();
 const drafts = new Map<string, FactoryDraft>();
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.visualProof.mockReset();
 	drafts.clear();
 	mocks.listeners.clear();
 	mocks.transportListeners.clear();
@@ -1381,7 +1392,7 @@ it("says scoping stopped, once, when scoping ran and could not settle the plan",
 			.querySelector('[data-testid="factory-card-actions"]')
 			?.querySelectorAll("button") ?? []),
 	].map((item) => item.textContent?.trim());
-	expect(actions).toEqual(["Try scoping again"]);
+	expect(actions).toEqual(["Try scoping again", "Archive"]);
 	expect(() => button("Start scoping")).toThrow();
 	await act(async () => button("Try scoping again").click());
 	expect(mocks.designFactoryTask).toHaveBeenCalledWith(task.taskId);
@@ -1389,6 +1400,39 @@ it("says scoping stopped, once, when scoping ran and could not settle the plan",
 	expect(
 		document.querySelector('textarea[aria-label="Design brief"]'),
 	).not.toBeNull();
+});
+
+it("leads a delivered card's proof with its screenshots and recording", async () => {
+	const delivered = withState({
+		phase: "ready",
+		pullRequestUrl: "https://github.com/example/repo/pull/7",
+		inputSnapshot: undefined,
+	});
+	mocks.getFactoryTask.mockResolvedValue({
+		runs: [{ ...delivered, status: "completed" }],
+	});
+	mocks.visualProof.mockReturnValue({
+		status: "shown",
+		screenshots: [{ label: "Home", path: "/a.png", mimeType: "image/png" }],
+		recordings: [
+			{ label: "Walkthrough", path: "/a.webm", mimeType: "video/webm" },
+		],
+	});
+	await render({
+		...task,
+		status: "completed",
+		lastRunId: run.runId,
+		factory: handsOffConfig,
+	});
+	const receipt = document.querySelector('[data-testid="factory-proof"]');
+	expect(receipt?.firstElementChild?.getAttribute("data-testid")).toBe(
+		"factory-visual-proof",
+	);
+	expect(
+		[...(receipt?.querySelectorAll("button[aria-label^='Open ']") ?? [])].map(
+			(item) => item.getAttribute("aria-label"),
+		),
+	).toEqual(["Open Walkthrough", "Open Home"]);
 });
 
 it("keeps feedback optional: one quiet row on a delivered card and More → Rate", async () => {
@@ -1881,14 +1925,15 @@ it("summarizes a stopped card in plain words with Try again and the log collapse
 	expect(progress()?.textContent).toContain("Scoping stopped");
 	await act(async () => button("Try again").click());
 	expect(mocks.designFactoryTask).toHaveBeenCalledWith(task.taskId);
-	// Try again is the one action; Edit plan moved into More.
+	// Try again is the one primary action, with Archive beside it; Edit plan
+	// moved into More.
 	expect(
 		[
 			...(document
 				.querySelector('[data-testid="factory-card-actions"]')
 				?.querySelectorAll("button") ?? []),
 		].map((item) => item.textContent?.trim()),
-	).toEqual(["Try again"]);
+	).toEqual(["Try again", "Archive"]);
 	await menuItem("Edit plan");
 	expect(
 		document.querySelector('textarea[aria-label="Design brief"]'),

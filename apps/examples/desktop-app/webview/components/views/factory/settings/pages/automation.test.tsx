@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { click, deadRows, fakeShell, renderSettingsPage } from "../test-utils";
+import {
+	choose,
+	click,
+	deadRows,
+	fakeShell,
+	renderSettingsPage,
+} from "../test-utils";
 import type { SettingsShell } from "../types";
 import { settingsPage } from "./automation";
 
@@ -151,6 +157,71 @@ describe("Automation: Split large work into parts", () => {
 		});
 		expect(control?.checked).toBe(false);
 		expect(deadRows(page.container)).toEqual([]);
+		await page.unmount();
+	});
+});
+
+describe("Automation: Finished work", () => {
+	it("reads the Hub's values and saves a change through the limits command", async () => {
+		const { limits } = fakeShell();
+		const page = await renderSettingsPage(settingsPage, {
+			client: {
+				setLimits: async () => ({
+					supported: true,
+					concurrency: 2,
+					archiveOnPullRequestClose: true,
+					archiveAfterDays: null,
+				}),
+			},
+			shell: {
+				limits: {
+					...limits,
+					limits: {
+						supported: true,
+						concurrency: 2,
+						archiveOnPullRequestClose: true,
+						archiveAfterDays: 7,
+					},
+				} as SettingsShell["limits"],
+			},
+		});
+		expect(page.row("archiveOnPullRequestClose")?.textContent).toContain(
+			"Archive when the pull request is merged or closed",
+		);
+		expect(
+			page.control<HTMLInputElement>("archiveOnPullRequestClose")?.checked,
+		).toBe(true);
+		const after = page.control<HTMLSelectElement>("archiveAfterDays");
+		expect(after?.value).toBe("7");
+		expect([...(after?.options ?? [])].map((option) => option.text)).toEqual([
+			"Never",
+			"3 days",
+			"7 days",
+			"14 days",
+			"30 days",
+		]);
+		expect(page.row("archiveAfterDays")?.textContent).toContain(
+			"cards waiting for you never do",
+		);
+		await choose(after, "never");
+		expect(page.shell.client.setLimits).toHaveBeenCalledWith({
+			archiveAfterDays: null,
+		});
+		expect(page.control<HTMLSelectElement>("archiveAfterDays")?.value).toBe(
+			"never",
+		);
+		expect(deadRows(page.container)).toEqual([]);
+		await page.unmount();
+	});
+
+	it("degrades to one line when the Hub's reply has no archive settings", async () => {
+		const page = await renderSettingsPage(settingsPage, {
+			shell: { limits: limitsWith(true) },
+		});
+		expect(page.row("archiveAfterDays")).toBeNull();
+		expect(page.text()).toContain(
+			"Archiving finished work: update Cline to change this.",
+		);
 		await page.unmount();
 	});
 });

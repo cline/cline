@@ -3762,7 +3762,12 @@ export async function handleCommand(
 			taskId,
 			allWorkspaces: true,
 		});
-		return readFactoryArtifact(reply, runId, path);
+		return readFactoryArtifact(
+			reply,
+			runId,
+			path,
+			args?.variant === "thumbnail" ? "thumbnail" : undefined,
+		);
 	}
 
 	// ── Agenda task queue ─────────────────────────────────────────────

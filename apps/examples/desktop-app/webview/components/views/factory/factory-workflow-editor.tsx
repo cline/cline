@@ -668,6 +668,28 @@ function ReviewPolicyControl({
 					</span>
 				</label>
 			))}
+			<label className="flex items-start gap-2 pt-1">
+				<input
+					type="checkbox"
+					className="mt-1"
+					checked={config.visualProof !== false}
+					disabled={disabled}
+					onChange={(event) => {
+						// Unset means on; removing the key keeps the revision hash.
+						const { visualProof: _visualProof, ...rest } = config;
+						onChange(
+							event.target.checked ? rest : { ...config, visualProof: false },
+						);
+					}}
+				/>
+				<span className="min-w-0 flex-1">
+					Ask for screenshots and a recording when the UI changes
+					<span className="mt-0.5 block text-xs text-muted-foreground">
+						The tester brings them back from the running app; when it cannot,
+						Factory asks you to look.
+					</span>
+				</span>
+			</label>
 		</fieldset>
 	);
 }

@@ -43,6 +43,11 @@ import {
 	stopFactoryAppEnvironment,
 } from "./factory-app-environment";
 import {
+	type FactoryCaptureFile,
+	factoryCaptureDir,
+	openFactoryCapture,
+} from "./factory-browser";
+import {
 	FactoryDecisionError,
 	FactoryDeferredError,
 	FactoryPlanConfigurationError,
@@ -58,6 +63,7 @@ import {
 	captureFactoryArtifactVersions,
 	checkpointFactoryWorkspace,
 	collectFactoryArtifacts,
+	collectFactoryCapture,
 	factoryCheckConfigurationFindings,
 	factoryWorkspaceChanges,
 	finishFactoryIntegration,
@@ -915,9 +921,8 @@ export async function runFactoryWorkflow(
 				});
 			await writeProfile(state.workspace);
 			const checkpoint = await checkpointFactoryWorkspace({
-				includeChangedPaths:
-					Boolean(state.reviewSelection && !state.reviewEscalation) ||
-					stagePlan.length > 0,
+				// The candidate records its changed paths for the visual-proof rule.
+				includeChangedPaths: true,
 				workspace: state.workspace,
 				signal,
 				message: factoryPullRequestTitle(task),
@@ -1010,6 +1015,9 @@ export async function runFactoryWorkflow(
 				checks: [],
 				reviews: [],
 				...(written?.length ? { stages: written } : {}),
+				...(changedPaths.length
+					? { changedPaths: changedPaths.slice(0, 500) }
+					: {}),
 			};
 			save({ candidate });
 			const checks =
@@ -1223,29 +1231,70 @@ export async function runFactoryWorkflow(
 						state.verifierBaseline?.versions.map(
 							(version) => version ?? undefined,
 						) ?? [];
+					// The tester's browser is recorded only where Factory runs the
+					// app, which gives it the origin and the cleanup token.
+					const capture = app
+						? await openFactoryCapture({
+								worktree: state.workspace.path,
+								origin: app.url,
+								dir: factoryCaptureDir(input.storageDir, run.runId, key),
+								token: app.token,
+								signal,
+							})
+						: undefined;
+					let captured:
+						| { files: FactoryCaptureFile[]; note?: string }
+						| undefined;
+					const declaredSentence = `Generate fresh screenshot or recording evidence at these gitignored worktree paths: ${JSON.stringify(declaredPaths)}.`;
+					const evidenceInstructions = capture
+						? `Exercise anything a person would see with the \`browser\` tool: open the app, perform the approved behaviour, and take a named screenshot of each state that proves a criterion. The session is recorded for the person reviewing this card. ${declaredPaths.length ? `The project also declares evidence files of its own: ${JSON.stringify(declaredPaths)}; produce those as its test setup describes, at those gitignored worktree paths.` : "Do not produce screenshots or recordings any other way."} If \`browser\` returns an error, continue with other checks and report the error in coverage.limitations.`
+						: declaredSentence;
 					const { sessionId, summary: response } = await execute(
 						key,
-						`Verify the approved behavior by running the existing application and test harness using available tools. Search for and reuse the project's existing verification scripts. You may create gitignored scratch verification scripts and artifacts for supplemental checks, but do not modify approved tracked source, tests, or harness files. Do not fabricate screenshots or claim interactions you did not perform. Generate fresh screenshot or recording evidence at these gitignored worktree paths: ${JSON.stringify(declaredPaths)}. Before reporting a required gap, run additional non-mutating checks for uncovered approved behavior using the available harness and tools. Reuse existing command evidence; do not demand duplicate curl calls or an image for every transition when direct behavioral assertions establish it. Supply the declared fresh visual artifacts, and describe what each assertion actually proves. For required execution or capability gaps, describe what you tried in coverage.requiredGaps; missing verifier evidence is not a builder defect. ${appInstructions} ${responseFormat}${verifierCriteria.length ? ` Also include "acceptance":[{"criterionId":"...","outcome":"passed"|"failed"|"unverified","evidence":"what you executed and observed"}] with one entry for each criterion under ACCEPTANCE CRITERIA, judged from fresh execution in this attempt rather than earlier reports. A required criterion that you could not verify is "unverified" and also belongs in coverage.requiredGaps; a failed required criterion means changes_requested with the defect in findings. Optional criteria ("required": false) never block: report their failures or gaps in coverage.limitations, not findings or requiredGaps.` : ""}\n\nAPPROVED BRIEF:\n${task.instructions}\nCANDIDATE COMMIT: ${candidateCommit}\nCHECK EVIDENCE:\n${JSON.stringify(checks)}${stageEvidence}${verifierCriteria.length ? `\n\nACCEPTANCE CRITERIA:\n${JSON.stringify(verifierCriteria)}` : ""}\n\nREQUIRED GAPS FROM THE PREVIOUS VERIFICATION ATTEMPT:\n${JSON.stringify(state.verificationFeedback?.commit === candidateCommit ? state.verificationFeedback.verifier : [])}`,
+						`Verify the approved behavior by running the existing application and test harness using available tools. Search for and reuse the project's existing verification scripts. You may create gitignored scratch verification scripts and artifacts for supplemental checks, but do not modify approved tracked source, tests, or harness files. Do not fabricate screenshots or claim interactions you did not perform. ${evidenceInstructions} Before reporting a required gap, run additional non-mutating checks for uncovered approved behavior using the available harness and tools. Reuse existing command evidence; do not demand duplicate curl calls or an image for every transition when direct behavioral assertions establish it. Supply the declared fresh visual artifacts, and describe what each assertion actually proves. For required execution or capability gaps, describe what you tried in coverage.requiredGaps; missing verifier evidence is not a builder defect. ${appInstructions} ${responseFormat}${verifierCriteria.length ? ` Also include "acceptance":[{"criterionId":"...","outcome":"passed"|"failed"|"unverified","evidence":"what you executed and observed"}] with one entry for each criterion under ACCEPTANCE CRITERIA, judged from fresh execution in this attempt rather than earlier reports. A required criterion that you could not verify is "unverified" and also belongs in coverage.requiredGaps; a failed required criterion means changes_requested with the defect in findings. Optional criteria ("required": false) never block: report their failures or gaps in coverage.limitations, not findings or requiredGaps.` : ""}\n\nAPPROVED BRIEF:\n${task.instructions}\nCANDIDATE COMMIT: ${candidateCommit}\nCHECK EVIDENCE:\n${JSON.stringify(checks)}${stageEvidence}${verifierCriteria.length ? `\n\nACCEPTANCE CRITERIA:\n${JSON.stringify(verifierCriteria)}` : ""}\n\nREQUIRED GAPS FROM THE PREVIOUS VERIFICATION ATTEMPT:\n${JSON.stringify(state.verificationFeedback?.commit === candidateCommit ? state.verificationFeedback.verifier : [])}`,
 						agents.verifier,
 						"verifier",
 						parseFactoryVerification,
-					).finally(stopApp);
+					).finally(async () => {
+						// Before the app stops: its cleanup also kills the browser.
+						captured = await capture?.finish();
+						await stopApp();
+					});
 					await assertFactoryCandidate({
 						workspace: state.workspace,
 						candidateCommit,
 						signal,
 					});
 					let review = parseFactoryVerification(response);
+					// Capture is kept whatever the verdict (a recorded failure is
+					// evidence too) and never changes it.
+					let captureNote = captured?.note;
 					let artifacts: FactoryArtifact[] = [];
-					if (factoryReviewFindings(review).length === 0) {
+					if (capture && captured?.files.length)
 						try {
-							artifacts = await collectFactoryArtifacts({
-								cwd: state.workspace.path,
-								declaredPaths,
-								previousVersions,
+							const stored = await collectFactoryCapture({
+								dir: capture.dir,
+								files: captured.files,
 								storageDir: input.storageDir,
 								runId: run.runId,
 							});
+							artifacts = stored.artifacts;
+							captureNote ??= stored.note;
+						} catch {
+							captureNote ??= "The tester's captures could not be saved.";
+						}
+					if (factoryReviewFindings(review).length === 0) {
+						try {
+							artifacts = [
+								...artifacts,
+								...(await collectFactoryArtifacts({
+									cwd: state.workspace.path,
+									declaredPaths,
+									previousVersions,
+									storageDir: input.storageDir,
+									runId: run.runId,
+								})),
+							];
 						} catch (error) {
 							review = {
 								...review,
@@ -1264,7 +1313,12 @@ export async function runFactoryWorkflow(
 					}
 					candidate = {
 						...candidate,
-						verification: { sessionId, review, artifacts },
+						verification: {
+							sessionId,
+							review,
+							artifacts,
+							...(captureNote ? { captureNote } : {}),
+						},
 					};
 					save({ candidate });
 				}

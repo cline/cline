@@ -1,6 +1,7 @@
 import {
 	DEFAULT_FACTORY_AGENTS,
 	type FactoryAgent,
+	type FactoryAutoArchiveSettings,
 	type FactoryTaskConfig,
 	factoryWorkflowConfigSchema,
 	isFactoryHandsOff,
@@ -25,9 +26,11 @@ export const FACTORY_CONCURRENCY_MAX = 8;
  * is filed (on unless turned off); absent from a Hub that predates it.
  * `splitLargeWork` is whether scoping may propose splitting large work into
  * parts (on unless turned off); absent from a Hub that predates it.
+ * `archiveOnPullRequestClose` and `archiveAfterDays` are when Factory archives
+ * delivered work by itself; absent from a Hub that predates them.
  */
 export type FactoryLimits =
-	| {
+	| ({
 			supported: true;
 			concurrency: number;
 			paused?: boolean;
@@ -35,7 +38,7 @@ export type FactoryLimits =
 			spentTodayUsd?: number;
 			duplicateCheck?: boolean;
 			splitLargeWork?: boolean;
-	  }
+	  } & Partial<FactoryAutoArchiveSettings>)
 	| { supported: false };
 
 /** Daily limit when a Hub that supports it reports none. */

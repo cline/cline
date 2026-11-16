@@ -759,6 +759,70 @@ describe("HubAgendaTaskCommandService", () => {
 		}
 	});
 
+	it("round-trips when finished work is archived beside the limits, on and 7 days by default", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-factory-archive-cmd-"));
+		try {
+			const path = join(root, "factory-defaults.json");
+			const manager = {
+				...managerMock(),
+				getFactoryConcurrency: vi.fn(() => 2),
+				setFactoryConcurrency: vi.fn((value: number) => value),
+				getFactoryPaused: vi.fn(() => false),
+			};
+			const service = new HubAgendaTaskCommandService(
+				manager,
+				new FileFactoryDefaultsStore(path),
+			);
+			const trusted = { ...AUTHORITY, crossWorkspace: true };
+			await expect(
+				service.handleCommand(envelope("task.factory.limits.get"), AUTHORITY),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: { archiveOnPullRequestClose: true, archiveAfterDays: 7 },
+			});
+			for (const [scope, change] of [
+				[AUTHORITY, { archiveAfterDays: null }],
+				[trusted, { archiveAfterDays: 5 }],
+			] as const)
+				await expect(
+					service.handleCommand(
+						envelope("task.factory.limits.set", change),
+						scope,
+					),
+				).resolves.toMatchObject({ ok: false });
+			await expect(
+				service.handleCommand(
+					envelope("task.factory.limits.set", {
+						archiveOnPullRequestClose: false,
+						archiveAfterDays: null,
+					}),
+					trusted,
+				),
+			).resolves.toMatchObject({
+				ok: true,
+				payload: {
+					concurrency: 2,
+					archiveOnPullRequestClose: false,
+					archiveAfterDays: null,
+				},
+			});
+			expect(manager.setFactoryConcurrency).not.toHaveBeenCalled();
+			await service.handleCommand(
+				envelope("task.factory.limits.set", { archiveAfterDays: 14 }),
+				trusted,
+			);
+			// A new Hub reads what was stored.
+			await expect(
+				new FileFactoryDefaultsStore(path).getAutoArchive(),
+			).resolves.toEqual({
+				archiveOnPullRequestClose: false,
+				archiveAfterDays: 14,
+			});
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
 	it("routes approval and execution through the manager", async () => {
 		const manager = managerMock();
 		const service = new HubAgendaTaskCommandService(manager);

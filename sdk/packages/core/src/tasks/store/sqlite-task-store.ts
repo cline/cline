@@ -10,6 +10,7 @@ import type {
 	AgendaTaskRunStatus,
 	AgendaTaskStatus,
 	AgendaTaskUpdateInput,
+	FactoryArchiveRecord,
 	FactoryBlockedBy,
 	FactoryDesignProgress,
 	FactoryDesignReview,
@@ -26,6 +27,7 @@ import {
 	FACTORY_DUPLICATE_REPORTS_RECENT,
 	FACTORY_PRIORITY_NONE_RANK,
 	FACTORY_PRIORITY_RANK,
+	factoryArchiveRecordSchema,
 	factoryBlockedBySchema,
 	factoryCheckResultSchema,
 	factoryDesignProgressSchema,
@@ -80,6 +82,7 @@ export interface AgendaTaskStatePatch {
 	error?: string | null;
 	completedAt?: string | null;
 	archivedAt?: string | null;
+	factoryArchive?: FactoryArchiveRecord;
 	updatedBy?: AgendaTaskActor;
 }
 
@@ -194,6 +197,10 @@ function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 	const factoryDuplicateReports = parseFactoryDuplicateReports(
 		row.factory_duplicate_reports_json,
 	);
+	const factoryArchive = parseFactoryLink(
+		factoryArchiveRecordSchema,
+		row.factory_archive_json,
+	);
 	return {
 		...(factoryParentTaskId ? { factoryParentTaskId } : {}),
 		...(factorySplit ? { factorySplit } : {}),
@@ -273,6 +280,7 @@ function taskRowToRecord(row: Record<string, unknown>): AgendaTaskRecord {
 		updatedAt: asString(row.updated_at),
 		completedAt: asOptionalString(row.completed_at),
 		archivedAt: asOptionalString(row.archived_at),
+		...(factoryArchive ? { factoryArchive } : {}),
 	};
 }
 
@@ -889,7 +897,7 @@ export class SqliteAgendaTaskStore {
 				`UPDATE agenda_tasks SET
 					status = ?, approved_revision = ?, current_run_id = ?, last_run_id = ?,
 					last_session_id = ?, spec_path = ?, error = ?, completed_at = ?,
-					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?, factory_design_review_json = ?, factory_questions_json = ?, factory_design_sessions_json = ?, factory_design_progress_json = ?
+					archived_at = ?, updated_by_json = ?, updated_at = ?, origin_session_id = ?, factory_design_review_json = ?, factory_questions_json = ?, factory_design_sessions_json = ?, factory_design_progress_json = ?, factory_archive_json = ?
 				WHERE task_id = ? AND revision = ?`,
 			)
 			.run(
@@ -932,6 +940,11 @@ export class SqliteAgendaTaskStore {
 					: (JSON.stringify(
 							patch.factoryDesignProgress ?? current.factoryDesignProgress,
 						) ?? null),
+				JSON.stringify(
+					patch.factoryArchive
+						? factoryArchiveRecordSchema.parse(patch.factoryArchive)
+						: current.factoryArchive,
+				) ?? null,
 				taskId,
 				current.revision,
 			);
@@ -1018,6 +1031,24 @@ export class SqliteAgendaTaskStore {
 	 * Parts that may still wait for earlier merges: linked, not started
 	 * anyway, not archived, and not past approval.
 	 */
+	/**
+	 * Unarchived delivered Factory cards after `afterTaskId` in id order, at
+	 * most `limit`: one auto-archive pass. Archived history is never read.
+	 */
+	public listFactoryDeliveredCards(
+		afterTaskId: string,
+		limit: number,
+	): AgendaTaskRecord[] {
+		return this.db
+			.prepare(
+				`${SELECT_TASKS} WHERE status = 'completed' AND archived_at IS NULL
+				AND factory_json IS NOT NULL AND task_id > ?
+				ORDER BY task_id ASC LIMIT ?`,
+			)
+			.all(afterTaskId, limit)
+			.map(taskRowToRecord);
+	}
+
 	public listFactoryWaitingParts(): AgendaTaskRecord[] {
 		return this.db
 			.prepare(

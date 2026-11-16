@@ -4,13 +4,14 @@ import {
 	factoryRunStateSchema,
 	factoryTaskConfigSchema,
 } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	factoryActivity,
 	factoryNeedsYou,
 } from "@/components/views/factory/factory-ui";
 import type { FactoryAttention } from "@/hooks/use-factory-attention";
 import {
+	factoryAttentionOutcome,
 	factoryAttentionReasons,
 	factoryAutoApprovalBlocker,
 	factoryAutoApprovalWaiting,
@@ -29,6 +30,12 @@ import {
 	factoryUnreadable,
 	isFactoryRuleCard,
 } from "./factory-attention";
+
+const visual = vi.hoisted(() => ({ proof: vi.fn() }));
+vi.mock("@cline/shared/browser", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/shared/browser")>()),
+	factoryVisualProof: visual.proof,
+}));
 
 const handsOff = factoryTaskConfigSchema.parse({
 	autonomy: "hands_off",
@@ -933,5 +940,36 @@ describe("factoryStation", () => {
 				phase: "verifying",
 			}),
 		).toBe("review");
+	});
+});
+
+describe("factoryAttentionOutcome visual proof", () => {
+	const artifact = (path: string, mimeType: string) => ({
+		label: path,
+		path,
+		mimeType,
+	});
+	it("carries only whether proof shows and whether it has a recording, never files", () => {
+		visual.proof.mockReturnValueOnce({
+			status: "shown",
+			screenshots: [artifact("/private/a.png", "image/png")],
+			recordings: [artifact("/private/a.webm", "video/webm")],
+		});
+		const outcome = factoryAttentionOutcome(task(), state(), []);
+		expect(outcome.visualProof).toBe("shown");
+		expect(outcome.recording).toBe(true);
+		expect(JSON.stringify(outcome)).not.toContain("/private/");
+		visual.proof.mockReturnValueOnce({
+			status: "missing",
+			screenshots: [],
+			recordings: [],
+		});
+		const missing = factoryAttentionOutcome(task(), state(), []);
+		expect(missing.visualProof).toBe("missing");
+		expect(missing).not.toHaveProperty("recording");
+		visual.proof.mockReturnValueOnce({ status: "not_required" });
+		expect(factoryAttentionOutcome(task(), state(), [])).not.toHaveProperty(
+			"visualProof",
+		);
 	});
 });

@@ -547,14 +547,32 @@ describe("FactoryTaskHeader primary action", () => {
 			}),
 		});
 		expect(headline()).toBe("Checks did not pass");
-		expect(actions()).toEqual(["Try again"]);
+		expect(actions()).toEqual(["Try again", "Archive"]);
 		// The reason drops the headline it repeats; no sentence restates Try again.
 		expect(
 			document.querySelector('[data-testid="factory-failure-reason"]')
 				?.textContent,
 		).toBe("Type check failed.");
 		expect(progress()?.textContent).not.toContain("edit the plan first");
-		expect(await menuItems()).toEqual(["Edit plan", "Archive", "Delete card…"]);
+		// Archive is beside the primary action, so it is not in More as well.
+		expect(await menuItems()).toEqual(["Edit plan", "Delete card…"]);
+	});
+
+	it("shows exactly one Archive control on a stopped card, calling archive once", async () => {
+		const onArchive = vi.fn();
+		await render({
+			task: { ...handsOff, status: "failed", error: "Checks failed." },
+			failure: { reason: "Checks did not pass.", onRetry: vi.fn() },
+			onArchive,
+		});
+		const menu = await menuItems();
+		const archives = [...document.querySelectorAll("button")].filter(
+			(item) => item.textContent?.trim() === "Archive",
+		);
+		expect(archives).toHaveLength(1);
+		expect(menu).not.toContain("Archive");
+		await act(async () => archives[0]?.click());
+		expect(onArchive).toHaveBeenCalledTimes(1);
 	});
 
 	it("makes Edit plan the one action when only editing can fix the plan", async () => {
@@ -563,7 +581,7 @@ describe("FactoryTaskHeader primary action", () => {
 			failure: { planFaultStopped: true },
 			onEditPlan: vi.fn(),
 		});
-		expect(actions()).toEqual(["Edit plan"]);
+		expect(actions()).toEqual(["Edit plan", "Archive"]);
 		expect(await menuItems()).not.toContain("Edit plan");
 	});
 
@@ -598,7 +616,7 @@ describe("FactoryTaskHeader primary action", () => {
 		expect(progress()?.textContent?.split("still had objections").length).toBe(
 			2,
 		);
-		expect(actions()).toEqual(["Try scoping again"]);
+		expect(actions()).toEqual(["Try scoping again", "Archive"]);
 		expect(await menuItems()).toContain("Edit plan");
 		expect(factoryScopingStopReason("Design did not complete: boom")).toBe(
 			"Scoping did not finish.",

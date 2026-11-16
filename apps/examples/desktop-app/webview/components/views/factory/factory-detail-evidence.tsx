@@ -24,7 +24,7 @@ import {
 	X,
 	XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { MemoizedMarkdown } from "@/components/ui/markdown";
@@ -35,6 +35,7 @@ import {
 	FACTORY_CHECK_RESULT,
 	FACTORY_PROOF,
 	FACTORY_RECOVERY,
+	FACTORY_VISUAL_PROOF,
 } from "@/lib/factory-copy";
 import { cn } from "@/lib/utils";
 import { factoryRequirementUncheckable } from "./factory-proof";
@@ -44,6 +45,135 @@ import {
 	StatusPill,
 	toneText,
 } from "./factory-ui";
+
+/** Loads one recorded file on demand, as a data URL; failures stay retryable. */
+export function useEvidenceLoader({
+	taskId,
+	runId,
+	path,
+}: {
+	taskId: string;
+	runId: string;
+	path: string;
+}) {
+	const [dataUrl, setDataUrl] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(false);
+	const load = (onLoaded: () => void) => {
+		if (dataUrl) {
+			onLoaded();
+			return;
+		}
+		setLoading(true);
+		void desktopClient
+			.invoke<{ dataUrl: string }>("factory_read_artifact", {
+				taskId,
+				runId,
+				path,
+			})
+			.then((result) => {
+				setDataUrl(result.dataUrl);
+				setError(null);
+				onLoaded();
+			})
+			.catch((cause: unknown) =>
+				setError(
+					cause instanceof Error ? cause.message : "Unable to load evidence.",
+				),
+			)
+			.finally(() => setLoading(false));
+	};
+	return { dataUrl, error, loading, load };
+}
+
+/**
+ * A recorded screenshot or recording in the app's lightbox. A recording's
+ * steps list below the player; choosing one seeks the video to its time.
+ */
+export function EvidenceDialog({
+	label,
+	dataUrl,
+	video,
+	steps,
+	open,
+	onOpenChange,
+}: {
+	label: string;
+	dataUrl: string | null;
+	video: boolean;
+	steps?: { atMs: number; text: string }[];
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const player = useRef<HTMLVideoElement>(null);
+	return (
+		<Dialog open={open && Boolean(dataUrl)} onOpenChange={onOpenChange}>
+			<DialogContent
+				showCloseButton={false}
+				aria-describedby={undefined}
+				className="h-[calc(100dvh-4rem)] max-w-[calc(100vw-4rem)] border-0 bg-background/95 p-4 shadow-none backdrop-blur-sm sm:max-w-[calc(100vw-4rem)]"
+				data-testid="factory-evidence-lightbox"
+			>
+				<DialogTitle className="sr-only">{label}</DialogTitle>
+				{dataUrl && video ? (
+					<div className="relative flex h-full w-full flex-col items-center justify-center gap-3">
+						<video
+							ref={player}
+							src={dataUrl}
+							controls
+							preload="metadata"
+							className="min-h-0 max-w-full flex-1 rounded-lg"
+						>
+							<track kind="captions" />
+						</video>
+						{steps?.length ? (
+							<details className="max-h-40 w-full max-w-2xl shrink-0 overflow-auto text-sm">
+								<DetailsSummary>{FACTORY_VISUAL_PROOF.steps}</DetailsSummary>
+								<ol className="mt-2 space-y-1">
+									{steps.map((step) => (
+										<li key={`${step.atMs}:${step.text}`}>
+											<button
+												type="button"
+												className="flex w-full items-baseline gap-2 rounded-sm px-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+												onClick={() => {
+													if (player.current)
+														player.current.currentTime = step.atMs / 1000;
+												}}
+											>
+												<span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+													{FACTORY_VISUAL_PROOF.duration(step.atMs / 1000)}
+												</span>
+												<span className="min-w-0 break-words">{step.text}</span>
+											</button>
+										</li>
+									))}
+								</ol>
+							</details>
+						) : null}
+						<Button
+							size="sm"
+							variant="secondary"
+							className="absolute top-0 right-0"
+							onClick={() => onOpenChange(false)}
+						>
+							<X className="size-3.5" />
+							<span className="sr-only">Close recording</span>
+						</Button>
+					</div>
+				) : dataUrl ? (
+					<div className="relative h-full w-full">
+						<AgentImageLightboxContent
+							src={dataUrl}
+							alt={label}
+							onClose={() => onOpenChange(false)}
+							backdropTabIndex={-1}
+						/>
+					</div>
+				) : null}
+			</DialogContent>
+		</Dialog>
+	);
+}
 
 /**
  * A check's screenshot or recording: loaded on demand, then shown in the
@@ -58,9 +188,11 @@ export function EvidencePreview({
 	runId: string;
 	artifact: { path: string; label: string; mimeType: string };
 }) {
-	const [dataUrl, setDataUrl] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	const [loading, setLoading] = useState(false);
+	const { dataUrl, error, loading, load } = useEvidenceLoader({
+		taskId,
+		runId,
+		path: artifact.path,
+	});
 	const [open, setOpen] = useState(false);
 	const video = artifact.mimeType.startsWith("video/");
 	const Icon = video ? Film : ImageIcon;
@@ -71,32 +203,7 @@ export function EvidencePreview({
 				variant="outline"
 				disabled={loading}
 				aria-haspopup="dialog"
-				onClick={() => {
-					if (dataUrl) {
-						setOpen(true);
-						return;
-					}
-					setLoading(true);
-					void desktopClient
-						.invoke<{ dataUrl: string }>("factory_read_artifact", {
-							taskId,
-							runId,
-							path: artifact.path,
-						})
-						.then((result) => {
-							setDataUrl(result.dataUrl);
-							setError(null);
-							setOpen(true);
-						})
-						.catch((cause: unknown) =>
-							setError(
-								cause instanceof Error
-									? cause.message
-									: "Unable to load evidence.",
-							),
-						)
-						.finally(() => setLoading(false));
-				}}
+				onClick={() => load(() => setOpen(true))}
 			>
 				<Icon className="mr-1.5 size-3.5" />
 				{loading ? "Loading…" : artifact.label}
@@ -106,45 +213,13 @@ export function EvidencePreview({
 					{error}
 				</p>
 			) : null}
-			<Dialog open={open && Boolean(dataUrl)} onOpenChange={setOpen}>
-				<DialogContent
-					showCloseButton={false}
-					aria-describedby={undefined}
-					className="h-[calc(100dvh-4rem)] max-w-[calc(100vw-4rem)] border-0 bg-background/95 p-4 shadow-none backdrop-blur-sm sm:max-w-[calc(100vw-4rem)]"
-					data-testid="factory-evidence-lightbox"
-				>
-					<DialogTitle className="sr-only">{artifact.label}</DialogTitle>
-					{dataUrl && video ? (
-						<div className="relative flex h-full w-full items-center justify-center">
-							<video
-								src={dataUrl}
-								controls
-								className="max-h-full max-w-full rounded-lg"
-							>
-								<track kind="captions" />
-							</video>
-							<Button
-								size="sm"
-								variant="secondary"
-								className="absolute top-0 right-0"
-								onClick={() => setOpen(false)}
-							>
-								<X className="size-3.5" />
-								<span className="sr-only">Close recording</span>
-							</Button>
-						</div>
-					) : dataUrl ? (
-						<div className="relative h-full w-full">
-							<AgentImageLightboxContent
-								src={dataUrl}
-								alt={artifact.label}
-								onClose={() => setOpen(false)}
-								backdropTabIndex={-1}
-							/>
-						</div>
-					) : null}
-				</DialogContent>
-			</Dialog>
+			<EvidenceDialog
+				label={artifact.label}
+				dataUrl={dataUrl}
+				video={video}
+				open={open}
+				onOpenChange={setOpen}
+			/>
 		</div>
 	);
 }

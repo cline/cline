@@ -10,6 +10,7 @@
  */
 
 import type {
+	FactoryArchiveAfterDays,
 	FactoryRepositoryStage,
 	FactoryVerificationProfile,
 	FactoryWorkflowConfig,
@@ -455,6 +456,8 @@ export const factorySettingsClient = {
 		dailyCostUsd?: number | null;
 		duplicateCheck?: boolean;
 		splitLargeWork?: boolean;
+		archiveOnPullRequestClose?: boolean;
+		archiveAfterDays?: FactoryArchiveAfterDays | null;
 	}) => call<FactoryLimits>("factory_set_limits", args),
 };
 

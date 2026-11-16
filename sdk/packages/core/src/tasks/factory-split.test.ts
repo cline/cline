@@ -908,6 +908,39 @@ describe("settling a waiting part", () => {
 		expect(prompt).toContain(PR);
 	});
 
+	it("archives a merged part automatically without its open parent, and the later part still latches the merge", async () => {
+		const h = await harness();
+		const { parent, parts } = await h.approvedSplit();
+		const [exporting, , linking] = parts as [
+			AgendaTaskRecord,
+			AgendaTaskRecord,
+			AgendaTaskRecord,
+		];
+		h.deliver(exporting.taskId, {
+			pullRequestOutcome: {
+				state: "merged",
+				headChanged: false,
+				at: new Date().toISOString(),
+				baseBranch: "main",
+			},
+		});
+		const waiting = h.manager.getFactoryCardLinks(linking.taskId).dependency;
+		await (
+			h.manager as unknown as { autoArchiveFactoryCards(): Promise<void> }
+		).autoArchiveFactoryCards();
+		expect((await h.get(exporting.taskId)).factoryArchive).toEqual({
+			reason: "pr_merged",
+		});
+		expect((await h.get(parent.taskId)).archivedAt).toBeUndefined();
+		expect(h.manager.getFactoryCardLinks(linking.taskId).dependency).toEqual(
+			waiting,
+		);
+		await h.internals().checkFactoryMerges();
+		expect((await h.get(linking.taskId)).factoryBlockedBy?.met).toEqual({
+			[exporting.taskId]: { at: expect.any(String), prUrl: PR },
+		});
+	});
+
 	it("latches as soon as PR follow-up records the merge, even while Factory is paused", async () => {
 		const h = await harness();
 		const { parts } = await h.approvedSplit();

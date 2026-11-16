@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFactoryArtifact } from "./factory-artifacts";
+import {
+	readFactoryArtifact,
+	resolveFactoryArtifact,
+} from "./factory-artifacts";
 
 const storage = vi.hoisted(() => ({ root: "" }));
 vi.mock("@cline/shared/storage", () => ({
@@ -76,5 +79,61 @@ describe("Factory evidence preview", () => {
 		await expect(
 			readFactoryArtifact(reply(), "run-1", artifactPath),
 		).rejects.toThrow("inside factory artifact storage");
+	});
+	describe("recorded on stages and with thumbnails", () => {
+		function withCandidate(candidate: Record<string, unknown>) {
+			return {
+				runs: [
+					{
+						runId: "run-1",
+						factory: { candidate: { checks: [], ...candidate } },
+					},
+				],
+			};
+		}
+		let thumbnailPath: string;
+		beforeEach(async () => {
+			thumbnailPath = join(
+				storage.root,
+				"factory",
+				"factory-artifacts",
+				"run",
+				"screen.jpg",
+			);
+			await writeFile(thumbnailPath, Buffer.from([255, 216, 255]));
+		});
+		const recorded = (path: string, thumbnail?: string) => ({
+			path,
+			mimeType: "image/png",
+			...(thumbnail ? { thumbnailPath: thumbnail } : {}),
+		});
+		it("resolves an artifact recorded on a stage", async () => {
+			const evidence = withCandidate({
+				stages: [{ artifacts: [recorded(artifactPath)] }],
+			});
+			expect(
+				await resolveFactoryArtifact(evidence, "run-1", artifactPath),
+			).toMatchObject({ mimeType: "image/png", size: 4 });
+		});
+		it("refuses a thumbnail path not recorded on the run", async () => {
+			const evidence = withCandidate({
+				verification: { artifacts: [recorded(artifactPath)] },
+			});
+			await expect(
+				readFactoryArtifact(evidence, "run-1", thumbnailPath),
+			).rejects.toThrow("not recorded evidence");
+		});
+		it("returns a recorded thumbnail and refuses one over 200 KB", async () => {
+			const evidence = withCandidate({
+				verification: { artifacts: [recorded(artifactPath, thumbnailPath)] },
+			});
+			expect(
+				await readFactoryArtifact(evidence, "run-1", artifactPath, "thumbnail"),
+			).toEqual({ dataUrl: "data:image/jpeg;base64,/9j/" });
+			await writeFile(thumbnailPath, Buffer.alloc(200 * 1024 + 1));
+			await expect(
+				readFactoryArtifact(evidence, "run-1", artifactPath, "thumbnail"),
+			).rejects.toThrow("200 KB");
+		});
 	});
 });

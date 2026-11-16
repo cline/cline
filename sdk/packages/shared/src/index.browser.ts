@@ -79,6 +79,7 @@ export * from "./factory";
 export * from "./factory-card-state";
 export * from "./factory-priority";
 export * from "./factory-split";
+export * from "./factory-visual-proof";
 export {
 	FEATURE_FLAGS,
 	FeatureFlag,

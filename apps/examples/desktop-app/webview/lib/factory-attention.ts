@@ -9,6 +9,7 @@ import type {
 	FactoryDesignConclusion,
 	FactoryPlanApprovalInput,
 	FactoryRunState,
+	FactoryTaskConfig,
 } from "@cline/shared";
 import {
 	FACTORY_AUTO_APPROVAL_WAITING_PREFIX,
@@ -22,6 +23,7 @@ import {
 	factoryPlanApprovalBlocker,
 	factoryRepositoryRelative,
 	factoryStageName,
+	factoryVisualProof,
 	isFactoryHandsOff,
 } from "@cline/shared/browser";
 import { factoryPlanReady } from "./factory-approval";
@@ -854,7 +856,9 @@ const FACTORY_OUTCOME_ERROR_CHARS = 1000;
  * the run's logs, diffs or full attempt history.
  */
 export function factoryAttentionOutcome(
-	task: Parameters<typeof factoryAutoRetrying>[0],
+	task: Parameters<typeof factoryAutoRetrying>[0] & {
+		factory?: FactoryTaskConfig;
+	},
 	state: FactoryRunState,
 	runs: readonly FactoryRetryRun[],
 ) {
@@ -864,8 +868,16 @@ export function factoryAttentionOutcome(
 		(attempt) => attempt.status === "intent" || attempt.status === "running",
 	);
 	const activeStage = factoryActiveStage(state);
+	// Only whether proof shows, never the files: the board needs a marker.
+	const proof = factoryVisualProof(task.factory ?? {}, state);
 	return {
 		phase: state.phase,
+		...(proof.status !== "not_required"
+			? {
+					visualProof: proof.status,
+					...(proof.recordings.length ? { recording: true as const } : {}),
+				}
+			: {}),
 		activeRoles: activeAttempts.map((attempt) => attempt.role),
 		activeSessions: activeAttempts.map((attempt) => ({
 			sessionId: attempt.sessionId,

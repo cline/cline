@@ -25,6 +25,7 @@ import {
 	factoryWorkspaceSchema,
 } from "@cline/shared";
 import { z } from "zod";
+import type { FactoryCaptureFile } from "./factory-browser";
 import {
 	FactoryDecisionError,
 	FactoryDeferredError,
@@ -1105,15 +1106,39 @@ export class FactoryEvidenceOutsideWorktreeError extends Error {
 	}
 }
 
+/** Whether a file's leading bytes match its media type. */
+async function hasMediaHeader(source: string, mime: string): Promise<boolean> {
+	const file = await open(source, "r");
+	try {
+		const header = Buffer.alloc(12);
+		await file.read(header, 0, header.length, 0);
+		return mime === "image/png"
+			? header
+					.subarray(0, 8)
+					.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+			: mime === "image/jpeg"
+				? header[0] === 255 && header[1] === 216 && header[2] === 255
+				: mime === "image/webp"
+					? header.toString("ascii", 0, 4) === "RIFF" &&
+						header.toString("ascii", 8, 12) === "WEBP"
+					: mime === "video/mp4"
+						? header.toString("ascii", 4, 8) === "ftyp"
+						: header.subarray(0, 4).equals(Buffer.from([26, 69, 223, 163]));
+	} finally {
+		await file.close();
+	}
+}
+
+/** Copies one media file that must be inside `root` into Factory's artifact store. */
 async function collectArtifact(input: {
 	declaredPath: string;
-	cwd: string;
+	root: string;
 	artifactDir: string;
 	previousVersion: string | undefined;
 }): Promise<FactoryArtifact> {
-	const cwd = await realpath(input.cwd);
-	const source = await realpath(path.resolve(cwd, input.declaredPath));
-	const relative = path.relative(cwd, source);
+	const root = await realpath(input.root);
+	const source = await realpath(path.resolve(root, input.declaredPath));
+	const relative = path.relative(root, source);
 	if (
 		!relative ||
 		relative.startsWith(`..${path.sep}`) ||
@@ -1136,37 +1161,22 @@ async function collectArtifact(input: {
 		throw new Error(
 			`Evidence was not refreshed by this check: ${input.declaredPath}`,
 		);
-	const file = await open(source, "r");
-	try {
-		const header = Buffer.alloc(12);
-		await file.read(header, 0, header.length, 0);
-		const valid =
-			mime === "image/png"
-				? header
-						.subarray(0, 8)
-						.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-				: mime === "image/jpeg"
-					? header[0] === 255 && header[1] === 216 && header[2] === 255
-					: mime === "image/webp"
-						? header.toString("ascii", 0, 4) === "RIFF" &&
-							header.toString("ascii", 8, 12) === "WEBP"
-						: mime === "video/mp4"
-							? header.toString("ascii", 4, 8) === "ftyp"
-							: header.subarray(0, 4).equals(Buffer.from([26, 69, 223, 163]));
-		if (!valid)
-			throw new Error(
-				`Evidence content does not match its media type: ${input.declaredPath}`,
-			);
-	} finally {
-		await file.close();
-	}
+	if (!(await hasMediaHeader(source, mime)))
+		throw new Error(
+			`Evidence content does not match its media type: ${input.declaredPath}`,
+		);
 	await mkdir(input.artifactDir, { recursive: true });
 	const destination = path.join(
 		input.artifactDir,
 		`${randomUUID()}${path.extname(source)}`,
 	);
 	await copyFile(source, destination);
-	return { label: input.declaredPath, path: destination, mimeType: mime };
+	return {
+		label: input.declaredPath,
+		path: destination,
+		mimeType: mime,
+		bytes: metadata.size,
+	};
 }
 
 function isMissingFile(error: unknown): boolean {
@@ -1198,7 +1208,7 @@ export async function collectFactoryArtifacts(input: {
 		artifacts.push(
 			await collectArtifact({
 				declaredPath,
-				cwd: input.cwd,
+				root: input.cwd,
 				previousVersion: input.previousVersions[index],
 				artifactDir: path.join(
 					input.storageDir,
@@ -1209,6 +1219,77 @@ export async function collectFactoryArtifacts(input: {
 		);
 	}
 	return artifacts;
+}
+
+const MAX_THUMBNAIL_BYTES = 200 * 1024;
+
+/**
+ * Stores the tester's browser capture beside other evidence, with the same
+ * containment, size and content checks. A thumbnail goes beside its artifact
+ * as `<uuid>.thumb.jpg` and is omitted when invalid or over 200 KB. A file
+ * that cannot be stored is skipped and reported in `note`.
+ */
+export async function collectFactoryCapture(input: {
+	dir: string;
+	files: FactoryCaptureFile[];
+	storageDir: string;
+	runId: string;
+}): Promise<{ artifacts: FactoryArtifact[]; note?: string }> {
+	const artifactDir = path.join(
+		input.storageDir,
+		"factory-artifacts",
+		key(input.runId),
+	);
+	const artifacts: FactoryArtifact[] = [];
+	let failed = 0;
+	for (const capture of input.files) {
+		try {
+			const artifact = await collectArtifact({
+				declaredPath: path.relative(input.dir, capture.file),
+				root: input.dir,
+				artifactDir,
+				previousVersion: undefined,
+			});
+			let thumbnailPath: string | undefined;
+			if (capture.thumbnail) {
+				const destination = artifact.path.replace(/\.[^.]+$/, ".thumb.jpg");
+				thumbnailPath = await stat(capture.thumbnail)
+					.then(async (metadata) =>
+						metadata.isFile() &&
+						metadata.size > 0 &&
+						metadata.size <= MAX_THUMBNAIL_BYTES &&
+						path.dirname(capture.thumbnail as string) === input.dir &&
+						(await hasMediaHeader(capture.thumbnail as string, "image/jpeg"))
+							? copyFile(capture.thumbnail as string, destination).then(
+									() => destination,
+								)
+							: undefined,
+					)
+					.catch(() => undefined);
+			}
+			artifacts.push({
+				...artifact,
+				label: capture.caption,
+				caption: capture.caption,
+				...(thumbnailPath ? { thumbnailPath } : {}),
+				...(capture.atMs !== undefined ? { atMs: capture.atMs } : {}),
+				...(capture.durationMs !== undefined
+					? { durationMs: capture.durationMs }
+					: {}),
+				...(capture.steps ? { steps: capture.steps.slice(0, 40) } : {}),
+			});
+		} catch {
+			failed += 1;
+		}
+	}
+	return {
+		artifacts,
+		...(failed
+			? {
+					note: `${failed} of the tester's captures could not be saved.`,
+				}
+			: {}),
+	};
 }
 
 /** Runs one shell command line in `cwd` (`/bin/sh -c`, or `cmd.exe /c` on Windows). */

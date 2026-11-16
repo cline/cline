@@ -51,6 +51,7 @@ import {
 	AgendaTaskManager,
 	type AgendaTaskRuntime,
 } from "../../tasks/agenda-task-manager";
+import { openFactoryCapture } from "../../tasks/factory-browser";
 import type { FactoryToolResult } from "../../tasks/factory-tool";
 import { createFactoryWorkflowRecipe } from "../../tasks/factory-workflow-recipe";
 import { SqliteAgendaTaskStore } from "../../tasks/store/sqlite-task-store";
@@ -2090,6 +2091,73 @@ describe("Pull request review sessions", () => {
 			`require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran");\n`,
 		);
 	}
+
+	it("give the browser tool only to a verifier whose run opened a capture", async () => {
+		const root = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "cline-hub-browser-tool-")),
+		);
+		onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+		const project = join(root, "project");
+		const worktree = join(root, "worktree");
+		mkdirSync(project);
+		mkdirSync(worktree);
+		const { transport, starts } = reviewSessions(root, project);
+		const start = async (
+			role: "verifier" | "reviewer" | "builder",
+			agentTools?: string[],
+		) => {
+			await transport["startAgendaTaskSession"](
+				{
+					taskId: "task_capture",
+					title: "Check the counter",
+					instructions: "Check it.",
+					workspaceRoot: project,
+					cwd: worktree,
+					resourcePaths: [],
+					modelSelection: {
+						providerId: "anthropic",
+						modelId: "claude-sonnet-4-6",
+					},
+					factory: factoryTaskConfigSchema.parse({}),
+				} as never,
+				undefined,
+				"desktop",
+				true,
+				role,
+				agentTools ? { tools: agentTools } : undefined,
+			);
+			const input = starts.at(-1) as StartSessionInput;
+			return {
+				tools: (input.localRuntime?.extraTools ?? []).map((tool) => tool.name),
+				enabled: input.toolPolicies?.browser?.enabled === true,
+			};
+		};
+		const without = {
+			tools: expect.not.arrayContaining(["browser"]),
+			enabled: false,
+		};
+		expect(await start("verifier")).toEqual(without);
+
+		const capture = await openFactoryCapture({
+			worktree,
+			origin: "http://localhost:4000",
+			dir: join(root, "capture"),
+			token: "token",
+			signal: new AbortController().signal,
+		});
+		const withBrowser = {
+			tools: expect.arrayContaining(["browser"]),
+			enabled: true,
+		};
+		expect(await start("verifier")).toEqual(withBrowser);
+		expect(await start("verifier", ["read_files", "run_commands"])).toEqual(
+			withBrowser,
+		);
+		expect(await start("reviewer")).toEqual(without);
+		expect(await start("builder")).toEqual(without);
+		await capture.finish();
+		expect(await start("verifier")).toEqual(without);
+	});
 
 	it("load no hooks, rules, provider tools or other configuration from the pull request's checkout", async () => {
 		const root = realpathSync.native(

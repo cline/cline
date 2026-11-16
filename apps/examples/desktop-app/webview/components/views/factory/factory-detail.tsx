@@ -13,6 +13,7 @@ import {
 	factoryPlanApprovalBlocker,
 	factoryRepositoryRelative,
 	factoryTaskConfigSchema,
+	factoryVisualProof,
 	factoryWatchesPullRequest,
 	formatFactoryId,
 	isFactoryHandsOff,
@@ -827,6 +828,10 @@ export function FeatureDetail({
 			? state.humanReview
 			: undefined;
 	const hasVerifier = factoryHasVerifier(task, matchesTask ? state : undefined);
+	const visualProof = factoryVisualProof(
+		task.factory ?? DEFAULT_FACTORY,
+		state ?? {},
+	);
 	// A part waiting for an earlier part's merge waits for that, not a slot.
 	const waitingForSlot =
 		!liveSessions.length &&
@@ -1410,9 +1415,24 @@ export function FeatureDetail({
 			)}
 		</section>
 	);
+	const shownProofPaths = new Set(
+		visualProof.status === "not_required"
+			? []
+			: [...visualProof.recordings, ...visualProof.screenshots].map(
+					(artifact) => artifact.path,
+				),
+	);
 	const deliveredBlock =
 		(delivered || (openFindings && currentEvidence)) && state?.candidate ? (
-			<FactoryProof state={state} hasVerifier={hasVerifier}>
+			<FactoryProof
+				state={state}
+				hasVerifier={hasVerifier}
+				visualProof={
+					run?.runId
+						? { taskId: task.taskId, runId: run.runId, proof: visualProof }
+						: undefined
+				}
+			>
 				{/* Feedback rates a delivery; other states have none. */}
 				{delivered ? feedbackRow : null}
 			</FactoryProof>
@@ -1810,14 +1830,20 @@ export function FeatureDetail({
 						onOpenSession={openSession}
 						collapsed={handsOff}
 					/>
-					{verification.artifacts.map((artifact) => (
-						<EvidencePreview
-							key={`${run?.runId}:${state?.candidate?.commit}:${artifact.path}`}
-							taskId={task.taskId}
-							runId={run?.runId ?? ""}
-							artifact={artifact}
-						/>
-					))}
+					{verification.artifacts
+						// The receipt's strip already shows what it shows.
+						.filter(
+							(artifact) =>
+								!deliveredBlock || !shownProofPaths.has(artifact.path),
+						)
+						.map((artifact) => (
+							<EvidencePreview
+								key={`${run?.runId}:${state?.candidate?.commit}:${artifact.path}`}
+								taskId={task.taskId}
+								runId={run?.runId ?? ""}
+								artifact={artifact}
+							/>
+						))}
 				</section>
 			) : null}
 		</>

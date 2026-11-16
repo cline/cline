@@ -129,6 +129,9 @@ export function ensureAgendaTaskSchema(db: SqliteDb): void {
 		["agenda_tasks", "factory_split_json", "TEXT"],
 		// A part waiting for earlier parts' merges (setFactoryBlockedBy).
 		["agenda_tasks", "factory_blocked_by_json", "TEXT"],
+		// Why Factory archived the card itself, and its last restore (archive
+		// and restore only).
+		["agenda_tasks", "factory_archive_json", "TEXT"],
 	]) {
 		const present = () =>
 			db

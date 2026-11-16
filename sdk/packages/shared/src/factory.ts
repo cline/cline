@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+	factoryPathsTouchUi,
+	factoryVisualProof,
+} from "./factory-visual-proof";
 import type { AgendaTaskRecord } from "./tasks";
 
 export const factoryAgentSchema = z.object({
@@ -437,15 +441,27 @@ export function applyFactoryReviewSizePolicy(
 
 /**
  * Whether the verifier runs for this plan: always without a size or for
- * shared-contract and larger; for trivial and local changes only when an
- * acceptance criterion names no check (it needs the running app).
+ * shared-contract and larger; for trivial and local changes when an
+ * acceptance criterion names no check (it needs the running app) or, unless
+ * the workflow turns visual proof off, when the change alters what a person
+ * sees (the scoper's `visualProofPlan` or UI files among the affected paths):
+ * only the tester brings back a screenshot and a recording.
  */
 export function factoryVerifierNeeded(
-	selection: Pick<FactoryReviewSelection, "impact" | "size"> | undefined,
+	selection:
+		| Pick<FactoryReviewSelection, "impact" | "size" | "affectedPaths">
+		| undefined,
 	criteria: readonly Pick<FactoryAcceptanceCriterion, "check">[] | undefined,
+	config: Pick<FactoryTaskConfig, "visualProof" | "visualProofPlan">,
 ): boolean {
 	if (!selection?.size) return true;
 	if (FACTORY_REVIEW_SIZE_POLICY[selection.size].verifier === "always")
+		return true;
+	if (
+		config.visualProof !== false &&
+		(config.visualProofPlan?.needed ||
+			factoryPathsTouchUi(selection.affectedPaths))
+	)
 		return true;
 	return (criteria ?? []).some((criterion) => !criterion.check);
 }
@@ -693,6 +709,12 @@ export const factoryWorkflowConfigSchema = z.object({
 	 */
 	humanStamp: z.enum(["by_risk", "always", "never"]).optional(),
 	/**
+	 * Whether a change to the UI must arrive with a screenshot and a
+	 * recording (see factoryVisualProof). No default, so saved workflows keep
+	 * their revision hash; unset means on.
+	 */
+	visualProof: z.boolean().optional(),
+	/**
 	 * Whether Factory marks its draft PR ready for review. Unset is `never`.
 	 * `when_no_review_required` marks a newly opened draft ready only when its
 	 * checks, tester and an independent code review passed, no human review is
@@ -875,6 +897,13 @@ export const factoryTaskConfigSchema = factoryWorkflowConfigSchema.extend({
 			origin: z.enum(["repository", "approved_local", "proposed"]),
 		})
 		.optional(),
+	/** The scoper's answer: whether the change alters anything a person sees in the running app. */
+	visualProofPlan: z
+		.object({
+			needed: z.boolean(),
+			reason: z.string().trim().min(1).max(300),
+		})
+		.optional(),
 	/**
 	 * A person changed the brief or plan after scoping had run: automatic
 	 * approval leaves the card's next plans for a person ("changed_by_you").
@@ -1032,6 +1061,50 @@ export const factoryDuplicateReportsSchema = z.object({
 export type FactoryDuplicateReports = z.infer<
 	typeof factoryDuplicateReportsSchema
 >;
+
+/** "Archive delivered work after" choices in days (Settings → Automation). */
+export const FACTORY_ARCHIVE_AFTER_DAYS = [3, 7, 14, 30] as const;
+export type FactoryArchiveAfterDays =
+	(typeof FACTORY_ARCHIVE_AFTER_DAYS)[number];
+export const FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT: FactoryArchiveAfterDays = 7;
+
+/**
+ * When Factory archives delivered work by itself. `archiveAfterDays`: null
+ * is Never. Defaults: on, and 7 days.
+ */
+export interface FactoryAutoArchiveSettings {
+	archiveOnPullRequestClose: boolean;
+	archiveAfterDays: FactoryArchiveAfterDays | null;
+}
+
+/**
+ * Written beside `archivedAt` by archive and restore only. `reason` (with
+ * `days` for `quiet`): Factory archived the card by itself; any other
+ * archive or a restore clears it. `restoredAt`: the card's last restore;
+ * Factory archives it again only for a fact newer than that.
+ */
+export const factoryArchiveRecordSchema = z.object({
+	reason: z.enum(["pr_merged", "pr_closed", "quiet"]).optional(),
+	days: z.number().int().positive().optional(),
+	restoredAt: z.string().optional(),
+});
+export type FactoryArchiveRecord = z.infer<typeof factoryArchiveRecordSchema>;
+
+/** "Archived automatically: pull request merged", or undefined when a person archived it. */
+export function factoryAutoArchiveText(
+	record: FactoryArchiveRecord | undefined,
+): string | undefined {
+	switch (record?.reason) {
+		case "pr_merged":
+			return "Archived automatically: pull request merged";
+		case "pr_closed":
+			return "Archived automatically: pull request closed";
+		case "quiet":
+			return `Archived automatically: no activity for ${record.days} days after delivery`;
+		default:
+			return undefined;
+	}
+}
 
 /** Restarts Factory makes by itself of one run lineage interrupted by a Hub stop or crash. */
 export const FACTORY_MAX_INTERRUPT_RECOVERIES = 2;
@@ -1551,6 +1624,25 @@ export const factoryArtifactSchema = z.object({
 	label: z.string(),
 	path: z.string(),
 	mimeType: z.string(),
+	/** Shown under the artifact and used as its alt text. */
+	caption: z.string().max(200).optional(),
+	/** A small JPEG stored beside the artifact. */
+	thumbnailPath: z.string().optional(),
+	bytes: z.number().int().nonnegative().optional(),
+	/** A recording's length. */
+	durationMs: z.number().int().nonnegative().optional(),
+	/** A screenshot's offset into the session's recording. */
+	atMs: z.number().int().nonnegative().optional(),
+	/** A recording's steps: what the tester did, and when. */
+	steps: z
+		.array(
+			z.object({
+				atMs: z.number().int().nonnegative(),
+				text: z.string().max(200),
+			}),
+		)
+		.max(40)
+		.optional(),
 });
 export type FactoryArtifact = z.infer<typeof factoryArtifactSchema>;
 
@@ -1879,8 +1971,12 @@ export const factoryCandidateSchema = z.object({
 			sessionId: z.string(),
 			review: factoryVerificationReviewSchema,
 			artifacts: z.array(factoryArtifactSchema),
+			/** Why the tester's browser capture produced no proof: one plain sentence. */
+			captureNote: z.string().max(300).optional(),
 		})
 		.optional(),
+	/** Repository-relative paths this commit changed against its base. */
+	changedPaths: z.array(z.string()).max(500).optional(),
 });
 export type FactoryCandidate = z.infer<typeof factoryCandidateSchema>;
 
@@ -2990,19 +3086,22 @@ export const FACTORY_PLAN_APPROVED_REASON = "plan approved by a person";
  * run's plan (`planApprovedByPerson`), the plan's own size and the sensitive
  * paths it named were asked about then and are not asked again; escalation
  * (changes beyond the plan), an unknown impact, a changed profile and a
- * reviewer that is not independent still are. `never` is never required.
+ * reviewer that is not independent still are. A change to the UI delivered
+ * without a screenshot and a recording (factoryVisualProof `missing`) asks a
+ * person to look instead of failing the card. `never` is never required.
  * Reasons are short phrases for "Human review: required (<reason>)".
  */
 export function factoryStampRequirement(
 	config: Pick<
 		FactoryTaskConfig,
-		"autonomy" | "humanStamp" | "requireIndependentReview"
-	> & {
-		verificationProfile?: Pick<
-			NonNullable<FactoryTaskConfig["verificationProfile"]>,
-			"origin"
-		>;
-	},
+		| "autonomy"
+		| "humanStamp"
+		| "requireIndependentReview"
+		| "visualProof"
+		| "visualProofPlan"
+		| "agents"
+		| "verificationProfile"
+	>,
 	state: Pick<
 		FactoryRunState,
 		"reviewSelection" | "reviewEscalation" | "attempts" | "candidate"
@@ -3043,6 +3142,8 @@ export function factoryStampRequirement(
 		: undefined;
 	if (recorded && !recorded.independent)
 		return { required: true, reason: recorded.reason };
+	if (factoryVisualProof(config, state).status === "missing")
+		return { required: true, reason: "not visually verified" };
 	return askedAtPlan &&
 		(state.reviewSelection.impact !== "local" ||
 			factorySensitivePaths(state.reviewSelection.affectedPaths).length)

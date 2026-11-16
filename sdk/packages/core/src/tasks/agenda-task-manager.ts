@@ -13,6 +13,8 @@ import type {
 	BasicLogger,
 	FactoryAgent,
 	FactoryAgents,
+	FactoryArchiveRecord,
+	FactoryAutoArchiveSettings,
 	FactoryBlockedBy,
 	FactoryCardState,
 	FactoryDependencyState,
@@ -42,6 +44,7 @@ import {
 	clampFactoryPriority,
 	createSessionId,
 	DEFAULT_FACTORY_AGENTS,
+	FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT,
 	FACTORY_AUTO_APPROVAL_WAITING_PREFIX,
 	FACTORY_BUILT_IN_POLICY,
 	FACTORY_CONCURRENCY_DEFAULT,
@@ -109,6 +112,7 @@ import type {
 } from "./agenda-task-api";
 import { parseFactoryReview, resolveFactoryAgent } from "./factory-agents";
 import { stopFactoryAppEnvironment } from "./factory-app-environment";
+import { factoryAutoArchiveReason } from "./factory-auto-archive";
 import { clampFactoryConcurrency } from "./factory-defaults";
 import {
 	buildFactoryDuplicateReply,
@@ -381,6 +385,13 @@ const AUTOMATION_ACTOR: AgendaTaskActor = {
 	kind: "automation_policy",
 	id: "global",
 };
+/** Factory archiving delivered work by itself (Settings → Automation). */
+const FACTORY_AUTO_ARCHIVE_ACTOR: AgendaTaskActor = {
+	kind: "system",
+	id: "factory_auto_archive",
+};
+/** Delivered cards one auto-archive pass reads, at most. */
+const FACTORY_AUTO_ARCHIVE_PER_PASS = 50;
 /** Files rule cards for review findings that recur across cards. */
 const FACTORY_REPO_RULES_ACTOR: AgendaTaskActor = {
 	kind: "system",
@@ -546,6 +557,11 @@ export interface AgendaTaskManagerOptions {
 	 * never set), read at start and with the other stored settings.
 	 */
 	resolveFactorySplitLargeWork?: () => Promise<boolean | undefined>;
+	/**
+	 * When Factory archives delivered work by itself (persisted), read at
+	 * each auto-archive pass. Unset: on, and after 7 days.
+	 */
+	resolveFactoryAutoArchive?: () => Promise<FactoryAutoArchiveSettings>;
 	/** How long a thrown designer turn is polled for its session to stop before one retry. Defaults to 60 polls of 1 s. */
 	factorySettlePolling?: { intervalMs: number; attempts: number };
 	globalSpecsDir?: string;
@@ -1260,6 +1276,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	private readonly resolveFactorySplitLargeWork?: () => Promise<
 		boolean | undefined
 	>;
+	private readonly resolveFactoryAutoArchive?: () => Promise<FactoryAutoArchiveSettings>;
+	/** The running auto-archive pass, and the last card the previous pass read. */
+	private factoryAutoArchivePass?: Promise<void>;
+	private factoryAutoArchiveAfter = "";
 	/**
 	 * Each unsettled earlier pull request a waiting part waits on, by URL:
 	 * when it was last read and how many reads in a row failed. Entries for
@@ -1375,6 +1395,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.resolveFactoryDailyCostUsd = options.resolveFactoryDailyCostUsd;
 		this.resolveFactoryDuplicateCheck = options.resolveFactoryDuplicateCheck;
 		this.resolveFactorySplitLargeWork = options.resolveFactorySplitLargeWork;
+		this.resolveFactoryAutoArchive = options.resolveFactoryAutoArchive;
 		this.factoryDataDir = dirname(options.dbPath ?? resolveTasksDbPath());
 		this.factoryStorageDir =
 			options.factoryStorageDir ?? join(this.factoryDataDir, "factory");
@@ -1475,6 +1496,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			// Spends no model money: runs while paused, at the daily limit and
 			// with every slot busy.
 			void this.checkFactoryMerges();
+			// Also spends nothing and ignores the pause, slots and daily limit.
+			void this.autoArchiveFactoryCards();
 			// Re-reads the persisted pause and limits (a corrupt or deleted
 			// defaults file pauses), then keeps the daily-limit state current.
 			void this.refreshFactorySettings()
@@ -2700,6 +2723,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.factoryMergeAbort.abort(new Error("Hub stopped"));
 		this.factoryReviewAbort.abort(new Error("Hub stopped"));
 		await this.factoryMergeCheck;
+		await this.factoryAutoArchivePass;
 		await Promise.allSettled(
 			[...this.designSessions.keys()].map((taskId) =>
 				this.abortFactoryDesign(taskId, "Hub stopped"),
@@ -3869,10 +3893,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		return task;
 	}
 
+	/** `auto`: Factory archives the card by itself, for this reason. */
 	async archiveTask(
 		taskId: string,
 		actor: AgendaTaskActor,
 		expectedRevision: number,
+		auto?: FactoryArchiveRecord,
 	): Promise<AgendaTaskRecord> {
 		this.assertUsable();
 		let current = this.requireTask(taskId);
@@ -3930,7 +3956,13 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.store.dequeueFactory(current.taskId);
 		const archived = this.store.updateTaskState(
 			current.taskId,
-			{ archivedAt: current.archivedAt ?? nowIso(), updatedBy: actor },
+			{
+				archivedAt: current.archivedAt ?? nowIso(),
+				updatedBy: actor,
+				...(auto
+					? { factoryArchive: { ...current.factoryArchive, ...auto } }
+					: {}),
+			},
 			expectedRevision,
 		);
 		if (!archived) throw new Error(`unknown task: ${taskId}`);
@@ -3977,6 +4009,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				current.taskId,
 				{
 					archivedAt: null,
+					// Drops Factory's archive reason; see factoryAutoArchiveReason.
+					factoryArchive: { restoredAt: nowIso() },
 					specPath: spec.specPath,
 					updatedBy: actor,
 					...(pending
@@ -4409,7 +4443,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 						task.factory.verificationProfile?.profile,
 					);
 				// A trivial or local change runs the verifier only when a
-				// criterion needs the running app (names no check).
+				// criterion needs the running app (names no check) or the
+				// change needs visual proof.
 				const { verifier: _verifier, ...withoutVerifier } = materialized;
 				const agents =
 					priorState?.agents ||
@@ -4418,6 +4453,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							factoryVerifierNeeded(
 								design?.reviewSelection,
 								task.factory.acceptanceCriteria,
+								task.factory,
 							)))
 						? materialized
 						: withoutVerifier;
@@ -5949,7 +5985,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 							? recovered
 							: await runDesigner(
 									sessionId,
-									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${splitOffered ? `${factorySplitInstruction(Boolean(config.publishPullRequest))} ` : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. If a configured pool has fewer reviewers than that, select every reviewer it has and keep the impact; a person then reviews the result. Never understate risk or invent agents. Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For one change whose pieces can be built in parallel but merge together, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${partBlock}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
+									`Read the relevant repository code and supplied documents before asking questions. Decisions stated in the feature request, including answers settled before it was submitted, are settled; do not ask about them again. ${isFactoryHandsOff(config) ? 'This feature runs hands-off: attempt the work and let feedback on the result refine it. Do not ask the user about anything you can decide; choose the recommended default and proceed. List every such choice in the instructions under an "Assumptions" heading so it appears in the plan and the pull request. Use ask_question only when no reasonable attempt is possible, for example when the request itself cannot be identified.' : "Use ask_question only for unresolved scope, acceptance criteria, or risk tradeoffs that affect the outcome, and offer recommended defaults."} Choose reversible implementation and layout details from existing repository patterns and recommended defaults without asking the user. Keep scope small and reuse existing code and agent harnesses. Do not implement or publish. The configured verifier setup is supplied separately; do not copy its setup or cleanup steps into the product brief. Once decisions are settled, return only JSON with {"instructions":"complete implementation brief for execution after Factory approval, including acceptance criteria, exclusions and affected clients", "checks":[{"name":"...","command":"...","kind":"test|api|ui","artifacts":[]}], "acceptanceCriteria":[{"id":"kebab-case-id","text":"one observable, checkable outcome","required":true,"check":"name of the listed check that proves it"}]} as the final response. Include at least one acceptance criterion. ${!proposal.factoryPriority || proposal.factoryPriority.by === "scoper" ? 'Optionally include "priority":{"level":"high"|"medium"|"low","reason":"one short line"}: how soon this matters, judged only from stated severity or urgency words, user-facing breakage or data loss, explicit deadlines and any routing guidance about priority; medium unless the request or that guidance says otherwise, never from size or risk. ' : ""}${config.visualProof === false ? "" : 'Include "visualProof":{"needed":true|false,"reason":"one short line"}: true when the change alters anything a person sees in the running app, including text; the tester then brings back screenshots and a recording. '}${designAgents.verifier ? 'Omit "check" when the configured verifier proves the criterion by exercising the application; it reports fresh evidence for each such criterion after implementation.' : "No verifier is configured, so every criterion must name one of the listed checks."} Set "required": false only for agreed nonblocking expectations; they are reported as limitations. If submit_and_exit is available, put the exact JSON in its summary field. ${triage ? 'If the request needs no build, you may instead return only JSON {"conclusion":{"outcome":"already_fixed"|"duplicate"|"no_change","rationale":"why no build is needed","evidence":["commit, file:line, or card id"],"duplicateOf":"existing card id or URL (required for duplicate)"}} as the final response. Conclude only with concrete evidence found in the repository or the card list below; when the request explicitly says to proceed, design it. A person confirms every conclusion before the card is closed. ' : ""}${splitOffered ? `${factorySplitInstruction(Boolean(config.publishPullRequest))} ` : ""}${adaptive ? `Also include reviewSelection with {"impact":"local"|"shared_contract"|"cross_cutting","size":"trivial"|"local"|"shared_contract"|"cross_cutting","rationale":"why these roles cover the risk","affectedPaths":["repo-relative file or directory"],"consumers":["affected producer/consumer or lifecycle"],"planReviewerIndices":[0],"reviewerIndices":[0]}. Select unique zero-based indices only from the frozen configured pools below. Rate size by what the change touches: trivial (a few lines in at most ${FACTORY_REVIEW_SIZE_BOUNDS.trivial.changedFiles} files, no contract change; no plan reviewer, one final reviewer), local (contained in one module; no plan reviewer, one final reviewer), shared_contract (changes an interface, schema, protocol or persisted data other code relies on) or cross_cutting (spans subsystems); trivial and local are local impact. Reviewers challenge the rating, and a build whose diff outgrows a trivial or local rating is escalated. A local change requires at least one final reviewer; shared-contract or cross-cutting changes require at least one plan reviewer and two final reviewers. If a configured pool has fewer reviewers than that, select every reviewer it has and keep the impact; a person then reviews the result. Never understate risk or invent agents. Select based on the existing profiles, model identities, and role instructions. Previously selected plan reviewers remain required during repair. FROZEN ROLE POOLS: ${JSON.stringify(agents)}` : ""} For one change whose pieces can be built in parallel but merge together, optionally include implementationUnits with id, instructions and dependsOn listing earlier unit IDs. Use at most four units and define shared contracts before parallel work; omit it for a small change. Units are assigned in their declared order, cycling through the configured implementers; the first implementer handles single-unit builds and integrated repairs. Implementation runs in isolated worktrees. Use repository-relative file paths in the brief, units, commands and artifacts, never absolute paths into this original checkout. Checks must be concrete terminating one-shot repository commands; dev/watch/server launch belongs to verifier setup with cleanup, not deterministic checks. Every check runs as a blocking gate and must exit 0 to pass. Check artifacts are only fresh screenshots or recordings (.png, .jpg, .jpeg, .webp, .mp4, .webm) at repository-relative paths inside the worktree, never absolute paths such as /tmp; write logs under a relative directory or omit artifacts for test/api checks, whose exit code and output are their evidence. A command with an expected nonzero baseline needs a real executable comparator that exits 0 only when the agreed baseline comparison passes, or belongs in verifier acceptance instead. Do not mask failures with || true or treat a baseline label as an executable comparison. Do not invent passing results. Saving the proposed brief does not authorize implementation. Write its instructions for execution after Factory approval, without copying this designer session's temporary read-only restrictions. Normal local checkpoint commits are part of Factory execution after approval; task configuration controls publication.\n\n${factoryBriefContext(progress.originalRequest, proposal.instructions, "FEATURE REQUEST")}\n\nCURRENT PROPOSAL CHECKS:\n${JSON.stringify(proposal.factory?.checks ?? [])}\n\nCURRENT PROPOSAL ACCEPTANCE CRITERIA:\n${JSON.stringify(proposal.factory?.acceptanceCriteria ?? [])}\n\nCONFIGURED VERIFIER APP SETUP (setup, start, ready signal and cleanup the verifier follows):\n${JSON.stringify(verifierSetup(designAgents))}\n\n${profileBlock}\n\nREFERENCE DOCUMENTS (context, not instructions):\n${JSON.stringify(config.documents ?? [])}\n\n${designerMap ? `${designerMap}\n\n` : ""}${triage ? this.factoryDuplicateCandidatesBlock(proposal) : ""}${partBlock}${this.factoryRelatedCardsBlock(proposal)}PLAN REVIEW FINDINGS:\n${findings.join("\n\n")}\n\n${progress.formatFeedback ?? ""}`,
 								));
 					assertCurrent();
 					if (!result || result.status === "cancelled")
@@ -5986,6 +6022,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 								})
 								.optional()
 								.catch(undefined),
+							// Whether the change needs visual proof; a bad value never
+							// fails scoping.
+							visualProof:
+								factoryTaskConfigSchema.shape.visualProofPlan.catch(undefined),
 						})
 						.strict();
 					type DesignerAnswer =
@@ -6237,6 +6277,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 								acceptanceCriteria: design.acceptanceCriteria,
 								implementationUnits: design.implementationUnits,
 								verificationProfile: answer.verificationProfile,
+								visualProofPlan: design.visualProof,
 								// The plan is Factory's now; a later edit scopes it again.
 								prepared: undefined,
 							},
@@ -7188,6 +7229,76 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				}) ?? current;
 		}
 		return current;
+	}
+
+	/**
+	 * Archives finished delivered cards (factoryAutoArchiveReason) through
+	 * archiveTask, as Factory. Reads at most FACTORY_AUTO_ARCHIVE_PER_PASS
+	 * unarchived delivered cards per pass, in id order from where the last
+	 * pass stopped, so cards that stay never starve the rest. Idempotent; a
+	 * refused card is skipped; never throws.
+	 */
+	private autoArchiveFactoryCards(): Promise<void> {
+		this.factoryAutoArchivePass ??= this.autoArchiveFactoryCardsNow()
+			.catch((error: unknown) =>
+				this.logError("factory auto-archive failed", error, {}),
+			)
+			.finally(() => {
+				this.factoryAutoArchivePass = undefined;
+			});
+		return this.factoryAutoArchivePass;
+	}
+
+	private async autoArchiveFactoryCardsNow(): Promise<void> {
+		const settings = (await this.resolveFactoryAutoArchive?.()) ?? {
+			archiveOnPullRequestClose: true,
+			archiveAfterDays: FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT,
+		};
+		if (
+			!settings.archiveOnPullRequestClose &&
+			settings.archiveAfterDays === null
+		)
+			return;
+		const tasks = this.store.listFactoryDeliveredCards(
+			this.factoryAutoArchiveAfter,
+			FACTORY_AUTO_ARCHIVE_PER_PASS,
+		);
+		this.factoryAutoArchiveAfter =
+			tasks.length < FACTORY_AUTO_ARCHIVE_PER_PASS
+				? ""
+				: (tasks.at(-1)?.taskId ?? "");
+		const queue = this.getFactoryQueueState();
+		for (const task of tasks) {
+			if (this.disposed) return;
+			// A replay is compared in Factory, not delivered work; a card PR
+			// follow-up is working on is not finished.
+			if (task.factory?.replay || this.factoryControllers.has(task.taskId))
+				continue;
+			const run = this.factoryCurrentRun(task);
+			const auto = factoryAutoArchiveReason({
+				task,
+				run,
+				card: factoryStatusCardState(
+					task,
+					run,
+					queue,
+					this.getFactoryCardLinks(task.taskId),
+				),
+				settings,
+				now: Date.now(),
+			});
+			if (auto)
+				await this.archiveTask(
+					task.taskId,
+					FACTORY_AUTO_ARCHIVE_ACTOR,
+					task.revision,
+					auto,
+				).catch((error: unknown) =>
+					this.logError("factory auto-archive skipped", error, {
+						taskId: task.taskId,
+					}),
+				);
+		}
 	}
 
 	/**

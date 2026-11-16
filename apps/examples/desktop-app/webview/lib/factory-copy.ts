@@ -117,6 +117,8 @@ export function factoryReviewReason(reason: string): string {
 			return "Factory could not tell how far the change reaches";
 		case "too few reviewers configured":
 			return "fewer reviewers are set up than this change needs";
+		case "not visually verified":
+			return "this change to the UI has no screenshot or recording";
 		case "sensitive paths":
 			return "it changes sensitive files";
 		case "verification profile changed":
@@ -1104,6 +1106,38 @@ export const FACTORY_BOARD = {
 	reset: "Reset to default",
 } as const;
 
+/** Archiving cards from the board, the rail and a stopped card's page. */
+export const FACTORY_ARCHIVE = {
+	action: "Archive",
+	open: "Open",
+	/** A card's quick action: its accessible name and tooltip. */
+	card: (name: string) => `Archive ${name}`,
+	/** The shortcut hint in the quick action's tooltip. */
+	cardHint: (name: string) => `Archive ${name} (E)`,
+	archived: (name: string) => `Archived ${name}`,
+	undo: "Undo",
+	undoLabel: (name: string) => `Undo archiving ${name}`,
+	failed: (name: string) => `Couldn't archive ${name}`,
+	restoreFailed: (name: string) => `Couldn't restore ${name}`,
+	/** The column menu's trigger. */
+	columnMenu: (column: string) => `${column} options`,
+	allDelivered: "Archive all delivered…",
+	allStopped: "Archive all stopped…",
+	noneDelivered: "No delivered cards",
+	noneStopped: "No stopped cards",
+	confirmTitle: (count: number, kind: "delivered" | "stopped") =>
+		`Archive ${count} ${kind} ${count === 1 ? "card" : "cards"}?`,
+	confirmBody: (count: number) =>
+		`You can restore ${count === 1 ? "it" : "them"} from Archived.`,
+	confirm: (count: number) =>
+		`Archive ${count} ${count === 1 ? "card" : "cards"}`,
+	keep: "Keep cards",
+	bulkDone: (count: number) =>
+		`Archived ${count} ${count === 1 ? "card" : "cards"}`,
+	bulkPartial: (done: number, total: number) =>
+		`Archived ${done} of ${total}; ${total - done} could not be archived`,
+} as const;
+
 /** The line under a card's headline when its request came with a plan (design progress `route`). */
 export const FACTORY_SCOPE_ROUTE = {
 	checking: "Plan provided with the request; quick check running.",
@@ -1409,4 +1443,17 @@ export const FACTORY_PR_REVIEW = {
 	useEarlierSummary: "Use my earlier summary",
 	postedReadOnly:
 		"What you posted is on GitHub; this is the draft as Factory wrote it.",
+} as const;
+
+/** Screenshots and the recording on a delivered card (factoryVisualProof). */
+export const FACTORY_VISUAL_PROOF = {
+	heading: "Screenshots and recording",
+	missing: "Not visually verified",
+	recording: "Recording",
+	hasRecording: "Has a recording",
+	steps: "What the tester did",
+	duration: (seconds: number) =>
+		`${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`,
+	open: (caption: string) => `Open ${caption}`,
+	loadFailed: "This file could not be loaded.",
 } as const;

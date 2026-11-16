@@ -97,6 +97,12 @@ import {
 	freezeFactoryAgent,
 	resolveFactoryAgent,
 } from "../../tasks/factory-agents";
+import {
+	closeAllFactoryCaptures,
+	createFactoryBrowserTool,
+	FACTORY_BROWSER_TOOL_NAME,
+	factoryCaptureFor,
+} from "../../tasks/factory-browser";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import type { HubConnectionAuthority } from "./command-transport";
@@ -496,6 +502,8 @@ export class HubServerTransport implements NativeHubTransport {
 			resolveFactoryDuplicateCheck: () => factoryDefaults.getDuplicateCheck(),
 			// And whether scoping may split large work into parts.
 			resolveFactorySplitLargeWork: () => factoryDefaults.getSplitLargeWork(),
+			// And when Factory archives delivered work, read at each pass.
+			resolveFactoryAutoArchive: () => factoryDefaults.getAutoArchive(),
 			automationEnabled: AGENDA_TODO_TOOL_ENABLED,
 			watchFiles:
 				AGENDA_TODO_TOOL_ENABLED && options.taskOptions?.watchFiles !== false,
@@ -1090,6 +1098,11 @@ export class HubServerTransport implements NativeHubTransport {
 		if (factoryStage) guidanceRole = undefined;
 		if (task.factory) assertFactoryProvider(task);
 		if (factoryAgent) factoryAgent = freezeFactoryAgent(task, factoryAgent);
+		// Only a verifier whose run opened a browser capture gets the tool.
+		const capture =
+			factoryRole === "verifier" && task.cwd
+				? factoryCaptureFor(task.cwd)
+				: undefined;
 		const skills =
 			factoryAgent?.skills ?? factoryAgent?.resolvedProfile?.skills;
 		const profileTools =
@@ -1112,9 +1125,13 @@ export class HubServerTransport implements NativeHubTransport {
 								"search_codebase",
 								"skills",
 								...(factoryRole === "verifier" ? ["run_commands"] : []),
+								...(capture ? [FACTORY_BROWSER_TOOL_NAME] : []),
 							];
 		const allowedTools = allowedProfileTools
-			? allowedProfileTools.filter(
+			? [
+					...allowedProfileTools,
+					...(capture ? [FACTORY_BROWSER_TOOL_NAME] : []),
+				].filter(
 					(name) =>
 						!roleTools ||
 						roleTools.includes(name) ||
@@ -1197,7 +1214,15 @@ export class HubServerTransport implements NativeHubTransport {
 		);
 		const clientId = requestedByClientId?.trim() || "agenda-task-manager";
 		const reply = await handleSessionCreate(
-			this.ctx,
+			capture
+				? {
+						...this.ctx,
+						sessionTools: [
+							...this.sessionTools,
+							createFactoryBrowserTool(capture),
+						],
+					}
+				: this.ctx,
 			{
 				version: "v1",
 				command: "session.create",
@@ -1518,6 +1543,7 @@ export class HubServerTransport implements NativeHubTransport {
 		await this.sessionSearch.dispose();
 		this.factoryActivity.dispose();
 		await this.tasks.dispose();
+		await closeAllFactoryCaptures();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {

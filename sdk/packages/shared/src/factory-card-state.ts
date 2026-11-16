@@ -8,6 +8,7 @@ import {
 	type FactoryRunState,
 	type FactoryTaskConfig,
 	factoryActiveStage,
+	factoryAutoArchiveText,
 	factoryCheckConfigurationFindings,
 	factoryDeliverable,
 	factoryPlanHoldReason,
@@ -214,6 +215,7 @@ export type FactoryCardTaskFacts = Pick<
 		Pick<
 			AgendaTaskRecord,
 			| "archivedAt"
+			| "factoryArchive"
 			| "approvedRevision"
 			| "error"
 			| "factoryQueued"
@@ -436,18 +438,21 @@ export function factoryCardState(
 ): FactoryCardState {
 	const state = deriveFactoryCardState(input);
 	if (!input.task.archivedAt) return state;
-	// Archived cards keep their stage; nothing waits on them.
+	// Archived cards keep their stage; nothing waits on them. The reason says
+	// why Factory archived one by itself.
 	const {
 		reasonText: _text,
 		planHold: _hold,
 		waitingFor: _waiting,
 		...rest
 	} = state;
+	const auto = factoryAutoArchiveText(input.task.factoryArchive);
 	return {
 		...rest,
 		kind: "archived",
 		waitingOn: "nobody",
 		reasonCode: "archived",
+		...(auto ? { reasonText: auto } : {}),
 	};
 }
 

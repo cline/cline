@@ -10,6 +10,7 @@ import type {
 } from "@cline/shared";
 import {
 	applyFactoryAutonomyDefaults,
+	FACTORY_ARCHIVE_AFTER_DAYS,
 	FACTORY_CONCURRENCY_DEFAULT,
 	FACTORY_DAILY_COST_DEFAULT_USD,
 	FACTORY_REVIEW_DRAFT_LIMITS,
@@ -648,6 +649,7 @@ export class HubAgendaTaskCommandService {
 						...(await this.factorySpending()),
 						duplicateCheck: await this.factoryDuplicateCheck(),
 						...(await this.factorySplitSettings()),
+						...(await this.requireFactoryDefaults().getAutoArchive?.()),
 					});
 				}
 				case "task.factory.limits.set": {
@@ -672,15 +674,34 @@ export class HubAgendaTaskCommandService {
 						.boolean()
 						.optional()
 						.parse(payload.splitLargeWork);
+					const requestedArchive = z
+						.object({
+							archiveOnPullRequestClose: z.boolean().optional(),
+							archiveAfterDays: z
+								.literal(FACTORY_ARCHIVE_AFTER_DAYS)
+								.nullable()
+								.optional(),
+						})
+						.parse(payload);
+					const archiveChange =
+						requestedArchive.archiveOnPullRequestClose !== undefined ||
+						requestedArchive.archiveAfterDays !== undefined;
 					const requestedConcurrency =
 						payload.concurrency !== undefined ||
 						(requestedPause === undefined &&
 							requestedDaily === undefined &&
 							requestedDuplicateCheck === undefined &&
-							requestedSplit === undefined)
+							requestedSplit === undefined &&
+							!archiveChange)
 							? parseFactoryConcurrency(payload.concurrency)
 							: undefined;
 					const store = this.requireFactoryDefaults();
+					if (archiveChange) {
+						if (!store.setAutoArchive)
+							throw new Error("The Factory archive settings are unavailable");
+						// Read by the next auto-archive pass.
+						await store.setAutoArchive(requestedArchive);
+					}
 					if (requestedSplit !== undefined) {
 						if (!store.setSplitLargeWork)
 							throw new Error("The Factory split setting is unavailable");
@@ -726,6 +747,7 @@ export class HubAgendaTaskCommandService {
 						...(await this.factorySpending()),
 						duplicateCheck: await this.factoryDuplicateCheck(),
 						...(await this.factorySplitSettings()),
+						...(await this.requireFactoryDefaults().getAutoArchive?.()),
 					});
 				}
 				case "task.factory.stages.get": {

@@ -338,6 +338,26 @@ describe("Hands-off policy controls", () => {
 		});
 	});
 
+	it("asks for visual proof by default and writes visualProof only when turned off", async () => {
+		await act(async () => root.render(<Editor />));
+		const toggle = Array.from(document.querySelectorAll("label"))
+			.find((label) =>
+				label.textContent?.includes(
+					"Ask for screenshots and a recording when the UI changes",
+				),
+			)
+			?.querySelector("input");
+		if (!(toggle instanceof HTMLInputElement))
+			throw new Error("Missing visual proof toggle");
+		expect(toggle.checked).toBe(true);
+		expect(config).not.toHaveProperty("visualProof");
+		await act(async () => toggle.click());
+		expect(config.visualProof).toBe(false);
+		await act(async () => toggle.click());
+		expect(toggle.checked).toBe(true);
+		expect(config).not.toHaveProperty("visualProof");
+	});
+
 	it("shows a one-time notice for a hands-off default and remembers its dismissal", async () => {
 		writeDesktopSettings({
 			cloudSessionsEnabled: false,

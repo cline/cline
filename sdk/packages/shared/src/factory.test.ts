@@ -1459,6 +1459,39 @@ describe("Factory human stamp", () => {
 		).toEqual({ required, reason });
 	});
 
+	it("asks a person to look at a local change to the UI delivered without a recording", () => {
+		const config = factoryTaskConfigSchema.parse({ autonomy: "hands_off" });
+		const check = (mimeTypes: string[]) => ({
+			name: "Screens",
+			kind: "test",
+			command: "bun run shots",
+			status: "passed",
+			exitCode: 0,
+			output: "",
+			artifacts: mimeTypes.map((mimeType, index) => ({
+				label: `shot ${index}`,
+				path: `shots/${index}`,
+				mimeType,
+			})),
+		});
+		const state = (mimeTypes: string[]) => ({
+			reviewSelection: local,
+			candidate: factoryCandidateSchema.parse({
+				commit: "c",
+				checks: [check(mimeTypes)],
+				reviews: [],
+				changedPaths: ["web/button.tsx"],
+			}),
+		});
+		expect(factoryStampRequirement(config, state(["image/png"]))).toEqual({
+			required: true,
+			reason: "not visually verified",
+		});
+		expect(
+			factoryStampRequirement(config, state(["image/png", "video/webm"])),
+		).toEqual({ required: false, reason: "local change" });
+	});
+
 	describe("from the models the sessions reported", () => {
 		const attempt = (
 			role: "builder" | "reviewer",
@@ -1870,23 +1903,51 @@ describe("Factory safety gates", () => {
 
 	it("runs the verifier for small changes only when a criterion needs the running app", () => {
 		const checked = [{ check: "Behavior" }];
-		expect(factoryVerifierNeeded(undefined, checked)).toBe(true);
-		expect(factoryVerifierNeeded(selection, checked)).toBe(true);
+		expect(factoryVerifierNeeded(undefined, checked, {})).toBe(true);
+		expect(factoryVerifierNeeded(selection, checked, {})).toBe(true);
 		expect(
-			factoryVerifierNeeded({ ...selection, size: "trivial" }, checked),
+			factoryVerifierNeeded({ ...selection, size: "trivial" }, checked, {}),
 		).toBe(false);
 		expect(
-			factoryVerifierNeeded({ ...selection, size: "local" }, [
-				...checked,
-				{ check: undefined },
-			]),
+			factoryVerifierNeeded(
+				{ ...selection, size: "local" },
+				[...checked, { check: undefined }],
+				{},
+			),
 		).toBe(true);
 		expect(
 			factoryVerifierNeeded(
-				{ impact: "shared_contract", size: "shared_contract" },
+				{ ...selection, size: "shared_contract" },
 				checked,
+				{},
 			),
 		).toBe(true);
+	});
+
+	it("keeps the verifier for a small change that needs visual proof", () => {
+		const checked = [{ check: "Behavior" }];
+		const trivial = factoryReviewSelectionSchema.parse({
+			...selection,
+			size: "trivial",
+		});
+		const config = factoryTaskConfigSchema.parse({
+			visualProofPlan: { needed: true, reason: "Renames a button" },
+		});
+		expect(factoryVerifierNeeded(trivial, checked, config)).toBe(true);
+		// The affected paths alone are enough when the scoper said nothing.
+		expect(
+			factoryVerifierNeeded(
+				{ ...trivial, affectedPaths: ["web/button.tsx"] },
+				checked,
+				{},
+			),
+		).toBe(true);
+		expect(
+			factoryVerifierNeeded(trivial, checked, {
+				...config,
+				visualProof: false,
+			}),
+		).toBe(false);
 	});
 
 	it("escalates a small rating whose diff outgrows its bounds, adding the reviewers the new size needs", () => {

@@ -39,6 +39,8 @@ export type FactoryAppEnvironmentHandle = {
 	port: number;
 	url: string;
 	logPath: string;
+	/** FACTORY_APP_TOKEN; a process launched with it is reaped by `stop` and by crash-leftover cleanup. */
+	token: string;
 	/** Absent for a setup-only environment. */
 	pid?: number;
 	/** Kills the app's processes, then runs cleanup. Idempotent; never throws. */
@@ -155,10 +157,19 @@ export async function factoryAppPortInUse(port: number): Promise<boolean> {
 }
 
 /**
- * Processes carrying the environment's FACTORY_APP_TOKEN. Every environment
- * command and its descendants inherit it, so this identifies Factory's own
- * processes even after a pid was reused. Empty where the environment of
- * other processes cannot be read (Windows).
+ * A command-line switch carrying the token, for a process whose environment
+ * `ps` cannot show: macOS hides a hardened app's environment (Chrome's).
+ */
+export function factoryAppTokenSwitch(token: string): string {
+	return `--factory-app-token=${token}`;
+}
+
+/**
+ * Processes carrying the environment's FACTORY_APP_TOKEN (or, on macOS, its
+ * {@link factoryAppTokenSwitch}). Every environment command and its
+ * descendants inherit it, so this identifies Factory's own processes even
+ * after a pid was reused. Empty where the environment of other processes
+ * cannot be read (Windows).
  */
 export async function findFactoryAppProcesses(
 	token: string,
@@ -194,8 +205,10 @@ export async function findFactoryAppProcesses(
 		.split("\n")
 		.flatMap((line) => {
 			const match = /^\s*(\d+)\s(.*)$/.exec(line);
-			return match?.[2]?.split(/\s+/).includes(marker)
-				? [Number(match[1])]
+			const words = match?.[2]?.split(/\s+/) ?? [];
+			return words.includes(marker) ||
+				words.includes(factoryAppTokenSwitch(token))
+				? [Number(match?.[1])]
 				: [];
 		})
 		.filter((pid) => pid !== process.pid);
@@ -395,7 +408,8 @@ export async function startFactoryAppEnvironment(input: {
 			error instanceof Error ? error.message : String(error),
 		);
 	}
-	let recorded: FactoryAppEnvironmentRecord = { port, token: randomUUID() };
+	const token = randomUUID();
+	let recorded: FactoryAppEnvironmentRecord = { port, token };
 	const remember = (patch: Partial<FactoryAppEnvironmentRecord>) => {
 		recorded = { ...recorded, ...patch };
 		input.record?.(recorded);
@@ -448,7 +462,7 @@ export async function startFactoryAppEnvironment(input: {
 					`${result.timedOut ? "timed out after 10 minutes" : `exited with code ${result.exitCode}`}.\n${tail(result.output)}`,
 				);
 		}
-		if (!environment.start) return { port, url, logPath, stop };
+		if (!environment.start) return { port, url, logPath, token, stop };
 		signal.throwIfAborted();
 		// The port was free when allocated; something may have taken it since.
 		if (await factoryAppPortInUse(port))
@@ -538,7 +552,7 @@ export async function startFactoryAppEnvironment(input: {
 				if (exitDescription === undefined) void exited.then(done);
 			});
 		}
-		return { port, url, logPath, pid: child.pid, stop };
+		return { port, url, logPath, token, pid: child.pid, stop };
 	} catch (error) {
 		await stop();
 		throw error;

@@ -57,6 +57,10 @@ export type FactoryAttention = {
 		followupPaused: boolean;
 		/** Factory marked the draft PR ready for review. */
 		pullRequestReady?: boolean;
+		/** Whether screenshots and a recording show on the card; never the files. */
+		visualProof?: "shown" | "missing";
+		/** Proof includes a recording. */
+		recording?: true;
 	};
 };
 

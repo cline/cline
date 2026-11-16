@@ -2,10 +2,13 @@ import { access, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	type BasicLogger,
+	FACTORY_ARCHIVE_AFTER_DAYS,
+	FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT,
 	FACTORY_BUILT_IN_POLICY,
 	FACTORY_CONCURRENCY_DEFAULT,
 	FACTORY_CONCURRENCY_MAX,
 	FACTORY_CONCURRENCY_MIN,
+	type FactoryAutoArchiveSettings,
 	type FactoryWorkflowRecipe,
 } from "@cline/shared";
 import { resolveTasksDbPath } from "@cline/shared/storage";
@@ -118,6 +121,12 @@ export interface FactoryDefaultsStore {
 	getSplitLargeWork?(): Promise<boolean>;
 	/** Stores whether scoping may split large work into parts. */
 	setSplitLargeWork?(enabled: boolean): Promise<boolean>;
+	/** When Factory archives delivered work; the defaults when never set, both off when unreadable. */
+	getAutoArchive?(): Promise<FactoryAutoArchiveSettings>;
+	/** Stores the fields given and returns both. */
+	setAutoArchive?(
+		update: Partial<FactoryAutoArchiveSettings>,
+	): Promise<FactoryAutoArchiveSettings>;
 }
 
 /**
@@ -150,6 +159,10 @@ interface StoredFactoryDefaults {
 	duplicateCheck?: false;
 	/** Scoping never offers a breakdown; absent means it may. */
 	splitLargeWork?: false;
+	/** Merged or closed pull requests do not archive their card; absent means they do. */
+	archiveOnPullRequestClose?: false;
+	/** Days without activity before a delivered card is archived; null: never; absent: 7. */
+	archiveAfterDays?: number | null;
 }
 
 type StoredDefaults = Omit<StoredFactoryDefaults, "version">;
@@ -267,6 +280,54 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 		return enabled;
 	}
 
+	async getAutoArchive(): Promise<FactoryAutoArchiveSettings> {
+		await this.writes.catch(() => undefined);
+		const { stored, corrupt } = await this.readState();
+		// Unreadable settings archive nothing, as they pause new work.
+		if (corrupt)
+			return { archiveOnPullRequestClose: false, archiveAfterDays: null };
+		const days = FACTORY_ARCHIVE_AFTER_DAYS.find(
+			(value) => value === stored.archiveAfterDays,
+		);
+		return {
+			archiveOnPullRequestClose: stored.archiveOnPullRequestClose !== false,
+			archiveAfterDays:
+				stored.archiveAfterDays === null
+					? null
+					: (days ?? FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT),
+		};
+	}
+
+	async setAutoArchive(
+		update: Partial<FactoryAutoArchiveSettings>,
+	): Promise<FactoryAutoArchiveSettings> {
+		await this.update(
+			({
+				archiveOnPullRequestClose: onClose,
+				archiveAfterDays: days,
+				...rest
+			}) => {
+				const archiveOnPullRequestClose =
+					update.archiveOnPullRequestClose ?? onClose !== false;
+				const archiveAfterDays =
+					update.archiveAfterDays === undefined
+						? days
+						: update.archiveAfterDays;
+				return {
+					...rest,
+					...(archiveOnPullRequestClose
+						? {}
+						: { archiveOnPullRequestClose: false as const }),
+					...(archiveAfterDays === undefined ||
+					archiveAfterDays === FACTORY_ARCHIVE_AFTER_DAYS_DEFAULT
+						? {}
+						: { archiveAfterDays }),
+				};
+			},
+		);
+		return this.getAutoArchive();
+	}
+
 	async getPaused(): Promise<boolean> {
 		await this.writes.catch(() => undefined);
 		const { stored, corrupt } = await this.readState();
@@ -332,6 +393,12 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 						: {}),
 					...(parsed.splitLargeWork === false
 						? { splitLargeWork: false as const }
+						: {}),
+					...(parsed.archiveOnPullRequestClose === false
+						? { archiveOnPullRequestClose: false as const }
+						: {}),
+					...(parsed.archiveAfterDays !== undefined
+						? { archiveAfterDays: parsed.archiveAfterDays }
 						: {}),
 				},
 				corrupt: false,

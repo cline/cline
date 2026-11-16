@@ -5,11 +5,13 @@ import {
 	compareFactoryNeedsYou,
 	compareFactoryPriority,
 	compareFactoryQueue,
+	factoryAutoArchiveText,
 	factoryCardTitle,
 	isFactoryHandsOff,
 } from "@cline/shared/browser";
 import {
 	AlertTriangle,
+	Archive,
 	ArrowLeft,
 	ArrowRight,
 	ArrowUpRight,
@@ -19,6 +21,7 @@ import {
 	CircleDashed,
 	Clock,
 	Factory as FactoryIcon,
+	Film,
 	Flag,
 	GitBranch,
 	GitPullRequest,
@@ -26,6 +29,7 @@ import {
 	ListTree,
 	Loader2,
 	MessageSquare,
+	MoreHorizontal,
 	Pause,
 	Play,
 	RefreshCw,
@@ -34,9 +38,32 @@ import {
 	SlidersHorizontal,
 	XCircle,
 } from "lucide-react";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -54,6 +81,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToastAction } from "@/components/ui/toast";
 import { useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import {
 	type FactoryAttention,
@@ -65,6 +93,7 @@ import {
 	useFactoryNow,
 } from "@/hooks/use-factory-live-activity";
 import { basenamePath, formatRelativeTime } from "@/hooks/use-session-history";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	currentFactoryConclusion,
@@ -81,6 +110,7 @@ import {
 } from "@/lib/factory-attention";
 import {
 	FACTORY_ACTIVITY,
+	FACTORY_ARCHIVE,
 	FACTORY_BOARD,
 	FACTORY_CARD_ACTION,
 	FACTORY_COMPACT,
@@ -96,6 +126,7 @@ import {
 	FACTORY_SPLIT,
 	FACTORY_TERMS,
 	FACTORY_UNREADABLE,
+	FACTORY_VISUAL_PROOF,
 	factoryFeedbackLabel,
 	factoryHistoryStatus,
 	factoryPullRequestActionLabel,
@@ -152,6 +183,7 @@ import {
 import { FactorySettingsPage } from "./factory-settings";
 import { FactoryParentLink, factorySplitContext } from "./factory-split";
 import {
+	factoryCancelsOnArchive,
 	factoryScopingStopped,
 	factoryScopingStopReason,
 } from "./factory-task-header";
@@ -205,6 +237,8 @@ const QUEUE_STOPPED_KEY = "factory.queueStopped";
 const DESTINATION_KEY = "factory.destination";
 /** Delivered shows the most recent; All history has the rest. */
 const DELIVERED_RECENTLY_LIMIT = 20;
+/** Archive all runs this many archives at once. */
+const BULK_ARCHIVE_CONCURRENCY = 4;
 /** Waiting shows this many, then says how many more wait. */
 const WAITING_LIMIT = 50;
 /** Reduced motion keeps the icon but stops it turning. */
@@ -276,6 +310,7 @@ function BoardColumn({
 	pill = false,
 	countTitle,
 	aside,
+	menu,
 	collapsed,
 	collapsible,
 	alwaysShowCollapse = false,
@@ -293,6 +328,8 @@ function BoardColumn({
 	pill?: boolean;
 	countTitle?: string;
 	aside?: ReactNode;
+	/** The column's overflow menu, after the aside. */
+	menu?: ReactNode;
 	collapsed: boolean;
 	collapsible: boolean;
 	/** The width would collapse it: its chevron always shows. */
@@ -356,6 +393,11 @@ function BoardColumn({
 					</span>
 				</h2>
 				{aside}
+				{menu ? (
+					<span className={cn("flex shrink-0", aside ? "ml-1" : "ml-auto")}>
+						{menu}
+					</span>
+				) : null}
 				{collapsible ? (
 					<button
 						type="button"
@@ -365,7 +407,7 @@ function BoardColumn({
 						onClick={onToggle}
 						className={cn(
 							"flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-							aside ? "ml-1" : "ml-auto",
+							aside || menu ? "ml-1" : "ml-auto",
 							// Shown on hover or focus, taking no room otherwise, so the
 							// header's aside stays at its end.
 							!alwaysShowCollapse &&
@@ -1064,6 +1106,237 @@ function FactoryPage({
 		],
 		["delivered", FACTORY_LINE.groups.delivered, deliveredRecently],
 	];
+	// Quick archive: delivered cards and stopped cards with nothing running,
+	// under the predicate the card header's More menu uses for plain Archive.
+	const stoppedCards = needsYou.filter(
+		(task) =>
+			STOPPED_LABELS.has(activityOf(task).label) &&
+			!factoryCancelsOnArchive(task, false),
+	);
+	const deliveredCards = delivered.filter(
+		(task) => !factoryCancelsOnArchive(task, false),
+	);
+	const quickArchivable = new Set(
+		[...stoppedCards, ...deliveredCards].map(byId),
+	);
+	const latestTasks = useRef(tasks);
+	latestTasks.current = tasks;
+	const [bulkArchive, setBulkArchive] = useState<{
+		kind: "delivered" | "stopped";
+		tasks: AgendaTaskRecord[];
+	} | null>(null);
+	const cardName = (task: AgendaTaskRecord) =>
+		factoryShortId(task) ?? titleOf(task);
+	const archiveCard = (task: AgendaTaskRecord) =>
+		desktopClient.invoke("task.archive", {
+			taskId: task.taskId,
+			expectedRevision: task.revision,
+			allWorkspaces: true,
+		});
+	/** The card to focus once this one leaves: a neighbour, else any card. */
+	const cardToFocus = (taskId: string) => {
+		const buttons = Array.from(
+			document.querySelectorAll<HTMLElement>("[data-factory-task]"),
+		);
+		const item = buttons.find(
+			(button) => button.dataset.factoryTask === taskId,
+		);
+		const neighbour = (
+			side: "nextElementSibling" | "previousElementSibling",
+		) => {
+			for (
+				let element = item?.closest("li")?.[side];
+				element;
+				element = element[side]
+			) {
+				const found = element.querySelector<HTMLElement>(
+					"button[data-factory-task]",
+				);
+				if (found) return found;
+			}
+			return undefined;
+		};
+		return (
+			neighbour("nextElementSibling") ??
+			neighbour("previousElementSibling") ??
+			buttons.find((button) => button.dataset.factoryTask !== taskId)
+		);
+	};
+	const undoArchive = async (task: AgendaTaskRecord) => {
+		const latest =
+			latestTasks.current.find((item) => item.taskId === task.taskId) ?? task;
+		try {
+			await desktopClient.invoke("task.restore", {
+				taskId: task.taskId,
+				expectedRevision: latest.revision,
+				allWorkspaces: true,
+			});
+		} catch (cause) {
+			toast({
+				variant: "destructive",
+				title: FACTORY_ARCHIVE.restoreFailed(cardName(task)),
+				description: cause instanceof Error ? cause.message : undefined,
+			});
+			return;
+		}
+		await agenda.refresh().catch(() => undefined);
+	};
+	const quickArchive = async (task: AgendaTaskRecord) => {
+		const name = cardName(task);
+		const next = cardToFocus(task.taskId);
+		try {
+			await archiveCard(task);
+		} catch (cause) {
+			toast({
+				variant: "destructive",
+				title: FACTORY_ARCHIVE.failed(name),
+				description: cause instanceof Error ? cause.message : undefined,
+			});
+			return;
+		}
+		// As the card page's Archive does, an open card closes.
+		const wasOpen = selectedId === task.taskId;
+		if (wasOpen) selectTask(null);
+		await agenda.refresh().catch(() => undefined);
+		if (!wasOpen) next?.focus();
+		toast({
+			title: FACTORY_ARCHIVE.archived(name),
+			duration: 6000,
+			action: (
+				<ToastAction
+					altText={FACTORY_ARCHIVE.undoLabel(name)}
+					onClick={() => void undoArchive(task)}
+				>
+					{FACTORY_ARCHIVE.undo}
+				</ToastAction>
+			),
+		});
+	};
+	/** E archives the focused card, as in Linear; never while typing or in a menu. */
+	const archiveKey =
+		(task: AgendaTaskRecord) => (event: ReactKeyboardEvent) => {
+			if (
+				event.key !== "e" ||
+				event.repeat ||
+				event.defaultPrevented ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.altKey ||
+				event.shiftKey ||
+				(event.target instanceof HTMLElement &&
+					event.target.closest(
+						"input, textarea, select, [contenteditable]:not([contenteditable=false])",
+					)) ||
+				document.querySelector(
+					'[role="dialog"], [role="alertdialog"], [role="menu"]',
+				)
+			)
+				return;
+			event.preventDefault();
+			void quickArchive(task);
+		};
+	const archiveAll = async (items: AgendaTaskRecord[]) => {
+		let next = 0;
+		let archived = 0;
+		const worker = async () => {
+			while (next < items.length) {
+				const task = items[next++];
+				try {
+					await archiveCard(task);
+					archived++;
+				} catch {
+					// Counted as not archived in the summary below.
+				}
+			}
+		};
+		await Promise.all(
+			Array.from(
+				{ length: Math.min(BULK_ARCHIVE_CONCURRENCY, items.length) },
+				worker,
+			),
+		);
+		await agenda.refresh().catch(() => undefined);
+		toast(
+			archived === items.length
+				? { title: FACTORY_ARCHIVE.bulkDone(archived) }
+				: {
+						variant: "destructive",
+						title: FACTORY_ARCHIVE.bulkPartial(archived, items.length),
+					},
+		);
+	};
+	/** A card's hover and focus control; its menu and E apply wherever it shows. */
+	const archiveButton = (task: AgendaTaskRecord, className?: string) => (
+		<Button
+			size="xs"
+			variant="outline"
+			data-factory-archive
+			aria-label={FACTORY_ARCHIVE.card(cardName(task))}
+			title={FACTORY_ARCHIVE.cardHint(cardName(task))}
+			onClick={() => void quickArchive(task)}
+			className={cn(
+				"size-[22px] bg-background px-0 shadow-none has-[>svg]:px-0 dark:bg-[var(--neutral-4)]",
+				className,
+			)}
+		>
+			<Archive aria-hidden className="size-3" />
+		</Button>
+	);
+	/** A card or row with its right-click menu and E; others pass through. */
+	const withArchiveMenu = (
+		task: AgendaTaskRecord,
+		node: ReactNode,
+		source: string,
+	) =>
+		quickArchivable.has(task.taskId) ? (
+			<ContextMenu key={task.taskId}>
+				<ContextMenuTrigger asChild onKeyDown={archiveKey(task)}>
+					{node}
+				</ContextMenuTrigger>
+				<ContextMenuContent className="w-40">
+					<ContextMenuItem onSelect={() => selectTask(task.taskId, source)}>
+						{FACTORY_ARCHIVE.open}
+					</ContextMenuItem>
+					<ContextMenuItem onSelect={() => void quickArchive(task)}>
+						{FACTORY_ARCHIVE.action}
+					</ContextMenuItem>
+				</ContextMenuContent>
+			</ContextMenu>
+		) : (
+			node
+		);
+	const bulkDialog = (
+		<AlertDialog
+			open={bulkArchive !== null}
+			onOpenChange={(open) => {
+				if (!open) setBulkArchive(null);
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>
+						{bulkArchive
+							? FACTORY_ARCHIVE.confirmTitle(
+									bulkArchive.tasks.length,
+									bulkArchive.kind,
+								)
+							: ""}
+					</AlertDialogTitle>
+					<AlertDialogDescription>
+						{FACTORY_ARCHIVE.confirmBody(bulkArchive?.tasks.length ?? 0)}
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>{FACTORY_ARCHIVE.keep}</AlertDialogCancel>
+					<AlertDialogAction
+						onClick={() => bulkArchive && void archiveAll(bulkArchive.tasks)}
+					>
+						{FACTORY_ARCHIVE.confirm(bulkArchive?.tasks.length ?? 0)}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
 	if (selectedId) {
 		// The same groups, in the same order, as the home: Working (running,
 		// then the queue), Needs you, Delivered.
@@ -1108,7 +1381,7 @@ function FactoryPage({
 				<li
 					key={task.taskId}
 					className={cn(
-						"relative transition-colors",
+						"group/row relative transition-colors",
 						current
 							? NAV_ITEM_SELECTED
 							: "has-[>button:hover]:bg-surface-hover-lighter",
@@ -1167,6 +1440,13 @@ function FactoryPage({
 								compact: true,
 								className: "hidden px-3 pb-2 pl-8 @min-[1120px]/factory:flex",
 							})
+						: null}
+					{/* Wide rail only, as the titles: shown on hover or focus. */}
+					{quickArchivable.has(task.taskId)
+						? archiveButton(
+								task,
+								"absolute top-1.5 right-2 hidden opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 @min-[1120px]/factory:flex [@media(hover:none)]:opacity-100",
+							)
 						: null}
 				</li>
 			);
@@ -1258,7 +1538,11 @@ function FactoryPage({
 											aria-hidden
 											className="mx-3 mb-1 border-t @min-[1120px]/factory:hidden"
 										/>
-										<ul>{items.map(railRow)}</ul>
+										<ul>
+											{items.map((task) =>
+												withArchiveMenu(task, railRow(task), "rail"),
+											)}
+										</ul>
 									</section>
 								))}
 							</div>
@@ -1715,7 +1999,17 @@ function FactoryPage({
 							{projectOf(task)}
 						</span>
 					) : null}
-					<span className="ml-auto flex shrink-0 items-center tabular-nums">
+					<span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
+						{group === "delivered" && outcomes.get(task.taskId)?.recording ? (
+							<span
+								role="img"
+								aria-label={FACTORY_VISUAL_PROOF.hasRecording}
+								title={FACTORY_VISUAL_PROOF.hasRecording}
+								className="flex"
+							>
+								<Film aria-hidden className="size-3" />
+							</span>
+						) : null}
 						{stepper ? (
 							<FactoryRowStages
 								state={activity.station}
@@ -1733,14 +2027,15 @@ function FactoryPage({
 							end
 						)}
 					</span>
-					{action ? (
+					{action || quickArchivable.has(task.taskId) ? (
 						// In the row's flow, so it pushes nothing it could cover; no
 						// width until hover or focus (still reachable by Tab).
 						<div
 							data-factory-quick-action
-							className="relative z-10 -my-1 flex max-w-0 shrink-0 overflow-hidden opacity-0 transition-opacity group-focus-within/card:max-w-none group-focus-within/card:overflow-visible group-focus-within/card:opacity-100 group-hover/card:max-w-none group-hover/card:overflow-visible group-hover/card:opacity-100 [@media(hover:none)]:max-w-none [@media(hover:none)]:opacity-100 @max-[239px]/card:[&_[data-label]]:hidden"
+							className="relative z-10 -my-1 flex max-w-0 gap-1 shrink-0 overflow-hidden opacity-0 transition-opacity group-focus-within/card:max-w-none group-focus-within/card:overflow-visible group-focus-within/card:opacity-100 group-hover/card:max-w-none group-hover/card:overflow-visible group-hover/card:opacity-100 [@media(hover:none)]:max-w-none [@media(hover:none)]:opacity-100 @max-[239px]/card:[&_[data-label]]:hidden"
 						>
 							{action}
+							{quickArchivable.has(task.taskId) ? archiveButton(task) : null}
 						</div>
 					) : null}
 				</div>
@@ -2034,8 +2329,10 @@ function FactoryPage({
 			: boardView.grouping === "status" && id in FACTORY_BOARD.empty
 				? FACTORY_BOARD.empty[id as FactoryHomeGroup]
 				: FACTORY_BOARD.empty.column;
-	const cardOf = (task: AgendaTaskRecord) =>
-		cardFor[statusOf.get(task.taskId) ?? "waiting"](task);
+	const cardOf = (task: AgendaTaskRecord) => {
+		const group = statusOf.get(task.taskId) ?? "waiting";
+		return withArchiveMenu(task, cardFor[group](task), group);
+	};
 	const boardColumn = (column: FactoryBoardResolvedColumn) => {
 		const pinned = factoryBoardPinned(boardView.grouping, column.id);
 		// An empty board keeps every column open: its one instruction must show.
@@ -2141,6 +2438,29 @@ function FactoryPage({
 					) : column.id === "delivered" ? (
 						allHistory
 					) : null
+				}
+				menu={
+					isStatus && column.id === "delivered" ? (
+						<BoardColumnMenu
+							column={column.title}
+							action={FACTORY_ARCHIVE.allDelivered}
+							count={deliveredCards.length}
+							none={FACTORY_ARCHIVE.noneDelivered}
+							onSelect={() =>
+								setBulkArchive({ kind: "delivered", tasks: deliveredCards })
+							}
+						/>
+					) : isStatus && column.id === "needsYou" ? (
+						<BoardColumnMenu
+							column={column.title}
+							action={FACTORY_ARCHIVE.allStopped}
+							count={stoppedCards.length}
+							none={FACTORY_ARCHIVE.noneStopped}
+							onSelect={() =>
+								setBulkArchive({ kind: "stopped", tasks: stoppedCards })
+							}
+						/>
+					) : undefined
 				}
 				collapsed={collapsed}
 				collapsible={!pinned}
@@ -2316,6 +2636,7 @@ function FactoryPage({
 		>
 			{header}
 			{banners}
+			{bulkDialog}
 			{view === "activity" ? (
 				<section
 					aria-label={FACTORY_BOARD.board}
@@ -2445,6 +2766,15 @@ function FactoryPage({
 																	{task.archivedAt
 																		? new Date(task.archivedAt).toLocaleString()
 																		: "—"}
+																	{factoryAutoArchiveText(
+																		task.factoryArchive,
+																	) ? (
+																		<span className="block text-xs">
+																			{factoryAutoArchiveText(
+																				task.factoryArchive,
+																			)}
+																		</span>
+																	) : null}
 																</td>
 															) : (
 																<>
@@ -2486,6 +2816,52 @@ function FactoryPage({
 				</div>
 			)}
 		</div>
+	);
+}
+
+/**
+ * A column's overflow menu, Linear's column "..." menu: its bulk archive,
+ * disabled with the reason shown when the column has nothing to archive.
+ */
+function BoardColumnMenu({
+	column,
+	action,
+	count,
+	none,
+	onSelect,
+}: {
+	column: string;
+	action: string;
+	count: number;
+	none: string;
+	onSelect: () => void;
+}) {
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={FACTORY_ARCHIVE.columnMenu(column)}
+					title={FACTORY_ARCHIVE.columnMenu(column)}
+					className="size-6 text-muted-foreground hover:text-foreground"
+				>
+					<MoreHorizontal aria-hidden className="size-3.5" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuItem disabled={count === 0} onSelect={onSelect}>
+					<span>
+						{action}
+						{count === 0 ? (
+							<span className="block text-xs text-muted-foreground">
+								{none}
+							</span>
+						) : null}
+					</span>
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 

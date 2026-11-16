@@ -80,6 +80,9 @@ const result = await Bun.build({
 		"opentui-spinner",
 		"react",
 		"react/jsx-runtime",
+		// Factory's tester browser, loaded lazily by @cline/core and only present
+		// in the desktop app; the CLI reports it as not installed.
+		"playwright-core",
 		"react/jsx-dev-runtime",
 		"react-devtools-core",
 	],

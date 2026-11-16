@@ -1652,10 +1652,11 @@ describe("Factory design review", () => {
 	});
 });
 
-describe("Factory scoper priority estimate", () => {
+describe("Factory scoper priority and visual proof answers", () => {
 	const designWith = (
 		h: Awaited<ReturnType<typeof harness>>,
 		priority: unknown,
+		visualProof?: unknown,
 	) =>
 		vi
 			.mocked(h.runtime.runDesignSession)
@@ -1668,6 +1669,7 @@ describe("Factory scoper priority estimate", () => {
 								checks: task.factory?.checks,
 								acceptanceCriteria: criteria,
 								priority,
+								visualProof,
 							})
 						: pass,
 			}));
@@ -1745,6 +1747,28 @@ describe("Factory scoper priority estimate", () => {
 		const scoped = await scope(h);
 		expect(scoped.instructions).toBe(`Proposed brief for ${h.task.revision}`);
 		expect(scoped.factoryPriority).toBeUndefined();
+		expect(scoped.error).toBeUndefined();
+	});
+
+	it("stores the visual proof answer as the card's plan, and drops a malformed one without failing scoping", async () => {
+		const h = await harness();
+		const answer = { needed: true, reason: "Renames the Save button" };
+		designWith(h, undefined, answer);
+		await expect(scope(h)).resolves.toMatchObject({
+			factory: { visualProofPlan: answer },
+		});
+		expect(designerPrompt(h)).toContain('Include "visualProof"');
+		const current = await h.current();
+		await h.manager.updateTask({
+			taskId: current.taskId,
+			expectedRevision: current.revision,
+			instructions: "Rename the Save button to Keep",
+			updatedBy: { kind: "user" },
+		});
+		designWith(h, undefined, { needed: "yes" });
+		const scoped = await scope(h);
+		expect(scoped.instructions).toMatch(/^Proposed brief for /);
+		expect(scoped.factory?.visualProofPlan).toBeUndefined();
 		expect(scoped.error).toBeUndefined();
 	});
 });

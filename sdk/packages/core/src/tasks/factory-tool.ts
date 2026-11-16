@@ -36,6 +36,7 @@ import {
 	FACTORY_PRIORITIES,
 	FACTORY_PRIORITY_LABEL,
 	FACTORY_UNRESOLVED_FINDINGS_REVIEW,
+	type FactoryVisualProof,
 	type FactoryWorkflowConfig,
 	factoryAcceptanceCriteriaSchema,
 	factoryAcceptanceCriterionSchema,
@@ -54,6 +55,7 @@ import {
 	factoryRunRoute,
 	factoryStampRequirement,
 	factoryTaskConfigSchema,
+	factoryVisualProof,
 	factoryWatchesPullRequest,
 	formatFactoryId,
 	parseFactoryId,
@@ -1057,7 +1059,7 @@ export function createFactoryListTool(
 		name: FACTORY_LIST_TOOL_NAME,
 		description:
 			"List this project's Factory cards, newest first, to check for existing work before submitting; in the Factory manager chat, every project's cards (each naming its project) unless project names one. " +
-			"Returns open cards unless include_closed is set, at most limit (default 10, maximum 20), each with id, short id (factoryId, such as F42), title, status, creation time, a short summary, any source issue URL, priority (absent: none), needsYou (only when the card waits for the user's decision, with the reason) or waiting (not started, on hold).",
+			"Returns open cards unless include_closed is set (which also lists archived cards; Factory archives delivered cards by itself once their pull request is merged or closed, or after days without activity, as the user's settings say), at most limit (default 10, maximum 20), each with id, short id (factoryId, such as F42), title, status, creation time, a short summary, any source issue URL, priority (absent: none), needsYou (only when the card waits for the user's decision, with the reason) or waiting (not started, on hold).",
 		inputSchema: zodToJsonSchema(FactoryListToolInputSchema),
 		retryable: true,
 		execute: async (rawInput, context) => {
@@ -1258,6 +1260,8 @@ export interface FactoryStatusCard {
 	review?: string;
 	/** "required (reason)", "not required" or "stamped". */
 	humanReview?: string;
+	/** A delivered change to the UI: "3 screenshots, 1 recording" or "none (reason)". */
+	visualProof?: string;
 	/** What became of the draft PR once it closed: "merged as delivered", "merged after changes" or "closed without merging". */
 	pullRequestOutcome?: string;
 	/** Why this route and what each station cost, e.g. "shared_contract (sensitive paths: .env.example): 1 plan checker, tester, 2 code reviewers. Scoping $0.06 · build $0.31 · review $1.89." */
@@ -1744,7 +1748,8 @@ function describeFactoryNext(
 	}
 	switch (card.kind) {
 		case "archived":
-			return "Nothing; the card is archived. Restoring it in Factory continues it.";
+			// card.reasonText: why Factory archived it by itself, when it did.
+			return `Nothing; the card is archived${card.reasonText ? ` (${card.reasonText})` : ""}. Restoring it in Factory continues it.`;
 		case "held":
 			return "Waits until someone starts it.";
 		case "not_started":
@@ -1871,6 +1876,17 @@ const REVIEW_VERDICT_TEXT = {
 	request_changes: "request changes",
 	approve_suggested: "approve",
 } as const;
+
+/** "3 screenshots, 1 recording" or "none (reason)"; undefined when not required. */
+function describeFactoryVisualProof(
+	proof: FactoryVisualProof,
+): string | undefined {
+	if (proof.status === "not_required") return undefined;
+	if (proof.status === "missing") return `none (${proof.reason})`;
+	const count = (n: number, label: string) =>
+		`${n} ${label}${n === 1 ? "" : "s"}`;
+	return `${count(proof.screenshots.length, "screenshot")}, ${count(proof.recordings.length, "recording")}`;
+}
 
 /** A review card's draft and its posting in one line. */
 function describeFactoryReview(state: FactoryRunState): string | undefined {
@@ -2008,11 +2024,18 @@ function describeFactoryCardWithUrgency(
 				: openFindings !== undefined
 					? `required (${FACTORY_UNRESOLVED_FINDINGS_REVIEW} (${openFindings}))`
 					: (() => {
-							const requirement = factoryStampRequirement(task.factory, state);
+							// Frozen at delivery, so a later rule never rewrites it.
+							const requirement =
+								state.humanReview ??
+								factoryStampRequirement(task.factory, state);
 							return requirement.required
 								? `required (${requirement.reason})`
 								: "not required";
 						})()
+			: undefined;
+	const visualProof =
+		task.factory && state && delivered
+			? describeFactoryVisualProof(factoryVisualProof(task.factory, state))
 			: undefined;
 	const route = state && delivered ? describeFactoryRoute(state) : undefined;
 	const scope = describeFactoryScopeRoute(design);
@@ -2062,6 +2085,7 @@ function describeFactoryCardWithUrgency(
 			: {}),
 		...(reviewLine ? { review: reviewLine } : {}),
 		...(stamp ? { humanReview: stamp } : {}),
+		...(visualProof ? { visualProof } : {}),
 		...(state?.pullRequestOutcome
 			? {
 					pullRequestOutcome: describePullRequestOutcome(
@@ -2106,7 +2130,7 @@ export function createFactoryStatusTool(
 	return createTool({
 		name: FACTORY_STATUS_TOOL_NAME,
 		description:
-			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 cards (those needing the user first, then the open cards working, then the other open cards by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
+			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 cards (those needing the user first, then the open cards working, then the other open cards by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link, the screenshots and recording a delivered change to the UI came with (or why none), and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
 			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
 		inputSchema: zodToJsonSchema(FactoryStatusToolInputSchema),
 		retryable: false,

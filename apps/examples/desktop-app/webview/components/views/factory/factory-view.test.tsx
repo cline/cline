@@ -1790,6 +1790,35 @@ describe("Factory home", () => {
 		new Date(Date.now() - minutes * 60_000).toISOString();
 	beforeEach(() => sessionStorage.removeItem("factory.destination"));
 
+	it("marks a delivered card that has a recording, and only when proof says so", async () => {
+		mocks.tasks = ["rec", "shots", "none"].map((taskId) =>
+			task({
+				taskId,
+				title: `${taskId} card`,
+				status: "completed",
+				lastRunId: `run-${taskId}`,
+			}),
+		);
+		withBoard([
+			attention("rec", {
+				outcome: outcome("ready", { visualProof: "shown", recording: true }),
+			}),
+			attention("shots", {
+				outcome: outcome("ready", { visualProof: "shown" }),
+			}),
+			attention("none", {
+				outcome: outcome("ready", { visualProof: "missing" }),
+			}),
+		]);
+		await render();
+		const marked = (id: string) =>
+			homeRow(id).querySelector('[aria-label="Has a recording"]');
+		expect(marked("rec")).not.toBeNull();
+		expect(marked("shots")).toBeNull();
+		expect(marked("none")).toBeNull();
+		expect(homeRow("rec").querySelector("button [aria-label]")).toBeNull();
+	});
+
 	it("lays the board out in lifecycle order, every column always, each card once", async () => {
 		mocks.tasks = [
 			task({
@@ -1885,7 +1914,9 @@ describe("Factory home", () => {
 		// A branch-only delivery has no action; its proof line says so.
 		expect(onLine("done").text).toContain("on a branch, no PR");
 		expect(
-			homeRow("done").querySelector("button:not([data-factory-task])"),
+			homeRow("done").querySelector(
+				"button:not([data-factory-task]):not([data-factory-archive])",
+			),
 		).toBeNull();
 		// A retry that can work runs from the row.
 		await act(async () => labelled("Try again: Failed card").click());
@@ -2018,7 +2049,7 @@ describe("Factory home", () => {
 		/** A card's one quick action, or null when opening it is the action. */
 		const quick = (taskId: string) => {
 			const actions = homeRow(taskId).querySelectorAll(
-				"[data-factory-quick-action] button",
+				"[data-factory-quick-action] button:not([data-factory-archive])",
 			);
 			expect(actions.length).toBeLessThanOrEqual(1);
 			return actions[0]?.textContent ?? null;
@@ -3596,5 +3627,263 @@ describe("Factory card priority", () => {
 			(glyph("high")?.parentElement as HTMLElement | null)?.click(),
 		);
 		expect(sessionStorage.getItem("factory.selectedTask")).toBe("high");
+	});
+});
+
+describe("Factory quick archive", () => {
+	const runState = (phase: string) => ({
+		phase,
+		repairRound: 0,
+		activeRoles: [],
+		activeSessions: [],
+		followupPaused: false,
+	});
+	const archiveCalls = () =>
+		mocks.invoke.mock.calls.filter(([command]) => command === "task.archive");
+	const quick = (name: string) =>
+		document.querySelector(`button[aria-label="Archive ${name}"]`);
+	/** A delivered pair, a stopped card, a working card and a card with a question. */
+	const arrange = () => {
+		mocks.tasks = [
+			task({
+				taskId: "done-a",
+				title: "Delivered A",
+				factoryNumber: 25,
+				status: "completed",
+				lastRunId: "run-a",
+				updatedAt: "2026-03-02T00:00:00Z",
+			}),
+			task({
+				taskId: "done-b",
+				title: "Delivered B",
+				factoryNumber: 26,
+				status: "completed",
+				lastRunId: "run-b",
+				updatedAt: "2026-03-01T00:00:00Z",
+			}),
+			task({
+				taskId: "stopped",
+				title: "Stopped card",
+				factoryNumber: 27,
+				status: "failed",
+				approvedRevision: 3,
+			}),
+			task({
+				taskId: "working",
+				title: "Working card",
+				factoryNumber: 28,
+				status: "in_progress",
+				currentRunId: "run-w",
+			}),
+			task({
+				taskId: "asking",
+				title: "Asking card",
+				factoryNumber: 29,
+				status: "in_progress",
+				currentRunId: "run-q",
+			}),
+		];
+		mocks.invoke.mockImplementation(async (command) =>
+			command === "factory_attention"
+				? [
+						{
+							taskId: "done-a",
+							revision: 3,
+							runId: "run-a",
+							questions: [],
+							needsAttention: false,
+							outcome: runState("ready"),
+						},
+						{
+							taskId: "done-b",
+							revision: 3,
+							runId: "run-b",
+							questions: [],
+							needsAttention: false,
+							outcome: runState("ready"),
+						},
+						{
+							taskId: "stopped",
+							revision: 3,
+							questions: [],
+							needsAttention: true,
+						},
+						{
+							taskId: "working",
+							revision: 3,
+							runId: "run-w",
+							questions: [],
+							needsAttention: false,
+							outcome: runState("implementing"),
+						},
+						{
+							taskId: "asking",
+							revision: 3,
+							questions: [
+								{
+									requestId: "q1",
+									sessionId: "builder-1",
+									createdAt: "2026-01-01T00:00:00Z",
+									question: "Which format?",
+									options: [],
+								},
+							],
+							needsAttention: true,
+						},
+					]
+				: command === "get_desktop_settings"
+					? {}
+					: [],
+		);
+	};
+	const render = () =>
+		act(async () =>
+			root.render(
+				<FactoryView drafts={drafts} onOpenSession={vi.fn(async () => {})} />,
+			),
+		);
+	const pressE = async (target: Element) =>
+		act(async () => {
+			target.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "e", bubbles: true }),
+			);
+		});
+	const openColumnMenu = async (column: string) => {
+		const trigger = document.querySelector(
+			`button[aria-label="${column} options"]`,
+		);
+		await act(async () =>
+			trigger?.dispatchEvent(
+				new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
+			),
+		);
+	};
+	const menuItem = (label: string) =>
+		Array.from(document.querySelectorAll('[role="menuitem"]')).find((item) =>
+			item.textContent?.includes(label),
+		) as HTMLElement | undefined;
+
+	it("offers Archive on delivered and stopped cards, not on working ones or ones waiting on a person", async () => {
+		arrange();
+		await render();
+		expect(quick("F25")).not.toBeNull();
+		expect(quick("F27")).not.toBeNull();
+		expect(quick("F28")).toBeNull();
+		expect(quick("F29")).toBeNull();
+		// Keyboard reachable: a real button, in the card, hidden only visually.
+		expect(quick("F25")?.closest("[data-factory-quick-action]")).not.toBeNull();
+		await act(async () => (quick("F25") as HTMLElement).click());
+		expect(archiveCalls()).toEqual([
+			[
+				"task.archive",
+				{ taskId: "done-a", expectedRevision: 3, allWorkspaces: true },
+			],
+		]);
+	});
+
+	it("archives the focused card with E and moves focus to the next card, but not while typing", async () => {
+		arrange();
+		await render();
+		const first = row("Delivered", "done-a");
+		const second = row("Delivered", "done-b");
+		first.focus();
+		// Typing in a field inside the card never archives it.
+		const field = document.createElement("input");
+		first.closest("li")?.appendChild(field);
+		await pressE(field);
+		expect(archiveCalls()).toHaveLength(0);
+		await pressE(first);
+		expect(archiveCalls()).toEqual([
+			[
+				"task.archive",
+				{ taskId: "done-a", expectedRevision: 3, allWorkspaces: true },
+			],
+		]);
+		expect(document.activeElement).toBe(second);
+		// A working card has no shortcut.
+		await pressE(row("Working", "working"));
+		expect(archiveCalls()).toHaveLength(1);
+	});
+
+	it("undoes an archive from the notice, and says when archiving fails", async () => {
+		arrange();
+		await render();
+		await act(async () => (quick("F25") as HTMLElement).click());
+		const notice = mocks.toast.mock.calls[0]?.[0];
+		expect(notice.title).toBe("Archived F25");
+		await act(async () => notice.action.props.onClick());
+		expect(mocks.invoke).toHaveBeenCalledWith("task.restore", {
+			taskId: "done-a",
+			expectedRevision: 3,
+			allWorkspaces: true,
+		});
+		mocks.toast.mockClear();
+		const impl = mocks.invoke.getMockImplementation();
+		mocks.invoke.mockImplementation(async (command, args) => {
+			if (command === "task.archive") throw new Error("Hub is busy");
+			return impl?.(command, args);
+		});
+		await act(async () => (quick("F27") as HTMLElement).click());
+		expect(mocks.toast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				variant: "destructive",
+				title: "Couldn't archive F27",
+			}),
+		);
+	});
+
+	it("archives all delivered cards after one confirmation with the count", async () => {
+		arrange();
+		await render();
+		await openColumnMenu("Delivered");
+		await act(async () => menuItem("Archive all delivered…")?.click());
+		expect(document.body.textContent).toContain("Archive 2 delivered cards?");
+		expect(document.body.textContent).toContain(
+			"You can restore them from Archived.",
+		);
+		expect(archiveCalls()).toHaveLength(0);
+		const refreshes = mocks.refresh.mock.calls.length;
+		await act(async () => button("Archive 2 cards").click());
+		expect(
+			archiveCalls().map(([, args]) => (args as { taskId: string }).taskId),
+		).toEqual(["done-a", "done-b"]);
+		expect(mocks.refresh.mock.calls.length - refreshes).toBe(1);
+		expect(mocks.toast).toHaveBeenCalledWith({ title: "Archived 2 cards" });
+	});
+
+	it("archives only stopped cards from Needs you, leaving questions alone, and reports a partial failure", async () => {
+		arrange();
+		await render();
+		await openColumnMenu("Needs you");
+		await act(async () => menuItem("Archive all stopped…")?.click());
+		expect(document.body.textContent).toContain("Archive 1 stopped card?");
+		const impl = mocks.invoke.getMockImplementation();
+		mocks.invoke.mockImplementation(async (command, args) => {
+			if (command === "task.archive") throw new Error("Hub is busy");
+			return impl?.(command, args);
+		});
+		await act(async () => button("Archive 1 card").click());
+		expect(mocks.toast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "Archived 0 of 1; 1 could not be archived",
+			}),
+		);
+		expect(
+			mocks.invoke.mock.calls.filter(
+				([command, args]) =>
+					command === "task.archive" &&
+					(args as { taskId: string }).taskId === "asking",
+			),
+		).toHaveLength(0);
+	});
+
+	it("disables a column's bulk archive, with the reason, when it has nothing to archive", async () => {
+		mocks.tasks = [task({ taskId: "waiting", title: "Waiting card" })];
+		await render();
+		await openColumnMenu("Delivered");
+		expect(menuItem("Archive all delivered…")?.dataset.disabled).toBeDefined();
+		expect(menuItem("Archive all delivered…")?.textContent).toContain(
+			"No delivered cards",
+		);
 	});
 });

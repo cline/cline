@@ -11,6 +11,7 @@ import {
 	FACTORY_PRIORITIES,
 	FACTORY_PRIORITY_LABEL,
 	factoryActiveStage,
+	factoryAutoArchiveText,
 	factoryCardState,
 	factoryCardTitle,
 	isFactoryHandsOff,
@@ -81,6 +82,7 @@ import {
 } from "@/lib/factory-attention";
 import {
 	FACTORY_ACTIVITY,
+	FACTORY_ARCHIVE,
 	FACTORY_CARD,
 	FACTORY_CARD_ACTION,
 	FACTORY_CHECK_RESULT,
@@ -354,6 +356,17 @@ export function factoryScopingStopped(
 		Boolean(task.error) &&
 		factoryAutoApprovalWaiting(task) === null
 	);
+}
+
+/**
+ * Archiving live work (running, or scoping) stops it first, so that card
+ * offers "Cancel and archive…"; every other card archives with one action.
+ */
+export function factoryCancelsOnArchive(
+	task: Pick<AgendaTaskRecord, "status" | "archivedAt">,
+	designActive: boolean,
+): boolean {
+	return !task.archivedAt && (task.status === "in_progress" || designActive);
 }
 
 /** Why scoping stopped, in plain words, from the task's error. */
@@ -854,7 +867,10 @@ function nextActionSentence({
 	delivery: { pullRequestUrl?: string; branch?: string } | undefined;
 	approvalReason: string | null;
 }): string | null {
-	if (task.archivedAt) return "Restore this task to continue.";
+	if (task.archivedAt) {
+		const automatic = factoryAutoArchiveText(task.factoryArchive);
+		return `${automatic ? `${automatic}. ` : ""}Restore this task to continue.`;
+	}
 	if (task.status === "cancelled" || task.status === "expired")
 		return "This task is closed. Create a new task for further changes.";
 	if (summary.parent) return FACTORY_SPLIT.parentNext;
@@ -1190,8 +1206,13 @@ export function FactoryTaskHeader({
 		!summary.question &&
 		(liveSessions.length > 0 || Boolean(live?.waiting));
 	// Archiving live work stops it first, so that item is destructive.
-	const cancelsOnArchive =
-		!task.archivedAt && (task.status === "in_progress" || designActive);
+	const cancelsOnArchive = factoryCancelsOnArchive(task, designActive);
+	// A stopped card's Archive sits beside its primary action, not in More.
+	const archiveBesidePrimary =
+		summary.stopped &&
+		!task.archivedAt &&
+		Boolean(failure?.onRetry || onEditPlan);
+	const archiveInMore = !cancelsOnArchive && !archiveBesidePrimary;
 	// The headline already says how it stopped; the reason says why.
 	// A repair-limit stop names the finding it could not clear.
 	const failureReason = withoutHeadlineLead(
@@ -1321,12 +1342,12 @@ export function FactoryTaskHeader({
 								{FACTORY_CARD_ACTION.editPlan}
 							</DropdownMenuItem>
 						) : null}
-						{cancelsOnArchive ? null : (
+						{archiveInMore ? (
 							<DropdownMenuItem onSelect={onArchive}>
 								{task.archivedAt ? "Restore" : "Archive"}
 							</DropdownMenuItem>
-						)}
-						{onRate || editPlanInMore || !cancelsOnArchive ? (
+						) : null}
+						{onRate || editPlanInMore || archiveInMore ? (
 							<DropdownMenuSeparator />
 						) : null}
 						{onStop ? (
@@ -1497,6 +1518,7 @@ export function FactoryTaskHeader({
 									: FACTORY_CARD_ACTION.tryAgain
 							}
 							onEditPlan={onEditPlan}
+							onArchive={archiveBesidePrimary ? onArchive : undefined}
 							onStart={onStart}
 							startLabel={
 								task.factory?.hold === true
@@ -1651,6 +1673,7 @@ function CardActions({
 	onRetry,
 	retryLabel,
 	onEditPlan,
+	onArchive,
 	onStart,
 	startLabel,
 	accept,
@@ -1666,6 +1689,8 @@ function CardActions({
 	onRetry?: () => void;
 	retryLabel: string;
 	onEditPlan?: () => void;
+	/** A stopped card's quiet Archive, beside its primary action. */
+	onArchive?: () => void;
 	onStart?: () => void;
 	startLabel: string;
 	accept?: { onAccept: () => void; disabled?: boolean; reason?: string };
@@ -1690,6 +1715,18 @@ function CardActions({
 	let primary: ReactNode = null;
 	const secondary: ReactNode[] = [];
 	let beside: string | undefined;
+	if (summary.stopped && onArchive)
+		secondary.push(
+			<Button
+				key="archive"
+				size="sm"
+				variant="outline"
+				disabled={busy}
+				onClick={onArchive}
+			>
+				{FACTORY_ARCHIVE.action}
+			</Button>,
+		);
 	if (summary.stopped && onRetry)
 		primary = (
 			<Button size="sm" disabled={busy} onClick={onRetry}>

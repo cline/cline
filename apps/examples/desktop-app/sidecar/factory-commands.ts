@@ -4,6 +4,8 @@ import {
 } from "@cline/core";
 import {
 	type AgendaTaskStatus,
+	FACTORY_ARCHIVE_AFTER_DAYS,
+	type FactoryArchiveAfterDays,
 	type FactoryCardState,
 	type FactoryPrerequisiteFacts,
 	type FactoryWorkflowRecipe,
@@ -148,6 +150,11 @@ const factoryDailyCostSchema = z
 	.max(FACTORY_DAILY_COST_MAX_USD)
 	.nullable();
 
+const factoryArchiveAfterDaysSchema = z.custom<FactoryArchiveAfterDays>(
+	(value) => FACTORY_ARCHIVE_AFTER_DAYS.some((days) => days === value),
+	{ message: `Send ${FACTORY_ARCHIVE_AFTER_DAYS.join(", ")} or null` },
+);
+
 const factoryLimitsSetSchema = z
 	.object({
 		concurrency: factoryConcurrencySchema.optional(),
@@ -155,6 +162,8 @@ const factoryLimitsSetSchema = z
 		dailyCostUsd: factoryDailyCostSchema.optional(),
 		duplicateCheck: z.boolean().optional(),
 		splitLargeWork: z.boolean().optional(),
+		archiveOnPullRequestClose: z.boolean().optional(),
+		archiveAfterDays: factoryArchiveAfterDaysSchema.nullable().optional(),
 	})
 	.refine(
 		(value) =>
@@ -162,10 +171,12 @@ const factoryLimitsSetSchema = z
 			value.paused !== undefined ||
 			value.dailyCostUsd !== undefined ||
 			value.duplicateCheck !== undefined ||
-			value.splitLargeWork !== undefined,
+			value.splitLargeWork !== undefined ||
+			value.archiveOnPullRequestClose !== undefined ||
+			value.archiveAfterDays !== undefined,
 		{
 			message:
-				"Send concurrency, paused, dailyCostUsd, duplicateCheck, splitLargeWork or a combination",
+				"Send concurrency, paused, dailyCostUsd, duplicateCheck, splitLargeWork, archiveOnPullRequestClose, archiveAfterDays or a combination",
 		},
 	);
 
@@ -194,8 +205,14 @@ export async function handleFactoryLimitsCommand(
 			dailyCostUsd,
 			duplicateCheck,
 			splitLargeWork,
+			archiveOnPullRequestClose,
+			archiveAfterDays,
 		} = factoryLimitsSetSchema.parse(args ?? {});
 		if (concurrency !== undefined) input.concurrency = concurrency;
+		if (archiveOnPullRequestClose !== undefined)
+			input.archiveOnPullRequestClose = archiveOnPullRequestClose;
+		if (archiveAfterDays !== undefined)
+			input.archiveAfterDays = archiveAfterDays;
 		if (duplicateCheck !== undefined) input.duplicateCheck = duplicateCheck;
 		if (splitLargeWork !== undefined) input.splitLargeWork = splitLargeWork;
 		if (paused !== undefined) input.paused = paused;
@@ -213,7 +230,7 @@ export async function handleFactoryLimitsCommand(
 		const reason = reply.error?.message ?? "the Hub did not answer";
 		throw new Error(
 			setting
-				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : input.duplicateCheck !== undefined ? "the duplicate check" : input.splitLargeWork !== undefined ? "whether large work is split" : "how much work runs at once"}: ${reason}`
+				? `Factory could not change ${input.dailyCostUsd !== undefined ? "the daily spending limit" : input.duplicateCheck !== undefined ? "the duplicate check" : input.splitLargeWork !== undefined ? "whether large work is split" : input.archiveOnPullRequestClose !== undefined || input.archiveAfterDays !== undefined ? "when finished work is archived" : "how much work runs at once"}: ${reason}`
 				: `Factory could not read how much work runs at once: ${reason}`,
 		);
 	}
@@ -224,6 +241,8 @@ export async function handleFactoryLimitsCommand(
 		spentTodayUsd,
 		duplicateCheck,
 		splitLargeWork,
+		archiveOnPullRequestClose,
+		archiveAfterDays,
 	} = z
 		.object({
 			concurrency: z.number().int().positive(),
@@ -239,6 +258,11 @@ export async function handleFactoryLimitsCommand(
 			spentTodayUsd: z.number().finite().min(0).optional().catch(undefined),
 			duplicateCheck: z.boolean().optional().catch(undefined),
 			splitLargeWork: z.boolean().optional().catch(undefined),
+			archiveOnPullRequestClose: z.boolean().optional().catch(undefined),
+			archiveAfterDays: factoryArchiveAfterDaysSchema
+				.nullable()
+				.optional()
+				.catch(undefined),
 		})
 		.parse(reply.payload);
 	const daily =
@@ -257,6 +281,10 @@ export async function handleFactoryLimitsCommand(
 			: {}),
 		...(duplicateCheck !== undefined ? { duplicateCheck } : {}),
 		...(splitLargeWork !== undefined ? { splitLargeWork } : {}),
+		...(archiveOnPullRequestClose !== undefined
+			? { archiveOnPullRequestClose }
+			: {}),
+		...(archiveAfterDays !== undefined ? { archiveAfterDays } : {}),
 	};
 }
 
