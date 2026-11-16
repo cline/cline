@@ -5,14 +5,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InstalledInstructionFilePreview } from "./installed-instruction-file-preview";
 
-const { invoke, writeText } = vi.hoisted(() => ({
+const { invoke, openExternalUrl, writeText } = vi.hoisted(() => ({
 	invoke: vi.fn(),
+	openExternalUrl: vi.fn(),
 	writeText: vi.fn(),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
 	desktopClient: { invoke },
-	openExternalUrl: vi.fn(),
+	openExternalUrl,
 }));
 
 let container: HTMLDivElement;
@@ -34,6 +35,7 @@ beforeEach(() => {
 		throw new Error(`Unexpected command: ${command}`);
 	});
 	writeText.mockReset().mockResolvedValue(undefined);
+	openExternalUrl.mockReset().mockResolvedValue(undefined);
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -68,6 +70,48 @@ async function runFileAction(label: string) {
 }
 
 describe("Installed instruction preview file actions", () => {
+	it.each([
+		"rule",
+		"workflow",
+	] as const)("keeps unavailable %s file links inert and opens external links externally", async (type) => {
+		const localLinks = [
+			["Guide", "/docs/guide.md"],
+			["Root", "/"],
+			["Relative", "references/guide.md"],
+			["Parent", "../guide.md"],
+		];
+		await act(async () =>
+			root.render(
+				<InstalledInstructionFilePreview
+					path="/workspace/.clinerules/project.md"
+					instructions={[
+						...localLinks.map(([label, href]) => `[${label}](${href})`),
+						"[Docs](https://example.com/docs)",
+					].join("\n\n")}
+					type={type}
+				/>,
+			),
+		);
+		for (const [label] of localLinks) {
+			const link = [...container.querySelectorAll("span, a")].find(
+				(element) => element.textContent === label,
+			);
+			expect(link?.tagName).toBe("SPAN");
+			expect(link?.getAttribute("href")).toBeNull();
+			expect(link?.getAttribute("title")).toBe("File unavailable");
+		}
+		expect(invoke).not.toHaveBeenCalled();
+		expect(openExternalUrl).not.toHaveBeenCalled();
+		const externalLink = container.querySelector<HTMLAnchorElement>(
+			'a[href="https://example.com/docs"]',
+		);
+		expect(externalLink).not.toBeNull();
+		await act(async () => externalLink?.click());
+		expect(openExternalUrl).toHaveBeenCalledExactlyOnceWith(
+			"https://example.com/docs",
+		);
+	});
+
 	it.each([
 		{
 			type: "rule" as const,

@@ -4,6 +4,10 @@ import { FileBrowser, FileBrowserContent } from "@cline/ui";
 import { MemoizedMarkdown } from "@/components/ui/markdown";
 import { desktopClient } from "@/lib/desktop-client";
 
+// This preview only has the selected instruction file, so other local files
+// are unavailable. Keep their links inert instead of navigating the webview.
+const resolveLocalLink = () => undefined;
+
 export function InstalledInstructionFilePreview({
 	path,
 	instructions,
@@ -33,7 +37,11 @@ export function InstalledInstructionFilePreview({
 				}}
 				content={instructions}
 				preview={
-					<MemoizedMarkdown classNames="text-sm" content={instructions} />
+					<MemoizedMarkdown
+						classNames="text-sm"
+						content={instructions}
+						resolveLocalLink={resolveLocalLink}
+					/>
 				}
 			/>
 		</FileBrowser>
