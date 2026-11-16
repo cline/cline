@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js"
 import sinon from "sinon"
 import { McpHub } from "../McpHub"
+import type { McpConnection } from "../types"
 
 /**
  * Unit tests for McpHub.callTool() method.
@@ -57,10 +59,12 @@ function createMcpHub(
 			config: options.config ?? JSON.stringify({ type: "stdio", command: "test", timeout: 60 }),
 			status: "connected",
 			disabled: options.disabled ?? false,
+			oauthRequired: false,
+			oauthAuthStatus: "authenticated",
 		},
 		client,
 		transport: {},
-	}
+	} as unknown as McpConnection
 
 	const hub = Object.create(McpHub.prototype) as McpHub
 	;(hub as any).telemetryService = telemetryService
@@ -420,6 +424,70 @@ describe("McpHub.callTool", () => {
 
 			result.content.should.be.an.Array()
 			result.content.should.have.length(0)
+		})
+	})
+
+	// ── Remote OAuth authentication failures ────────────────────────────
+
+	describe("remote OAuth authentication failures", () => {
+		it("should degrade the server when a tool call throws UnauthorizedError", async () => {
+			const client = { request: sinon.stub().rejects(new UnauthorizedError()) }
+			const { hub, connection } = createMcpHub({ client: client as never })
+			const notify = sandbox.stub(hub as any, "notifyWebviewOfServerChanges").resolves()
+
+			let thrown: unknown
+			try {
+				await hub.callTool("test-server", "some_tool", undefined, "ulid-oauth-01")
+			} catch (error) {
+				thrown = error
+			}
+
+			should(thrown).be.instanceOf(UnauthorizedError)
+			connection.server.status.should.equal("disconnected")
+			should(connection.server.oauthRequired).be.true()
+			should(connection.server.oauthAuthStatus).equal("unauthenticated")
+			should(connection.server.error).be.a.String()
+			should(connection.server.error!.length).be.above(0)
+			notify.calledOnce.should.be.true()
+		})
+
+		it("should degrade the server when the transport reports an HTTP 401", async () => {
+			const transportError = Object.assign(new Error("Server returned 401 after successful authentication"), {
+				name: "StreamableHTTPError",
+				code: 401,
+			})
+			const client = { request: sinon.stub().rejects(transportError) }
+			const { hub, connection } = createMcpHub({ client: client as never })
+			const notify = sandbox.stub(hub as any, "notifyWebviewOfServerChanges").resolves()
+
+			await hub.callTool("test-server", "some_tool", undefined, "ulid-oauth-02").catch(() => {})
+
+			connection.server.status.should.equal("disconnected")
+			should(connection.server.oauthRequired).be.true()
+			should(connection.server.oauthAuthStatus).equal("unauthenticated")
+			should(connection.server.error).be.a.String()
+			notify.calledOnce.should.be.true()
+		})
+
+		it("should leave server state untouched for non-authentication tool errors", async () => {
+			const client = createMockClient()
+			client.request.rejects(new Error("Network timeout"))
+			const { hub, connection } = createMcpHub({ client })
+			const notify = sandbox.stub(hub as any, "notifyWebviewOfServerChanges").resolves()
+
+			let thrown: unknown
+			try {
+				await hub.callTool("test-server", "some_tool", undefined, "ulid-oauth-03")
+			} catch (error) {
+				thrown = error
+			}
+
+			should(thrown).be.instanceOf(Error)
+			connection.server.status.should.equal("connected")
+			should(connection.server.oauthRequired).be.false()
+			should(connection.server.oauthAuthStatus).equal("authenticated")
+			should(connection.server.error).be.undefined()
+			notify.called.should.be.false()
 		})
 	})
 })

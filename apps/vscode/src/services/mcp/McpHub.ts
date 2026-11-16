@@ -1749,8 +1749,59 @@ export class McpHub {
 				error instanceof Error ? error.message : String(error),
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
+
+			// Remote OAuth servers can start rejecting requests after their
+			// token is revoked or expires mid-session. Without this the server
+			// keeps looking "connected" and the user never gets an
+			// Authenticate/Retry action.
+			if (this.isUnauthorizedMcpError(error)) {
+				await this.markServerUnauthenticated(
+					connection,
+					"Authentication failed (401 Unauthorized). Re-authenticate this server to reconnect.",
+				)
+			}
+
 			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
+	}
+
+	/**
+	 * Returns true when a tool-call failure means the server rejected the
+	 * current credentials, rather than the tool itself failing.
+	 *
+	 * The MCP SDK signals this with an `UnauthorizedError`, or (when a token
+	 * refresh succeeds but the server still returns 401) an HTTP error whose
+	 * `code`/`status` is 401. SSE can also surface a plain Error carrying the
+	 * status only in its message.
+	 */
+	private isUnauthorizedMcpError(error: unknown): boolean {
+		if (error instanceof UnauthorizedError) {
+			return true
+		}
+		if (!error || typeof error !== "object") {
+			return false
+		}
+		const candidate = error as { name?: unknown; code?: unknown; status?: unknown; message?: unknown }
+		if (candidate.name === "UnauthorizedError" || candidate.code === 401 || candidate.status === 401) {
+			return true
+		}
+		return typeof candidate.message === "string" && /\b401\b|unauthorized/i.test(candidate.message)
+	}
+
+	/**
+	 * Marks a connected server as disconnected and unauthenticated so the
+	 * webview replaces its tool/Retry UI with an Authenticate action. The
+	 * authProvider stays on the connection so authenticating can reconnect.
+	 */
+	private async markServerUnauthenticated(connection: McpConnection, errorMessage: string): Promise<void> {
+		connection.server.status = "disconnected"
+		connection.server.oauthRequired = true
+		connection.server.oauthAuthStatus = "unauthenticated"
+		connection.server.error = errorMessage
+
+		await this.notifyWebviewOfServerChanges().catch((notifyError) => {
+			Logger.error(`Failed to publish unauthenticated state for "${connection.server.name}":`, notifyError)
+		})
 	}
 
 	async readResource(serverName: string, uri: string, signal?: AbortSignal): Promise<ReadResourceResult> {
