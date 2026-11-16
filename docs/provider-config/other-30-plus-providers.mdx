@@ -34,6 +34,7 @@ Use this page for providers that follow the same setup pattern.
   - [Requesty](#requesty)
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
+  - [TokenSail](#tokensail)
   - [Together](#together)
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
@@ -328,6 +329,19 @@ SAP AI Core is SAP’s enterprise AI platform for model integration and governan
 1. Set up SAP AI Core / generative AI hub access.
 2. Configure your service key/endpoint credentials.
 3. In Cline, select **SAP AI Core** and provide required values.
+
+### TokenSail
+TokenSail provides an OpenAI-compatible gateway for DeepSeek, Qwen, GLM and Kimi model families, with USD billing.
+
+**Website:** [https://tokensail.ai](https://tokensail.ai)
+
+#### Basic Setup
+
+1. Use an API key from your own authorized TokenSail account.
+2. In Cline, choose **OpenAI Compatible** from the API Provider dropdown.
+3. Set the base URL to `https://api.tokensail.ai/v1` and pick a chat model ID from the [model directory](https://tokensail.ai/models), such as `deepseek-v4-pro`.
+
+`glm-5.3` requires thinking to stay on — disabling it returns HTTP 400 — so leave reasoning enabled for that model.
 
 ### Together
 Together provides hosted inference for many popular open models.
