@@ -1,0 +1,43 @@
+---
+title: "Custom Endpoints & API Gateways"
+description: "Use Cline with any OpenAI-compatible or Anthropic-compatible endpoint — hosted gateways, relays, corporate proxies, or self-hosted fronts."
+---
+
+Cline works with **any endpoint that speaks the OpenAI Chat Completions protocol or the Anthropic Messages protocol** — hosted API gateways and relays, a corporate egress proxy, or a self-hosted front such as a LiteLLM proxy. This page covers both configuration paths and a short checklist for verifying an endpoint before you rely on it.
+
+### Path 1: OpenAI-compatible endpoints
+
+If your endpoint serves an OpenAI-compatible API (most gateways do), use the [OpenAI Compatible](/provider-config/openai-compatible) provider:
+
+1. **API Provider:** select "OpenAI Compatible".
+2. **Base URL:** the endpoint's base URL, usually ending in `/v1`.
+3. **API Key:** the key issued by that service — not an OpenAI key.
+4. **Model:** the model ID exactly as the provider lists it.
+5. Click **Verify** to confirm the connection.
+
+### Path 2: Anthropic-compatible endpoints
+
+If the endpoint speaks the Anthropic Messages protocol instead, use the [Anthropic](/provider-config/anthropic) provider with a custom base URL:
+
+1. **API Provider:** select "Anthropic".
+2. Check **Use custom base URL** and enter the endpoint's root URL.
+3. Enter the API key and model ID from that service, then **Verify**.
+
+### Checklist before relying on a custom endpoint
+
+- **Protocol match:** OpenAI-compatible and Anthropic-compatible are different wire protocols. Pick the provider entry that matches what your endpoint actually serves — some gateways serve both, on different paths.
+- **Base URL shape:** the most common failure is the `/v1` suffix. Some endpoints expect `https://host/v1`, others the bare host. Check your provider's docs; if Verify fails with a 404, try the other form before anything else.
+- **Model IDs:** they differ per provider and are not always the vendor's public names. Fetch `{base URL}/models` or copy the IDs from the provider's model list.
+- **Usage visibility:** on metered endpoints, prefer services that show per-request usage (tokens and cost). Agent workflows iterate heavily, and a per-request ledger makes a runaway task visible in the bill before it gets expensive.
+- **Local models:** for Ollama and LM Studio, see their own sections — no custom endpoint needed.
+
+### Example: a dual-protocol gateway
+
+> **Disclosure:** this example uses TeapotRouter, a pay-as-you-go API gateway, and I'm one of its developers. The steps are identical for any endpoint serving the same protocols — [OpenRouter](/provider-config/openrouter), covered on its own page, is another hosted example.
+
+A gateway that serves both protocols lets you reach both model families with one account and one key:
+
+- **OpenAI-compatible path:** provider "OpenAI Compatible", Base URL `https://api.teapotrouter.com/v1`, API key from the dashboard, models `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`.
+- **Anthropic-compatible path:** provider "Anthropic" + "Use custom base URL" `https://api.teapotrouter.com`, models `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-4-5`, `claude-fable-5-2`.
+
+Both paths pass Cline's **Verify** button as-is. Real sample outputs for each model are viewable without an account at [teapotrouter.com/demo/model-lab](https://teapotrouter.com/demo/model-lab) if you want to eyeball a model before configuring it.
