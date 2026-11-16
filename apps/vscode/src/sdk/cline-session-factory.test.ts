@@ -1050,6 +1050,27 @@ describe("buildSessionConfig", () => {
 		}
 	})
 
+	it("reads the selection as the model the session sends when the shared model field holds another provider's id", async () => {
+		// OpenAI and Anthropic keep their model in the same actModeApiModelId
+		// field, so it can hold a model saved for the other provider.
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({
+			provider: "openai-native",
+			apiKey: "openai-key",
+			model: "gpt-5.4",
+		} as any)
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-native",
+			actModeApiModelId: "claude-sonnet-4-6",
+			openAiNativeApiKey: "openai-key",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const selection = createProviderConfigStore().readSelection(parseProviderId("openai-native"), "act")
+
+		expect(config.modelId).toBe("claude-sonnet-4-6")
+		expect(selection?.modelId).toBe(config.modelId)
+	})
+
 	it("does not treat OpenAI Codex as OpenAI Native API-key auth", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai-codex",
