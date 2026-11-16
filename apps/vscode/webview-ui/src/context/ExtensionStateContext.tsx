@@ -52,12 +52,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	openRouterModels: Record<string, ModelInfo>
-	vercelAiGatewayModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
 	requestyModels: Record<string, ModelInfo>
-	groqModels: Record<string, ModelInfo>
-	basetenModels: Record<string, ModelInfo>
-	huggingFaceModels: Record<string, ModelInfo>
 	providerModelsByProvider: Partial<Record<ProviderId, ProviderModelsState>>
 	latestModelRequestIdByProvider: Partial<Record<ProviderId, string>>
 	mcpServers: McpServer[]
@@ -85,9 +81,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
-	setGroqModels: (value: Record<string, ModelInfo>) => void
-	setBasetenModels: (value: Record<string, ModelInfo>) => void
-	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -107,7 +100,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
-	refreshVercelAiGatewayModels: () => void
 	refreshHicapModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
@@ -335,7 +327,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
-	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
@@ -343,15 +334,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
 		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
-	// Groq and Baseten model lists start empty. The pickers populate them
-	// from two sources: the SDK catalog over gRPC (`useProviderModels`)
-	// for the curated set, and the host-side refresh RPCs
-	// (`ModelsServiceClient.refreshGroqModelsRpc`,
-	// `ModelsServiceClient.refreshBasetenModels`) for any models the
-	// live API exposes on top of the SDK catalog.
-	const [groqModelsState, setGroqModels] = useState<Record<string, ModelInfo>>({})
-	const [basetenModelsState, setBasetenModels] = useState<Record<string, ModelInfo>>({})
-	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [providerModelsByProvider, setProviderModelsByProvider] = useState<Partial<Record<ProviderId, ProviderModelsState>>>({})
 	const [latestModelRequestIdByProvider, setLatestModelRequestIdByProvider] = useState<Partial<Record<ProviderId, string>>>({})
 	const latestModelRequestIdByProviderRef = useRef<Partial<Record<ProviderId, string>>>({})
@@ -744,51 +726,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
-	const refreshBasetenModels = useCallback(() => {
-		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
-			.then((response) => {
-				// Live-fetched Baseten models. The SDK-curated catalog is
-				// pulled separately by BasetenModelPicker via
-				// `useProviderModels("baseten")` and merged on top of this
-				// dynamic slice at render time.
-				setBasetenModels(fromProtobufModels(response.models))
-			})
-			.catch((err) => console.error("Failed to refresh Baseten models:", err))
-	}, [])
-
-	const refreshVercelAiGatewayModels = useCallback(() => {
-		ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
-			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = fromProtobufModels(response.models)
-				setVercelAiGatewayModels(models)
-			})
-			.catch((error: Error) => console.error("Failed to refresh Vercel AI Gateway models:", error))
-	}, [])
-
 	// Auto-refresh model lists on API key availability
 	useEffect(() => {
 		if (!openRouterModels || Object.keys(openRouterModels).length <= 1) {
 			refreshOpenRouterModels()
 		}
-		if (!vercelAiGatewayModels || Object.keys(vercelAiGatewayModels).length === 0) {
-			refreshVercelAiGatewayModels()
-		}
-		if (state.apiConfiguration?.basetenApiKey) {
-			refreshBasetenModels()
-		}
-	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+	}, [refreshOpenRouterModels])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		openRouterModels,
-		vercelAiGatewayModels,
 		hicapModels,
 		requestyModels,
-		groqModels: groqModelsState,
-		basetenModels: basetenModelsState,
-		huggingFaceModels,
 		providerModelsByProvider,
 		latestModelRequestIdByProvider,
 		mcpServers,
@@ -843,9 +794,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpServers,
 		setRequestyModels,
-		setGroqModels,
-		setBasetenModels,
-		setHuggingFaceModels,
 		setShowMarketplace,
 		setShowMcp,
 		closeMcpView,
@@ -907,7 +855,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
-		refreshVercelAiGatewayModels,
 		refreshHicapModels,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

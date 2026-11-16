@@ -5,7 +5,6 @@ import type { ProviderCatalogController } from "../providerCatalogShared"
 import { refreshBasetenModels } from "../refreshBasetenModels"
 import { refreshGroqModels } from "../refreshGroqModels"
 import { refreshOpenRouterModels } from "../refreshOpenRouterModels"
-import { refreshVercelAiGatewayModels } from "../refreshVercelAiGatewayModels"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -53,7 +52,6 @@ describe("provider model refresh handlers (SDK catalog delegation)", () => {
 		["openrouter", refreshOpenRouterModels],
 		["groq", refreshGroqModels],
 		["baseten", refreshBasetenModels],
-		["vercel-ai-gateway", refreshVercelAiGatewayModels],
 	] as const)("resolves %s models through the SDK provider catalog", async (providerId, refresh) => {
 		const { controller, resolveModels } = makeController(okResult(providerId))
 
