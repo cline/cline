@@ -2,7 +2,14 @@
 
 import { Badge, Button, EmptyState, IconButton } from "@cline/ui";
 import { Loader2, RefreshCw } from "lucide-react";
-import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import {
+	type ReactNode,
+	type Ref,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
 import { COMPOSIO_RECIPES } from "@/lib/composio-recipes";
 import type {
@@ -75,18 +82,18 @@ function useConnectorActions(model: ConnectorResults) {
 		setDetailSlug(slug);
 	};
 	useEffect(() => {
-		if (actionError) {
-			const trigger = connectionTrigger.current;
-			if (
-				trigger?.slug === actionError.toolkit &&
-				trigger.primary?.isConnected
-			) {
-				// The failed action disappears; let the dialog capture the stable card opener.
-				trigger.primary.focus({ preventScroll: true });
-			}
-			connectionTrigger.current = null;
-			setDetailSlug(actionError.toolkit);
-		}
+		const trigger = connectionTrigger.current;
+		if (!actionError || trigger?.slug !== actionError.toolkit) return;
+		connectionTrigger.current = null;
+		// Keep failures on their item once focus or navigation has moved elsewhere.
+		// An already-open detail displays its own failure without changing selection.
+		if (
+			!trigger.primary?.isConnected ||
+			trigger.primary.ownerDocument.activeElement !== trigger.primary ||
+			trigger.primary.closest("[hidden], [inert]")
+		)
+			return;
+		setDetailSlug(actionError.toolkit);
 	}, [actionError]);
 
 	/** A failed action belongs only to the connector it was for. */
@@ -445,29 +452,30 @@ export function ConnectorCatalogView({
 		!searchResults &&
 		previewLimit === undefined &&
 		visibleCatalog.length < matchingCatalog.length;
-	const loadMoreRef = useRef<HTMLDivElement>(null);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Reobserve after appending so a sentinel still in view can load another page.
-	useEffect(() => {
-		const sentinel = loadMoreRef.current;
-		if (!hasMore || !sentinel) return;
-		let active = true;
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (!active || !entries.some((entry) => entry.isIntersecting)) return;
+	const loadMoreRef = useCallback(
+		(sentinel: HTMLDivElement | null) => {
+			if (!hasMore || !sentinel) return;
+			let active = true;
+			const observer = new IntersectionObserver(
+				(entries) => {
+					if (!active || !entries.some((entry) => entry.isIntersecting)) return;
+					active = false;
+					setPage((current) => ({
+						...current,
+						limit: current.limit + CATALOG_PAGE_SIZE,
+					}));
+				},
+				{ root: findScrollViewport(sentinel), rootMargin: "200px" },
+			);
+			observer.observe(sentinel);
+			return () => {
 				active = false;
-				setPage((current) => ({
-					...current,
-					limit: current.limit + CATALOG_PAGE_SIZE,
-				}));
-			},
-			{ root: findScrollViewport(sentinel), rootMargin: "200px" },
-		);
-		observer.observe(sentinel);
-		return () => {
-			active = false;
-			observer.disconnect();
-		};
-	}, [hasMore, visibleCatalog.length, categoryId]);
+				observer.disconnect();
+			};
+		},
+		[hasMore, visibleCatalog.length, categoryId],
+	);
 
 	if (!status) {
 		return (

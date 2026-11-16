@@ -445,6 +445,62 @@ describe("Customize connector catalog", () => {
 		).toBeNull();
 	});
 
+	it("resumes paging after a cached catalog refresh fails and Retry restores the sentinel", async () => {
+		const observers: {
+			callback: IntersectionObserverCallback;
+			observe: ReturnType<typeof vi.fn>;
+			disconnect: ReturnType<typeof vi.fn>;
+		}[] = [];
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				observe = vi.fn();
+				disconnect = vi.fn();
+				constructor(public callback: IntersectionObserverCallback) {
+					observers.push(this);
+				}
+			},
+		);
+		const catalog = {
+			configured: true,
+			toolkits: Array.from({ length: 50 }, (_, index) => ({
+				slug: `app_${index}`,
+				name: `App ${index}`,
+			})),
+		};
+		mocks.catalog.mockResolvedValueOnce(catalog);
+		await fetchComposioToolkitCatalog();
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_001);
+		let failRefresh: ((error: Error) => void) | undefined;
+		mocks.catalog
+			.mockReturnValueOnce(
+				new Promise((_, reject) => {
+					failRefresh = reject;
+				}),
+			)
+			.mockResolvedValueOnce(catalog);
+		await render();
+		const firstObserver = observers.at(-1);
+		const firstSentinel = firstObserver?.observe.mock.calls[0]?.[0];
+		expect(firstSentinel?.isConnected).toBe(true);
+		expect(detailButton("App 24")).toBeNull();
+		await act(async () => failRefresh?.(new Error("Refresh failed")));
+		expect(firstSentinel?.isConnected).toBe(false);
+		expect(firstObserver?.disconnect).toHaveBeenCalledOnce();
+		await act(async () => button("Retry")?.click());
+		const restoredObserver = observers.at(-1);
+		const restoredSentinel = restoredObserver?.observe.mock.calls[0]?.[0];
+		expect(restoredSentinel).not.toBe(firstSentinel);
+		expect(restoredSentinel?.isConnected).toBe(true);
+		await act(async () =>
+			restoredObserver?.callback(
+				[{ isIntersecting: true } as IntersectionObserverEntry],
+				restoredObserver as unknown as IntersectionObserver,
+			),
+		);
+		expect(detailButton("App 24")).not.toBeNull();
+	});
+
 	it.each([
 		"loading",
 		"error",
@@ -519,6 +575,79 @@ describe("Customize connector catalog", () => {
 		await act(async () => button("Disconnect")?.click());
 		await act(async () => confirmationButton("Disconnect").click());
 		expect(mocks.disconnect).toHaveBeenCalledWith("gmail");
+	});
+
+	it.each([
+		"card",
+		"detail",
+	] as const)("keeps a newer connector selection when a connection from its %s fails", async (origin) => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "github", name: "GitHub" },
+				{ slug: "gmail", name: "Gmail" },
+			],
+		});
+		await render();
+		if (origin === "detail") {
+			await act(async () => detailButton("GitHub")?.click());
+			await act(async () => dialogButton("Connect")?.click());
+			await act(async () => button("Close")?.click());
+		} else {
+			await act(async () => button("Connect")?.click());
+		}
+		expect(mocks.connect).toHaveBeenCalledExactlyOnceWith("github");
+		await act(async () => detailButton("Gmail")?.click());
+		mocks.actionError = {
+			toolkit: "github",
+			operation: "connect",
+			message: "Could not connect GitHub",
+		};
+		await render();
+		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+			"Gmail",
+		);
+		expect(document.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
+		expect(
+			detailButton("GitHub")
+				?.closest('[data-slot="item-card"]')
+				?.querySelector("output")?.textContent,
+		).toBe("Connection error");
+		await act(async () => button("Close")?.click());
+		await act(async () => detailButton("GitHub")?.click());
+		expect(
+			document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
+		).toBe("Could not connect GitHub");
+	});
+
+	it.each([
+		"focus moved",
+		"hidden",
+	] as const)("leaves an inline connection failure on its card after the origin is %s", async (state) => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "github", name: "GitHub" },
+				{ slug: "gmail", name: "Gmail" },
+			],
+		});
+		await render();
+		await act(async () => button("Connect")?.click());
+		expect(document.activeElement).toBe(detailButton("GitHub"));
+		if (state === "hidden") container.hidden = true;
+		else detailButton("Gmail")?.focus();
+		mocks.actionError = {
+			toolkit: "github",
+			operation: "connect",
+			message: "Could not connect GitHub",
+		};
+		await render();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(
+			detailButton("GitHub")
+				?.closest('[data-slot="item-card"]')
+				?.querySelector("output")?.textContent,
+		).toBe("Connection error");
 	});
 
 	it.each([
@@ -692,10 +821,7 @@ describe("Customize connector catalog", () => {
 		expect(
 			container.querySelector('[data-connector="github"] output'),
 		).toBeNull();
-		expect(
-			document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
-		).toBe("Could not connect GitHub");
-		await act(async () => button("Close")?.click());
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
 
 		mocks.busyToolkit = null;
 		await act(async () => renderCustom());
@@ -899,6 +1025,8 @@ describe("installed connectors", () => {
 		expect(
 			container.querySelector('[data-slot="item-card"]')?.textContent,
 		).not.toContain("Connected");
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		await act(async () => detailButton("Gmail")?.click());
 		expect(
 			document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
 		).toBe("Could not disconnect Gmail");
@@ -961,6 +1089,8 @@ describe("installed connectors", () => {
 		const card = detailButton("Gmail")?.closest('[data-slot="item-card"]');
 		expect(card?.querySelector("output")?.textContent).toBe("Auth required");
 		expect(card?.querySelectorAll("button")).toHaveLength(1);
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		await act(async () => detailButton("Gmail")?.click());
 		expect(
 			document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
 		).toBe("Could not cancel authorization");
@@ -1285,6 +1415,12 @@ describe("installed connectors", () => {
 			'[aria-label="Suggested connectors"]',
 		);
 		expect(suggested?.querySelector('[role="alert"]')).toBeNull();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		await act(async () =>
+			suggested
+				?.querySelector<HTMLButtonElement>('[aria-label="Open Sentry details"]')
+				?.click(),
+		);
 		expect(
 			document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
 		).toBe("Authorization failed");
