@@ -1,0 +1,120 @@
+.page [data-page-frame] {
+	--page-content-top: var(--page-header-height);
+}
+
+/* Fill below search, overlapping both sticky edges to avoid fractional-pixel seams. */
+.page [data-customize-toolbar]::before {
+	position: absolute;
+	z-index: -1;
+	bottom: -1px;
+	left: 0;
+	width: calc(100% + var(--customize-toolbar-end, 0px));
+	height: max(
+		2px,
+		calc(
+			100% +
+			var(--customize-toolbar-top, 0px) -
+			var(--page-header-height, 0px) +
+			2px
+		)
+	);
+	background: var(--background);
+	content: "";
+	pointer-events: none;
+}
+
+.page [data-page-layout] {
+	flex-direction: column;
+	gap: calc(var(--spacing) * 6);
+}
+
+.page [data-page-navigation] {
+	width: auto;
+	flex-direction: row;
+	align-self: stretch;
+}
+
+/* Keep icons on a stable layer while the selection highlight slides beneath. */
+.navigation > button {
+	transform: translateZ(0);
+}
+
+.browseSelected {
+	translate: calc(100% + var(--spacing) * 1.5) 0;
+}
+
+.headerNavigation {
+	display: none;
+	flex-shrink: 0;
+}
+
+.description {
+	display: block;
+}
+
+/* Below 64rem of page width, the section selector already supplies the title. */
+@container page (width < 64rem) {
+	.page [data-page-navigation] {
+		display: none;
+	}
+
+	.headerNavigation {
+		display: flex;
+	}
+
+	/* Keep the selector anchored while the Customize title compacts on scroll. */
+	.page [data-page-header] h1 {
+		min-width: 8rem;
+	}
+
+	.page [data-page-header] :has(> .headerNavigation) {
+		height: auto;
+		flex-wrap: wrap;
+	}
+
+	.sectionTitle {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		min-height: 0;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
+@container page (width >= 64rem) {
+	/* Match the navigation icons, including with the app sidebar collapsed. */
+	.page [data-page-header] > .header,
+	.description {
+		padding-inline-start: calc(var(--spacing) * 3);
+	}
+
+	.page [data-page-layout] {
+		flex-direction: row;
+		gap: clamp(calc(var(--spacing) * 4), 2.5cqi, calc(var(--spacing) * 10));
+	}
+
+	.page [data-page-navigation] {
+		width: clamp(calc(var(--spacing) * 32), 12cqi, calc(var(--spacing) * 40));
+		flex-direction: column;
+		align-self: flex-start;
+	}
+
+	.navigation {
+		width: 100%;
+		grid-template-columns: 1fr;
+	}
+
+	.browseSelected {
+		translate: 0 calc(100% + var(--spacing) * 1.5);
+	}
+}
+
+@container page (width < 32rem) {
+	.page [data-customize-category] {
+		padding-inline: calc(var(--spacing) * 3);
+	}
+}
