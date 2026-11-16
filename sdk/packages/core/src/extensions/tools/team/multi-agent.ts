@@ -12,6 +12,7 @@ import {
 	type AttachTeamOutcomeFragmentInput,
 	type CreateTeamOutcomeInput,
 	type CreateTeamTaskInput,
+	type DelegationTarget,
 	type MissionLogEntry,
 	type ReviewTeamOutcomeFragmentInput,
 	type RouteToTeammateOptions,
@@ -33,6 +34,10 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
+import {
+	createDelegatedRuntime,
+	type DelegatedAgentConfigProvider,
+} from "./delegated-agent";
 import {
 	type TeamRunResultRecord,
 	toTeamRunResultRecord,
@@ -131,7 +136,12 @@ export interface TaskResult {
 type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
 
 export type TeamEvent =
-	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
+	| {
+			type: TeamMessageType.TaskStart;
+			agentId: string;
+			message: string;
+			target?: DelegationTarget;
+	  }
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
@@ -140,7 +150,12 @@ export type TeamEvent =
 			error?: Error;
 			messages?: AgentResult["messages"];
 	  }
-	| { type: TeamMessageType.AgentEvent; agentId: string; event: AgentEvent }
+	| {
+			type: TeamMessageType.AgentEvent;
+			agentId: string;
+			event: AgentEvent;
+			target?: DelegationTarget;
+	  }
 	| {
 			type: TeamMessageType.TeammateSpawned;
 			agentId: string;
@@ -190,6 +205,7 @@ export interface AgentTeamsRuntimeOptions {
 export interface SpawnTeammateOptions {
 	agentId: string;
 	config: TeamMemberConfig;
+	configProvider?: DelegatedAgentConfigProvider;
 }
 
 function isAbortLikeError(error: unknown): boolean {
@@ -576,6 +592,7 @@ export function createWorkerReviewerTeam(configs: {
 
 interface TeamMemberState extends TeamMemberSnapshot {
 	agent?: SessionRuntime;
+	target?: DelegationTarget;
 	runningCount: number;
 	abortRequested?: boolean;
 	abortReason?: string;
@@ -916,7 +933,11 @@ export class AgentTeamsRuntime {
 		return !!member && member.role === "teammate" && !!member.agent;
 	}
 
-	spawnTeammate({ agentId, config }: SpawnTeammateOptions): TeamMemberSnapshot {
+	spawnTeammate({
+		agentId,
+		config,
+		configProvider,
+	}: SpawnTeammateOptions): TeamMemberSnapshot {
 		const existing = this.members.get(agentId);
 		if (existing && existing.role !== "teammate") {
 			throw new Error(
@@ -943,17 +964,20 @@ export class AgentTeamsRuntime {
 			},
 			onEvent: (event: AgentEvent) => {
 				config.onEvent?.(event);
-				this.emitEvent({ type: TeamMessageType.AgentEvent, agentId, event });
+				this.emitEvent({
+					type: TeamMessageType.AgentEvent,
+					agentId,
+					event,
+					target: { providerId: config.providerId, modelId: config.modelId },
+				});
 				this.trackMeaningfulEvent(agentId, event);
 			},
 		};
 
-		const agent = new SessionRuntime(wrappedConfig);
-		if (wrappedConfig.onEvent) {
-			agent.subscribeEvents(wrappedConfig.onEvent);
-		}
+		const agent = createDelegatedRuntime(wrappedConfig, configProvider);
 		const teammate: TeamMemberState = {
 			agentId,
+			target: { providerId: config.providerId, modelId: config.modelId },
 			role: "teammate",
 			description: config.role,
 			status: "idle",
@@ -969,6 +993,7 @@ export class AgentTeamsRuntime {
 			role: config.role,
 			teammate: {
 				rolePrompt: config.systemPrompt,
+				providerId: config.providerId,
 				modelId: config.modelId,
 				maxIterations: config.maxIterations,
 				runtimeAgentId: agent.getAgentId(),
@@ -1002,11 +1027,13 @@ export class AgentTeamsRuntime {
 
 	updateTeammateConnections(
 		overrides: Partial<Pick<AgentConfig, "apiKey" | "baseUrl" | "headers">>,
+		providerId?: string,
 	): void {
 		for (const member of this.members.values()) {
 			if (member.role !== "teammate" || !member.agent) {
 				continue;
 			}
+			if (providerId && member.target?.providerId !== providerId) continue;
 			member.agent.updateConnection(overrides);
 		}
 	}
@@ -1110,7 +1137,12 @@ export class AgentTeamsRuntime {
 		member.abortReason = undefined;
 		member.runningCount++;
 		member.status = "running";
-		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
+		this.emitEvent({
+			type: TeamMessageType.TaskStart,
+			agentId,
+			message,
+			target: member.target,
+		});
 
 		try {
 			const unreadMail = this.listMailbox(agentId, {

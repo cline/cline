@@ -16,12 +16,17 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import { compileCliBinary } from "../../../cli/script/compile-binary";
 
 // Exercise the shipped runtime artifacts: the compiled Cline CLI that starts
 // the Hub and the backend bundle that runs on its embedded runtime. Source-only
 // tests miss mixed SDK build identities between the desktop client and the
 // CLI-managed Hub it attaches to.
+
+const runtimeBuildId = resolveSdkRuntimeBuildId(
+	fileURLToPath(new URL("../../../../", import.meta.url)),
+);
 
 let buildDir: string | undefined;
 
@@ -68,6 +73,10 @@ function resolveBackendBundle(): string {
 				"bun",
 				"--outdir",
 				outdir,
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(runtimeBuildId)}`,
+				"--define",
+				`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${Date.now()}`,
 			],
 			{ encoding: "utf8", timeout: 120_000 },
 		);
@@ -287,6 +296,7 @@ async function runStartupScenario(
 		);
 		const hub = JSON.parse(readFileSync(discoveryPath, "utf8"));
 		hubPid = hub.pid;
+		expect(hub.buildId).toBe(runtimeBuildId);
 		if (existingHub) {
 			// The backend attached to the running Hub instead of replacing it.
 			expect(hub).toMatchObject(existingHub);

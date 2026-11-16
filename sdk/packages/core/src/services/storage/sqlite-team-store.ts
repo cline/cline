@@ -65,6 +65,9 @@ function parseTeammatesJson(raw: string): TeamTeammateSpec[] {
 			agentId: agentId.trim(),
 			rolePrompt,
 		};
+		if (typeof rec.providerId === "string" && rec.providerId.trim()) {
+			spec.providerId = rec.providerId.trim();
+		}
 		if (typeof rec.modelId === "string" && rec.modelId.trim()) {
 			spec.modelId = rec.modelId.trim();
 		}

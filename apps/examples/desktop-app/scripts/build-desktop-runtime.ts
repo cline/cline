@@ -1,6 +1,7 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
+import { resolveSdkRuntimeBuildId } from "../../../../sdk/packages/core/scripts/runtime-build-id";
 import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
@@ -102,8 +103,23 @@ const bundleDesktopBackend = async (): Promise<void> => {
 	cpSync(`${REPO_ROOT}/sdk/packages/core/dist/plugin-runtime`, runtime, {
 		recursive: true,
 	});
-	const defines = telemetryDefineArgs();
+	// Desktop's source aliases bypass the SDK build's embedded Hub identity.
+	const runtimeBuildId = resolveSdkRuntimeBuildId(REPO_ROOT);
+	const defines = [
+		...telemetryDefineArgs(),
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_ID__=${JSON.stringify(runtimeBuildId)}`,
+		"--define",
+		`__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__=${Date.now()}`,
+	];
 	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
+	if (
+		!(await Bun.file(DESKTOP_BACKEND_BUNDLE).text()).includes(runtimeBuildId)
+	) {
+		throw new Error(
+			"Desktop backend is missing the SDK runtime build identity",
+		);
+	}
 };
 
 // Each compiled CLI embeds a full Bun runtime (~100 MB), and both Linux copies

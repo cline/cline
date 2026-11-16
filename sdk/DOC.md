@@ -507,6 +507,28 @@ carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
+With spawning enabled, `ClineCore` exposes `list_delegation_targets` to search
+configured provider/model pairs. `query` matches all whitespace-separated terms
+against names and IDs; pass `nextOffset` as `offset` for the next page. Results
+include billing metadata, omit credentials, and do not verify live authentication.
+
+`spawn_agent` and `team_spawn_teammate` accept an optional exact target:
+
+```json
+{ "target": { "providerId": "deepseek", "modelId": "deepseek-chat" } }
+```
+
+Omitting `target` inherits the caller's connection, including nested delegation.
+Explicit targets never fall back automatically. Tool guidance prefers subscriptions
+for model-only requests and requires asking before paid API fallback.
+`ClineCore` installs the host connection resolver. Standalone `createSpawnAgentTool`
+hosts supply `resolveTarget` on their `DelegatedAgentConfigProvider`.
+
+`team_await_runs` preserves failed-run statuses and errors alongside successful
+siblings. A `runId` includes full result text; lists return bounded previews.
+Saved teammates retain their provider and model. `bootstrapAgentTeams` returns
+a promise because restoration resolves connections before creating runtimes.
+
 `spawn_agent` and configured `subagent_*` tools declare
 `executionMode: "parallel"`. Consecutive calls to these tools in one model
 response run concurrently even when the parent runtime uses its default

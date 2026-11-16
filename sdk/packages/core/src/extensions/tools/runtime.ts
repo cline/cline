@@ -100,7 +100,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		id: "spawn_agent",
 		description: createSpawnAgentTool({ configProvider: {} as never })
 			.description,
-		headlessToolNames: ["spawn_agent"],
+		headlessToolNames: ["spawn_agent", "list_delegation_targets"],
 	},
 	{
 		id: "ux_verifier",

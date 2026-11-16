@@ -6,6 +6,7 @@ export {
 	type DelegatedAgentConnectionConfig,
 	type DelegatedAgentKind,
 	type DelegatedAgentRuntimeConfig,
+	type ResolveDelegatedAgentConfig,
 } from "./delegated-agent";
 
 // =============================================================================

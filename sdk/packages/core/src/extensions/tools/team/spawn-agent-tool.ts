@@ -11,6 +11,8 @@ import {
 	type AgentToolContext,
 	type BasicLogger,
 	createTool,
+	type DelegationTarget,
+	DelegationTargetSchema,
 	type HookErrorMode,
 	type ITelemetryService,
 	type ToolApprovalRequest,
@@ -22,6 +24,7 @@ import { z } from "zod";
 import {
 	createDelegatedAgent,
 	type DelegatedAgentConfigProvider,
+	resolveDelegatedAgentConfig,
 } from "./delegated-agent";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -32,11 +35,15 @@ export const SpawnAgentInputSchema = z.object({
 		.string()
 		.describe("System prompt defining the sub-agent's behavior"),
 	task: z.string().describe("Task for the sub-agent to complete"),
+	target: DelegationTargetSchema.optional().describe(
+		"Exact configured provider/model from list_delegation_targets. Omit to inherit this agent's connection.",
+	),
 });
 
 export type SpawnAgentInput = z.infer<typeof SpawnAgentInputSchema>;
 
 export interface SpawnAgentOutput {
+	target?: DelegationTarget;
 	text: string;
 	iterations: number;
 	finishReason: AgentFinishReason;
@@ -47,6 +54,7 @@ export interface SpawnAgentOutput {
 }
 
 export interface SubAgentStartContext {
+	target?: DelegationTarget;
 	subAgentId: string;
 	conversationId: string;
 	parentAgentId: string;
@@ -54,6 +62,7 @@ export interface SubAgentStartContext {
 }
 
 export interface SubAgentEndContext {
+	target?: DelegationTarget;
 	subAgentId: string;
 	conversationId: string;
 	parentAgentId: string;
@@ -70,8 +79,9 @@ export interface SpawnAgentToolConfig {
 	createSubAgentTools?: (
 		input: SpawnAgentInput,
 		context: AgentToolContext,
+		configProvider: DelegatedAgentConfigProvider,
 	) => AgentTool[] | Promise<AgentTool[]>;
-	onSubAgentEvent?: (event: AgentEvent) => void;
+	onSubAgentEvent?: (event: AgentEvent, target?: DelegationTarget) => void;
 	/**
 	 * Lifecycle hooks forwarded to spawned sub-agent runs.
 	 */
@@ -119,23 +129,33 @@ export function createSpawnAgentTool(
 ): AgentTool<SpawnAgentInput, SpawnAgentOutput> {
 	return createTool<SpawnAgentInput, SpawnAgentOutput>({
 		name: "spawn_agent",
+		resultPolicy: "cache-oversized",
 		executionMode: "parallel",
-		description: `Spawn a sub-agent with custom instructions for a specialized task. Waits for the sub-agent to finish and returns its result before your next step.`,
+		description: `Spawn a sub-agent with custom instructions. Use list_delegation_targets to discover configured models, then pass target to select one. Without target, inherit this agent's connection. Prefer subscription routes for model-only requests; ask the user before paid API fallback unless that provider was explicitly requested. Never silently substitute targets. Waits for the child and returns its findings.`,
 		inputSchema: zodToJsonSchema(SpawnAgentInputSchema),
 		execute: async (input, context) => {
+			input = SpawnAgentInputSchema.parse(input);
+			const configProvider = await resolveDelegatedAgentConfig(
+				config.configProvider,
+				input.target,
+				context.signal,
+			);
+			const { providerId, modelId } = configProvider.getRuntimeConfig();
+			const target = { providerId, modelId };
 			const tools = config.createSubAgentTools
-				? await config.createSubAgentTools(input, context)
+				? await config.createSubAgentTools(input, context, configProvider)
 				: (config.subAgentTools ?? []);
 
+			context.signal?.throwIfAborted();
 			const subAgent = createDelegatedAgent({
 				kind: "subagent",
 				prompt: input.systemPrompt,
-				configProvider: config.configProvider,
+				configProvider,
 				tools,
 				maxIterations: config.defaultMaxIterations,
 				parentAgentId: context.agentId,
 				abortSignal: context.signal,
-				onEvent: config.onSubAgentEvent,
+				onEvent: (event) => config.onSubAgentEvent?.(event, target),
 				hookErrorMode: config.hookErrorMode,
 				toolPolicies: config.toolPolicies,
 				requestToolApproval: config.requestToolApproval,
@@ -147,6 +167,7 @@ export function createSpawnAgentTool(
 				try {
 					await config.onSubAgentStart({
 						subAgentId,
+						target,
 						conversationId,
 						parentAgentId,
 						input,
@@ -158,6 +179,7 @@ export function createSpawnAgentTool(
 			try {
 				const result = await subAgent.run(input.task);
 				const output: SpawnAgentOutput = {
+					target,
 					text: result.text,
 					iterations: result.iterations,
 					finishReason: result.finishReason,
@@ -170,6 +192,7 @@ export function createSpawnAgentTool(
 					try {
 						await config.onSubAgentEnd({
 							subAgentId,
+							target,
 							conversationId,
 							parentAgentId,
 							input,
@@ -186,6 +209,7 @@ export function createSpawnAgentTool(
 					try {
 						await config.onSubAgentEnd({
 							subAgentId,
+							target,
 							conversationId,
 							parentAgentId,
 							input,

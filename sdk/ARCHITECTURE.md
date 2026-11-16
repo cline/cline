@@ -533,6 +533,11 @@ Design implication:
   root usage and teammate usage as separate buckets, then derives aggregate
   totals from those buckets while telemetry remains scoped to the primary
   lead/root agent.
+- `runtime/host/local/delegation.ts` resolves provider/model targets using the
+  host's settings and OAuth manager. Generic, configured, and team agents share
+  this resolver. Each child keeps its connection and refresh callback; an omitted
+  target inherits its caller's connection. Lifecycle events persist the actual
+  target in existing child session rows and teammate definitions for history and UI.
 - Usage events report non-reasoning `outputTokens` and a separate optional
   `reasoningTokenCount` delta. `RuntimeEventAdapter` derives both deltas from
   cumulative runtime usage; the hub's `usage.updated.delta` payload preserves

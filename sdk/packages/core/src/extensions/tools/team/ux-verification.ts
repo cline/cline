@@ -2,6 +2,7 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	createTool,
+	DelegationTargetSchema,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { z } from "zod";
@@ -9,6 +10,7 @@ import type { SpawnAgentInput } from "./spawn-agent-tool";
 
 const text = z.string().trim().min(1);
 const UxVerifierInputSchema = z.object({
+	target: DelegationTargetSchema.optional(),
 	task: text.describe(
 		"App, environment, access instructions, and verification scope",
 	),
@@ -59,6 +61,7 @@ export function createUxVerifierTool(
 			return delegate.execute(
 				{
 					systemPrompt: UX_VERIFIER_INSTRUCTIONS,
+					target: parsed.data.target,
 					task: JSON.stringify(parsed.data),
 				},
 				context,

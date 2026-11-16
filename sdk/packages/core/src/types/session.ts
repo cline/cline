@@ -101,6 +101,8 @@ export type PreparedTurnInput = {
 // ── Persistence interfaces ────────────────────────────────────────────
 
 export interface PersistedSessionUpdateInput {
+	provider?: string;
+	model?: string;
 	sessionId: string;
 	expectedStatusLock?: number;
 	status?: SessionStatus;

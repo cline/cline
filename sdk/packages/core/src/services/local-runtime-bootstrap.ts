@@ -53,7 +53,7 @@ import type {
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
 import type { SessionHistoryOriginMetadata } from "../session/history-origin";
 import { SessionSource } from "../types/common";
-import type { CoreSessionConfig } from "../types/config";
+import type { CoreModelConfig, CoreSessionConfig } from "../types/config";
 import {
 	type ProviderConfig,
 	type ProviderSettings,
@@ -144,7 +144,7 @@ function resolveClientContextFromHeaders(
 }
 
 function resolveReasoningSettings(
-	config: CoreSessionConfig,
+	config: CoreModelConfig,
 	storedReasoning: ProviderSettings["reasoning"],
 ): ProviderSettings["reasoning"] {
 	const hasThinking = typeof config.thinking === "boolean";
@@ -185,8 +185,8 @@ function resolveBootstrapSystemPrompt(
 	});
 }
 
-function buildProviderConfig(
-	config: CoreSessionConfig,
+export function buildProviderConfig(
+	config: CoreModelConfig & Pick<CoreSessionConfig, "extensionContext">,
 	sessionId: string,
 	source: ResolvedStartSessionInput["source"],
 	providerSettingsManager: ProviderSettingsManager,
