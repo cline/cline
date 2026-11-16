@@ -7,6 +7,7 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
+import * as whatsNew from "@/lib/whats-new";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -30,7 +31,7 @@ beforeEach(() => {
 		IS_REACT_ACT_ENVIRONMENT: true,
 		ResizeObserver: ResizeObserverStub,
 	});
-	if (typeof window.localStorage.clear !== "function") {
+	if (typeof window.localStorage?.clear !== "function") {
 		Object.defineProperty(window, "localStorage", {
 			configurable: true,
 			value: window.sessionStorage,
@@ -54,6 +55,42 @@ beforeEach(() => {
 afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
+	vi.restoreAllMocks();
+});
+
+it("forwards the About highlights' Connectors action to the app", async () => {
+	vi.spyOn(globalThis, "fetch").mockResolvedValue(
+		new Response(JSON.stringify({ releases: [] })),
+	);
+	vi.spyOn(whatsNew, "latestWhatsNew").mockReturnValue({
+		id: "test-connectors",
+		title: "Connect your apps",
+		spotlight: "connectors",
+	});
+	const onOpenConnectors = vi.fn();
+	const onNavigateSection = vi.fn();
+	await act(async () =>
+		root.render(
+			<SettingsView
+				onExportDiagnostics={vi.fn()}
+				onNavigateSection={onNavigateSection}
+				onOpenConnectors={onOpenConnectors}
+				section="About"
+			/>,
+		),
+	);
+	const highlights = [...container.querySelectorAll("button")].find(
+		(button) => button.textContent === "Show what's new",
+	);
+	expect(highlights).toBeDefined();
+	await act(async () => highlights?.click());
+	const openConnectors = [
+		...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+	].find((button) => button.textContent === "Open Connectors");
+	expect(openConnectors).toBeDefined();
+	await act(async () => openConnectors?.click());
+	expect(onOpenConnectors).toHaveBeenCalledOnce();
+	expect(onNavigateSection).not.toHaveBeenCalled();
 });
 
 describe("SettingsView font size", () => {
@@ -65,6 +102,7 @@ describe("SettingsView font size", () => {
 				<SettingsView
 					onExportDiagnostics={vi.fn()}
 					onNavigateSection={vi.fn()}
+					onOpenConnectors={vi.fn()}
 					section="General"
 				/>,
 			);
