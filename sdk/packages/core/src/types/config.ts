@@ -15,6 +15,7 @@ import type {
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
 } from "@cline/shared";
+import type { McpServerRegistration } from "../extensions/mcp/types";
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { ProviderConfig } from "./provider-settings";
@@ -56,6 +57,7 @@ export interface CoreRuntimeFeatures {
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
 	disableMcpSettingsTools?: boolean;
+	mcpServers?: ReadonlyArray<McpServerRegistration>;
 	mcpApps?: boolean;
 	yolo?: boolean;
 }

@@ -31,4 +31,34 @@ describe("forwardAgentEvent", () => {
 			},
 		});
 	});
+
+	it("forwards usage events as ACP usage_update notifications", () => {
+		const sessionUpdate = vi.fn().mockResolvedValue(undefined);
+		const connection = { sessionUpdate } as unknown as AgentSideConnection;
+
+		forwardAgentEvent(
+			connection,
+			"session-1",
+			{
+				type: "usage",
+				inputTokens: 120,
+				outputTokens: 30,
+				cacheReadTokens: 80,
+				totalInputTokens: 200,
+				totalOutputTokens: 30,
+				totalCost: 0.0042,
+			} as AgentEvent,
+			200_000,
+		);
+
+		expect(sessionUpdate).toHaveBeenCalledWith({
+			sessionId: "session-1",
+			update: {
+				sessionUpdate: "usage_update",
+				used: 200,
+				size: 200_000,
+				cost: { amount: 0.0042, currency: "USD" },
+			},
+		});
+	});
 });

@@ -16,14 +16,18 @@ export function forwardAgentEvent(
 	conn: AgentSideConnection,
 	sessionId: string,
 	event: AgentEvent,
+	contextWindowSize = 0,
 ): void {
-	const updates = translateEvent(event);
+	const updates = translateEvent(event, contextWindowSize);
 	for (const update of updates) {
 		void conn.sessionUpdate({ sessionId, update });
 	}
 }
 
-function translateEvent(event: AgentEvent): SessionUpdate[] {
+function translateEvent(
+	event: AgentEvent,
+	contextWindowSize = 0,
+): SessionUpdate[] {
 	switch (event.type) {
 		case "content_start":
 			return translateContentStart(event);
@@ -35,11 +39,33 @@ function translateEvent(event: AgentEvent): SessionUpdate[] {
 			return [];
 		case "iteration_start":
 		case "iteration_end":
-		case "usage":
 			return [];
+		case "usage":
+			return translateUsage(event, contextWindowSize);
 		default:
 			return [];
 	}
+}
+
+function translateUsage(
+	event: AgentEvent & { type: "usage" },
+	contextWindowSize: number,
+): SessionUpdate[] {
+	const used =
+		(event.inputTokens ?? 0) +
+		(event.cacheReadTokens ?? 0) +
+		(event.cacheWriteTokens ?? 0);
+	const costAmount = event.totalCost ?? event.cost;
+	return [
+		{
+			sessionUpdate: "usage_update",
+			used,
+			size: contextWindowSize,
+			...(typeof costAmount === "number"
+				? { cost: { amount: costAmount, currency: "USD" } }
+				: {}),
+		},
+	];
 }
 
 function translateContentStart(

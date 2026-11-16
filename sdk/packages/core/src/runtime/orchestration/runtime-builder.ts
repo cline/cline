@@ -25,6 +25,7 @@ import {
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
 	type McpAppsRuntime,
+	type McpServerRegistration,
 	type McpToolDescriptor,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
@@ -215,6 +216,7 @@ async function loadConfiguredMcpTools(options: {
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	disabledToolNames?: ReadonlySet<string>;
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
+	sessionServers?: ReadonlyArray<McpServerRegistration>;
 }): Promise<{
 	tools: AgentTool[];
 	mcpApps?: McpAppsRuntime;
@@ -223,7 +225,11 @@ async function loadConfiguredMcpTools(options: {
 	const settingsPath = resolveDefaultMcpSettingsPath();
 	const hasSettings =
 		options.includeSettings && hasMcpSettingsFile({ filePath: settingsPath });
-	if (!hasSettings && !options.agentPluginServers?.length) {
+	if (
+		!hasSettings &&
+		!options.agentPluginServers?.length &&
+		!options.sessionServers?.length
+	) {
 		return { tools: [] };
 	}
 
@@ -235,11 +241,19 @@ async function loadConfiguredMcpTools(options: {
 		restrictConfiguredHeadersToOrigin: true,
 		mcpApps: options.mcpApps,
 	});
+	const sessionClientFactory = createDefaultMcpServerClientFactory({
+		mcpApps: options.mcpApps,
+	});
 	const manager = new InMemoryMcpManager({
-		clientFactory: (registration) =>
-			registration.metadata?.source === "agent-plugin"
-				? agentPluginClientFactory(registration)
-				: settingsClientFactory(registration),
+		clientFactory: (registration) => {
+			if (registration.metadata?.source === "agent-plugin") {
+				return agentPluginClientFactory(registration);
+			}
+			if (registration.metadata?.source === "session") {
+				return sessionClientFactory(registration);
+			}
+			return settingsClientFactory(registration);
+		},
 	});
 
 	let registrations: Awaited<
@@ -276,6 +290,34 @@ async function loadConfiguredMcpTools(options: {
 			const message = error instanceof Error ? error.message : String(error);
 			options.logger?.log(
 				`[agent-plugins] Failed to register MCP server '${registration.name}', skipping: ${message}`,
+				{ severity: "error" },
+			);
+		}
+	}
+
+	for (const sessionServer of options.sessionServers ?? []) {
+		if (registeredNames.has(sessionServer.name)) {
+			options.logger?.log(
+				`[mcp] Session MCP server '${sessionServer.name}' conflicts with an existing server and was skipped.`,
+				{ severity: "error" },
+			);
+			continue;
+		}
+		const registration: McpServerRegistration = {
+			...sessionServer,
+			metadata: {
+				...sessionServer.metadata,
+				source: "session",
+			},
+		};
+		try {
+			await manager.registerServer(registration);
+			registrations.push(registration);
+			registeredNames.add(registration.name);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			options.logger?.log(
+				`[mcp] Failed to register session MCP server '${registration.name}', skipping: ${message}`,
 				{ severity: "error" },
 			);
 		}
@@ -617,7 +659,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				: undefined;
 			if (
 				!normalized.disableMcpSettingsTools ||
-				agentPluginMcpServers?.length
+				agentPluginMcpServers?.length ||
+				config.mcpServers?.length
 			) {
 				const mcpRuntime = await loadConfiguredMcpTools({
 					logger: config.logger,
@@ -626,6 +669,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolPolicies: effectiveToolPolicies,
 					disabledToolNames: globallyDisabledToolNames,
 					agentPluginServers: agentPluginMcpServers,
+					sessionServers: config.mcpServers,
 				});
 				tools.push(...mcpRuntime.tools);
 				mcpShutdown = mcpRuntime.shutdown;
