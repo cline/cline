@@ -85,20 +85,39 @@ function HostedCustomizeHarness() {
 	appHistory.back = () => dispatch({ type: "back" });
 	appHistory.forward = () => dispatch({ type: "forward" });
 	return (
-		<DetailNavigationProvider value={host}>
-			<CustomizePage
-				section={current.customizeSection}
-				customizeCategory={category}
-				onCustomizeCategoryChange={setCategory}
-				onNavigateSection={(customizeSection) =>
+		<>
+			<button
+				type="button"
+				onClick={() =>
 					dispatch({
 						type: "navigate",
-						destination: { ...current, detail: undefined, customizeSection },
+						destination: { ...current, detail: undefined, view: "chat" },
 					})
 				}
-				onOpenModelProviders={() => {}}
-			/>
-		</DetailNavigationProvider>
+			>
+				Home
+			</button>
+			{current.view === "customize" ? (
+				<DetailNavigationProvider value={host}>
+					<CustomizePage
+						section={current.customizeSection}
+						customizeCategory={category}
+						onCustomizeCategoryChange={setCategory}
+						onNavigateSection={(customizeSection) =>
+							dispatch({
+								type: "navigate",
+								destination: {
+									...current,
+									detail: undefined,
+									customizeSection,
+								},
+							})
+						}
+						onOpenModelProviders={() => {}}
+					/>
+				</DetailNavigationProvider>
+			) : null}
+		</>
 	);
 }
 
@@ -151,6 +170,22 @@ async function render() {
 	await act(async () =>
 		root.render(<CustomizeTestHarness initialCategory="rules" />),
 	);
+}
+
+function searchInput() {
+	const search = container.querySelector<HTMLInputElement>(
+		'input[aria-label="Search customizations"]',
+	);
+	if (!search) throw new Error("Missing Customize search");
+	return search;
+}
+
+function installedResults() {
+	const results = container.querySelector(
+		'[aria-label="Installed search results"]',
+	);
+	if (!results) throw new Error("Missing installed search results");
+	return results;
 }
 
 describe("Rule detail navigation", () => {
@@ -234,6 +269,68 @@ describe("Rule detail navigation", () => {
 		expect(results.closest("[hidden]")).toBeNull();
 		expect(document.activeElement).toBe(trigger);
 		expect(button("Clear customization search")).toBeDefined();
+	});
+
+	it("restores a search when Back reopens its detail after leaving Customize", async () => {
+		mocks.rules = [
+			rule,
+			{
+				name: "Security checks",
+				instructions: "Validate external inputs.",
+				path: "/workspace/.cline/rules/security.md",
+			},
+		];
+		await act(async () => root.render(<HostedCustomizeHarness />));
+		await setInputValue(searchInput(), "Code conventions");
+		await act(async () =>
+			button("View details for Code conventions", installedResults()).click(),
+		);
+		visibleRulePage();
+
+		await act(async () => button("Home").click());
+		expect(
+			container.querySelector('input[aria-label="Search customizations"]'),
+		).toBeNull();
+		await act(async () => appHistory.back());
+		visibleRulePage();
+		await act(async () => button("Back to Search results").click());
+
+		expect(searchInput().value).toBe("Code conventions");
+		const results = installedResults();
+		expect(results.closest("[hidden]")).toBeNull();
+		expect(button("View details for Code conventions", results)).toBeDefined();
+		expect(results.textContent).not.toContain("Security checks");
+	});
+
+	it("restores the detail's original search after the list query changes", async () => {
+		mocks.rules = [
+			rule,
+			{
+				name: "Security checks",
+				instructions: "Validate external inputs.",
+				path: "/workspace/.cline/rules/security.md",
+			},
+		];
+		await act(async () => root.render(<HostedCustomizeHarness />));
+		await setInputValue(searchInput(), "Code conventions");
+		await act(async () =>
+			button("View details for Code conventions", installedResults()).click(),
+		);
+		await act(async () => button("Back to Search results").click());
+		await setInputValue(searchInput(), "Security checks");
+		expect(
+			button("View details for Security checks", installedResults()),
+		).toBeDefined();
+
+		await act(async () => appHistory.forward());
+		visibleRulePage();
+		await act(async () => button("Back to Search results").click());
+
+		expect(searchInput().value).toBe("Code conventions");
+		const results = installedResults();
+		expect(results.closest("[hidden]")).toBeNull();
+		expect(button("View details for Code conventions", results)).toBeDefined();
+		expect(results.textContent).not.toContain("Security checks");
 	});
 
 	it.each([

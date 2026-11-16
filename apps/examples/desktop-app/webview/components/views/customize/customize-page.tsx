@@ -55,6 +55,7 @@ type CustomizationDetail = {
 	selection: CustomizationDetailSelection;
 	section: CustomizeSection;
 	backLabel: string;
+	searchQuery: string;
 };
 
 type CustomizePageProps = {
@@ -84,8 +85,6 @@ function CustomizePageContent({
 	onOpenModelProviders,
 }: CustomizePageProps) {
 	const categoryFilter = useCustomizeCategoryFilter();
-	const [customizeSearchQuery, setCustomizeSearchQuery] = useState("");
-	const searching = customizeSearchQuery.trim().length > 0;
 	const pageRef = useRef<HTMLDivElement>(null);
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const confirmLeave = useLeaveConfirmation();
@@ -96,6 +95,15 @@ function CustomizePageContent({
 		close: closeDetail,
 		leaveFor,
 	} = useDetailNavigation<CustomizationDetail>();
+	const [customizeSearchQuery, setCustomizeSearchQuery] = useState(
+		() => customizationDetail?.searchQuery ?? "",
+	);
+	const searching = customizeSearchQuery.trim().length > 0;
+	useEffect(() => {
+		// History can reopen a detail after this page unmounts or its search changes.
+		if (customizationDetail?.section === section)
+			setCustomizeSearchQuery(customizationDetail.searchQuery);
+	}, [customizationDetail, section]);
 	// Where the list was left, and which history detail it belongs to.
 	const returnPosition = useReturnPosition();
 	const returnDetail = useRef<{ id: string; section: CustomizeSection } | null>(
@@ -115,6 +123,7 @@ function CustomizePageContent({
 			id,
 			selection,
 			section,
+			searchQuery: customizeSearchQuery,
 			backLabel: searching
 				? "Search results"
 				: CUSTOMIZATION_SECTION_LABELS[section],
