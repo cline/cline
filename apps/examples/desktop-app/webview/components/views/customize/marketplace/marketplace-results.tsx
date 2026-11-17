@@ -34,7 +34,7 @@ export function MarketplaceResults({
 	const primaryButtons = usePrimaryButtonRefs();
 	const {
 		directory,
-		pendingInlineInstalls,
+		installInline,
 		openDetails,
 		query,
 		typeFilter,
@@ -187,12 +187,10 @@ export function MarketplaceResults({
 													aria-label={`Install ${entry.name}`}
 													disabled={!directory.installedReady || busy}
 													onClick={(event) => {
-														pendingInlineInstalls.current.set(key, {
+														installInline(
 															entry,
-															trigger:
-																primaryButtons.get(key) ?? event.currentTarget,
-														});
-														void directory.install(entry);
+															primaryButtons.get(key) ?? event.currentTarget,
+														);
 													}}
 													loading={busy || !directory.installedReady}
 												>
