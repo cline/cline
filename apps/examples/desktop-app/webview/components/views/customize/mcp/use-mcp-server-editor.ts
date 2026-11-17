@@ -27,9 +27,11 @@ export type McpEditorBack = (options?: { uninstalled: boolean }) => void;
 export function useMcpServerEditor({
 	server,
 	onBack,
+	onSaved,
 }: {
 	server?: McpServer;
 	onBack: McpEditorBack;
+	onSaved?: (server: McpServer) => void;
 }) {
 	const [form, setFormState] = useState(() => createServerFormState(server));
 	const formRef = useRef(form);
@@ -144,6 +146,9 @@ export function useMcpServerEditor({
 				() => setIsSaved(false),
 				SAVED_CONFIRMATION_MS,
 			);
+			// The response has updated this ref with the stored settings, including
+			// a new server's identity or a rename. Keep its history entry current.
+			if (persistedServerRef.current) onSaved?.(persistedServerRef.current);
 		} catch (cause) {
 			if (mounted.current && !closed.current)
 				setError(cause instanceof Error ? cause.message : String(cause));

@@ -51,6 +51,7 @@ const CUSTOMIZATION_NAV_ITEMS = [
 
 /** The open detail page, as one step of Back/Forward history. */
 type CustomizationDetail = {
+	id: string;
 	selection: CustomizationDetailSelection;
 	section: CustomizeSection;
 	backLabel: string;
@@ -91,12 +92,16 @@ function CustomizePageContent({
 	const {
 		detail: customizationDetail,
 		open: openDetail,
+		replace: replaceDetail,
 		close: closeDetail,
 		leaveFor,
 	} = useDetailNavigation<CustomizationDetail>();
-	// Where the list was left, and which section it belongs to.
+	// Where the list was left, and which history detail it belongs to.
 	const returnPosition = useReturnPosition();
-	const returnSection = useRef<CustomizeSection | null>(null);
+	const returnDetail = useRef<{ id: string; section: CustomizeSection } | null>(
+		null,
+	);
+	const restorePending = useRef(false);
 	// After a badge closes a detail, focus moves to the filter it applied.
 	const filterFocusPending = useRef<"category" | "type" | null>(null);
 	const openCustomizationDetail = (
@@ -104,8 +109,10 @@ function CustomizePageContent({
 		trigger?: HTMLButtonElement,
 	) => {
 		returnPosition.remember(trigger ?? null, findScrollViewport(trigger));
-		returnSection.current = section;
+		const id = crypto.randomUUID();
+		returnDetail.current = { id, section };
 		openDetail({
+			id,
 			selection,
 			section,
 			backLabel: searching
@@ -186,18 +193,25 @@ function CustomizePageContent({
 			closeDetail();
 	}, [customizationDetail, section, closeDetail]);
 	useLayoutEffect(() => {
-		if (showingCustomizationDetail) return;
+		if (returnDetail.current && returnDetail.current.section !== section) {
+			returnPosition.forget();
+			returnDetail.current = null;
+			restorePending.current = false;
+		}
+		if (showingCustomizationDetail) {
+			// Forward reopens the detail without running openCustomizationDetail.
+			restorePending.current =
+				customizationDetail.id === returnDetail.current?.id;
+			return;
+		}
 		if (filterFocusPending.current) {
 			focusDetailResults();
 			filterFocusPending.current = null;
+			restorePending.current = false;
 			return;
 		}
-		if (returnSection.current !== section) {
-			if (returnSection.current) returnPosition.forget();
-			returnSection.current = null;
-			return;
-		}
-		returnSection.current = null;
+		if (!restorePending.current) return;
+		restorePending.current = false;
 		returnPosition.restore(() =>
 			(
 				pageRef.current?.querySelector<HTMLElement>(
@@ -398,9 +412,13 @@ function CustomizePageContent({
 				</div>
 				{showingCustomizationDetail && customizationDetail ? (
 					<CustomizationDetailView
+						key={customizationDetail.id}
 						selection={customizationDetail.selection}
 						backLabel={customizationDetail.backLabel}
 						onBack={closeCustomizationDetail}
+						onSelectionChange={(selection) =>
+							replaceDetail({ ...customizationDetail, selection })
+						}
 					/>
 				) : null}
 			</PageShell>

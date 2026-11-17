@@ -24,7 +24,7 @@ import {
 	TYPE_META,
 } from "./marketplace/marketplace-type-meta";
 import { AddMcpServerButton } from "./mcp/add-mcp-server-button";
-import type { InstalledMcpDetailPage } from "./mcp/installed-mcp-detail";
+import type { McpServerEditorPage } from "./mcp/mcp-server-editor-page";
 import {
 	browseFilterToCustomizeTab,
 	type CustomizeTab,
@@ -198,26 +198,34 @@ vi.mock("./marketplace/marketplace-explorer-view", () => ({
 		</div>
 	),
 }));
-vi.mock("./mcp/installed-mcp-detail", () => ({
-	InstalledMcpDetailPage: ({
-		selection,
-		backLabel = "Manage",
-		onBack,
-	}: ComponentProps<typeof InstalledMcpDetailPage>) => (
-		<CustomizationDetailPage
-			backLabel={backLabel}
-			onBack={onBack}
-			navigationLabel="MCP navigation"
-		>
-			<CustomizationTypeBadge type="mcp" />
-			<h2>{selection.server?.name ?? selection.entry?.name}</h2>
-			<CustomizationCategorySection categories={["development"]} />
-			<button type="button" onClick={() => onBack({ uninstalled: true })}>
-				Delete MCP
-			</button>
-		</CustomizationDetailPage>
-	),
-}));
+vi.mock("./mcp/mcp-server-editor-page", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("./mcp/mcp-server-editor-page")>();
+	return {
+		McpServerEditorPage: (
+			props: ComponentProps<typeof McpServerEditorPage>,
+		) => {
+			// Creation tests exercise the real form; installed details expose only
+			// the shell navigation callbacks tested in this suite.
+			if (!props.server) return <actual.McpServerEditorPage {...props} />;
+			const { server, backLabel = "Manage", onBack } = props;
+			return (
+				<CustomizationDetailPage
+					backLabel={backLabel}
+					onBack={onBack}
+					navigationLabel="MCP navigation"
+				>
+					<CustomizationTypeBadge type="mcp" />
+					<h2>{server.name}</h2>
+					<CustomizationCategorySection categories={["development"]} />
+					<button type="button" onClick={() => onBack({ uninstalled: true })}>
+						Delete MCP
+					</button>
+				</CustomizationDetailPage>
+			);
+		},
+	};
+});
 vi.mock("./marketplace/marketplace-entry-detail-page", () => ({
 	MarketplaceEntryDetailPage: ({
 		entry,
