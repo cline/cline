@@ -1,7 +1,9 @@
 import type { McpServer } from "@shared/mcp"
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import ServerRow from "./ServerRow"
+
+const state = vi.hoisted(() => ({ planModeMcpLimitsEnabled: true }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
@@ -9,6 +11,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		mcpServers: [],
 		setMcpServers: vi.fn(),
 		remoteConfigSettings: undefined,
+		planModeMcpLimitsEnabled: state.planModeMcpLimitsEnabled,
 	}),
 }))
 
@@ -21,6 +24,18 @@ function renderExpanded(server: Partial<McpServer>) {
 
 describe("ServerRow server-wide Plan-mode override", () => {
 	const readOnlyTools = [{ name: "search", annotations: { readOnlyHint: true } }]
+
+	beforeEach(() => {
+		state.planModeMcpLimitsEnabled = true
+	})
+
+	it("offers no Plan-mode override, for the server or its tools, while the limits are not turned on", () => {
+		state.planModeMcpLimitsEnabled = false
+		renderExpanded({ tools: [...readOnlyTools, { name: "fetch" }], allowAllInPlanMode: true })
+
+		expect(screen.queryByTestId("plan-mode-access-server")).toBeNull()
+		expect(screen.queryByTestId("plan-mode-access-tool")).toBeNull()
+	})
 
 	it("is offered when Plan mode limits one of the server's tools", () => {
 		renderExpanded({ tools: [...readOnlyTools, { name: "fetch" }] })

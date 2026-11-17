@@ -39,6 +39,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { isPlanModeMcpLimitsEnabled } from "@/services/mcp/planModeMcpLimitsFeature"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { type VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
@@ -149,9 +150,11 @@ export class VscodeSessionHost implements SdkSessionHost {
 				? await remoteConfigIntegration.applyToStartSessionInput(input)
 				: input
 			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
+			const limitMcpInPlanMode = isPlanModeMcpLimitsEnabled()
 			const extraTools = await createVscodeExtraTools(options.mcpHub, {
 				cwd: inputWithRemoteConfig.config.cwd,
 				mode: inputWithRemoteConfig.config.mode,
+				limitMcpInPlanMode,
 				getTerminalManager: options.getTerminalManager,
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 				foregroundCommands: options.foregroundCommands,
@@ -161,7 +164,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
 				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
 			}
-			if (config.mode === "plan") {
+			if (config.mode === "plan" && limitMcpInPlanMode) {
 				const hidden = describeMcpToolsHiddenInPlanMode(options.mcpHub.getServers())
 				if (hidden.promptSection) {
 					config.systemPrompt = `${config.systemPrompt}\n\n${hidden.promptSection}`

@@ -147,6 +147,8 @@ export interface ExtensionState {
 	welcomeBanners?: BannerCardData[]
 	/** Cline Cloud sessions rollout flag; shows the Settings toggle. */
 	cloudSessionsAvailable?: boolean
+	/** Plan mode limits MCP tools by their read-only hints; shows the Plan-mode overrides in the MCP tab. */
+	planModeMcpLimitsEnabled?: boolean
 	/** Cline Cloud sessions are available and turned on in Settings. */
 	cloudSessionsEnabled?: boolean
 	/** Where a new task runs, resolved from the user's choice, the account's repositories and the workspace. */

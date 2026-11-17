@@ -18,11 +18,10 @@ interface McpToolDescriptor {
 }
 
 export interface McpHubToolProviderOptions {
-	/**
-	 * Session mode the tools are built for; stamped on tool-call telemetry. A
-	 * Plan-mode session is built without the tools Plan mode hides.
-	 */
+	/** Session mode the tools are built for; stamped on tool-call telemetry. */
 	mode?: AgentMode
+	/** Build a Plan-mode session without the tools Plan mode hides. */
+	limitMcpInPlanMode?: boolean
 }
 
 export class McpHubToolProvider {
@@ -55,7 +54,9 @@ export class McpHubToolProvider {
 		})
 
 		const offered =
-			this.options.mode === "plan" ? tools.filter((tool) => getMcpPlanModeAccess(tool, server) !== "hidden") : tools
+			this.options.mode === "plan" && this.options.limitMcpInPlanMode
+				? tools.filter((tool) => getMcpPlanModeAccess(tool, server) !== "hidden")
+				: tools
 		return offered.map((tool) => ({
 			name: tool.name,
 			description: tool.description ?? undefined,
@@ -94,6 +95,8 @@ export interface VscodeExtraToolsOptions {
 	cwd?: string
 	/** Session mode the tools are built for; a mode switch rebuilds the session. */
 	mode?: AgentMode
+	/** Build a Plan-mode session without the MCP tools Plan mode hides. */
+	limitMcpInPlanMode?: boolean
 	/**
 	 * Lazy factory for the VscodeTerminalManager.
 	 * When provided, the custom `run_commands` tool replaces the SDK's
@@ -107,7 +110,7 @@ export interface VscodeExtraToolsOptions {
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options: VscodeExtraToolsOptions): Promise<AgentTool[]> {
-	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode })
+	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode, limitMcpInPlanMode: options.limitMcpInPlanMode })
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
 			try {

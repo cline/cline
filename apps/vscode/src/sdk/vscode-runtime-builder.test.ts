@@ -69,7 +69,9 @@ describe("McpHubToolProvider", () => {
 			},
 		])
 		const names = async (mode: "plan" | "act", serverName: string) =>
-			(await new McpHubToolProvider({ getServers } as never, { mode }).listTools(serverName)).map((tool) => tool.name)
+			(await new McpHubToolProvider({ getServers } as never, { mode, limitMcpInPlanMode: true }).listTools(serverName)).map(
+				(tool) => tool.name,
+			)
 
 		it("leaves out the tools the server declares as modifying", async () => {
 			expect(await names("plan", "ide")).toEqual(["read", "run", "format"])
@@ -81,6 +83,12 @@ describe("McpHubToolProvider", () => {
 
 		it("does not apply to an Act-mode session", async () => {
 			expect(await names("act", "ide")).toEqual(["read", "rename", "run", "format"])
+		})
+
+		it("keeps every tool while the limits are not turned on", async () => {
+			const provider = new McpHubToolProvider({ getServers } as never, { mode: "plan" })
+
+			expect((await provider.listTools("ide")).map((tool) => tool.name)).toEqual(["read", "rename", "run", "format"])
 		})
 	})
 

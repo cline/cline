@@ -5,6 +5,7 @@ const mockClineCoreCreate = vi.hoisted(() => vi.fn())
 const mockCreateVscodeExtraTools = vi.hoisted(() => vi.fn(async () => []))
 const mockInnerStart = vi.hoisted(() => vi.fn())
 const mockCaptureToolsHidden = vi.hoisted(() => vi.fn())
+const mockPlanModeMcpLimitsEnabled = vi.hoisted(() => vi.fn(() => true))
 
 vi.mock("@cline/core", async () => {
 	const actual = await vi.importActual<typeof import("@cline/core")>("@cline/core")
@@ -15,6 +16,7 @@ vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: { get: () => ({ getGlobalStateKey: () => undefined }) },
 }))
 vi.mock("./vscode-runtime-builder", () => ({ createVscodeExtraTools: mockCreateVscodeExtraTools }))
+vi.mock("@/services/mcp/planModeMcpLimitsFeature", () => ({ isPlanModeMcpLimitsEnabled: mockPlanModeMcpLimitsEnabled }))
 vi.mock("@/services/telemetry", () => ({
 	telemetryService: { captureMcpPlanModeToolsHidden: mockCaptureToolsHidden },
 }))
@@ -346,6 +348,7 @@ describe("VscodeSessionHost MCP tools in Plan mode", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks()
 		mockCaptureToolsHidden.mockReset()
+		mockPlanModeMcpLimitsEnabled.mockReset().mockReturnValue(true)
 		mockInnerStart.mockReset().mockResolvedValue({ sessionId: "core-task" })
 		mockClineCoreCreate.mockReset().mockResolvedValue({
 			start: mockInnerStart,
@@ -367,5 +370,25 @@ describe("VscodeSessionHost MCP tools in Plan mode", () => {
 	it("leaves an Act-mode session's prompt alone", async () => {
 		expect(await start("act")).toBe("test")
 		expect(mockCaptureToolsHidden).not.toHaveBeenCalled()
+	})
+
+	it("builds the session's tools without what Plan mode hides", async () => {
+		await start("plan")
+
+		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith(
+			mcpHub,
+			expect.objectContaining({ mode: "plan", limitMcpInPlanMode: true }),
+		)
+	})
+
+	it("changes nothing in a Plan-mode session while the limits are not turned on", async () => {
+		mockPlanModeMcpLimitsEnabled.mockReturnValue(false)
+
+		expect(await start("plan")).toBe("test")
+		expect(mockCaptureToolsHidden).not.toHaveBeenCalled()
+		expect(mockCreateVscodeExtraTools).toHaveBeenCalledWith(
+			mcpHub,
+			expect.objectContaining({ mode: "plan", limitMcpInPlanMode: false }),
+		)
 	})
 })

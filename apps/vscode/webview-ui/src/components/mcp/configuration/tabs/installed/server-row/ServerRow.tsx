@@ -54,7 +54,7 @@ const ServerRow = ({
 	hasTrashIcon?: boolean
 	marketplaceMetadata?: MarketplaceMcpMetadata
 }) => {
-	const { autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
+	const { autoApprovalSettings, setMcpServers, remoteConfigSettings, planModeMcpLimitsEnabled } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -338,7 +338,8 @@ const ServerRow = ({
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
-										{server.name &&
+										{planModeMcpLimitsEnabled &&
+											server.name &&
 											(server.allowAllInPlanMode ||
 												server.tools.some((tool) => tool.annotations?.readOnlyHint !== true)) && (
 												<PlanModeAccessCheckbox serverName={server.name}>
@@ -346,7 +347,12 @@ const ServerRow = ({
 												</PlanModeAccessCheckbox>
 											)}
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} serverName={server.name} showPlanModeAccess tool={tool} />
+											<McpToolRow
+												key={tool.name}
+												serverName={server.name}
+												showPlanModeAccess={planModeMcpLimitsEnabled}
+												tool={tool}
+											/>
 										))}
 									</div>
 								) : (

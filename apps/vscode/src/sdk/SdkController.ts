@@ -51,6 +51,7 @@ import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
 import { isCloudSessionsFeatureAvailable, isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
+import { isPlanModeMcpLimitsEnabled } from "@/services/mcp/planModeMcpLimitsFeature"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
@@ -422,7 +423,9 @@ export class Controller {
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
 			getPlanModeApproval: (request) =>
-				getPlanModeApproval(request.toolName, this.sessions.getActiveSession()?.mode, this.mcpHub),
+				isPlanModeMcpLimitsEnabled()
+					? getPlanModeApproval(request.toolName, this.sessions.getActiveSession()?.mode, this.mcpHub)
+					: undefined,
 			recordPlanModeReadOnlyTool: (toolCallId) => this.messageTranslatorState.recordPlanModeReadOnlyTool(toolCallId),
 			onPlanModeApprovalDecision: (toolName, approved) => {
 				const match = this.findMcpTool(toolName)
@@ -2727,6 +2730,7 @@ export class Controller {
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
 				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
+				planModeMcpLimitsEnabled: isPlanModeMcpLimitsEnabled(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask,
