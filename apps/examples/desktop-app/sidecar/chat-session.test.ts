@@ -424,6 +424,7 @@ describe("Factory manager session start", () => {
 			factory_status: { enabled: true },
 			factory_guidance: { enabled: true },
 			factory_stages: { enabled: true },
+			factory_add_project: { enabled: true },
 			ask_question: { enabled: true },
 			fetch_web_content: { enabled: true },
 			web_search: { enabled: true },

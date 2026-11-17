@@ -127,6 +127,10 @@ export interface FactoryDefaultsStore {
 	setAutoArchive?(
 		update: Partial<FactoryAutoArchiveSettings>,
 	): Promise<FactoryAutoArchiveSettings>;
+	/** Projects the person added to Factory, by repository root. */
+	getProjects?(): Promise<string[]>;
+	/** Adds a project the person chose; a root already added is left as is. */
+	addProject?(workspaceRoot: string): Promise<void>;
 }
 
 /**
@@ -163,6 +167,8 @@ interface StoredFactoryDefaults {
 	archiveOnPullRequestClose?: false;
 	/** Days without activity before a delivered card is archived; null: never; absent: 7. */
 	archiveAfterDays?: number | null;
+	/** Projects the person added, by repository root. */
+	projects?: string[];
 }
 
 type StoredDefaults = Omit<StoredFactoryDefaults, "version">;
@@ -328,6 +334,19 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 		return this.getAutoArchive();
 	}
 
+	async getProjects(): Promise<string[]> {
+		await this.writes.catch(() => undefined);
+		return (await this.read()).projects ?? [];
+	}
+
+	async addProject(workspaceRoot: string): Promise<void> {
+		await this.update((stored) =>
+			stored.projects?.includes(workspaceRoot)
+				? stored
+				: { ...stored, projects: [...(stored.projects ?? []), workspaceRoot] },
+		);
+	}
+
 	async getPaused(): Promise<boolean> {
 		await this.writes.catch(() => undefined);
 		const { stored, corrupt } = await this.readState();
@@ -399,6 +418,13 @@ export class FileFactoryDefaultsStore implements FactoryDefaultsStore {
 						: {}),
 					...(parsed.archiveAfterDays !== undefined
 						? { archiveAfterDays: parsed.archiveAfterDays }
+						: {}),
+					...(Array.isArray(parsed.projects)
+						? {
+								projects: parsed.projects.filter(
+									(project): project is string => typeof project === "string",
+								),
+							}
 						: {}),
 				},
 				corrupt: false,

@@ -296,7 +296,7 @@ describe.skipIf(process.platform === "win32")("draft PR publication", () => {
 		const failure = publishFactoryPullRequest(publication(input));
 		await expect(failure).rejects.toBeInstanceOf(FactoryPublishError);
 		await expect(failure).rejects.toThrow(
-			"This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or turn off draft PRs for this card.",
+			"This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or choose Deliver on a branch.",
 		);
 		await expect(
 			resolveFactoryPullRequestBase({ workspace: input.workspace }),

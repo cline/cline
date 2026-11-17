@@ -841,7 +841,8 @@ export function factoryStation(
 		...(activeStage && !retrying ? { stage: activeStage } : {}),
 		deliveredToday:
 			station === "delivered" && !stopped && sameLocalDay(task.updatedAt, now),
-		...(stopped && card.reasonCode === "publish_failed"
+		// At Review: a card stopped before scoping or a run never reached the PR.
+		...(stopped && card.reasonCode === "publish_failed" && station === "review"
 			? { publishFailed: true as const }
 			: {}),
 	};

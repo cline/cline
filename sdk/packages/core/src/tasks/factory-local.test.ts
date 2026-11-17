@@ -845,7 +845,13 @@ if (args[0] === "--version" || args[0] === "auth") {
 		/** A bare origin and a fake gh; `create` fails with `createError` when set. */
 		async function remote(
 			options: {
-				gh?: { version?: number; auth?: number; createError?: string };
+				gh?: {
+					version?: number;
+					auth?: number;
+					/** What a failing `gh auth status` prints. */
+					authOutput?: string;
+					createError?: string;
+				};
 				origin?: boolean;
 			} = {},
 		) {
@@ -865,7 +871,10 @@ const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(calls)}, args.join(" ") + "\\n");
 const marker = ${JSON.stringify(marker)};
 if (args[0] === "--version") process.exitCode = ${options.gh?.version ?? 0};
-else if (args[0] === "auth") process.exitCode = ${options.gh?.auth ?? 0};
+else if (args[0] === "auth") {
+	if (${options.gh?.auth ?? 0}) console.error(${JSON.stringify(options.gh?.authOutput ?? "You are not logged into any accounts on github.com")});
+	process.exitCode = ${options.gh?.auth ?? 0};
+}
 else if (args[1] === "list") process.stdout.write(fs.existsSync(marker) ? fs.readFileSync(marker) : "[]");
 else if (args[1] === "create") {
   const error = ${JSON.stringify(options.gh?.createError ?? "")};
@@ -955,6 +964,22 @@ else if (args[1] === "create") {
 			const failure = resolveFactoryPullRequestBase(r.publication);
 			await expect(failure).rejects.toBeInstanceOf(FactoryPublishError);
 			await expect(failure).rejects.toThrow(reason);
+		});
+
+		it("does not call gh signed out when its status check fails for another reason", async () => {
+			const r = await remote({
+				gh: {
+					auth: 1,
+					authOutput:
+						"error connecting to github.com: check your internet connection",
+				},
+			});
+			// The later steps decide (here the fixture's base is unpublished).
+			const message = await resolveFactoryPullRequestBase(r.publication).then(
+				() => "",
+				(error: Error) => error.message,
+			);
+			expect(message).not.toContain("not signed in");
 		});
 	});
 

@@ -33,7 +33,11 @@ import {
 } from "../../tasks/factory-guidance";
 import { FactoryReviewRefusal } from "../../tasks/factory-review-post";
 import { FactorySettingsError } from "../../tasks/factory-settings";
-import { factoryManagerProjects } from "../../tasks/factory-tool";
+import {
+	FactoryProjectError,
+	factoryManagerProjects,
+	factoryProjectRoot,
+} from "../../tasks/factory-tool";
 import type { HubConnectionAuthority } from "./command-transport";
 import { errorReply, okReply } from "./handlers/context";
 
@@ -53,6 +57,7 @@ const FACTORY_SETTINGS_COMMANDS = [
 	"task.factory.storage.clean",
 	"task.factory.reset",
 	"task.factory.projects.get",
+	"task.factory.projects.add",
 ] as const satisfies readonly HubCommandName[];
 const FACTORY_SETTINGS_COMMAND_SET = new Set<HubCommandName>(
 	FACTORY_SETTINGS_COMMANDS,
@@ -1103,6 +1108,35 @@ export class HubAgendaTaskCommandService {
 						await engine("getFactoryProjects")(await this.knownProjects()),
 					);
 				}
+				case "task.factory.projects.add": {
+					// Only the person adds a project, from the app: never a model tool.
+					requireTrusted("Adding a project to Factory");
+					const input = z
+						.object({ workspaceRoot: z.string().trim().min(1).max(4096) })
+						.strict()
+						.parse(payload);
+					const store = this.factoryDefaults;
+					if (!store?.addProject)
+						throw new FactorySettingsError(
+							"factory_settings_unavailable",
+							"Adding projects is unavailable in this Hub",
+						);
+					let workspaceRoot: string;
+					try {
+						workspaceRoot = factoryProjectRoot(input.workspaceRoot);
+					} catch (error) {
+						if (error instanceof FactoryProjectError)
+							throw new FactorySettingsError(
+								"factory_invalid_project",
+								error.message,
+							);
+						throw error;
+					}
+					const known = (await this.knownProjects()).includes(workspaceRoot);
+					// Stored even when known through a card or chat, so it stays known.
+					await store.addProject(workspaceRoot);
+					return okReply(envelope, { workspaceRoot, added: !known });
+				}
 				default:
 					return errorReply(
 						envelope,
@@ -1205,7 +1239,7 @@ export class HubAgendaTaskCommandService {
 		if (!(await this.knownProjects()).includes(root))
 			throw new FactorySettingsError(
 				"factory_unknown_project",
-				"That folder is not a project Factory knows",
+				"That folder is not a Factory project. Add it in Factory settings → Projects.",
 			);
 		return root;
 	}

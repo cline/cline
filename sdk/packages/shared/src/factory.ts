@@ -1248,12 +1248,17 @@ export function factoryWatchesPullRequest(
 /**
  * The automatic policy Factory uses when no workflow supplies one: attempt
  * the work hands-off to a draft pull request, approve plans automatically
- * (subject to independent review) and stop at $10 per card.
+ * (subject to independent review) and stop at $10 per card. It includes a
+ * default-model tester, so UI changes come back with screenshots and a
+ * recording; cards that do not need the running app skip it
+ * (factoryVerifierNeeded). DEFAULT_FACTORY_AGENTS stays without one: it is
+ * the fallback for stored configs that never had a tester.
  */
 export const FACTORY_BUILT_IN_POLICY = {
 	autonomy: "hands_off",
 	approval: "automatic",
 	maxCostUsd: 10,
+	agents: { verifier: {} },
 } as const;
 
 /** The default Hub-wide limit on Factory model spend per local day, in USD. */

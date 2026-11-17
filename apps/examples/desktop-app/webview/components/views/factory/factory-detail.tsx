@@ -756,6 +756,26 @@ export function FeatureDetail({
 		task.status === "failed" &&
 		editable &&
 		!factoryPlanFaultStopped(task);
+	// A card that could not open its draft PR can deliver on a branch instead.
+	// Core keeps a settled plan and its approval when only this changes; a
+	// run of this revision is not resumed, so its work is built again.
+	const factory = task.factory;
+	const deliverOnBranch =
+		canRetry &&
+		briefEditable &&
+		!dirty &&
+		publishFailure &&
+		factory?.publishPullRequest
+			? () =>
+					void perform(async () => {
+						await desktopClient.updateAgendaTask({
+							taskId: task.taskId,
+							expectedRevision: task.revision,
+							factory: { ...factory, publishPullRequest: false },
+							allWorkspaces: true,
+						});
+					})
+			: undefined;
 	function retry() {
 		void perform(async () => {
 			const saved = await save();
@@ -813,7 +833,10 @@ export function FeatureDetail({
 					? dirty
 						? " (saved plan; draft edits not verified)"
 						: ""
-					: " (from an earlier attempt)";
+					: // A card that never ran has no attempt to show.
+						run
+						? " (from an earlier attempt)"
+						: "";
 	const delivered = Boolean(
 		state &&
 			currentEvidence &&
@@ -1035,6 +1058,10 @@ export function FeatureDetail({
 								: // The card page shows the whole reason, never a cut one.
 									(publishFailure ?? failure?.sentence ?? failure?.headline),
 							onRetry: scopingStopped ? rescope : canRetry ? retry : undefined,
+							deliverOnBranch: deliverOnBranch && {
+								onDeliver: deliverOnBranch,
+								rebuilds: matchesTask,
+							},
 							planFault,
 							planFaultStopped: factoryPlanFaultStopped(task),
 						}

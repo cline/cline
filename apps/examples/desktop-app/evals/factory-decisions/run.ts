@@ -8,7 +8,7 @@
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
 	FACTORY_SYSTEM_PROMPT_RULE,
@@ -171,11 +171,17 @@ function printList(): void {
 
 /**
  * Sessions and storage go to a temporary Cline data directory; only the
- * stored provider settings are read from the user's own.
+ * stored provider settings are read from the user's own. A stand-in `gh`
+ * reads as installed and signed in, so Factory's check that a project can
+ * open draft PRs passes on any machine, as for a person who can.
  */
 function isolate(root: string): void {
 	process.env.CLINE_PROVIDER_SETTINGS_PATH = resolveProviderSettingsPath();
 	process.env.CLINE_DATA_DIR = join(root, "cline-data");
+	const bin = join(root, "bin");
+	mkdirSync(bin);
+	writeFileSync(join(bin, "gh"), "#!/bin/sh\n", { mode: 0o755 });
+	process.env.PATH = `${bin}${delimiter}${process.env.PATH ?? ""}`;
 }
 
 function resolveModel(args: ReturnType<typeof parse>): {

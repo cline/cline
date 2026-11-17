@@ -423,6 +423,14 @@ describe("Test setup page", () => {
 		);
 	});
 
+	it("shows the built-in default workflow's tester on the default model", async () => {
+		const page = await render(states.none);
+		expect(page.row("testerModel")?.textContent).toContain(
+			"The default model. Runs commands and reads files; cannot edit code.",
+		);
+		expect(page.text()).not.toContain("No tester in the default workflow");
+	});
+
 	it("notes a workflow-level setup and links the tester to Roles & models", async () => {
 		const page = await render(states.repository, {
 			shell: {

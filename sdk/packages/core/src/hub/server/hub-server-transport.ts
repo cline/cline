@@ -60,6 +60,7 @@ import {
 	AgendaTaskManager,
 	type AgendaTaskRuntimeResult,
 	type CreateFactoryStatusToolOptions,
+	createFactoryAddProjectTool,
 	createFactoryGuidanceTool,
 	createFactoryListTool,
 	createFactoryManagerGuidanceExtension,
@@ -69,11 +70,13 @@ import {
 	createFactoryTool,
 	createTasksPromptExtension,
 	createTasksTool,
+	FACTORY_ADD_PROJECT_TOOL_NAME,
 	FACTORY_GUIDANCE_TOOL_NAME,
 	FACTORY_LIST_TOOL_NAME,
 	FACTORY_STAGES_TOOL_NAME,
 	FACTORY_STATUS_TOOL_NAME,
 	FACTORY_TOOL_NAME,
+	type FactoryAddProjectConfirmationRequest,
 	type FactoryGuidanceConfirmationRequest,
 	FactoryGuidanceStore,
 	type FactoryPriorityConfirmationRequest,
@@ -693,11 +696,13 @@ export class HubServerTransport implements NativeHubTransport {
 				? workspaceRoot
 				: undefined;
 		const factoryPrompt = createFactoryPromptExtension();
-		// The Factory manager chat works across the user's projects: those of
-		// their cards and of their own sessions. The Factory tools keep only
-		// existing git repositories outside Cline's directories.
+		// The Factory manager chat works across the user's projects: those they
+		// added in Factory settings, of their cards and of their own sessions.
+		// The Factory tools keep only existing git repositories outside Cline's
+		// directories.
 		const listProjects = async () => {
-			const [cards, sessions] = await Promise.all([
+			const [added, cards, sessions] = await Promise.all([
+				factoryDefaults.getProjects(),
 				this.tasks.listTasks({
 					scope: "workspace",
 					factoryOnly: true,
@@ -707,6 +712,7 @@ export class HubServerTransport implements NativeHubTransport {
 				this.sessionHost.listSessions(500, { rootOnly: true }),
 			]);
 			return [
+				...added,
 				...cards.map((task) => task.workspaceRoot),
 				...sessions
 					.filter(
@@ -941,6 +947,27 @@ export class HubServerTransport implements NativeHubTransport {
 				policy: { autoApprove: false },
 			});
 		};
+		// A project the manager asks to add is added only after the user confirms.
+		const confirmFactoryAddProject = async (
+			request: FactoryAddProjectConfirmationRequest,
+		) => {
+			if (!canConfirm()) return noAppToConfirm;
+			return requestToolApprovalHandler(this.ctx, {
+				sessionId: request.sessionId,
+				agentId: request.agentId,
+				conversationId: request.conversationId ?? request.sessionId,
+				iteration: request.iteration,
+				toolCallId: request.toolCallId,
+				toolName: FACTORY_ADD_PROJECT_TOOL_NAME,
+				input: {
+					action: "add_project",
+					question: `Add ${request.name} (${request.workspaceRoot}) as a Factory project?`,
+					workspaceRoot: request.workspaceRoot,
+					summary: "Factory can then plan and build work in this repository.",
+				},
+				policy: { autoApprove: false },
+			});
+		};
 		// Urgent, or changing a priority the user set, only after they confirm.
 		const confirmFactoryPriority = async (
 			request: FactoryPriorityConfirmationRequest,
@@ -983,6 +1010,13 @@ export class HubServerTransport implements NativeHubTransport {
 						listProjects,
 						confirm: confirmFactoryStages,
 					}) as AgentTool,
+					createFactoryAddProjectTool({
+						resolveManagerSession: resolveFactoryManagerSession,
+						listProjects,
+						addProject: (workspaceRoot) =>
+							factoryDefaults.addProject(workspaceRoot),
+						confirm: confirmFactoryAddProject,
+					}),
 				],
 				isManagerSession: async (sessionId) =>
 					(await resolveFactoryManagerSession(sessionId)) !== undefined,
@@ -1315,6 +1349,7 @@ export class HubServerTransport implements NativeHubTransport {
 									[FACTORY_STATUS_TOOL_NAME]: { enabled: false },
 									[FACTORY_GUIDANCE_TOOL_NAME]: { enabled: false },
 									[FACTORY_STAGES_TOOL_NAME]: { enabled: false },
+									[FACTORY_ADD_PROJECT_TOOL_NAME]: { enabled: false },
 								}
 							: {}),
 					},

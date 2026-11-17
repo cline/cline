@@ -69,6 +69,7 @@ export type FactorySettingsErrorCode =
 	| "factory_settings_unauthorized"
 	| "factory_settings_invalid_input"
 	| "factory_unknown_project"
+	| "factory_invalid_project"
 	| "factory_guidance_stale"
 	| "factory_guidance_refused"
 	| "factory_guidance_invalid"

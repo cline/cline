@@ -382,6 +382,8 @@ describe("pull request review cards", () => {
 		expect(h.git(h.origin, "for-each-ref", "--format=%(refname)")).toBe(
 			"refs/heads/main\nrefs/pull/15/head",
 		);
+		// It opens no pull request, so the draft PR check never ran for it.
+		expect(h.ghCalls().map((call) => call.args[0])).not.toContain("--version");
 
 		// A review names its pull request, and what a card delivers and
 		// which pull request it reviews are fixed once it is filed.

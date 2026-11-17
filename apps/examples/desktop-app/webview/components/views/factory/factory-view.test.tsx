@@ -109,6 +109,21 @@ function task(overrides: Partial<AgendaTaskRecord> = {}): AgendaTaskRecord {
 		...overrides,
 	};
 }
+/** Factory knows a project: an empty board is then only waiting for work. */
+const KNOWN_PROJECTS = {
+	projects: [
+		{
+			workspaceRoot: "/repo",
+			name: "repo",
+			cards: { open: 0, archived: 0 },
+			stages: { file: "absent", total: 0, inUse: 0, awaiting: 0 },
+			verification: "none",
+			guidance: { roles: [], changed: [] },
+			taskFiles: 0,
+		},
+	],
+	userGuidanceChanged: [],
+};
 let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
@@ -129,7 +144,9 @@ beforeEach(() => {
 				? {}
 				: command === "factory_get_stages"
 					? { file: "absent", stages: [] }
-					: [],
+					: command === "factory_get_projects"
+						? KNOWN_PROJECTS
+						: [],
 	);
 	mocks.createTask.mockImplementation(async (input: HubTaskCreateInput) => {
 		const created = task({ taskId: input.taskId, status: "pending_approval" });
@@ -342,7 +359,11 @@ describe("Factory workflow", () => {
 		expect(alert).toContain("Activity unavailable");
 		expect(container.textContent).not.toContain(FACTORY_BOARD.empty.nothing);
 		mocks.invoke.mockImplementation(async (command) =>
-			command === "factory_attention" ? [] : {},
+			command === "factory_attention"
+				? []
+				: command === "factory_get_projects"
+					? KNOWN_PROJECTS
+					: {},
 		);
 		await act(async () => button("Retry").click());
 		expect(container.textContent).toContain(FACTORY_BOARD.empty.nothing);
@@ -2460,6 +2481,28 @@ describe("Factory home", () => {
 		expect(asks).toHaveLength(1);
 		await act(async () => asks[0]?.click());
 		expect(onAskFactory).toHaveBeenCalledOnce();
+	});
+
+	it("offers one way to add a project when Factory knows none", async () => {
+		const fallback = mocks.invoke.getMockImplementation();
+		mocks.invoke.mockImplementation(async (command, args) =>
+			command === "factory_get_projects"
+				? { projects: [], userGuidanceChanged: [] }
+				: fallback?.(command, args),
+		);
+		await render();
+		expect(section("Working")).toContain(FACTORY_BOARD.empty.noProject);
+		const adds = Array.from(container.querySelectorAll("button")).filter(
+			(item) => item.textContent?.trim() === FACTORY_BOARD.empty.addProject,
+		);
+		expect(adds).toHaveLength(1);
+		await act(async () => adds[0]?.click());
+		expect(container.textContent).toContain("No projects yet.");
+		expect(
+			Array.from(container.querySelectorAll("button")).filter(
+				(item) => item.textContent?.trim() === "Add project…",
+			),
+		).toHaveLength(1);
 	});
 });
 

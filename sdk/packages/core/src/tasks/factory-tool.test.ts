@@ -145,7 +145,8 @@ describe("Factory intake tool", () => {
 				intake: { source: "nightly-audit", key: "issue-42" },
 			},
 		});
-		expect(persisted.factory?.agents).toBeUndefined();
+		// The built-in policy includes a default-model tester.
+		expect(persisted.factory?.agents?.verifier).toEqual({});
 		expect(queue()).toEqual([first.task.taskId]);
 		// An omitted source defaults to one shared by every agent session.
 		// The same wording under another key is a duplicate unless allowed.
@@ -204,13 +205,65 @@ describe("Factory intake tool", () => {
 		expect(queue()).toEqual([scoped.task.taskId]);
 	});
 
+	it("says at filing when the project cannot open the card's pull request", async () => {
+		const root = realpathSync.native(
+			mkdtempSync(join(tmpdir(), "cline-factory-intake-no-pr-")),
+		);
+		const workspaceRoot = join(root, "repo");
+		mkdirSync(workspaceRoot);
+		execFileSync("git", ["init", "-q"], { cwd: workspaceRoot });
+		execFileSync("git", ["remote", "add", "origin", "/srv/git/widgets.git"], {
+			cwd: workspaceRoot,
+		});
+		const manager = new AgendaTaskManager({
+			runtime: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				runSession: vi.fn(async () => ({ status: "completed" as const })),
+				abortSession: vi.fn(async () => {}),
+			},
+			dbPath: join(root, "tasks.db"),
+			globalSpecsDir: join(root, "specs"),
+			watchFiles: false,
+			automationEnabled: false,
+		});
+		cleanup.push(async () => {
+			await manager.dispose();
+			rmSync(root, { recursive: true, force: true });
+		});
+		const filed = await createFactoryTool({
+			manager,
+			resolveSessionDefaults: async () => ({
+				workspaceRoot,
+				interactive: true,
+			}),
+		}).execute(
+			{ title: "Fix login", instructions: "Fix the login bug." },
+			{ agentId: "manager", iteration: 1, sessionId: "chat" },
+		);
+		if (!filed.ok) throw new Error(filed.error.message);
+		expect(filed.pullRequestProblem).toBe(
+			"F1 is filed, but this project cannot open pull requests: this project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or choose Deliver on a branch.",
+		);
+		expect(await manager.getTask(filed.task.taskId)).toMatchObject({
+			factory: { publishPullRequest: true },
+		});
+	});
+
 	it("returns the designer's conclusion when a concluded card is rediscovered", async () => {
 		const root = realpathSync.native(
 			mkdtempSync(join(tmpdir(), "cline-factory-intake-conclusion-")),
 		);
 		const workspaceRoot = join(root, "repo");
-		// A git repository: Factory refuses other directories.
-		mkdirSync(join(workspaceRoot, ".git"), { recursive: true });
+		// A project that can open draft PRs: a GitHub origin and a signed-in gh.
+		mkdirSync(workspaceRoot);
+		execFileSync("git", ["init", "-q"], { cwd: workspaceRoot });
+		execFileSync(
+			"git",
+			["remote", "add", "origin", "https://github.com/o/r.git"],
+			{ cwd: workspaceRoot },
+		);
+		writeFileSync(join(root, "gh"), "#!/bin/sh\n", { mode: 0o755 });
+		vi.stubEnv("PATH", `${root}:${process.env.PATH ?? ""}`);
 		const conclusion = {
 			outcome: "already_fixed" as const,
 			rationale: "Retries already use a fixed seed.",
@@ -233,6 +286,7 @@ describe("Factory intake tool", () => {
 			automationEnabled: false,
 		});
 		cleanup.push(async () => {
+			vi.unstubAllEnvs();
 			await manager.dispose();
 			rmSync(root, { recursive: true, force: true });
 		});
@@ -1713,6 +1767,67 @@ describe("Factory status tool", () => {
 			["task_p", "high", "manager"],
 			["task_p", null, "manager"],
 		]);
+	});
+
+	it("delivers a card on a branch only from the manager chat, and only when its draft PR could not open", async () => {
+		const stopped = card({
+			taskId: "task_d",
+			workspaceRoot: "/",
+			status: "failed",
+			error:
+				"Could not open the draft PR: This project has no origin remote; add the GitHub remote as origin, or choose Deliver on a branch.",
+			factory: { approval: "required", publishPullRequest: true },
+		} as Partial<AgendaTaskRecord>);
+		const other = card({
+			taskId: "task_o",
+			workspaceRoot: "/",
+			status: "failed",
+			error: "Design did not complete",
+			factory: { approval: "required", publishPullRequest: true },
+		} as Partial<AgendaTaskRecord>);
+		const manager = {
+			...fakeManager([stopped, other]),
+			updateTask: vi.fn(async () => ({
+				...stopped,
+				status: "pending_approval" as const,
+			})),
+		};
+		const managerChat = async () => ({ workspaceRoot: "/", manager: true });
+		const deliver = (taskId: string, defaults?: typeof managerChat) =>
+			execute(
+				manager,
+				{ task_id: taskId, action: "deliver_on_branch" },
+				defaults,
+			);
+		await expect(deliver("task_d")).resolves.toMatchObject({
+			ok: false,
+			error: {
+				code: "factory_deliver_on_branch_refused",
+				message: expect.stringContaining("Only the user chooses"),
+			},
+		});
+		await expect(deliver("task_o", managerChat)).resolves.toMatchObject({
+			ok: false,
+			error: {
+				message: expect.stringContaining("draft PR could not be opened"),
+			},
+		});
+		expect(manager.updateTask).not.toHaveBeenCalled();
+		await expect(deliver("task_d", managerChat)).resolves.toMatchObject({
+			ok: true,
+			action: {
+				name: "deliver_on_branch",
+				result: expect.stringContaining("Queued for scoping"),
+			},
+		});
+		expect(manager.updateTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "task_d",
+				expectedRevision: stopped.revision,
+				factory: { ...stopped.factory, publishPullRequest: false },
+			}),
+		);
+		expect(manager.queueFactoryScoping).toHaveBeenCalledTimes(1);
 	});
 
 	it("lets the manager chat set Urgent or change the user's priority only when the user confirms", async () => {
@@ -3450,8 +3565,13 @@ describe("Factory manager across projects", () => {
 				ok: false,
 				error: { code: "factory_unknown_project" },
 			});
-			if (!refused.ok)
+			if (!refused.ok) {
 				expect(refused.error.message).toContain(`orbit-platform (${platform})`);
+				// No dead end: the reply says how the person adds it.
+				expect(refused.error.message).toContain(
+					"Add it in Factory settings → Projects.",
+				);
+			}
 		}
 		// Other sessions cannot name a project; they keep their own.
 		await expect(

@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { AgendaTaskManager } from "@cline/core";
 import {
 	applyFactoryAutonomyDefaults,
@@ -14,7 +14,8 @@ const git = (cwd: string, ...args: string[]) =>
 
 /**
  * A git repository with one commit. `origin` is a remote URL only: nothing
- * is pushed or fetched unless it is a local bare repository.
+ * is pushed or fetched unless it is a local bare repository, which then
+ * serves a github.com origin URL, as a project that opens draft PRs has.
  */
 export function createRepo(
 	dir: string,
@@ -36,7 +37,9 @@ export function createRepo(
 		return;
 	}
 	git(dirname(origin.bare), "init", "-q", "--bare", "-b", "main", origin.bare);
-	git(dir, "remote", "add", "origin", origin.bare);
+	const url = `https://github.com/example-org/${basename(dir)}.git`;
+	git(dir, "remote", "add", "origin", url);
+	git(dir, "config", `url.${origin.bare}.insteadOf`, url);
 	git(dir, "push", "-q", "origin", "main");
 }
 

@@ -136,6 +136,7 @@ import {
 } from "@/lib/factory-copy";
 import { factoryProposedRule } from "@/lib/factory-feedback";
 import { formatFactoryUsd } from "@/lib/factory-limits";
+import { factorySettingsClient } from "@/lib/factory-settings-client";
 import { cn } from "@/lib/utils";
 import {
 	PAGE_FRAME_FIT_VIEWPORT,
@@ -180,7 +181,7 @@ import {
 	factoryLiveSessions,
 	formatFactoryDuration,
 } from "./factory-live";
-import { FactorySettingsPage } from "./factory-settings";
+import { FactorySettingsPage, type SettingsFocus } from "./factory-settings";
 import { FactoryParentLink, factorySplitContext } from "./factory-split";
 import {
 	factoryCancelsOnArchive,
@@ -335,7 +336,7 @@ function BoardColumn({
 	/** The width would collapse it: its chevron always shows. */
 	alwaysShowCollapse?: boolean;
 	onToggle: () => void;
-	empty: string;
+	empty: ReactNode;
 	footer?: ReactNode;
 	hold: ReturnType<ReturnType<typeof useSteadyOrder>["hold"]>;
 	children: ReactNode[];
@@ -651,7 +652,9 @@ function FactoryPage({
 			? null
 			: sessionStorage.getItem("factory.selectedTask"),
 	);
-	const [settingsFocus, setSettingsFocus] = useState<"dailyCostUsd">();
+	const [settingsFocus, setSettingsFocus] = useState<
+		"dailyCostUsd" | SettingsFocus
+	>();
 	// Back from settings returns focus to the header's Settings button.
 	const returnToSettingsButton = useRef(false);
 	useEffect(() => {
@@ -972,6 +975,24 @@ function FactoryPage({
 		!agenda.isLoading &&
 		!agenda.error &&
 		!attention.error;
+	// An empty board with no project to work in offers the one way to add one;
+	// read again on coming back to the board, where one may have been added.
+	const boardEmpty =
+		activityConfirmed && tasks.every((task) => task.archivedAt);
+	const [noProjects, setNoProjects] = useState(false);
+	useEffect(() => {
+		if (!boardEmpty || view !== "activity") return;
+		let live = true;
+		factorySettingsClient.getProjects().then(
+			({ projects }) => {
+				if (live) setNoProjects(projects.length === 0);
+			},
+			() => undefined,
+		);
+		return () => {
+			live = false;
+		};
+	}, [boardEmpty, view]);
 	const connectionProblem =
 		agenda.error || attention.error || !attention.transportReady;
 	const loadError = agenda.error || attention.error;
@@ -1630,8 +1651,7 @@ function FactoryPage({
 			Back to Factory
 		</Button>
 	);
-	const nothingAtAll =
-		activityConfirmed && tasks.filter((task) => !task.archivedAt).length === 0;
+	const nothingAtAll = boardEmpty;
 	// A figure the Hub does not report is left out rather than guessed.
 	const supportedLimits = limits.limits?.supported ? limits.limits : undefined;
 	const spent = supportedLimits?.spentTodayUsd;
@@ -2323,9 +2343,27 @@ function FactoryPage({
 	));
 	// The board's first column carries the empty board's one instruction.
 	const firstColumnId = columns.find((column) => !column.hidden)?.id;
-	const emptyLine = (id: string) =>
+	const emptyBoardLine = noProjects ? (
+		<>
+			{FACTORY_BOARD.empty.noProject}{" "}
+			<Button
+				variant="link"
+				size="sm"
+				className="h-auto p-0 text-xs text-accent-foreground"
+				onClick={() => {
+					setSettingsFocus({ page: "projects" });
+					setView("settings");
+				}}
+			>
+				{FACTORY_BOARD.empty.addProject}
+			</Button>
+		</>
+	) : (
+		FACTORY_BOARD.empty.nothing
+	);
+	const emptyLine = (id: string): ReactNode =>
 		id === firstColumnId && nothingAtAll
-			? FACTORY_BOARD.empty.nothing
+			? emptyBoardLine
 			: boardView.grouping === "status" && id in FACTORY_BOARD.empty
 				? FACTORY_BOARD.empty[id as FactoryHomeGroup]
 				: FACTORY_BOARD.empty.column;

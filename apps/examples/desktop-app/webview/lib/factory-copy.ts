@@ -811,6 +811,13 @@ export const FACTORY_CARD_ACTION = {
 	viewChanges: "View changes",
 	tryAgain: "Try again",
 	tryScopingAgain: "Try scoping again",
+	/** A card that could not open its draft PR delivers without one. */
+	deliverOnBranch: "Deliver on a branch",
+	deliverOnBranchHint:
+		"Factory opens no PR for this card; its changes stay on a branch.",
+	/** The run that already built this plan is not reused. */
+	deliverOnBranchRebuilds:
+		"Factory builds the approved plan again, at new cost, and keeps the changes on a branch with no PR.",
 	editPlan: "Edit plan",
 	/** More → the delivered card's feedback box. */
 	rate: "Leave feedback…",
@@ -1059,6 +1066,9 @@ export const FACTORY_BOARD = {
 		column: "No cards.",
 		nothing:
 			"Nothing here yet. Ask Factory for a change and its card starts here.",
+		/** An empty board when Factory knows no project; the link follows. */
+		noProject: "Nothing here yet. Factory needs a project to work in.",
+		addProject: "Add project…",
 	},
 	paused: "Paused. Running cards finish; waiting cards do not start.",
 	/** Working's lower part: the cards waiting to start. */

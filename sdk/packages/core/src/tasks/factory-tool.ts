@@ -43,6 +43,7 @@ import {
 	factoryCardList,
 	factoryCardState,
 	factoryCheckSchema,
+	factoryErrorReasonCode,
 	factoryFeedbackAnalysisStatus,
 	factoryIntakeContextSchema,
 	factoryNeedsYouUrgency,
@@ -87,6 +88,7 @@ import {
 	factoryGuidanceRefusal,
 	screenFactoryGuidance,
 } from "./factory-guidance";
+import { factoryPullRequestStop } from "./factory-local";
 import {
 	describeFactoryScopeRoute,
 	factoryPreparedPlanProblems,
@@ -298,6 +300,8 @@ export type FactoryToolResult =
 			existing: boolean;
 			/** Why the supplied `plan` cannot be used as it is: Factory scopes the card with it as input. */
 			planProblems?: string[];
+			/** A new card whose project cannot open its pull request: one sentence for the user. */
+			pullRequestProblem?: string;
 	  } & Partial<
 			Extract<FactoryDuplicateReply, { duplicateOf: unknown }> &
 				Extract<FactoryDuplicateReply, { relatedTo: unknown }>
@@ -460,12 +464,50 @@ function resolveProjectRoot(
 
 /** Whether `directory` is inside a git work tree (a .git directory or file). */
 function isGitRepository(directory: string): boolean {
+	return gitWorkTreeRoot(directory) !== undefined;
+}
+
+/** The nearest directory at or above `directory` holding a .git entry. */
+function gitWorkTreeRoot(directory: string): string | undefined {
 	for (let current = directory; ; ) {
-		if (statSync(join(current, ".git"), { throwIfNoEntry: false })) return true;
+		if (statSync(join(current, ".git"), { throwIfNoEntry: false }))
+			return current;
 		const parent = dirname(current);
-		if (parent === current) return false;
+		if (parent === current) return undefined;
 		current = parent;
 	}
+}
+
+/**
+ * The project Factory adds for a folder the person chose: the root of the
+ * git repository it is in. Throws a FactoryProjectError saying, in plain
+ * words, what is wrong and what to do.
+ */
+export function factoryProjectRoot(path: string): string {
+	const folder = path.trim();
+	if (!isAbsolute(folder))
+		throw new FactoryProjectError(
+			"factory_invalid_project",
+			`"${folder}" is not a full folder path. Choose the folder, or type its full path.`,
+		);
+	const directory = resolve(folder);
+	if (!statSync(directory, { throwIfNoEntry: false })?.isDirectory())
+		throw new FactoryProjectError(
+			"factory_invalid_project",
+			`There is no folder at ${directory}. Check the path and try again.`,
+		);
+	const root = gitWorkTreeRoot(directory);
+	if (!root)
+		throw new FactoryProjectError(
+			"factory_invalid_project",
+			`${directory} is not a git repository. Factory works in git repositories: choose the repository's folder, or run "git init" in it first.`,
+		);
+	if (factoryManagerProjects([root]).length === 0)
+		throw new FactoryProjectError(
+			"factory_invalid_project",
+			`${root} is one of Cline's own folders, not a project. Choose your project's folder.`,
+		);
+	return root;
 }
 
 /**
@@ -526,17 +568,31 @@ async function loadManagerProjects(
 /** Why the Factory manager's project could not be chosen. */
 export class FactoryProjectError extends Error {
 	constructor(
-		readonly code: "factory_project_required" | "factory_unknown_project",
+		readonly code:
+			| "factory_project_required"
+			| "factory_unknown_project"
+			| "factory_invalid_project",
 		message: string,
 	) {
 		super(message);
 	}
 }
 
+/** How a project Factory does not know gets added: only ever by the person. */
+const ADD_PROJECT_INSTRUCTION =
+	'To add a project, tell the user: "Add it in Factory settings → Projects." If they gave the folder\'s full path, you can instead call factory_add_project with it; Factory then asks them to confirm in the app. File the work only once the project is added.';
+
 function knownProjectsText(known: FactoryManagerProjects): string {
 	return known.projects.length
 		? `Projects Factory knows: ${known.projects.map((project) => `${known.name(project)} (${project})`).join("; ")}.`
-		: "Factory knows no projects yet; a project becomes known once the user opens it in Cline.";
+		: `Factory knows no projects yet. ${ADD_PROJECT_INSTRUCTION}`;
+}
+
+/** For a project the user meant but Factory does not know: the known ones, and how to add it. */
+function unknownProjectText(known: FactoryManagerProjects): string {
+	return known.projects.length
+		? `${knownProjectsText(known)} ${ADD_PROJECT_INSTRUCTION}`
+		: knownProjectsText(known);
 }
 
 /**
@@ -571,7 +627,7 @@ function chooseManagerProject(
 			)
 		: new FactoryProjectError(
 				"factory_unknown_project",
-				`"${requested}" is not a project Factory knows. ${knownProjectsText(known)}`,
+				`"${requested}" is not a project Factory knows. ${unknownProjectText(known)}`,
 			);
 }
 
@@ -669,7 +725,7 @@ async function factoryProjectForPullRequest(
 			)
 		: new FactoryProjectError(
 				"factory_unknown_project",
-				`No project Factory knows has ${label} as its origin; open a checkout of it in Cline first. ${knownProjectsText(known)}`,
+				`No project Factory knows has ${label} as its origin; add a checkout of it first. ${unknownProjectText(known)}`,
 			);
 }
 
@@ -795,7 +851,8 @@ export function createFactoryTool(
 			"Pass start_scoping: false only to just queue. Pass priority only when the user or the work item states how urgent it is. A repeat of the same work returns the existing card. " +
 			'To have Factory draft a review of an existing pull request, pass deliverable "pr_review" with pull_request; only the user posts it, from Factory. ' +
 			"Factory checks every filing for an open or recently delivered card of the project that already covers it: then no card is created and the reply carries duplicateOf (that card's id, short id, title, state and PR link), reason and fileAnyway; pass allow_duplicate: true only if the user says it is different work. " +
-			"Returns the card's id, title, status and project, whether it already existed, relatedTo (cards Factory linked to a new card), and the designer's conclusion when no build was needed.",
+			"Returns the card's id, title, status and project, whether it already existed, relatedTo (cards Factory linked to a new card), and the designer's conclusion when no build was needed. " +
+			"pullRequestProblem means the card was filed but its project cannot open pull requests yet, so it waits for the user; tell them that sentence first.",
 		inputSchema: zodToJsonSchema(FactoryToolInputSchema),
 		retryable: false,
 		maxRetries: 0,
@@ -1004,6 +1061,11 @@ export function createFactoryTool(
 					task.factoryDesignProgress?.revision === task.revision
 						? task.factoryDesignProgress.conclusion
 						: undefined;
+				// Said at filing; the card itself stops before scoping for it.
+				const publishCheck = existing
+					? undefined
+					: factoryPullRequestStop(task);
+				const cannotPublish = publishCheck && (await publishCheck);
 				return {
 					ok: true,
 					task: {
@@ -1029,6 +1091,11 @@ export function createFactoryTool(
 					existing,
 					...duplicate,
 					...(planProblems.length ? { planProblems } : {}),
+					...(cannotPublish
+						? {
+								pullRequestProblem: `${factoryIdField(task).factoryId ?? "The card"} is filed, but this project cannot open pull requests: ${cannotPublish.reason.charAt(0).toLowerCase()}${cannotPublish.reason.slice(1)}`,
+							}
+						: {}),
 				};
 			} catch (error) {
 				capture(false);
@@ -1160,10 +1227,17 @@ export const FactoryStatusToolInputSchema = z
 			),
 		project: FactoryProjectInput,
 		action: z
-			.enum(["status", "hold", "start", "retry", "priority"])
+			.enum([
+				"status",
+				"hold",
+				"start",
+				"retry",
+				"priority",
+				"deliver_on_branch",
+			])
 			.default("status")
 			.describe(
-				"status reports; hold keeps a card from starting; start starts a held or queued card; retry tries a stopped card again; priority sets the card's priority (Factory manager chat only, when the user asks)",
+				"status reports; hold keeps a card from starting; start starts a held or queued card; retry tries a stopped card again; priority sets the card's priority (Factory manager chat only, when the user asks); deliver_on_branch delivers a card stopped because its draft PR could not be opened on a branch with no PR instead (Factory manager chat only, when the user asks)",
 			),
 		priority: z
 			.enum([...FACTORY_PRIORITY_CHOICES])
@@ -1173,6 +1247,11 @@ export const FactoryStatusToolInputSchema = z
 			),
 	})
 	.strict();
+/** factory_status's actions besides status. */
+type FactoryStatusAction = Exclude<
+	FactoryStatusToolInput["action"],
+	"status" | undefined
+>;
 export type FactoryStatusToolInput = z.input<
 	typeof FactoryStatusToolInputSchema
 >;
@@ -1323,7 +1402,7 @@ export type FactoryStatusToolResult =
 			needsYou?: { count: number; cards: FactoryNeedsYouEntry[] };
 			/** Set when an action ran. */
 			action?: {
-				name: "hold" | "start" | "retry" | "priority";
+				name: FactoryStatusAction;
 				result: string;
 			};
 			more?: boolean;
@@ -1365,7 +1444,8 @@ export interface CreateFactoryStatusToolOptions extends FactoryToolOptions {
 		| "startFactoryQueue"
 		| "setFactoryPriority"
 		| "getFactoryCardLinks"
-	>;
+	> &
+		Partial<Pick<AgendaTaskManagerApi, "updateTask">>;
 	/**
 	 * Asks the user, in their app, to confirm a priority change only they may
 	 * make. Without it such a change is refused.
@@ -1673,8 +1753,9 @@ function describeFactoryStage(
 		case "delivered_with_findings":
 			return "Draft PR ready";
 		case "stopped":
-			// The draft PR step comes after Review; Review itself passed.
-			return card.reasonCode === "publish_failed"
+			// The draft PR step comes after Review; Review itself passed. A
+			// card the check before scoping or a run stopped never got there.
+			return card.reasonCode === "publish_failed" && card.stage === "review"
 				? "Stopped opening the draft PR"
 				: "Stopped";
 		case "closed":
@@ -2131,7 +2212,7 @@ export function createFactoryStatusTool(
 		name: FACTORY_STATUS_TOOL_NAME,
 		description:
 			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 cards (those needing the user first, then the open cards working, then the other open cards by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link, the screenshots and recording a delivered change to the UI came with (or why none), and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
-			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
+			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. action deliver_on_branch, only in the Factory manager chat and only when the user asks, delivers a card that stopped because its draft PR could not be opened on a branch with no PR instead; a card whose run already built it builds again. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
 		inputSchema: zodToJsonSchema(FactoryStatusToolInputSchema),
 		retryable: false,
 		maxRetries: 0,
@@ -2488,12 +2569,13 @@ export function createFactoryStatusTool(
 }
 
 /**
- * Hold, start, retry or priority, each the same as the Factory board's
- * control. None approves a plan: a card whose plan waits for approval is refused.
+ * Hold, start, retry, priority or deliver on a branch, each the same as the
+ * Factory board's control. None approves a plan: a card whose plan waits for
+ * approval is refused.
  */
 async function runFactoryStatusAction(
 	manager: CreateFactoryStatusToolOptions["manager"],
-	action: "hold" | "start" | "retry" | "priority",
+	action: FactoryStatusAction,
 	priority: (typeof FACTORY_PRIORITY_CHOICES)[number] | undefined,
 	task: AgendaTaskRecord,
 	queue: FactoryQueueState | undefined,
@@ -2648,6 +2730,40 @@ async function runFactoryStatusAction(
 			}
 			await scope();
 			return `Queued for scoping again.${afterQueue}`;
+		case "deliver_on_branch": {
+			// The card's Deliver on a branch, on the user's request: only how
+			// the result is delivered changes, so core keeps a settled plan and
+			// its approval and queues the run.
+			if (!managerChat)
+				throw new Error(
+					"Only the user chooses to deliver a card on a branch instead: from the card in Factory, or by asking in the Factory manager chat.",
+				);
+			if (
+				task.status !== "failed" ||
+				factoryErrorReasonCode(task.error) !== "publish_failed" ||
+				!task.factory?.publishPullRequest
+			)
+				throw new Error(
+					"Only a card that stopped because its draft PR could not be opened can be delivered on a branch instead.",
+				);
+			if (!manager.updateTask)
+				throw new Error("Changing how a card delivers is unavailable");
+			const built = (manager.getTaskRuns?.(task.taskId) ?? []).some(
+				(run) => run.taskRevision === task.revision,
+			);
+			const updated = await manager.updateTask({
+				taskId: task.taskId,
+				expectedRevision: task.revision,
+				factory: { ...task.factory, publishPullRequest: false },
+				updatedBy: actor,
+			});
+			if (updated.status === "approved")
+				return built
+					? `Queued to run again on a branch, with no PR. The earlier build is not reused: it builds the approved plan again, at new cost.${afterQueue}`
+					: `Queued to run on a branch, with no PR.${afterQueue}`;
+			await scope();
+			return `Queued for scoping, to deliver on a branch with no PR.${afterQueue}`;
+		}
 	}
 }
 

@@ -20,13 +20,19 @@ const needs = (count: number) => (count === 1 ? "needs" : "need");
 
 export const FS_PROJECTS = {
 	scope:
-		"Repositories Factory has worked in. A project appears here when you give Factory work in it.",
+		"Repositories Factory can work in. Add one here; a repository you give Factory work in appears too.",
 	search:
-		"Repositories Factory has worked in: their stages, test setup, guidance, task files, and forgetting a project's approvals.",
+		"Repositories Factory can work in: adding a project, their stages, test setup, guidance, task files, and forgetting a project's approvals.",
 	count: (count: number) => plural(count, "project"),
-	empty:
-		"No projects yet. A project appears once it has a card or has been opened in Cline.",
-	emptyAction: "Ask Factory",
+	empty: "No projects yet. Add a git repository and Factory can work in it.",
+	add: "Add project…",
+	/** The typed-path fallback, when the app has no folder dialog. */
+	pathLabel: "Project folder",
+	pathPlaceholder: "Full path, such as /Users/you/code/app",
+	pathAdd: "Add",
+	pickerFailed:
+		"The folder picker could not be opened. Type the project folder's full path instead.",
+	addFailed: "Couldn't add the project. Try again.",
 	summaryUnavailable:
 		"Project status needs a newer Cline. Update Cline to see it.",
 	prTarget: (branch: string) => `PRs target ${branch}`,

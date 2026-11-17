@@ -11,6 +11,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openExternalUrl } from "@/lib/desktop-client";
 import type { DesktopTransportState } from "@/lib/desktop-transport";
+import { FACTORY_CARD_ACTION } from "@/lib/factory-copy";
 import { subscribeFactoryDiscussion } from "@/lib/factory-feedback";
 import { type FactoryDraft, FeatureDetail } from "./factory-detail";
 
@@ -2022,6 +2023,47 @@ it("says the draft PR could not be opened and stops the line after Review", asyn
 	).toBe(reason);
 	// A draft PR that could not open stops after Review on the shared line.
 	expect(currentStage()).toBe("review:stopped");
+	// Delivering on a branch builds this plan again: its tooltip says so.
+	expect(button("Deliver on a branch").title).toBe(
+		FACTORY_CARD_ACTION.deliverOnBranchRebuilds,
+	);
+});
+
+it("lets a card stopped before scoping deliver on a branch, and claims no earlier attempt", async () => {
+	const error =
+		"Could not open the draft PR: This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or choose Deliver on a branch.";
+	const factory = { ...handsOffConfig, publishPullRequest: true };
+	const stoppedCard = { ...task, status: "failed" as const, error, factory };
+	mocks.updateAgendaTask.mockResolvedValueOnce({
+		...stoppedCard,
+		revision: 2,
+		status: "pending_approval",
+		error: undefined,
+		factory: { ...factory, publishPullRequest: false },
+	});
+	await render(stoppedCard);
+	const actions = document.querySelector(
+		'[data-testid="factory-card-actions"]',
+	);
+	expect(
+		[...(actions?.querySelectorAll("button") ?? [])].map(
+			(item) => item.textContent,
+		),
+	).toEqual(["Try again", "Deliver on a branch", "Archive"]);
+	expect(button("Deliver on a branch").title).toBe(
+		FACTORY_CARD_ACTION.deliverOnBranchHint,
+	);
+	expect(
+		document.querySelector('[data-testid="factory-details-facts"] p')
+			?.textContent,
+	).toBe("Plan version 1");
+	await act(async () => button("Deliver on a branch").click());
+	expect(mocks.updateAgendaTask).toHaveBeenCalledWith({
+		taskId: task.taskId,
+		expectedRevision: task.revision,
+		factory: { ...factory, publishPullRequest: false },
+		allWorkspaces: true,
+	});
 });
 
 it("offers Start scoping instead of promising progress for an unqueued hands-off card without a plan", async () => {

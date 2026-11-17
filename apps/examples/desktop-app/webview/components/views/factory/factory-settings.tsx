@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFactoryLimits } from "@/hooks/use-factory-limits";
+import { desktopClient } from "@/lib/desktop-client";
 import { FACTORY_MANAGER } from "@/lib/factory-copy";
 import { requestFactoryDiscussion } from "@/lib/factory-feedback";
 import { factorySettingsClient } from "@/lib/factory-settings-client";
@@ -134,6 +135,26 @@ export function FactorySettingsPage({
 	const projectsSummary = useSettingsResource(
 		() => factorySettingsClient.getProjects(),
 		[projects.join("\0")],
+	);
+	// The manager chat adds projects too: read again once its add finishes.
+	const reloadProjects = projectsSummary.reload;
+	useEffect(
+		() =>
+			desktopClient.subscribe("chat_event", (payload) => {
+				const event = payload as { stream?: unknown; chunk?: unknown } | null;
+				if (
+					event?.stream !== "chat_tool_call_end" ||
+					typeof event.chunk !== "string"
+				)
+					return;
+				try {
+					if (JSON.parse(event.chunk).toolName === "factory_add_project")
+						reloadProjects();
+				} catch {
+					// Not a tool result this page reads.
+				}
+			}),
+		[reloadProjects],
 	);
 	const hub = useSettingsResource(
 		() => factorySettingsClient.getProcessContext(),

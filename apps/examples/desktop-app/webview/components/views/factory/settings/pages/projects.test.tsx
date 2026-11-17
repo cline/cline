@@ -50,7 +50,10 @@ const summary = (projects = [cline, api, sketchbook]) =>
 
 afterEach(() => {
 	document.body.innerHTML = "";
+	Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 });
+/** The app's own window, where the folder dialog opens. */
+const inApp = () => Object.assign(window, { __TAURI_INTERNALS__: {} });
 
 const openButton = (
 	page: { row: (id: string) => HTMLElement | null },
@@ -85,14 +88,74 @@ describe("Projects list", () => {
 		await page.unmount();
 	});
 
-	it("offers Ask Factory when there are no projects", async () => {
+	it("adds a project from the empty state's one button, and shows its row", async () => {
+		inApp();
 		const page = await renderSettingsPage(settingsPage, {
 			shell: { projects: [], projectsSummary: summary([]) },
+			client: {
+				pickFolder: async () => "/Users/me/code/todo-app/src",
+				addProject: async () => ({
+					workspaceRoot: "/Users/me/code/todo-app",
+					added: true,
+				}),
+			},
 		});
 		expect(page.text()).toContain("No projects yet.");
-		await click(page.buttons("Ask Factory")[0]);
-		expect(page.shell.newWork).toHaveBeenCalledTimes(1);
+		expect(page.buttons("Add project…")).toHaveLength(1);
+		await click(page.buttons("Add project…")[0]);
+		expect(page.shell.client.addProject).toHaveBeenCalledWith(
+			"/Users/me/code/todo-app/src",
+		);
+		expect(page.row("project-todo-app")?.textContent).toContain(
+			"~/code/todo-app",
+		);
+		expect(page.shell.projectsSummary.reload).toHaveBeenCalled();
+		expect(page.buttons("Add project…")).toHaveLength(1);
 		expect(deadRows(page.container)).toEqual([]);
+		await page.unmount();
+	});
+
+	it("offers the path field at once where no folder dialog can open, and nothing when the dialog is cancelled", async () => {
+		const page = await renderSettingsPage(settingsPage, {
+			shell: { projects: [], projectsSummary: summary([]) },
+			client: { pickFolder: async () => null },
+		});
+		const pathField = () =>
+			page.container.querySelector<HTMLInputElement>(
+				'input[aria-label="Project folder"]',
+			);
+		await click(page.buttons("Add project…")[0]);
+		expect(page.shell.client.pickFolder).not.toHaveBeenCalled();
+		expect(document.activeElement).toBe(pathField());
+		await page.unmount();
+
+		inApp();
+		const cancelled = await renderSettingsPage(settingsPage, {
+			shell: { projects: [], projectsSummary: summary([]) },
+			client: { pickFolder: async () => null },
+		});
+		await click(cancelled.buttons("Add project…")[0]);
+		expect(cancelled.shell.client.pickFolder).toHaveBeenCalledTimes(1);
+		expect(
+			cancelled.container.querySelector('input[aria-label="Project folder"]'),
+		).toBeNull();
+		expect(cancelled.container.querySelector('[role="alert"]')).toBeNull();
+		expect(cancelled.shell.client.addProject).not.toHaveBeenCalled();
+		await cancelled.unmount();
+	});
+
+	it("reads the projects again when the page opens, keeping the list up meanwhile", async () => {
+		const projectsSummary = summary([cline]);
+		const page = await renderSettingsPage(settingsPage, {
+			shell: { projectsSummary },
+		});
+		expect(projectsSummary.reload).toHaveBeenCalledTimes(1);
+		await page.rerender({
+			...page.shell,
+			projectsSummary: { ...projectsSummary, status: "loading" },
+		});
+		expect(page.row("project-cline")).not.toBeNull();
+		expect(page.buttons("Add project…")).toHaveLength(1);
 		await page.unmount();
 	});
 
@@ -200,6 +263,8 @@ describe("Project detail", () => {
 			shell: { projectsSummary },
 			focus: { project: cline.workspaceRoot },
 		});
+		// Opening the page read the projects once.
+		vi.mocked(projectsSummary.reload).mockClear();
 		await click(page.buttons("Forget approvals…")[0]);
 		expect(reset.mock.calls.map(([args]) => args)).toEqual([
 			{ what: "stage_trust", workspaceRoot: cline.workspaceRoot, dryRun: true },

@@ -8,7 +8,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createFactoryWorkflowRecipe } from "@cline/core";
-import { factoryWorkflowRecipeSchema } from "@cline/shared";
+import {
+	DEFAULT_FACTORY_AGENTS,
+	factoryWorkflowRecipeSchema,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type FactoryPresetSettings,
@@ -360,6 +363,23 @@ describe("Hands-off workflow and the Hub default", () => {
 		expect(
 			withBuiltInFactoryPresets({ factoryPresets: [renamed] }).factoryPresets,
 		).toEqual([renamed]);
+		// A saved copy of the earlier built-in, without a tester, keeps its
+		// config and revision: only the unsaved built-in gains the tester.
+		const savedWithoutTester = createFactoryWorkflowRecipe({
+			name: "Hands-off",
+			config: {
+				...fresh.factoryPresets?.[0]?.config,
+				agents: DEFAULT_FACTORY_AGENTS,
+			},
+		});
+		expect(fresh.factoryPresets?.[0]?.config.agents?.verifier).toEqual({});
+		expect(
+			resolveDefaultFactoryWorkflow({
+				factoryPresets: [savedWithoutTester],
+				factoryDefaultPreset: "Hands-off",
+			}),
+		).toEqual(savedWithoutTester);
+		expect(savedWithoutTester.config.agents?.verifier).toBeUndefined();
 	});
 
 	it("never adds the built-in spending limit to a saved workflow", () => {

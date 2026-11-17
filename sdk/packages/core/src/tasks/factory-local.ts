@@ -14,6 +14,7 @@ import {
 import { devNull, tmpdir } from "node:os";
 import path from "node:path";
 import {
+	type AgendaTaskRecord,
 	FACTORY_ARTIFACT_EXTENSIONS,
 	FACTORY_PUBLISH_FAILURE_PREFIX,
 	type FactoryArtifact,
@@ -22,6 +23,7 @@ import {
 	type FactoryWorkspace,
 	factoryArtifactPathProblem,
 	factoryCheckConfigurationFindings,
+	factoryDeliverable,
 	factoryWorkspaceSchema,
 } from "@cline/shared";
 import { z } from "zod";
@@ -518,7 +520,7 @@ export async function chooseFactoryPublishBase(input: {
 		runFactoryCommand({ cwd, file: "git", args, signal: input.signal });
 	if ((await run(["remote", "get-url", "origin"])).exitCode !== 0)
 		throw new FactoryPublishError(
-			"This project has no origin remote; add the GitHub remote as origin, or turn off draft PRs for this card.",
+			"This project has no origin remote; add the GitHub remote as origin, or choose Deliver on a branch.",
 		);
 	const unreachable = new FactoryDeferredError(
 		"Factory could not reach origin to read the branch to start from; it tries again on its own. If this lasts, check the network and the origin remote.",
@@ -1465,7 +1467,7 @@ export async function factoryOriginRepository(
 	const url = await read(["remote", "get-url", "origin"]);
 	if (url.exitCode !== 0)
 		throw new FactoryPublishError(
-			"This project has no origin remote; add the GitHub remote as origin, or turn off draft PRs for this card.",
+			"This project has no origin remote; add the GitHub remote as origin, or choose Deliver on a branch.",
 		);
 	let identity = parseFactoryGitHubRemote(url.stdout ?? url.output);
 	if (!identity) {
@@ -1477,7 +1479,7 @@ export async function factoryOriginRepository(
 	}
 	if (!identity)
 		throw new FactoryPublishError(
-			"This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or turn off draft PRs for this card.",
+			"This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or choose Deliver on a branch.",
 		);
 	return githubRepository(identity);
 }
@@ -1504,6 +1506,84 @@ export const FACTORY_CLOSED_PULL_REQUEST =
 /** Stops a card whose draft PR was merged, before anything is pushed again. */
 export const FACTORY_MERGED_PULL_REQUEST =
 	"The draft PR was merged. Start a new card for further changes.";
+
+/** How long the check before a paid session waits for each gh command. */
+export const FACTORY_PULL_REQUEST_CHECK_TIMEOUT_MS = 5_000;
+
+/**
+ * The one-sentence stop when gh is not installed or not signed in to
+ * `host`. Undefined when it is, and when gh did not answer in time or could
+ * not be run: that is not known, and the gh calls that follow decide.
+ */
+async function githubCliStop(input: {
+	cwd: string;
+	host: string;
+	signal?: AbortSignal;
+	timeoutMs?: number;
+}): Promise<FactoryPublishError | undefined> {
+	const gh = async (args: string[]) => {
+		try {
+			return await runFactoryCommand({ ...input, file: "gh", args });
+		} catch (error) {
+			input.signal?.throwIfAborted();
+			return (error as NodeJS.ErrnoException).code === "ENOENT"
+				? "missing"
+				: undefined;
+		}
+	};
+	const version = await gh(["--version"]);
+	if (!version || (version !== "missing" && version.timedOut)) return undefined;
+	if (version === "missing" || version.exitCode !== 0)
+		return new FactoryPublishError(
+			"The GitHub CLI (gh) is not installed; install it from https://cli.github.com, or choose Deliver on a branch.",
+		);
+	const auth = await gh(["auth", "status", "--hostname", input.host]);
+	if (!auth || auth === "missing" || auth.timedOut) return undefined;
+	// gh also fails here when it cannot reach GitHub (offline, an expired
+	// token it could not refresh): only its own "not logged in" answer is a
+	// sign-in the person must make; anything else is left to the publish step.
+	return auth.exitCode === 0 || !/not logged in/i.test(auth.output)
+		? undefined
+		: new FactoryPublishError(
+				`The GitHub CLI is not signed in to ${input.host}; run gh auth login (Factory settings → Connections shows when it is ready), or choose Deliver on a branch.`,
+			);
+}
+
+/**
+ * Whether a card that opens a PR can, from local facts and before any paid
+ * session: its project's origin is a GitHub repository and gh is installed
+ * and signed in to its host, the checks the publish step makes, with each gh
+ * command bounded by FACTORY_PULL_REQUEST_CHECK_TIMEOUT_MS. Resolves to the
+ * publish step's `FactoryPublishError`, or undefined when it can or gh did
+ * not answer (the publish step decides, as before). Undefined, without
+ * waiting, for a card that opens no PR (a PR review opens none). Writes
+ * nothing; nothing is fetched or pushed.
+ */
+export function factoryPullRequestStop(
+	task: Pick<AgendaTaskRecord, "factory" | "workspaceRoot">,
+	signal?: AbortSignal,
+): Promise<FactoryPublishError | undefined> | undefined {
+	const cwd = task.workspaceRoot;
+	if (
+		!cwd ||
+		!task.factory?.publishPullRequest ||
+		factoryDeliverable(task.factory) === "pr_review"
+	)
+		return undefined;
+	return factoryOriginRepository({ cwd, signal })
+		.then((repository) =>
+			githubCliStop({
+				cwd,
+				host: repository.host,
+				signal,
+				timeoutMs: FACTORY_PULL_REQUEST_CHECK_TIMEOUT_MS,
+			}),
+		)
+		.catch((error: unknown) => {
+			signal?.throwIfAborted();
+			return error instanceof FactoryPublishError ? error : undefined;
+		});
+}
 
 /**
  * The branch a Factory PR targets, checked before anything is pushed. The
@@ -1538,21 +1618,12 @@ export async function resolveFactoryPullRequestBase(input: {
 		cwd,
 		signal: input.signal,
 	});
-	const gh = await run("gh", ["--version"]);
-	if (gh?.exitCode !== 0)
-		throw new FactoryPublishError(
-			"The GitHub CLI (gh) is not installed; install it from https://cli.github.com, or turn off draft PRs for this card.",
-		);
-	const auth = await run("gh", [
-		"auth",
-		"status",
-		"--hostname",
-		repository.host,
-	]);
-	if (auth?.exitCode !== 0)
-		throw new FactoryPublishError(
-			`The GitHub CLI is not signed in to ${repository.host}; run gh auth login, then try again.`,
-		);
+	const cli = await githubCliStop({
+		cwd,
+		host: repository.host,
+		signal: input.signal,
+	});
+	if (cli) throw cli;
 	const unreachable = (output: string) =>
 		new Error(`Could not reach origin to check the base branch: ${output}`);
 	const listed = await run("git", [

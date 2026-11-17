@@ -151,6 +151,7 @@ import {
 	chooseFactoryPublishBase,
 	factoryBranchName,
 	factoryCheckConfigurationFindings,
+	factoryPullRequestStop,
 	prepareFactoryWorkspace,
 	removeFactoryReviewWorkspace,
 	runFactoryCommand,
@@ -3575,6 +3576,26 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			throw new Error(
 				"Replay inputs are fixed to the source run. Start a new comparison to change them.",
 			);
+		// Turning off draft PRs changes only how the result is delivered: a
+		// settled plan, and its approval, stand for the new revision.
+		const settled =
+			current.factoryDesignProgress?.revision === current.revision &&
+			current.factoryDesignProgress.phase === "complete" &&
+			!current.factoryDesignProgress.split
+				? current.factoryDesignProgress
+				: undefined;
+		const keptPlan =
+			settled &&
+			current.factory?.publishPullRequest &&
+			input.factory?.publishPullRequest === false &&
+			(input.instructions === undefined ||
+				input.instructions.trim() === current.instructions.trim()) &&
+			JSON.stringify({ ...input.factory, publishPullRequest: true }) ===
+				JSON.stringify(current.factory)
+				? { ...settled, revision: current.revision + 1 }
+				: undefined;
+		const keptApproval =
+			keptPlan !== undefined && current.approvedRevision === current.revision;
 		const desired = mergedEditableTask(current, input);
 		assertFutureExpiry(desired.expiresAt);
 		const location = normalizeAgendaTaskLocation(desired);
@@ -3631,7 +3652,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				expectedContentHash,
 				createOnly: !staysInSameStore,
 			});
-			updated = this.store.updateTask(normalizedInput, designProgress);
+			updated = this.store.updateTask(
+				normalizedInput,
+				designProgress ?? keptPlan,
+			);
 		} catch (error) {
 			try {
 				if (spec && staysInSameStore && current.specPath) {
@@ -3656,8 +3680,8 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		const normalized = this.store.updateTaskState(
 			updated.taskId,
 			{
-				status: "pending_approval",
-				approvedRevision: null,
+				status: keptApproval ? "approved" : "pending_approval",
+				approvedRevision: keptApproval ? updated.revision : null,
 				currentRunId: null,
 				specPath: spec.specPath,
 				error: null,
@@ -3691,6 +3715,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.expireTask(task);
 		if (input.updatedBy.kind === "user")
 			this.queueFactoryScopingAfterEdit(task, input.updatedBy);
+		if (keptApproval)
+			this.queueFactoryExecution(
+				task,
+				input.updatedBy,
+				input.updatedBy.clientId,
+			);
 		this.queueAutomation();
 		return this.requireTask(input.taskId);
 	}
@@ -4240,6 +4270,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		requestedByClientId?: string,
 	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }> {
 		this.assertUsable();
+		// First, so the checks below read the card as it is after any wait.
+		const known = this.store.getTask(taskId);
+		const publishCheck = known && factoryPullRequestStop(known);
+		const publishStop = publishCheck && (await publishCheck);
 		const current = await this.refreshAndVerifyTaskIntent(taskId);
 		this.assertRevision(current, expectedRevision);
 		if (current.factory) {
@@ -4267,6 +4301,18 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 		if (current.approvedRevision !== current.revision) {
 			throw new Error(`task ${taskId} approval is stale`);
+		}
+		// Before any paid session, as at scoping: the project may have changed
+		// since. The card stops without a run; Try again checks again.
+		if (publishStop && current.factory?.publishPullRequest) {
+			this.store.dequeueFactory(taskId);
+			const stopped = this.store.updateTaskState(
+				taskId,
+				{ status: "failed", error: publishStop.message, updatedBy: actor },
+				current.revision,
+			);
+			if (stopped) this.publish("task.updated", stopped);
+			throw publishStop;
 		}
 		if (this.activeRuns.has(taskId) || current.currentRunId) {
 			throw new Error(`task ${taskId} already has an active run`);
@@ -4796,6 +4842,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		resume = false,
 	): Promise<{ sessionId: string }> {
 		this.assertUsable();
+		// First, so the checks below read the card as it is after any wait.
+		const publishCheck = factoryPullRequestStop(this.requireTask(taskId));
+		const publishStop = publishCheck && (await publishCheck);
 		let task = this.requireTask(taskId);
 		if (!task.factory)
 			throw new Error("Only feature tasks have a design interview");
@@ -4828,15 +4877,19 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			limitCheck instanceof Promise ? await limitCheck : limitCheck;
 		const started = this.designSessions.get(taskId);
 		if (started) return started;
-		if (spendingLimit) {
+		// Before any paid session: a card whose project cannot open its PR stops.
+		const cannotPublish = task.factory.publishPullRequest
+			? publishStop
+			: undefined;
+		if (spendingLimit || cannotPublish) {
 			this.store.dequeueFactory(taskId);
 			const waiting = this.store.updateTaskState(
 				taskId,
-				{ error: spendingLimit },
+				{ error: spendingLimit ?? cannotPublish?.message },
 				task.revision,
 			);
 			if (waiting) this.publish("task.updated", waiting);
-			throw new Error(spendingLimit);
+			throw spendingLimit ? new Error(spendingLimit) : cannotPublish;
 		}
 		task = this.requireTask(taskId);
 		if (!task.factory)

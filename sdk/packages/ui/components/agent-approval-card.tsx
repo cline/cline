@@ -13,6 +13,9 @@ export interface AgentApprovalCardProps {
 	onReject: () => void;
 	responding?: AgentApprovalAction;
 	title: ReactNode;
+	/** The buttons' words when the question names its own answers ("Add", "Not now"). */
+	approveLabel?: string;
+	rejectLabel?: string;
 }
 
 function Spinner() {
@@ -36,6 +39,8 @@ export function AgentApprovalCard({
 	onReject,
 	responding,
 	title,
+	approveLabel = "Approve",
+	rejectLabel = "Reject",
 }: AgentApprovalCardProps) {
 	const titleId = useId();
 	const isPending = responding !== undefined;
@@ -85,7 +90,7 @@ export function AgentApprovalCard({
 							Approving...
 						</>
 					) : (
-						"Approve"
+						approveLabel
 					)}
 				</button>
 				<button
@@ -100,7 +105,7 @@ export function AgentApprovalCard({
 							Rejecting...
 						</>
 					) : (
-						"Reject"
+						rejectLabel
 					)}
 				</button>
 			</div>

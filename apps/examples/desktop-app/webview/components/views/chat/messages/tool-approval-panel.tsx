@@ -95,21 +95,31 @@ export function ToolApprovalPanel({
 }
 
 /**
- * Ask Factory's priority change that needs the user's word (Urgent, or a
- * priority the user set): the Hub's question and its from → to line.
+ * An Ask Factory question that needs the user's word: a priority change
+ * (Urgent, or a priority the user set) with its from → to line, or adding a
+ * project. The Hub writes the question and its one-line summary.
  */
-function factoryPriorityApproval(
-	item: ToolApprovalRequestItem,
-): { question: string; summary: string } | undefined {
-	if (item.toolName !== "factory_status") return undefined;
+function factoryQuestionApproval(item: ToolApprovalRequestItem):
+	| {
+			question: string;
+			summary: string;
+			approveLabel?: string;
+			rejectLabel?: string;
+	  }
+	| undefined {
 	const input = item.input as Record<string, unknown> | null | undefined;
-	if (
-		input?.action !== "priority" ||
-		typeof input.question !== "string" ||
-		typeof input.summary !== "string"
-	)
+	if (typeof input?.question !== "string" || typeof input.summary !== "string")
 		return undefined;
-	return { question: input.question, summary: input.summary };
+	if (item.toolName === "factory_status" && input.action === "priority")
+		return { question: input.question, summary: input.summary };
+	if (item.toolName === "factory_add_project" && input.action === "add_project")
+		return {
+			question: input.question,
+			summary: input.summary,
+			approveLabel: "Add",
+			rejectLabel: "Not now",
+		};
+	return undefined;
 }
 
 function GenericToolApprovalPanel({
@@ -138,6 +148,7 @@ function GenericToolApprovalPanel({
 				{items.map((item) => {
 					const pendingAction = pendingActions[item.requestId];
 					const error = requestErrors[item.requestId];
+					const question = factoryQuestionApproval(item);
 					return (
 						<AgentApprovalCard
 							description={
@@ -148,10 +159,7 @@ function GenericToolApprovalPanel({
 										: ""}
 								</>
 							}
-							detail={
-								factoryPriorityApproval(item)?.summary ??
-								formatApprovalInput(item.input)
-							}
+							detail={question?.summary ?? formatApprovalInput(item.input)}
 							error={error}
 							key={item.requestId}
 							meta={
@@ -169,7 +177,9 @@ function GenericToolApprovalPanel({
 										? "reject"
 										: undefined
 							}
-							title={factoryPriorityApproval(item)?.question ?? item.toolName}
+							title={question?.question ?? item.toolName}
+							approveLabel={question?.approveLabel}
+							rejectLabel={question?.rejectLabel}
 						/>
 					);
 				})}

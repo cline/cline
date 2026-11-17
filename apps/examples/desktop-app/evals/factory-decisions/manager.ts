@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
 	AgendaTaskManager,
+	createFactoryAddProjectTool,
 	createFactoryGuidanceTool,
 	createFactoryListTool,
 	createFactoryManagerGuidanceExtension,
@@ -237,6 +238,13 @@ export async function runManagerTrial(
 								listProjects,
 								confirm: declined,
 							}) as AgentTool,
+							// Declined, so nothing is ever added.
+							createFactoryAddProjectTool({
+								resolveManagerSession,
+								listProjects,
+								addProject: async () => undefined,
+								confirm: declined,
+							}),
 						].map(record),
 						isManagerSession: async () => true,
 						readme: () => readFactoryManagerReadme(guidance).block,

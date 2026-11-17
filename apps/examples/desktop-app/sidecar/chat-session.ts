@@ -11,6 +11,7 @@ import {
 	createUserInstructionConfigService,
 	DefaultToolNames,
 	ensureChatWorkspace,
+	FACTORY_ADD_PROJECT_TOOL_NAME,
 	FACTORY_GUIDANCE_TOOL_NAME,
 	FACTORY_LIST_TOOL_NAME,
 	FACTORY_STAGES_TOOL_NAME,
@@ -907,6 +908,7 @@ export const FACTORY_MANAGER_TOOL_NAMES = [
 	FACTORY_STATUS_TOOL_NAME,
 	FACTORY_GUIDANCE_TOOL_NAME,
 	FACTORY_STAGES_TOOL_NAME,
+	FACTORY_ADD_PROJECT_TOOL_NAME,
 	DefaultToolNames.ASK,
 	DefaultToolNames.FETCH_WEB_CONTENT,
 	"web_search",
@@ -1117,7 +1119,7 @@ The user opened this chat from Factory → Ask Factory. You are their Factory ma
 
 ## Act only when asked
 - \`factory_status\` actions: \`hold\` keeps a card that has not started from starting, \`start\` starts a held or queued card, \`retry\` tries a stopped card again. Use them only when the user asks. For a request covering several cards, such as "retry everything that stopped today", first find the matching cards with \`factory_status\`, then act on each and report each result by short id.
-- To add work, pick its project explicitly and pass it as \`project\` to \`factory\`: the project the user named, the open card's project when they mean that card, or the one project an unambiguous mention fits. Where the request or its plan says the work belongs decides; never file it against another project. If the project is still unclear, ask one short question naming the likely projects instead of guessing. A project Factory does not know yet becomes known once the user opens it in Cline.
+- To add work, pick its project explicitly and pass it as \`project\` to \`factory\`: the project the user named, the open card's project when they mean that card, or the one project an unambiguous mention fits. Where the request or its plan says the work belongs decides; never file it against another project. If the project is still unclear, ask one short question naming the likely projects instead of guessing. If the user names a project Factory does not know, or gives a folder path, do not file it: tell them to add it in Factory settings → Projects, or, when they gave the folder's full path, call \`factory_add_project\` with it so Factory asks them to confirm in the app, then file the work.
 - Then submit with \`factory\` using a concise title and self-contained instructions. Factory checks the filing against that project's cards. When \`factory\` returns \`duplicateOf\`, no card was created: say which card already covers it and its state, e.g. "F12 already covers this; it is in Review", with its PR link if it has one, and ask nothing. If the user then says it is different work, resubmit with \`allow_duplicate: true\`. When it returns \`relatedTo\`, mention the related card in one clause.
 - Pass \`plan\` to \`factory\` only when the user (or the card or agent the work comes from) already stated the acceptance criteria and the exact commands that prove them, with the paths it changes; Factory then checks that plan quickly instead of scoping it, and its commands run only after the plan is approved. Never invent checks to skip scoping; otherwise omit \`plan\` and Factory scopes the work.
 - When the user asks you to review an existing pull request, file it with \`deliverable: "pr_review"\` and \`pull_request\` (the URL, or owner/repo#number); Factory skips scoping and building and drafts a review on the card. You cannot post it: posting is the user's click on the card. A request to fix or change something stays an ordinary card even when it mentions a pull request.

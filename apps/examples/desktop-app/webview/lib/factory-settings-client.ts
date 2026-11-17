@@ -416,6 +416,14 @@ export const factorySettingsClient = {
 			userGuidanceChanged: reply?.userGuidanceChanged ?? [],
 		};
 	},
+	/** Adds the git repository a folder is in; `added` is false when Factory already knew it. */
+	addProject: (workspaceRoot: string) =>
+		call<{ workspaceRoot: string; added: boolean }>("factory_add_project", {
+			workspaceRoot,
+		}),
+	/** The app's folder dialog; null when the person cancels. Throws when there is none. */
+	pickFolder: () =>
+		desktopClient.invoke<string | null>("pick_workspace_directory", {}),
 	getConnections: (refresh = false) =>
 		call<FactoryConnections>(
 			"factory_get_connections",

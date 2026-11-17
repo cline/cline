@@ -405,6 +405,18 @@ describe("Roles & models: an expanded role", () => {
 });
 
 describe("Roles & models: tester, warnings and review rules", () => {
+	it("shows the built-in default workflow's tester on, with the default model", async () => {
+		const page = await renderSettingsPage(settingsPage);
+		expect(
+			page.row("verifier")?.querySelector<HTMLInputElement>('[role="switch"]')
+				?.checked,
+		).toBe(true);
+		expect(
+			page.row("verifier")?.querySelector("fieldset")?.getAttribute("title"),
+		).toBe("Default model");
+		await page.unmount();
+	});
+
 	it("turns the tester off and on", async () => {
 		const page = await render();
 		await click(page.row("verifier")?.querySelector('[role="switch"]'));

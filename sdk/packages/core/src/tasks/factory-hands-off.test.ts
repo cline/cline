@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import {
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	realpathSync,
 	rmSync,
 	writeFileSync,
@@ -898,11 +899,11 @@ describe("run completion", () => {
 		expect(filed[0]).toMatchObject({
 			createdBy: { kind: "system", id: "factory_repo_rules" },
 			originTaskId: second.taskId,
-			// This harness's designer gives no plan for the rule card: its
-			// scoping stops after the designer's bounded retries.
+			// It opens a draft PR and this harness's project has no origin, so
+			// it stops before any scoping session.
 			status: "failed",
 			error: expect.stringMatching(
-				/^Design did not complete: Designer recovery limit/,
+				/^Could not open the draft PR: This project has no origin remote/,
 			),
 			factory: {
 				autonomy: "hands_off",
@@ -1273,14 +1274,23 @@ describe("safety gates", () => {
 
 	it("leaves queued cards waiting when origin cannot be reached, trying one card per project", async () => {
 		const h = await harness({ planReviewers: 0 });
-		execFileSync("git", [
-			"-C",
-			h.workspaceRoot,
-			"remote",
-			"add",
-			"origin",
-			join(h.workspaceRoot, "..", "missing.git"),
-		]);
+		// A GitHub origin served from a repository that does not exist; gh is signed in.
+		const origin = "https://github.com/o/r.git";
+		const git = (...args: string[]) =>
+			execFileSync("git", ["-C", h.workspaceRoot, ...args]);
+		git("remote", "add", "origin", origin);
+		git(
+			"config",
+			`url.${join(h.workspaceRoot, "..", "missing.git")}.insteadOf`,
+			origin,
+		);
+		const bin = join(h.workspaceRoot, "..", "bin");
+		mkdirSync(bin);
+		writeFileSync(join(bin, "gh"), "#!/bin/sh\n", { mode: 0o755 });
+		vi.stubEnv("PATH", `${bin}:${process.env.PATH ?? ""}`);
+		disposals.push(async () => {
+			vi.unstubAllEnvs();
+		});
 		const workflow = vi.spyOn(factoryWorkflow, "runFactoryWorkflow");
 		const cards: AgendaTaskRecord[] = [];
 		for (const title of ["First", "Second"]) {
@@ -1785,5 +1795,201 @@ describe("settings and daily limit fail closed", () => {
 		await h.manager.queueFactoryScoping(task.taskId);
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+	});
+});
+
+describe("a project that cannot open the draft PR", () => {
+	const NOT_GITHUB =
+		"Could not open the draft PR: This project's origin remote is not a GitHub repository; set origin to the GitHub repository the draft PR belongs to, or choose Deliver on a branch.";
+	const SIGNED_OUT =
+		"Could not open the draft PR: The GitHub CLI is not signed in to github.com; run gh auth login (Factory settings → Connections shows when it is ready), or choose Deliver on a branch.";
+
+	/**
+	 * Gives the project `origin` (when named) and puts a fake gh on PATH whose
+	 * `auth status` answers as `gh` says. Returns gh's calls.
+	 */
+	function project(
+		h: Harness,
+		origin: string | undefined,
+		gh: "signed in" | "signed out" | "slow" = "signed in",
+	) {
+		const bin = join(h.workspaceRoot, "..", "bin");
+		const log = join(bin, "calls.log");
+		mkdirSync(bin, { recursive: true });
+		if (origin)
+			execFileSync("git", [
+				"-C",
+				h.workspaceRoot,
+				"remote",
+				"add",
+				"origin",
+				origin,
+			]);
+		const auth =
+			gh === "signed out"
+				? 'echo "You are not logged into any accounts on github.com" >&2; exit 1'
+				: gh === "slow"
+					? "sleep 10"
+					: "exit 0";
+		writeFileSync(
+			join(bin, "gh"),
+			`#!/bin/sh\necho "$@" >> "${log}"\nif [ "$1" = auth ]; then ${auth}; fi\n`,
+			{ mode: 0o755 },
+		);
+		vi.stubEnv("PATH", `${bin}:${process.env.PATH ?? ""}`);
+		disposals.push(async () => {
+			vi.unstubAllEnvs();
+		});
+		return () =>
+			readFileSync(log, { encoding: "utf8", flag: "a+" })
+				.split("\n")
+				.filter(Boolean);
+	}
+
+	/** The person turns off draft PRs in the card's configuration. */
+	function turnOffDraftPrs(h: Harness, card: AgendaTaskRecord) {
+		if (!card.factory) throw new Error("Not a Factory card");
+		return h.manager.updateTask({
+			taskId: card.taskId,
+			expectedRevision: card.revision,
+			factory: { ...card.factory, publishPullRequest: false },
+			updatedBy: { kind: "user" },
+		});
+	}
+
+	/** A card that opens a draft PR, queued for scoping, with Factory started. */
+	async function queued(h: Harness, factory: Record<string, unknown> = {}) {
+		const card = await h.create(
+			"Save the form",
+			{ publishPullRequest: true, ...factory },
+			{ kind: "user" },
+			true,
+		);
+		await h.manager.start();
+		return card;
+	}
+
+	it("stops a card whose origin is not on GitHub before any scoping session, and scopes it once draft PRs are off", async () => {
+		const h = await harness();
+		project(h, "/srv/git/widgets.git");
+		const card = await queued(h);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).status).toBe("failed"),
+		);
+		const stopped = await h.get(card.taskId);
+		expect(stopped.error).toBe(NOT_GITHUB);
+		expect(stopped.factoryQueued).toBeUndefined();
+		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+		expect(
+			factoryStatusCardState(
+				stopped,
+				undefined,
+				h.manager.getFactoryQueueState(),
+			),
+		).toMatchObject({
+			kind: "stopped",
+			waitingOn: "person",
+			reasonCode: "publish_failed",
+			stage: "scope",
+		});
+
+		// With draft PRs off for this card, it scopes.
+		await turnOffDraftPrs(h, stopped);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).factoryDesignProgress?.phase).toBe(
+				"complete",
+			),
+		);
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
+		expect((await h.get(card.taskId)).error).toBeUndefined();
+	});
+
+	it("scopes a stopped card the user asks the manager chat to deliver on a branch", async () => {
+		const h = await harness();
+		project(h, "/srv/git/widgets.git");
+		const card = await queued(h);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).error).toBe(NOT_GITHUB),
+		);
+		const result = await createFactoryStatusTool({
+			manager: h.manager,
+			resolveSessionDefaults: async () => ({
+				workspaceRoot: h.workspaceRoot,
+				manager: true,
+			}),
+		}).execute({ task_id: card.taskId, action: "deliver_on_branch" } as never, {
+			agentId: "manager-agent",
+			iteration: 1,
+			sessionId: "manager-1",
+		});
+		expect(result).toMatchObject({ ok: true });
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).factoryDesignProgress?.phase).toBe(
+				"complete",
+			),
+		);
+		expect((await h.get(card.taskId)).factory?.publishPullRequest).toBe(false);
+	});
+
+	it("stops it with where to sign in when gh is signed out", async () => {
+		const h = await harness();
+		project(h, "https://github.com/o/r.git", "signed out");
+		const card = await queued(h);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).error).toBe(SIGNED_OUT),
+		);
+		expect(h.runtime.startDesignSession).not.toHaveBeenCalled();
+	});
+
+	it("scopes when gh does not answer in time, leaving it to the draft PR step", async () => {
+		const h = await harness();
+		project(h, "https://github.com/o/r.git", "slow");
+		await queued(h);
+		await vi.waitFor(
+			() => expect(h.runtime.startDesignSession).toHaveBeenCalled(),
+			{ timeout: 10_000 },
+		);
+	}, 20_000);
+
+	it("never checks a card that does not open a draft PR", async () => {
+		const h = await harness();
+		const calls = project(h, "/srv/git/widgets.git", "signed out");
+		const card = await queued(h, { publishPullRequest: false });
+		await vi.waitFor(() =>
+			expect(h.runtime.startDesignSession).toHaveBeenCalled(),
+		);
+		expect((await h.get(card.taskId)).error).toBeUndefined();
+		expect(calls()).toEqual([]);
+	});
+
+	it("checks again before a run, and an approved plan runs without scoping again once draft PRs are off", async () => {
+		const h = await harness({ planReviewers: 0 });
+		project(h, "https://github.com/o/r.git");
+		const runs = stubRuns(async () => ({
+			status: "completed",
+			summary: "done",
+		}));
+		const card = await h.designed(
+			await h.create("Save the form", { publishPullRequest: true }),
+		);
+		expect(card.factoryDesignProgress?.phase).toBe("complete");
+		// Signed out after the plan was made.
+		project(h, undefined, "signed out");
+		await h.manager.start();
+		await h.manager.approveTask(card.taskId, { kind: "user" }, card.revision);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).status).toBe("failed"),
+		);
+		const stopped = await h.get(card.taskId);
+		expect(stopped.error).toBe(SIGNED_OUT);
+		expect(h.manager.getTaskRuns(card.taskId)).toEqual([]);
+		expect(runs).not.toHaveBeenCalled();
+
+		await turnOffDraftPrs(h, stopped);
+		await vi.waitFor(async () =>
+			expect((await h.get(card.taskId)).status).toBe("completed"),
+		);
+		expect(runs).toHaveBeenCalledTimes(1);
+		expect(h.runtime.startDesignSession).toHaveBeenCalledTimes(1);
 	});
 });

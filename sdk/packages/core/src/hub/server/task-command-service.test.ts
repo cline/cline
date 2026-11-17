@@ -25,6 +25,10 @@ import {
 } from "../../tasks/factory-guidance";
 import { FactoryReviewRefusal } from "../../tasks/factory-review-post";
 import { FileFactoryStageTrustStore } from "../../tasks/factory-stages";
+import {
+	factoryManagerProjects,
+	requireFactoryManagerProject,
+} from "../../tasks/factory-tool";
 import { createFactoryWorkflowRecipe } from "../../tasks/factory-workflow-recipe";
 import { HubAgendaTaskCommandService } from "./task-command-service";
 
@@ -2084,6 +2088,73 @@ describe("Factory settings commands", () => {
 			});
 		} finally {
 			await h.cleanup();
+		}
+	});
+});
+
+describe("task.factory.projects.add", () => {
+	it("adds a folder's git repository for the person, and Factory then knows it with no session there", async () => {
+		const root = mkdtempSync(join(tmpdir(), "factory-add-project-"));
+		try {
+			const repo = join(root, "todo-app");
+			mkdirSync(join(repo, "src"), { recursive: true });
+			execFileSync("git", ["init", "-q"], { cwd: repo });
+			const plain = join(root, "notes");
+			mkdirSync(plain);
+			const path = join(root, "defaults.json");
+			const store = new FileFactoryDefaultsStore(path);
+			// As the Hub wires it: the added projects are among the candidates.
+			const listProjects = () => store.getProjects();
+			const service = new HubAgendaTaskCommandService(
+				{} as AgendaTaskManagerApi,
+				store,
+				{ listProjects },
+			);
+			const scoped = {
+				clientId: "agent",
+				crossWorkspace: false,
+				workspaceContext: { workspaceRoot: plain, cwd: plain },
+			};
+			const trusted = { ...scoped, clientId: "desktop", crossWorkspace: true };
+			const add = (workspaceRoot: string, authority = trusted) =>
+				service.handleCommand(
+					envelope("task.factory.projects.add", { workspaceRoot }),
+					authority,
+				);
+
+			await expect(add(repo, scoped)).resolves.toMatchObject({
+				ok: false,
+				error: { code: "factory_settings_unauthorized" },
+			});
+			await expect(add(plain)).resolves.toMatchObject({
+				ok: false,
+				error: {
+					code: "factory_invalid_project",
+					message: expect.stringContaining("is not a git repository"),
+				},
+			});
+			expect(await store.getProjects()).toEqual([]);
+
+			// A folder inside the repository adds the repository's root.
+			await expect(add(join(repo, "src"))).resolves.toMatchObject({
+				ok: true,
+				payload: { workspaceRoot: repo, added: true },
+			});
+			await expect(add(repo)).resolves.toMatchObject({
+				ok: true,
+				payload: { workspaceRoot: repo, added: false },
+			});
+
+			// Kept across a restart, and named by the manager's tools.
+			const restarted = new FileFactoryDefaultsStore(path);
+			expect(factoryManagerProjects(await restarted.getProjects())).toEqual([
+				repo,
+			]);
+			await expect(
+				requireFactoryManagerProject(() => restarted.getProjects(), "todo-app"),
+			).resolves.toEqual({ workspaceRoot: repo, name: "todo-app" });
+		} finally {
+			rmSync(root, { recursive: true, force: true });
 		}
 	});
 });

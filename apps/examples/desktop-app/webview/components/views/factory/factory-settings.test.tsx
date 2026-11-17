@@ -14,7 +14,7 @@ import { FactorySettingsPage } from "./factory-settings";
 import { deadRows } from "./settings/test-utils";
 
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke: vi.fn() },
+	desktopClient: { invoke: vi.fn(), subscribe: vi.fn(() => () => {}) },
 }));
 const invoke = vi.mocked(desktopClient.invoke);
 
@@ -426,6 +426,30 @@ describe("FactorySettingsPage shell", () => {
 			"2 (2 guidance files changed outside Factory)",
 		);
 		expect(badge("automation")).toBeUndefined();
+	});
+
+	it("shows a project the manager chat added once its add finishes", async () => {
+		projectsReply = { projects: [], userGuidanceChanged: [] };
+		serve(handsOff());
+		await render({ projects: [], focus: { page: "projects" } });
+		expect(container.textContent).toContain("No projects yet.");
+		const [, onChatEvent] =
+			vi
+				.mocked(desktopClient.subscribe)
+				.mock.calls.findLast(([event]) => event === "chat_event") ?? [];
+		projectsReply = {
+			projects: [summary("/work/lib")],
+			userGuidanceChanged: [],
+		};
+		await act(async () =>
+			onChatEvent?.({
+				sessionId: "manager",
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({ toolName: "factory_add_project", output: {} }),
+			}),
+		);
+		await act(async () => {});
+		expect(row("project-lib")).not.toBeNull();
 	});
 
 	it("shows the last known values, read-only, while the Hub can't be reached", async () => {

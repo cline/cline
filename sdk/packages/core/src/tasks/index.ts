@@ -1,6 +1,7 @@
 export * from "./agenda-task-api";
 export * from "./agenda-task-manager";
 export * from "./agenda-task-tool";
+export * from "./factory-add-project-tool";
 export { FACTORY_BROWSERS_PATH_ENV } from "./factory-browser";
 export * from "./factory-defaults";
 export {

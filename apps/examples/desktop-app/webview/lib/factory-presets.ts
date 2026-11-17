@@ -32,7 +32,8 @@ export type FactoryPreset = z.infer<typeof factoryPresetSchema>;
  * workflow or chosen a default. Each card stops after $10, and review is
  * adaptive so the by-risk review policy (the hands-off default) knows each
  * change's impact; with fixed review every PR reads as "impact unknown" and
- * waits for the user.
+ * waits for the user. A default-model tester brings back screenshots and a
+ * recording of UI changes once the project has a test setup.
  */
 export const HANDS_OFF_PRESET_NAME = "Hands-off";
 export const HANDS_OFF_PRESET_CONFIG: FactoryWorkflowConfig =
@@ -40,7 +41,7 @@ export const HANDS_OFF_PRESET_CONFIG: FactoryWorkflowConfig =
 		autonomy: "hands_off",
 		approval: "automatic",
 		reviewMode: "adaptive",
-		agents: DEFAULT_FACTORY_AGENTS,
+		agents: { ...DEFAULT_FACTORY_AGENTS, verifier: {} },
 		maxCostUsd: FACTORY_CARD_COST_DEFAULT_USD,
 		maxRepairRounds: 2,
 	});

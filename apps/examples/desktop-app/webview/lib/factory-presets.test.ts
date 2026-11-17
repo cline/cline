@@ -12,6 +12,10 @@ describe("built-in Hands-off workflow", () => {
 		});
 	});
 
+	it("includes a default-model tester", () => {
+		expect(HANDS_OFF_PRESET_CONFIG.agents?.verifier).toEqual({});
+	});
+
 	it("relies on adaptive review: by-risk review without a recorded impact always waits for the user", () => {
 		expect(HANDS_OFF_PRESET_CONFIG.humanStamp).toBeUndefined();
 		expect(

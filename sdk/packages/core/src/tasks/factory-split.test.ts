@@ -83,10 +83,22 @@ async function harness(
 	writeFileSync(join(workspaceRoot, "README.md"), "base\n");
 	git(workspaceRoot, "add", ".");
 	git(workspaceRoot, "commit", "-q", "-m", "base");
-	// Draft PRs need an origin: a bare repository stands in for GitHub.
+	// Draft PRs need a GitHub origin: a bare repository serves it, and a
+	// signed-in gh stands in until a test installs its own (see `gh`).
+	const origin = "https://github.com/o/r.git";
 	git(root, "init", "-q", "--bare", "-b", "main", join(root, "origin.git"));
-	git(workspaceRoot, "remote", "add", "origin", join(root, "origin.git"));
+	git(workspaceRoot, "remote", "add", "origin", origin);
+	git(
+		workspaceRoot,
+		"config",
+		`url.${join(root, "origin.git")}.insteadOf`,
+		origin,
+	);
 	git(workspaceRoot, "push", "-q", "origin", "main");
+	mkdirSync(join(root, "bin"));
+	writeFileSync(join(root, "bin", "gh"), "#!/bin/sh\n");
+	chmodSync(join(root, "bin", "gh"), 0o755);
+	vi.stubEnv("PATH", `${join(root, "bin")}:${process.env.PATH ?? ""}`);
 	let designerCall = 0;
 	const runtime: AgendaTaskRuntime &
 		Required<Pick<AgendaTaskRuntime, "runDesignSession">> = {
@@ -220,7 +232,6 @@ async function harness(
 		base = "main",
 	) => {
 		const bin = join(root, "bin");
-		mkdirSync(bin, { recursive: true });
 		const log = join(root, "gh.log");
 		const answer =
 			state === "signed out"
@@ -233,11 +244,11 @@ async function harness(
 			`#!/bin/sh\necho "$@" >> "${log}"\n${answer}\n`,
 		);
 		chmodSync(join(bin, "gh"), 0o755);
-		vi.stubEnv("PATH", `${bin}:${process.env.PATH ?? ""}`);
+		// The pull request reads; the sign-in check before scoping is left out.
 		return () =>
 			readFileSync(log, { encoding: "utf8", flag: "a+" })
 				.split("\n")
-				.filter(Boolean);
+				.filter((line) => line && !/^(--version|auth status)/.test(line));
 	};
 	const internals = () =>
 		manager as unknown as {

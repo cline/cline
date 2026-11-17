@@ -79,6 +79,7 @@ export type HubCapabilityName =
 	| "task.factory.storage.clean"
 	| "task.factory.reset"
 	| "task.factory.projects.get"
+	| "task.factory.projects.add"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.get"
@@ -144,6 +145,7 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"task.factory.storage.clean",
 	"task.factory.reset",
 	"task.factory.projects.get",
+	"task.factory.projects.add",
 	"task.automation.get",
 	"task.automation.set",
 	"settings.get",
@@ -1048,6 +1050,8 @@ export interface HubCommandInputMap {
 		dryRun?: boolean;
 	};
 	"task.factory.projects.get": Record<string, never>;
+	/** A folder the person chose; its git repository becomes a project. */
+	"task.factory.projects.add": { workspaceRoot: string };
 	"task.automation.get": Record<string, never>;
 	"task.automation.set": HubTaskAutomationSetInput;
 }
@@ -1130,6 +1134,8 @@ export interface HubCommandOutputMap {
 		projects: HubFactoryProjectSummary[];
 		userGuidanceChanged: HubFactoryGuidanceRole[];
 	};
+	/** `added` is false when Factory already knew the repository. */
+	"task.factory.projects.add": { workspaceRoot: string; added: boolean };
 	"task.automation.get": { policy: AgendaAutomationPolicy };
 	"task.automation.set": { policy: AgendaAutomationPolicy };
 }
@@ -1241,6 +1247,7 @@ export type HubCommandName =
 	| "task.factory.storage.clean"
 	| "task.factory.reset"
 	| "task.factory.projects.get"
+	| "task.factory.projects.add"
 	| "task.automation.get"
 	| "task.automation.set"
 	| "settings.list"

@@ -872,7 +872,8 @@ export type FactorySettingsCommand =
 	| "factory_get_storage"
 	| "factory_clean_storage"
 	| "factory_reset"
-	| "factory_get_projects";
+	| "factory_get_projects"
+	| "factory_add_project";
 
 export type FactorySettingsHubCommand =
 	| "task.factory.guidance.get"
@@ -884,7 +885,8 @@ export type FactorySettingsHubCommand =
 	| "task.factory.storage.get"
 	| "task.factory.storage.clean"
 	| "task.factory.reset"
-	| "task.factory.projects.get";
+	| "task.factory.projects.get"
+	| "task.factory.projects.add";
 
 export const FACTORY_SETTINGS_COMMANDS: readonly FactorySettingsCommand[] = [
 	"factory_get_guidance",
@@ -897,6 +899,7 @@ export const FACTORY_SETTINGS_COMMANDS: readonly FactorySettingsCommand[] = [
 	"factory_clean_storage",
 	"factory_reset",
 	"factory_get_projects",
+	"factory_add_project",
 ];
 
 export function isFactorySettingsCommand(
@@ -1173,6 +1176,12 @@ const FACTORY_SETTINGS_ROUTES = {
 			userGuidanceChanged: z.array(guidanceRoleSchema),
 		}),
 	},
+	factory_add_project: {
+		hub: "task.factory.projects.add",
+		write: true,
+		input: z.object({ workspaceRoot: workspaceRootSchema }).strict(),
+		reply: z.object({ workspaceRoot: z.string(), added: z.boolean() }),
+	},
 } as const satisfies Record<
 	FactorySettingsCommand,
 	{
@@ -1279,6 +1288,7 @@ const FACTORY_SETTINGS_VERBS: Record<FactorySettingsCommand, string> = {
 	factory_clean_storage: "remove finished working copies",
 	factory_reset: "reset",
 	factory_get_projects: "read the projects",
+	factory_add_project: "add the project",
 };
 
 // ---------------------------------------------------------------------------

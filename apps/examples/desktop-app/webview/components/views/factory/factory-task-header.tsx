@@ -1078,6 +1078,11 @@ export function FactoryTaskHeader({
 	failure?: {
 		reason?: string;
 		onRetry?: () => void;
+		/**
+		 * The draft PR could not be opened: deliver on a branch instead.
+		 * `rebuilds` when a run of this plan already built it.
+		 */
+		deliverOnBranch?: { onDeliver: () => void; rebuilds: boolean };
 		/** The plan's checks are at fault: Try again sends it back to scoping. */
 		planFault?: boolean;
 		/** Factory already re-scoped once; only editing the plan fixes it. */
@@ -1512,6 +1517,7 @@ export function FactoryTaskHeader({
 							busy={busy}
 							summary={summary}
 							onRetry={failure?.onRetry}
+							deliverOnBranch={failure?.deliverOnBranch}
 							retryLabel={
 								factoryScopingStopped(task)
 									? FACTORY_CARD_ACTION.tryScopingAgain
@@ -1577,7 +1583,8 @@ export function FactoryTaskHeader({
  * quiet secondary ones. Working cards have none (the Agents tab is the
  * content); Needs review: Accept, with Factory's reason beside it and "Have
  * Factory fix" when there are findings; Stopped: Try again (Edit plan is in
- * More), or Edit plan when only editing fixes it; Not started: Start scoping;
+ * More; Deliver on a branch beside it when the draft PR could not open), or
+ * Edit plan when only editing fixes it; Not started: Start scoping;
  * Delivered: Open draft PR (Open PR once it is merged, closed or marked
  * ready), or View changes when there is no PR.
  */
@@ -1671,6 +1678,7 @@ function CardActions({
 	busy,
 	summary,
 	onRetry,
+	deliverOnBranch,
 	retryLabel,
 	onEditPlan,
 	onArchive,
@@ -1687,6 +1695,7 @@ function CardActions({
 	busy: boolean;
 	summary: Summary;
 	onRetry?: () => void;
+	deliverOnBranch?: { onDeliver: () => void; rebuilds: boolean };
 	retryLabel: string;
 	onEditPlan?: () => void;
 	/** A stopped card's quiet Archive, beside its primary action. */
@@ -1715,6 +1724,23 @@ function CardActions({
 	let primary: ReactNode = null;
 	const secondary: ReactNode[] = [];
 	let beside: string | undefined;
+	if (summary.stopped && onRetry && deliverOnBranch)
+		secondary.push(
+			<Button
+				key="branch"
+				size="sm"
+				variant="outline"
+				disabled={busy}
+				title={
+					deliverOnBranch.rebuilds
+						? FACTORY_CARD_ACTION.deliverOnBranchRebuilds
+						: FACTORY_CARD_ACTION.deliverOnBranchHint
+				}
+				onClick={deliverOnBranch.onDeliver}
+			>
+				{FACTORY_CARD_ACTION.deliverOnBranch}
+			</Button>,
+		);
 	if (summary.stopped && onArchive)
 		secondary.push(
 			<Button

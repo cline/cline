@@ -1695,6 +1695,7 @@ describe("Factory safety gates", () => {
 			autonomy: "hands_off",
 			approval: "automatic",
 			maxCostUsd: 10,
+			agents: { verifier: {} },
 		});
 		expect(factoryCardCostLimitUsd({ autonomy: "hands_off" })).toBe(10);
 		expect(

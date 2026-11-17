@@ -113,7 +113,7 @@ describe("Workflows page", () => {
 		expect(names).toEqual(["Hands-off", "Careful", "Small fixes"]);
 		expect(rowOf(page, "Hands-off")?.textContent).toContain("Built in");
 		expect(rowOf(page, "Hands-off")?.textContent).toContain(
-			"Plans only when needed · 1 builder · tester off · $10 per card",
+			"Plans only when needed · 1 builder · tester on · $10 per card",
 		);
 		expect(rowOf(page, "Careful")?.textContent).toContain(
 			"Every plan waits · 1 builder · tester on · $25 per card",
