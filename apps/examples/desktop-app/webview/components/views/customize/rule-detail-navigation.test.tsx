@@ -40,6 +40,7 @@ vi.mock("@/lib/desktop-client", () => ({
 vi.mock("@/lib/marketplace", () => ({
 	fetchMarketplaceCatalog: mocks.catalog,
 	getCachedMarketplaceCatalog: () => null,
+	subscribeMarketplaceCatalog: () => () => {},
 }));
 
 const rule: RuleItem = {
