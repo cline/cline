@@ -85,6 +85,7 @@ export interface SessionCheckpointRestoreInput<
 	) => Promise<void>;
 	beginWorkspaceRestoreTransaction?: (
 		cwd: string,
+		checkpoint: CheckpointEntry,
 	) => Promise<WorktreeRestoreTransaction>;
 	retainCheckpointRefs?: (
 		cwd: string,
@@ -284,7 +285,7 @@ export class SessionVersioningService {
 				: beginWorktreeRestoreTransaction);
 		const transaction =
 			restoreWorkspace && beginWorkspaceRestoreTransaction
-				? await beginWorkspaceRestoreTransaction(plan.cwd)
+				? await beginWorkspaceRestoreTransaction(plan.cwd, plan.checkpoint)
 				: undefined;
 		let workspaceCommitted = false;
 		let startedSession:
