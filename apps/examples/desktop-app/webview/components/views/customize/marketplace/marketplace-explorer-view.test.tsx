@@ -2,6 +2,7 @@
 import { act, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { MarketplaceEntryDetailPage } from "./marketplace-entry-detail-page";
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ vi.mock("@/lib/use-composio-connections", () => ({
 vi.mock("@/lib/marketplace", () => ({
 	fetchMarketplaceCatalog: mocks.marketplace,
 	getCachedMarketplaceCatalog: () => null,
+	subscribeMarketplaceCatalog: () => () => {},
 }));
 vi.mock("./marketplace-skill-preview", () => ({
 	MarketplaceSkillPreview: ({ entry }: { entry: { name: string } }) => (
@@ -128,7 +130,11 @@ function SearchHost({
 	useEffect(() => {
 		onSummary?.({ query, count, loading, error });
 	}, [onSummary, query, count, loading, error]);
-	return <MarketplaceResults model={model} />;
+	return (
+		<ScrollArea>
+			{count > 0 || error ? <MarketplaceResults model={model} /> : null}
+		</ScrollArea>
+	);
 }
 
 /**
@@ -416,6 +422,7 @@ describe("Marketplace directory", () => {
 		const onOpenDetail = vi.fn();
 		await render({ typeFilter: "skill", onOpenDetail });
 		expect(addSkillButton()?.textContent).toBe("Install");
+		addSkillButton()?.focus();
 		await act(async () => addSkillButton()?.click());
 		expect(mocks.invoke).toHaveBeenCalledWith(
 			"install_marketplace_entry",
@@ -443,8 +450,103 @@ describe("Marketplace directory", () => {
 		const trigger = container.querySelector<HTMLButtonElement>(
 			'button[aria-label="View Example skill details"]',
 		);
+		expect(document.activeElement).toBe(trigger);
 		await act(async () => trigger?.click());
 		expect(onOpenDetail).toHaveBeenCalledExactlyOnceWith(exampleSkill, trigger);
+	});
+
+	it("keeps focus in search results when installation removes the last card", async () => {
+		mocks.configured = false;
+		mocks.marketplace.mockResolvedValue({ tags: [], entries: [exampleSkill] });
+		let finishInstall: () => void = () => {};
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "install_marketplace_entry"
+				? new Promise((resolve) => {
+						finishInstall = () => resolve({ message: "Installed" });
+					})
+				: Promise.resolve({ installedKeys: [] }),
+		);
+		await render({ searchResults: true, searchQuery: "example" });
+		addSkillButton()?.focus();
+		await act(async () => addSkillButton()?.click());
+		await act(async () => finishInstall());
+		expect(addSkillButton()).toBeNull();
+		expect(document.activeElement).toBe(
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
+		);
+	});
+
+	it.each([
+		"installed",
+		"failed",
+	])("preserves a newer detail and its focus when an earlier install is %s", async (outcome) => {
+		mocks.configured = false;
+		mocks.marketplace.mockResolvedValue({
+			tags: [],
+			entries: [exampleSkill, exampleMcp],
+		});
+		let finishInstall: () => void = () => {};
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "install_marketplace_entry"
+				? new Promise((resolve, reject) => {
+						finishInstall = () =>
+							outcome === "installed"
+								? resolve({ message: "Installed" })
+								: reject(new Error("Skill source unavailable"));
+					})
+				: Promise.resolve({ installedKeys: [] }),
+		);
+		await render();
+		addSkillButton()?.focus();
+		await act(async () => addSkillButton()?.click());
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>(
+					'button[aria-label="View Example server details"]',
+				)
+				?.click(),
+		);
+		const back = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Back to Browse"]',
+		);
+		back?.focus();
+		await act(async () => finishInstall());
+		expect(detailPage().textContent).toContain("Example server");
+		expect(document.activeElement).toBe(back);
+		if (outcome === "failed") {
+			expect(
+				container.querySelector(
+					'[data-marketplace-entry-key="skill:example-skill"]',
+				)?.textContent,
+			).toContain("Install failed");
+		}
+	});
+
+	it("keeps an inline failure on its card when focus moves to another result", async () => {
+		mocks.marketplace.mockResolvedValue({
+			tags: [],
+			entries: [exampleSkill, exampleMcp],
+		});
+		let failInstall: () => void = () => {};
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "install_marketplace_entry"
+				? new Promise((_, reject) => {
+						failInstall = () => reject(new Error("Skill source unavailable"));
+					})
+				: Promise.resolve({ installedKeys: [] }),
+		);
+		const onOpenDetail = vi.fn();
+		await render({ onOpenDetail });
+		addSkillButton()?.focus();
+		await act(async () => addSkillButton()?.click());
+		const nextCard = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="View Example server details"]',
+		);
+		nextCard?.focus();
+		await act(async () => failInstall());
+		expect(onOpenDetail).not.toHaveBeenCalled();
+		expect(document.activeElement).toBe(nextCard);
+		expect(container.textContent).toContain("Install failed");
 	});
 
 	it("disables inline Add until installed status is known", async () => {
@@ -1038,7 +1140,9 @@ describe("Integrated marketplace search", () => {
 		});
 		expect(container.querySelector("input")).toBeNull();
 		expect(container.querySelector('[role="radiogroup"]')).toBeNull();
-		expect(container.querySelector('[data-slot="scroll-area"]')).toBeNull();
+		expect(
+			container.querySelectorAll('[data-slot="scroll-area"]'),
+		).toHaveLength(1);
 		expect(container.textContent).toContain("GitHub skill");
 		expect(container.textContent).toContain("GitHub plugin");
 		expect(container.textContent).not.toContain("GitHub installed");

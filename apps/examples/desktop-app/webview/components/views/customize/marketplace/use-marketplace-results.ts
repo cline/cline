@@ -42,20 +42,35 @@ export function useMarketplaceResults({
 }) {
 	const directory = useMarketplaceDirectory();
 	const pendingInlineInstalls = useRef(
-		new Map<string, { entry: MarketplaceEntry; trigger: HTMLButtonElement }>(),
-	);
-	useEffect(() => {
-		for (const [key, { entry, trigger }] of pendingInlineInstalls.current) {
-			const state = directory.actionStates.get(key);
-			if (state?.status === "failed") {
-				pendingInlineInstalls.current.delete(key);
-				trigger.focus({ preventScroll: true });
-				onOpenDetail(entry, trigger);
-			} else if (state?.status === "installed") {
-				pendingInlineInstalls.current.delete(key);
+		new Map<
+			string,
+			{
+				entry: MarketplaceEntry;
+				trigger: HTMLButtonElement;
+				focusFallback: HTMLElement | null;
 			}
-		}
-	}, [directory.actionStates, onOpenDetail]);
+		>(),
+	);
+	const openDetails = (
+		entry: MarketplaceEntry,
+		trigger?: HTMLButtonElement,
+	) => {
+		pendingInlineInstalls.current.clear();
+		onOpenDetail(entry, trigger);
+	};
+	const installInline = (
+		entry: MarketplaceEntry,
+		trigger: HTMLButtonElement,
+	) => {
+		pendingInlineInstalls.current.set(entryKey(entry), {
+			entry,
+			trigger,
+			focusFallback: findScrollViewport(trigger),
+		});
+		// The Install button is disabled during the request and removed on success.
+		trigger.focus({ preventScroll: true });
+		void directory.install(entry);
+	};
 
 	const query = searchQuery;
 	const normalizedQuery = normalizeCustomizationQuery(query);
@@ -69,6 +84,40 @@ export function useMarketplaceResults({
 		true,
 		!searchResults,
 	);
+	useEffect(() => {
+		for (const [
+			key,
+			{ entry, trigger, focusFallback },
+		] of pendingInlineInstalls.current) {
+			const state = directory.actionStates.get(key);
+			if (state?.status === "failed") {
+				pendingInlineInstalls.current.delete(key);
+				// A failure belongs to its card once the user moves elsewhere.
+				if (
+					trigger.isConnected &&
+					trigger.ownerDocument.activeElement === trigger &&
+					!trigger.closest("[hidden], [inert]")
+				) {
+					onOpenDetail(entry, trigger);
+				}
+			} else if (state?.status === "installed") {
+				pendingInlineInstalls.current.delete(key);
+				// Search removes installed cards. Keep focus on the result area if
+				// removing the card left it on the document, without stealing focus.
+				if (
+					searchResults &&
+					!trigger.isConnected &&
+					trigger.ownerDocument.activeElement === trigger.ownerDocument.body &&
+					focusFallback?.isConnected &&
+					!focusFallback.closest("[hidden], [inert]")
+				) {
+					if (!focusFallback.hasAttribute("tabindex"))
+						focusFallback.tabIndex = -1;
+					focusFallback.focus({ preventScroll: true });
+				}
+			}
+		}
+	}, [directory.actionStates, onOpenDetail, searchResults]);
 	const isBrowseOverview =
 		!searchResults && typeFilter === null && !normalizedQuery && !selectedTag;
 	const viewAll = (type: MarketplaceTypeFilter) => {
@@ -182,8 +231,8 @@ export function useMarketplaceResults({
 	);
 	return {
 		directory,
-		pendingInlineInstalls,
-		openDetails: onOpenDetail,
+		installInline,
+		openDetails,
 		query,
 		typeFilter,
 		contentRef,
