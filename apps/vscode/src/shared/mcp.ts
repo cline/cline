@@ -30,11 +30,24 @@ export type McpServer = {
 
 export type McpOAuthAuthStatus = "authenticated" | "unauthenticated" | "pending"
 
+/**
+ * Server-declared behavior hints (MCP `ToolAnnotations`). A missing hint means
+ * the server said nothing, not that the tool is safe.
+ */
+export type McpToolAnnotations = {
+	title?: string
+	readOnlyHint?: boolean
+	destructiveHint?: boolean
+	idempotentHint?: boolean
+	openWorldHint?: boolean
+}
+
 export type McpTool = {
 	name: string
 	description?: string
 	inputSchema?: object
 	autoApprove?: boolean
+	annotations?: McpToolAnnotations
 	_meta?: Record<string, unknown>
 }
 

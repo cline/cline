@@ -753,7 +753,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 				});
 			},
 			onTeamEvent: (event: TeamEvent) => {
-				void this.eventBridge.handleTeamEvent(sessionId, event);
+				void this.eventBridge.handleTeamEvent(
+					sessionId,
+					bootstrap.config,
+					event,
+				);
 				bootstrap.config.onTeamEvent?.(event);
 			},
 			createSpawnTool: () =>
@@ -1431,6 +1435,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				success,
 				modelId: config.modelId,
 				provider: config.providerId,
+				mode: config.mode ?? "act",
 			});
 		}
 	}
