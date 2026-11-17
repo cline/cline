@@ -48,6 +48,7 @@ vi.mock("@/lib/marketplace", () => ({
 		tags: [{ id: "development", label: "Development", count: 1 }],
 	})),
 	getCachedMarketplaceCatalog: () => null,
+	subscribeMarketplaceCatalog: () => () => {},
 }));
 vi.mock("./marketplace/marketplace-skill-preview", () => ({
 	InstalledSkillPreview: ({ skillPath }: { skillPath: string }) => (
