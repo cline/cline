@@ -174,6 +174,24 @@ describe("McpHub.setPlanModeAccess", () => {
 		])
 	})
 
+	it("applies an override another window saved for a different server just before", async () => {
+		const other = {
+			name: "other",
+			config: JSON.stringify({ type: "stdio", command: "other", allowAllInPlanMode: true }),
+			status: "connected",
+			allowAllInPlanMode: true,
+			tools: [{ name: "write" }],
+		}
+		;(hub as any).connections.push({ server: other })
+		should(getPlanModeApproval("other__write", "plan", hub)).be.undefined()
+
+		// The settings file has no server-wide allow for `other`: it was revoked elsewhere.
+		await hub.setPlanModeAccess("ide", true, ["run"])
+
+		should(other.allowAllInPlanMode).be.false()
+		should(getPlanModeApproval("other__write", "plan", hub)).equal("ask")
+	})
+
 	it("rejects a server that is not in the settings file", async () => {
 		await should(hub.setPlanModeAccess("missing", true, ["run"])).be.rejectedWith(/not in the settings file/)
 		should(captureOverride.called).be.false()

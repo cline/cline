@@ -134,4 +134,16 @@ describe("McpHubToolProvider", () => {
 			expect(callTool.firstCall.args.slice(0, 2)).toEqual([servers[0].name, servers[0].tools[0].name])
 		}
 	})
+
+	it("keeps a name with the tool that has it when Plan mode hides that tool", async () => {
+		const getServers = () => [
+			{ name: "a", config: "{}", tools: [{ name: "b__c", annotations: { readOnlyHint: false } }] },
+			{ name: "a__b", config: "{}", tools: [{ name: "c" }] },
+		]
+		const provider = new McpHubToolProvider({ getServers } as never, { mode: "plan", limitMcpInPlanMode: true })
+
+		expect(await provider.listTools("a")).toEqual([])
+		// Otherwise an approval of a__b__c would name server `a` and offer to allow its tools.
+		expect(await provider.listTools("a__b")).toEqual([])
+	})
 })

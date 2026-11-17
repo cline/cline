@@ -1847,9 +1847,10 @@ export class McpHub {
 		})
 		this.recordSettingsFingerprint(mcpServers)
 
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		if (connection) {
-			McpHub.applyPlanModeOverrides(connection.server, mcpServers[serverName])
+		// The file is now recorded as seen in full, so every server takes its
+		// overrides from it: another window may have changed one just before.
+		for (const connection of this.connections) {
+			McpHub.applyPlanModeOverrides(connection.server, mcpServers[connection.server.name])
 		}
 		// A tool that was hidden from Plan mode becomes visible, or the reverse.
 		this.checkToolListChanged()
