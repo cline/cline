@@ -1,6 +1,6 @@
 import sinon from "sinon"
 import { describe, expect, it } from "vitest"
-import { McpHubToolProvider } from "./vscode-runtime-builder"
+import { createVscodeExtraTools, McpHubToolProvider } from "./vscode-runtime-builder"
 
 describe("McpHubToolProvider", () => {
 	it("forwards the agent abort signal to McpHub", async () => {
@@ -72,5 +72,25 @@ describe("McpHubToolProvider", () => {
 		})
 
 		expect(readResource.firstCall.args).toEqual(["weather", "ui://weather/view.html", controller.signal])
+	})
+
+	it("registers a name that two servers produce once, for the tool an approval names", async () => {
+		const tool = (name: string) => ({ name, inputSchema: { type: "object" } })
+		const first = { name: "a", config: "{}", tools: [tool("b__c"), tool("d")] }
+		const second = { name: "a__b", config: "{}", tools: [tool("c"), tool("e")] }
+
+		for (const servers of [
+			[first, second],
+			[second, first],
+		]) {
+			const callTool = sinon.stub().resolves({ content: [] })
+			const tools = await createVscodeExtraTools({ getServers: () => servers, callTool } as never, {})
+
+			expect(tools.map((registered) => registered.name).sort()).toEqual(["a__b__c", "a__b__e", "a__d"])
+			await tools
+				.find((registered) => registered.name === "a__b__c")
+				?.execute({}, { agentId: "agent", iteration: 1 } as never)
+			expect(callTool.firstCall.args.slice(0, 2)).toEqual([servers[0].name, servers[0].tools[0].name])
+		}
 	})
 })

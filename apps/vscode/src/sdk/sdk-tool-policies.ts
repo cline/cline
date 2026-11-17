@@ -1,6 +1,6 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { McpHub } from "@/services/mcp/McpHub"
-import { findMcpTools, getMcpSdkToolName } from "./mcp-sdk-tool-name"
+import { findMcpTool, getMcpSdkToolName } from "./mcp-sdk-tool-name"
 
 /**
  * Build SDK `toolPolicies` for tools governed by Cline's auto-approval UI.
@@ -59,7 +59,7 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.useBrowser
 	}
 
-	if (isMcpToolName(toolName) || (mcpHub && findMcpTools(toolName, mcpHub.getServers()).length > 0)) {
+	if (isMcpToolName(toolName) || (mcpHub && findMcpTool(toolName, mcpHub.getServers()) !== undefined)) {
 		// One global toggle governs all MCP tools; there is no per-tool opt-in.
 		return !!settings.actions.useMcp
 	}

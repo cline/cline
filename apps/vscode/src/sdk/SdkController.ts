@@ -64,7 +64,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
-import { findMcpTools } from "./mcp-sdk-tool-name"
+import { findMcpTool } from "./mcp-sdk-tool-name"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -1317,7 +1317,7 @@ export class Controller {
 	}
 
 	private findMcpTool(sdkToolName: string) {
-		return findMcpTools(sdkToolName, this.mcpHub.getServers())[0]
+		return findMcpTool(sdkToolName, this.mcpHub.getServers())
 	}
 
 	private getTaskModelId(): string | undefined {

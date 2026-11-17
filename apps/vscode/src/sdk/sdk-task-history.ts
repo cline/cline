@@ -16,7 +16,7 @@ import {
 	legacyApiHistoryToSdkMessages,
 	mergeLegacyUiMessagesWithResumedSdkMessages,
 } from "./legacy-task-handling"
-import { findMcpTools } from "./mcp-sdk-tool-name"
+import { findMcpTool } from "./mcp-sdk-tool-name"
 import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -529,7 +529,7 @@ export class SdkTaskHistory {
 				finalTurnCompleted: sdkRecord?.status === "completed",
 				// Relativize the absolute tool paths for display, same as the live path.
 				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
-				resolveMcpTool: (sdkToolName) => findMcpTools(sdkToolName, this.options.mcpHub.getServers())[0],
+				resolveMcpTool: (sdkToolName) => findMcpTool(sdkToolName, this.options.mcpHub.getServers()),
 			},
 		)
 		if (sdkRecord && legacyTask) {
