@@ -1242,26 +1242,37 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
-function routineScheduleTiming(args?: Record<string, unknown>):
+function routineScheduleOptions(args?: Record<string, unknown>):
 	| {
 			cronPattern: string;
 			timezone?: string;
-			metadata?: Record<string, number>;
+			metadata?: Record<string, string | number>;
 	  }
 	| undefined {
+	const metadata =
+		typeof args?.description === "string"
+			? { description: args.description.trim() }
+			: undefined;
 	if (args?.schedule_type === "once") {
 		const runAt =
 			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
 		return Number.isFinite(runAt)
 			? {
 					cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
-					metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+					metadata: {
+						...metadata,
+						[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt,
+					},
 				}
 			: undefined;
 	}
 	const cronPattern = asTrimmedString(args?.cron_pattern);
 	return cronPattern
-		? { cronPattern, timezone: asTrimmedString(args?.timezone) }
+		? {
+				cronPattern,
+				timezone: asTrimmedString(args?.timezone),
+				...(metadata ? { metadata } : {}),
+			}
 		: undefined;
 }
 
@@ -1360,17 +1371,17 @@ async function handleRoutineScheduleCommand(
 	}
 	if (command === "create_routine_schedule") {
 		const name = asTrimmedString(args?.name);
-		const timing = routineScheduleTiming(args);
+		const options = routineScheduleOptions(args);
 		const prompt = asTrimmedString(args?.prompt);
 		const workspaceRoot = asTrimmedString(args?.workspace_root);
-		if (!name || !timing || !prompt || !workspaceRoot) {
+		if (!name || !options || !prompt || !workspaceRoot) {
 			throw new Error(
 				"createSchedule requires name, timing, prompt, and workspace_root",
 			);
 		}
 		const created = await clientCommand("schedule.create", {
 			name,
-			...timing,
+			...options,
 			prompt,
 			modelSelection: {
 				providerId: asTrimmedString(args?.provider) ?? "cline",
@@ -1393,10 +1404,10 @@ async function handleRoutineScheduleCommand(
 	if (command === "update_routine_schedule") {
 		const mode = readHubScheduleMode(args);
 		const name = asTrimmedString(args?.name);
-		const timing = routineScheduleTiming(args);
+		const options = routineScheduleOptions(args);
 		const prompt = asTrimmedString(args?.prompt);
 		const workspaceRoot = asTrimmedString(args?.workspace_root);
-		if (!name || !timing || !prompt || !workspaceRoot) {
+		if (!name || !options || !prompt || !workspaceRoot) {
 			throw new Error(
 				"updateSchedule requires schedule_id, name, timing, prompt, and workspace_root",
 			);
@@ -1404,7 +1415,7 @@ async function handleRoutineScheduleCommand(
 		const reply = await clientCommand("schedule.update", {
 			scheduleId,
 			name,
-			...timing,
+			...options,
 			prompt,
 			modelSelection: {
 				providerId: asTrimmedString(args?.provider) ?? "cline",
