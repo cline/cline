@@ -1618,9 +1618,10 @@ describe("schedule detail navigation", () => {
 		expect(note).toBeDefined();
 		expect(note?.closest("[hidden]")).toBeNull();
 		expect(button("Advanced").getAttribute("aria-expanded")).toBe("false");
-		const mode = container.querySelector<HTMLFieldSetElement>("#schedule-mode");
-		expect(mode?.closest("[hidden]")).not.toBeNull();
+		expect(container.querySelector("#schedule-mode")).toBeNull();
 		await act(async () => button("Advanced").click());
+		const mode = container.querySelector<HTMLFieldSetElement>("#schedule-mode");
+		expect(mode).not.toBeNull();
 		expect(mode?.closest("[hidden]")).toBeNull();
 		expect(
 			mode?.querySelector<HTMLInputElement>('input[type="radio"]:checked')
@@ -2083,16 +2084,16 @@ describe("schedule editor safeguards", () => {
 		await mount();
 		await act(async () => button("Open Daily PR summary").click());
 		await act(async () => button("Settings").click());
-		const advanced = container.querySelector<HTMLElement>(
-			"#schedule-advanced-options",
-		);
-		expect(advanced?.hidden).toBe(true);
+		expect(button("Advanced").getAttribute("aria-expanded")).toBe("false");
+		await act(async () => button("Advanced").click());
 		await changeField("schedule-timeout", "ten minutes");
+		await act(async () => button("Advanced").click());
+		expect(button("Advanced").getAttribute("aria-expanded")).toBe("false");
 		await act(async () => button("Save").click());
 		expect(container.querySelector("form")?.textContent).toContain(
 			"Enter the timeout as a whole number of seconds, or leave it blank.",
 		);
-		expect(advanced?.hidden).toBe(false);
+		expect(button("Advanced").getAttribute("aria-expanded")).toBe("true");
 		expect(field("schedule-timeout").getAttribute("aria-invalid")).toBe("true");
 		expect(document.activeElement).toBe(field("schedule-timeout"));
 		expect(calls("update_routine_schedule")).toHaveLength(0);
