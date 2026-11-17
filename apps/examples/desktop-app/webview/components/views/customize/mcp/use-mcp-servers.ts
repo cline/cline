@@ -11,6 +11,15 @@ import type { McpActionError, McpServerUpsertInput } from "./mcp-types";
 /** The hub queues MCP changes and OAuth, so these calls have no client deadline. */
 const HUB_QUEUED = { timeoutMs: null };
 
+// Lists remain mounted behind editors. Successful retries must clear the same
+// server's errors in every view; null is an explicit successful inventory refresh.
+const actionCompletionListeners = new Set<
+	(serverNames: readonly string[] | null) => void
+>();
+function notifyActionCompleted(serverNames: readonly string[] | null) {
+	for (const listener of actionCompletionListeners) listener(serverNames);
+}
+
 type McpServersOptions = {
 	initialServers?: McpServer[];
 	onInventoryChanged?: () => void;
@@ -48,17 +57,10 @@ export function useMcpServers(options: McpServersOptions = {}) {
 	}, []);
 	useEffect(() => {
 		if (!response || response === lastDisplayedResponse.current) return;
+		// Shared responses alone do not identify which server's action succeeded.
+		// The completion subscription below clears only the relevant errors.
 		displayResponse(response);
-		setServerActionErrors({});
 	}, [response, displayResponse]);
-
-	const applyResponse = useCallback(
-		(response: McpServersResponse) => {
-			displayResponse(commitMcpServersResponse(response));
-			setServerActionErrors({});
-		},
-		[displayResponse],
-	);
 
 	const setServerActionError = useCallback(
 		(
@@ -84,13 +86,38 @@ export function useMcpServers(options: McpServersOptions = {}) {
 		},
 		[],
 	);
+	useEffect(() => {
+		const clearCompletedErrors = (serverNames: readonly string[] | null) => {
+			if (serverNames === null) setServerActionErrors({});
+			else for (const name of serverNames) setServerActionError(name);
+		};
+		actionCompletionListeners.add(clearCompletedErrors);
+		return () => {
+			actionCompletionListeners.delete(clearCompletedErrors);
+		};
+	}, [setServerActionError]);
+
+	const applyResponse = useCallback(
+		(
+			response: McpServersResponse,
+			serverName: string,
+			previousName?: string,
+		) => {
+			displayResponse(commitMcpServersResponse(response));
+			notifyActionCompleted(
+				previousName === undefined ? [serverName] : [serverName, previousName],
+			);
+		},
+		[displayResponse],
+	);
 
 	const refreshServers = useCallback(
 		async (force = false) => {
 			const response = await refresh(force);
 			if (response) {
 				displayResponse(response);
-				setServerActionErrors({});
+				// Only the explicit refresh control resets all server errors.
+				if (force) notifyActionCompleted(null);
 			}
 		},
 		[refresh, displayResponse],
@@ -119,7 +146,7 @@ export function useMcpServers(options: McpServersOptions = {}) {
 				},
 				HUB_QUEUED,
 			);
-			applyResponse(response);
+			applyResponse(response, server.name);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setServerActionError(server.name, message);
@@ -140,7 +167,7 @@ export function useMcpServers(options: McpServersOptions = {}) {
 				HUB_QUEUED,
 			);
 			callbacks.current.onServerSaved?.(input.name, input.previousName);
-			applyResponse(response);
+			applyResponse(response, input.name, input.previousName);
 		} catch (error) {
 			if (input.previousName !== undefined) {
 				setServerActionError(
@@ -166,7 +193,7 @@ export function useMcpServers(options: McpServersOptions = {}) {
 				},
 				HUB_QUEUED,
 			);
-			applyResponse(response);
+			applyResponse(response, serverName);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setServerActionError(serverName, message, "delete-failed");
@@ -184,10 +211,11 @@ export function useMcpServers(options: McpServersOptions = {}) {
 				{ name: serverName },
 				HUB_QUEUED,
 			);
-			applyResponse(response);
+			applyResponse(response, serverName);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			await refreshServers(true);
+			const response = await refresh(true);
+			if (response) displayResponse(response);
 			setServerActionError(serverName, message, "connection-error");
 		} finally {
 			setAuthorizingServerName(null);
@@ -201,7 +229,7 @@ export function useMcpServers(options: McpServersOptions = {}) {
 				"cancel_mcp_server_oauth",
 				{ name: serverName },
 			);
-			applyResponse(response);
+			applyResponse(response, serverName);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setServerActionError(serverName, message, "connection-error");
