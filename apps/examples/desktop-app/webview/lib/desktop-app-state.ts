@@ -7,7 +7,12 @@ import {
 import type { SessionHistoryItem, SessionMetadata } from "./session-history";
 import { sessionKey } from "./session-identity";
 
-export type DesktopAppView = "chat" | "sessions" | "settings" | "customize";
+export type DesktopAppView =
+	| "chat"
+	| "sessions"
+	| "settings"
+	| "customize"
+	| "schedules";
 
 export type DesktopThread = {
 	id: string;
