@@ -282,6 +282,7 @@ export class FileSessionService extends UnifiedSessionPersistenceService {
 		options: {
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 			logger?: BasicLogger;
+			staleMarkGraceMs?: number;
 		} = {},
 	) {
 		super(new FileSessionPersistenceAdapter(sessionsDir), options);

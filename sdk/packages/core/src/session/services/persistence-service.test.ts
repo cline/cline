@@ -340,6 +340,7 @@ describe("UnifiedSessionPersistenceService", () => {
 			stores.push(store);
 			const service = new CoreSessionService(store, {
 				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 0,
 			});
 			const sessionId = "stale-root-session";
 			const artifacts = await service.createRootSessionWithArtifacts({
@@ -401,6 +402,280 @@ describe("UnifiedSessionPersistenceService", () => {
 	const adapterKinds = sqliteAvailable
 		? (["file", "sqlite"] as const)
 		: (["file"] as const);
+
+	sqliteIt(
+		"holds a recently dead row for the grace window then marks it",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-grace-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-grace-sessions-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 120,
+			});
+			const sessionId = "grace-root";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: deadPid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			expect(await service.reconcileDeadSessions()).toBe(0);
+			let rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({ sessionId, status: "running" });
+			expect(rows[0]?.metadata?.terminal_marker).toBeUndefined();
+
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "failed",
+				exitCode: 1,
+			});
+			expect(rows[0]?.metadata?.terminal_marker).toBe(
+				"failed_external_process_exit",
+			);
+		},
+		15_000,
+	);
+
+	sqliteIt(
+		"holds a long-idle row whose pid this process just saw die",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-grace-idle-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-grace-idle-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 120,
+			});
+			const sessionId = "long-idle-root";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: deadPid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			// The session sat idle for ten minutes before its owner died: the
+			// last write is far older than the grace window.
+			store.run("UPDATE sessions SET updated_at = ?", [
+				new Date(Date.now() - 600_000).toISOString(),
+			]);
+
+			expect(await service.reconcileDeadSessions()).toBe(0);
+			let rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({ sessionId, status: "running" });
+			expect(rows[0]?.metadata?.terminal_marker).toBeUndefined();
+			expect(typeof rows[0]?.metadata?.stale_first_seen_at).toBe("number");
+
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "failed",
+				exitCode: 1,
+			});
+			expect(rows[0]?.metadata?.terminal_marker).toBe(
+				"failed_external_process_exit",
+			);
+			expect(rows[0]?.metadata?.stale_first_seen_at).toBeUndefined();
+		},
+		15_000,
+	);
+
+	sqliteIt(
+		"keeps the same grace clock across service restarts",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-durable-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-durable-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const graceMs = 400;
+			const serviceA = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: graceMs,
+			});
+			const sessionId = "restart-clock-root";
+			await serviceA.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: deadPid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			const t0 = Date.now();
+			expect(await serviceA.reconcileDeadSessions()).toBe(0);
+			let rows = await serviceA.listSessions(10);
+			expect(rows[0]).toMatchObject({ sessionId, status: "running" });
+			const stamp = rows[0]?.metadata?.stale_first_seen_at;
+			expect(typeof stamp).toBe("number");
+
+			// Simulate a host restart shortly after first sight: a brand-new
+			// service over the same store must keep A's persisted clock rather
+			// than starting its own window.
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			const serviceB = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: graceMs,
+			});
+			expect(await serviceB.reconcileDeadSessions()).toBe(0);
+			rows = await serviceB.listSessions(10);
+			expect(rows[0]).toMatchObject({ sessionId, status: "running" });
+			expect(rows[0]?.metadata?.stale_first_seen_at).toBe(stamp);
+
+			// The mark lands on A's clock (t0 + grace), well before B's own
+			// window would end (B's first sight + grace).
+			const remaining = t0 + graceMs + 250 - Date.now();
+			if (remaining > 0) {
+				await new Promise((resolve) => setTimeout(resolve, remaining));
+			}
+			rows = await serviceB.listSessions(10);
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "failed",
+				exitCode: 1,
+			});
+			expect(rows[0]?.metadata?.terminal_marker).toBe(
+				"failed_external_process_exit",
+			);
+			expect(rows[0]?.metadata?.stale_first_seen_at).toBeUndefined();
+		},
+		15_000,
+	);
+
+	sqliteIt(
+		"clears the persisted stamp when the row is adopted under a live pid",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-clear-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-clear-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 5_000,
+			});
+			const sessionId = "adopted-clear-root";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: deadPid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			expect(await service.reconcileDeadSessions()).toBe(0);
+			let rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({ sessionId, status: "running" });
+			expect(typeof rows[0]?.metadata?.stale_first_seen_at).toBe("number");
+
+			// Simulate adoption: the row comes back under a live pid.
+			store.run("UPDATE sessions SET pid = ?", [process.pid]);
+
+			expect(await service.reconcileDeadSessions()).toBe(0);
+			rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "running",
+				pid: process.pid,
+			});
+			expect(rows[0]?.metadata?.stale_first_seen_at).toBeUndefined();
+		},
+		15_000,
+	);
+
+	sqliteIt(
+		"a claim during the grace window prevents the delayed mark",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "stale-grace-claim-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-grace-claim-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 120,
+			});
+			const sessionId = "claimed-grace-root";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: deadPid,
+				interactive: false,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			expect(await service.reconcileDeadSessions()).toBe(0);
+			await expect(
+				service.adoptOrphanedSession(sessionId, process.pid),
+			).resolves.toEqual({ updated: true });
+
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			const rows = await service.listSessions(10);
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(rows[0]?.metadata?.terminal_marker).toBeUndefined();
+		},
+		15_000,
+	);
 	const createServiceWithDeadRoot = async (
 		kind: (typeof adapterKinds)[number],
 		sessionId: string,
@@ -409,12 +684,15 @@ describe("UnifiedSessionPersistenceService", () => {
 		tempDirs.push(sessionsDir);
 		let service: FileSessionService | CoreSessionService;
 		if (kind === "file") {
-			service = new FileSessionService(sessionsDir);
+			service = new FileSessionService(sessionsDir, {
+				staleMarkGraceMs: 0,
+			});
 		} else {
 			const store = new SqliteSessionStore({ sessionsDir });
 			stores.push(store);
 			service = new CoreSessionService(store, {
 				sessionArtifactsDir: sessionsDir,
+				staleMarkGraceMs: 0,
 			});
 		}
 		await addDeadRoot(service, sessionId);
@@ -567,6 +845,32 @@ describe("UnifiedSessionPersistenceService", () => {
 				pid: process.pid,
 				endedAt: null,
 			});
+		}
+	});
+
+	it.each(
+		adapterKinds,
+	)("clears stale reconciler markers when adopting a failed row (%s)", async (kind) => {
+		const sessionId = "marker-root";
+		const service = await createServiceWithDeadRoot(kind, sessionId);
+		await service.reconcileDeadSessions();
+		const before = (await service.listSessions(10)).find(
+			(row) => row.sessionId === sessionId,
+		);
+		expect(before?.metadata?.terminal_marker).toBe(
+			"failed_external_process_exit",
+		);
+
+		await expect(
+			service.adoptOrphanedSession(sessionId, process.pid),
+		).resolves.toEqual({ updated: true });
+
+		const after = (await service.listSessions(10)).find(
+			(row) => row.sessionId === sessionId,
+		);
+		expect(after).toMatchObject({ status: "idle", pid: process.pid });
+		for (const key of Object.keys(after?.metadata ?? {})) {
+			expect(key.startsWith("terminal_marker")).toBe(false);
 		}
 	});
 

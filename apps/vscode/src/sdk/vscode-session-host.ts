@@ -279,6 +279,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 		return this.inner.readLiveMessages(sessionId)
 	}
 
+	async claimForResume(sessionId: string) {
+		await this.inner.claimSessionForResume(sessionId)
+	}
+
 	async updateSessionCompactionState(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }> {
 		return this.inner.updateSessionCompactionState(sessionId, state)
 	}

@@ -279,6 +279,7 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 			sessionArtifactsDir?: string;
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 			logger?: BasicLogger;
+			staleMarkGraceMs?: number;
 		} = {},
 	) {
 		super(

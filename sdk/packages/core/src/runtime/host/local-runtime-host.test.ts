@@ -603,10 +603,12 @@ describe("LocalRuntimeHost", () => {
 			{
 				rowPid = pid,
 				readMessagesFirst = false,
+				claimFirst = false,
 				adoptError,
 			}: {
 				rowPid?: number;
 				readMessagesFirst?: boolean;
+				claimFirst?: boolean;
 				adoptError?: Error;
 			} = {},
 		) => {
@@ -675,6 +677,9 @@ describe("LocalRuntimeHost", () => {
 				}
 			});
 
+			if (claimFirst) {
+				await manager.claimSessionForResume(sessionId);
+			}
 			if (readMessagesFirst) {
 				await manager.readSessionMessages(sessionId);
 			}
@@ -726,10 +731,44 @@ describe("LocalRuntimeHost", () => {
 				adoptError: new Error("database is locked"),
 			});
 
-			expect(resumed.adoptOrphanedSession).toHaveBeenCalledTimes(1);
+			// The pre-read claim and the post-registration adoption both try
+			// and both fail loudly; the session still comes up.
+			expect(resumed.adoptOrphanedSession).toHaveBeenCalledTimes(2);
 			await expect(
 				resumed.manager.getSession(resumed.sessionId),
 			).resolves.toMatchObject({ status: "running" });
+		});
+
+		it("never marks the row failed when it is claimed before the transcript read", async () => {
+			const resumed = await resumeFromDisk("running", deadPid, {
+				claimFirst: true,
+				readMessagesFirst: true,
+			});
+
+			// The claim rebinds the row to this pid before the message read
+			// reaches the reconciler, so no transient failure is written and
+			// the manifest ends up in line with the row.
+			expect(resumed.updateSessionStatus).not.toHaveBeenCalled();
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+		});
+
+		it("claims nothing for a live row and survives a missing service method", async () => {
+			const resumed = await resumeFromDisk("running", process.ppid, {
+				claimFirst: true,
+			});
+
+			// Live owner: the claim is a no-op, the row keeps its owner.
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "running",
+				pid: process.ppid,
+			});
 		});
 
 		it("takes the row from a live owner when it runs a turn", async () => {
