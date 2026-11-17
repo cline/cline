@@ -64,6 +64,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { findMcpTools } from "./mcp-sdk-tool-name"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -376,6 +377,7 @@ export class Controller {
 			// The shim starts as "unknown" (filtered out by getTaskModelId), so
 			// fresh sessions still resolve through their start metadata.
 			() => this.getTaskModelId() ?? this.getSessionModelId(),
+			(sdkToolName) => this.findMcpTool(sdkToolName),
 		)
 		// Warm the synchronous workspace-root snapshot used for display-path
 		// relativization (getWorkspaceRoot never rejects — it falls back internally).
@@ -417,8 +419,9 @@ export class Controller {
 			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
+				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			resolveMcpTool: (sdkToolName) => this.findMcpTool(sdkToolName),
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
@@ -1311,6 +1314,10 @@ export class Controller {
 		} catch {
 			return undefined
 		}
+	}
+
+	private findMcpTool(sdkToolName: string) {
+		return findMcpTools(sdkToolName, this.mcpHub.getServers())[0]
 	}
 
 	private getTaskModelId(): string | undefined {

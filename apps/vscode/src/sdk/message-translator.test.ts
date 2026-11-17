@@ -4076,6 +4076,72 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages[1].text).toBe("User: Max (self)")
 	})
 
+	describe("for a tool whose name the SDK rewrites", () => {
+		// What the SDK makes of server "github.com/acme/db-mcp" and tool "list tables".
+		const REWRITTEN = "github_com_acme_db-mcp__list_tables_0a1b2c3d"
+		const resolveMcpTool = (sdkToolName: string) =>
+			sdkToolName === REWRITTEN ? { server: { name: "github.com/acme/db-mcp" }, tool: { name: "list tables" } } : undefined
+		const toolEvent = (type: "content_start" | "content_end"): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type,
+					contentType: "tool",
+					toolName: REWRITTEN,
+					toolCallId: "c1",
+					input: {},
+					output: "ok",
+				} as AgentEvent,
+			},
+		})
+		const identity = (text: string | undefined) => {
+			const { serverName, toolName } = JSON.parse(text!) as ClineAskUseMcpServer
+			return { serverName, toolName }
+		}
+		const real = { serverName: "github.com/acme/db-mcp", toolName: "list tables" }
+
+		it("shows the server and tool under the names the MCP settings use", () => {
+			const state = new MessageTranslatorState(undefined, undefined, undefined, undefined, undefined, resolveMcpTool)
+
+			expect(identity(translateSessionEvent(toolEvent("content_start"), state).messages[0].text)).toEqual(real)
+			expect(identity(translateSessionEvent(toolEvent("content_end"), state).messages[0].text)).toEqual(real)
+		})
+
+		it("asks for approval under those names", () => {
+			const ask = buildToolApprovalAskMessage(REWRITTEN, {}, 1, undefined, resolveMcpTool)
+
+			expect(ask.ask).toBe("use_mcp_server")
+			expect(identity(ask.text)).toEqual(real)
+		})
+
+		it("restores those names from history", () => {
+			const history = sdkMessagesToClineMessages(
+				[
+					{ role: "user", content: [{ type: "text", text: "list" }] },
+					{ role: "assistant", content: [{ type: "tool_use", id: "c1", name: REWRITTEN, input: {} }] },
+					{ role: "user", content: [{ type: "tool_result", tool_use_id: "c1", content: "ok" }] },
+				] as never,
+				undefined,
+				{ resolveMcpTool },
+			)
+
+			const row = history.find((message) => message.say === "use_mcp_server")
+			expect(identity(row?.text)).toEqual(real)
+		})
+
+		it("reads a tool no connected server lists from the server__tool form", () => {
+			const state = new MessageTranslatorState(undefined, undefined, undefined, undefined, undefined, () => undefined)
+			const event = toolEvent("content_start")
+			;(event.payload as { event: { toolName: string } }).event.toolName = "gone__tool"
+
+			expect(identity(translateSessionEvent(event, state).messages[0].text)).toEqual({
+				serverName: "gone",
+				toolName: "tool",
+			})
+		})
+	})
+
 	it("content_end for MCP tool preserves an untyped object with an empty result", () => {
 		const state = new MessageTranslatorState()
 		translateSessionEvent(

@@ -284,6 +284,32 @@ describe("SdkInteractionCoordinator", () => {
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 	})
 
+	it("asks about an MCP tool under the names the hub knows it by", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			resolveMcpTool: () => ({ server: { name: "github.com/acme/ide" }, tool: { name: "run" } }),
+		})
+
+		void coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "github_com_acme_ide__run_0a1b2c3d",
+			input: {},
+			policy: { autoApprove: false },
+		})
+
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(JSON.parse(task.messageStateHandler.getClineMessages()[0].text || "{}")).toMatchObject({
+			serverName: "github.com/acme/ide",
+			toolName: "run",
+		})
+	})
+
 	it("auto-approves without emitting UI when the SDK policy already allows the tool", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const postStateToWebview = vi.fn().mockResolvedValue(undefined)

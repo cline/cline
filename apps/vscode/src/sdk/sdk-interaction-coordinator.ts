@@ -5,7 +5,7 @@ import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
 import { Logger } from "@/shared/services/Logger"
 import { MessageIdMinter } from "./message-id-minter"
-import { buildToolApprovalAskMessage } from "./message-translator"
+import { buildToolApprovalAskMessage, type McpToolResolver } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
@@ -44,6 +44,7 @@ export interface SdkInteractionCoordinatorOptions {
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
+	resolveMcpTool?: McpToolResolver
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
@@ -135,6 +136,7 @@ export class SdkInteractionCoordinator {
 			request.input,
 			this.nextMessageTs(),
 			this.options.getCwd?.(),
+			this.options.resolveMcpTool,
 		)
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
