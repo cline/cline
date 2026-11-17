@@ -399,6 +399,61 @@ describe("applyCheckpointToWorktree", () => {
 		).toBe("");
 	});
 
+	it("leaves default-excluded untracked files untouched through a full restore", async () => {
+		// Excluded files are never in the snapshot, so restore must neither
+		// delete them nor move them into its safety snapshot, which commit
+		// discards.
+		writeFileSync(join(dir, "keep.txt"), "checkpoint\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-excluded");
+
+		writeFileSync(join(dir, "keep.txt"), "later\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+		writeFileSync(join(dir, "recording.mp4"), "video bytes", "utf8");
+
+		await restoreWorkspaceThroughService(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "keep.txt"), "utf8")).toBe("checkpoint\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+		expect(readFileSync(join(dir, "recording.mp4"), "utf8")).toBe(
+			"video bytes",
+		);
+	});
+
+	it("restores a checkpoint from before exclusions exactly as before", async () => {
+		// Checkpoints without the exclusions marker captured every untracked
+		// file, .mp4 included. They keep the old behaviour end to end: captured
+		// files are rewound and files created afterwards are removed.
+		writeFileSync(join(dir, "clip.mp4"), "old frames", "utf8");
+		writeFileSync(join(dir, "notes.txt"), "old notes\n", "utf8");
+		git(dir, [
+			"stash",
+			"push",
+			"--include-untracked",
+			"--message",
+			"cline checkpoint session=before-exclusions run=1",
+		]);
+		const ref = git(dir, ["rev-parse", "stash@{0}"]);
+		git(dir, ["stash", "pop"]);
+		expect(git(dir, ["ls-tree", "-r", "--name-only", `${ref}^3`])).toContain(
+			"clip.mp4",
+		);
+
+		writeFileSync(join(dir, "clip.mp4"), "new frames", "utf8");
+		writeFileSync(join(dir, "notes.txt"), "new notes\n", "utf8");
+		writeFileSync(join(dir, "created-after.mp4"), "later frames", "utf8");
+
+		await restoreWorkspaceThroughService(dir, {
+			ref,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "stash",
+		});
+
+		expect(readFileSync(join(dir, "clip.mp4"), "utf8")).toBe("old frames");
+		expect(readFileSync(join(dir, "notes.txt"), "utf8")).toBe("old notes\n");
+		expect(existsSync(join(dir, "created-after.mp4"))).toBe(false);
+	});
+
 	it("keeps ignored files as they are when a restore fails and rolls back", async () => {
 		// Ignored files are not in the safety snapshot, so nothing may touch
 		// them: a failed restore has no way to bring their content back.
@@ -502,6 +557,28 @@ describe("applyCheckpointToWorktree", () => {
 		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
 	});
 
+	it("keeps an excluded file when the committed .gitignore un-ignores its pattern", async () => {
+		// The worktree dropped a committed `!*.mp4`, so the default exclusion
+		// keeps the video out of the safety snapshot. Reverting .gitignore
+		// brings the negation back, and it outranks the exclusion.
+		writeFileSync(join(dir, ".gitignore"), "!*.mp4\n", "utf8");
+		git(dir, ["add", ".gitignore"]);
+		git(dir, ["commit", "-m", "allow videos"]);
+		writeFileSync(join(dir, "notes.txt"), "checkpoint\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-negation");
+
+		writeFileSync(join(dir, ".gitignore"), "# videos no longer allowed\n");
+		writeFileSync(join(dir, "recording.mp4"), "video bytes", "utf8");
+		writeFileSync(join(dir, "notes.txt"), "later\n", "utf8");
+
+		await restoreWorkspaceThroughService(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "recording.mp4"), "utf8")).toBe(
+			"video bytes",
+		);
+		expect(readFileSync(join(dir, "notes.txt"), "utf8")).toBe("checkpoint\n");
+	});
+
 	it("rolls back without deleting files whose ignore rule the restore reverted", async () => {
 		writeFileSync(join(dir, ".gitignore"), "deps/\n.env\n", "utf8");
 		mkdirSync(join(dir, "deps"));
@@ -582,6 +659,21 @@ describe("applyCheckpointToWorktree", () => {
 		);
 	});
 
+	it("rejects a checkpoint from a newer build before touching the worktree", async () => {
+		writeFileSync(join(dir, "untracked.txt"), "captured\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-newer-build");
+		writeFileSync(join(dir, "tracked.txt"), "current\n", "utf8");
+
+		await expect(
+			restoreWorkspaceThroughService(dir, {
+				...checkpoint,
+				exclusions: (checkpoint.exclusions ?? 0) + 1,
+			}),
+		).rejects.toThrow(/newer version/);
+
+		expect(readFileSync(join(dir, "tracked.txt"), "utf8")).toBe("current\n");
+	});
+
 	it("carries checkpoint metadata through the restored run", () => {
 		const metadata = createRestoredCheckpointMetadata(
 			{
@@ -601,6 +693,31 @@ describe("applyCheckpointToWorktree", () => {
 
 		expect(metadata?.latest.runCount).toBe(2);
 		expect(metadata?.history.map((entry) => entry.runCount)).toEqual([1, 2]);
+	});
+
+	it("keeps the exclusions marker on restored checkpoint metadata", () => {
+		// Losing the marker would make a later restore treat the checkpoint as
+		// one that captured every untracked file, and delete the excluded ones.
+		const metadata = createRestoredCheckpointMetadata(
+			{
+				metadata: {
+					checkpoint: {
+						history: [
+							{ ref: "aaaa", createdAt: 1, runCount: 1 },
+							{ ref: "bbbb", createdAt: 2, runCount: 2, exclusions: 1 },
+							{ ref: "cccc", createdAt: 3, runCount: 3, exclusions: "1" },
+						],
+					},
+				},
+			},
+			3,
+		);
+
+		expect(metadata?.history.map((entry) => entry.exclusions)).toEqual([
+			undefined,
+			1,
+			undefined,
+		]);
 	});
 });
 

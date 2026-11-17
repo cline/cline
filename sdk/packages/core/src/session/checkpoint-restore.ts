@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
+import {
+	readCheckpointExclusions,
+	withCheckpointExcludes,
+} from "../hooks/checkpoint-exclusions";
 import type {
 	CheckpointEntry,
 	CheckpointMetadata,
@@ -164,7 +168,9 @@ async function putBackFiles(cwd: string, tree: string): Promise<void> {
  * a private ref, and immediately remove it from the user's visible stash
  * list. The private ref remains only until commit or rollback.
  *
- * The stash leaves ignored files in place. Of those, the ones the checkpoint
+ * The stash leaves ignored files in place. For a checkpoint made with the
+ * default exclusions, excluded files (media, dependency trees, ...) count as
+ * ignored here, as in its snapshot. Of the files left, the ones the checkpoint
  * captured are moved out as well, so the checkpoint can be written without
  * overwriting anything. Ignore rules are read for the stash and never again:
  * from there on the restore only handles files it has a copy of.
@@ -190,18 +196,21 @@ export async function beginWorktreeRestoreTransaction(
 	const transactionId = randomUUID();
 	const privateRef = `refs/cline/restore-transactions/${transactionId}`;
 
-	await execFile(
-		"git",
-		[
-			"-C",
-			cwd,
-			"stash",
-			"push",
-			"--include-untracked",
-			"--message",
-			`cline restore transaction ${transactionId}`,
-		],
-		{ windowsHide: true },
+	await withCheckpointExcludes(cwd, checkpoint.exclusions, (excludeArgs) =>
+		execFile(
+			"git",
+			[
+				"-C",
+				cwd,
+				...excludeArgs,
+				"stash",
+				"push",
+				"--include-untracked",
+				"--message",
+				`cline restore transaction ${transactionId}`,
+			],
+			{ windowsHide: true },
+		),
 	);
 
 	const capturedRef = await resolveOptionalGitRef(cwd, "refs/stash");
@@ -325,7 +334,16 @@ export function readSessionCheckpointHistory(
 				entry.kind === "stash" || entry.kind === "commit"
 					? entry.kind
 					: undefined;
-			return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }];
+			const exclusions = readCheckpointExclusions(entry.exclusions);
+			return [
+				{
+					ref,
+					createdAt,
+					runCount,
+					...(kind ? { kind } : {}),
+					...(exclusions ? { exclusions } : {}),
+				},
+			];
 		});
 }
 
