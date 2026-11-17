@@ -155,6 +155,7 @@ async function renderServers(
 describe("MCP item cards", () => {
 	it("uses the parent's result model without loading another marketplace inventory", async () => {
 		const model: InstalledMarketplaceModel = {
+			refresh: vi.fn(async () => {}),
 			summary: { query: "", count: 1, loading: false, error: false },
 			catalog: {
 				version: 1,

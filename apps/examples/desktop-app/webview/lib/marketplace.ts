@@ -145,9 +145,12 @@ export function getCachedMarketplaceCatalog(): MarketplaceCatalog | null {
 	return catalogCache?.value ?? null;
 }
 
-export function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
+export function fetchMarketplaceCatalog({
+	force = false,
+} = {}): Promise<MarketplaceCatalog> {
 	if (catalogRequest) return catalogRequest;
 	if (
+		!force &&
 		catalogCache &&
 		Date.now() - catalogCache.fetchedAt < CATALOG_CACHE_TTL_MS
 	) {

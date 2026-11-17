@@ -108,12 +108,18 @@ export function useInstalledCustomizations({
 			// Both the data owner and mounted section use the success path that
 			// clears shared action errors, whichever refresh publishes last.
 			refreshMcpServers(true),
+			skills.refresh(),
+			plugins.refresh(),
+			mcp.refresh(),
 			connectors.refreshStatus(),
 			connectors.refreshCatalog(),
 		]);
 	}, [
 		refresh,
 		refreshMcpServers,
+		skills.refresh,
+		plugins.refresh,
+		mcp.refresh,
 		connectors.refreshStatus,
 		connectors.refreshCatalog,
 	]);
