@@ -13,6 +13,7 @@ vi.mock("./desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke, subscribe: () => () => {} },
 }));
 
+import { invalidateExtensionInventoryCache } from "./extension-inventory";
 import type { MarketplaceEntry } from "./marketplace";
 import { clearMarketplaceInstalledEntries } from "./marketplace-installed";
 import {
@@ -163,6 +164,81 @@ it("preserves the failed uninstall operation when inventory changes and details 
 			"uninstall",
 		);
 	}
+});
+
+it("keeps a failed explicit installed-status refresh despite a fresh cached result", async () => {
+	let directory!: ReturnType<typeof useMarketplaceDirectory>;
+	function RefreshConsumer() {
+		directory = useMarketplaceDirectory();
+		return null;
+	}
+	mocks.invoke.mockResolvedValue({ installedKeys: ["skill:example"] });
+	await act(async () => root.render(<RefreshConsumer />));
+	expect(directory.installedKeys.has("skill:example")).toBe(true);
+	expect(mocks.invoke).toHaveBeenCalledTimes(1);
+
+	// A fresh catalog object has the same installed-cache key. Its queued effect
+	// must not mask the failed forced read by accepting the previous cache value.
+	mocks.catalog.mockResolvedValue({
+		entries: [{ ...entry, name: "Updated example skill" }],
+		tags: [],
+	});
+	mocks.invoke.mockRejectedValueOnce(new Error("Installed status unavailable"));
+	await act(async () => directory.refresh());
+	await act(async () => root.render(<RefreshConsumer />));
+	expect(mocks.catalog).toHaveBeenLastCalledWith({ force: true });
+	expect(directory.catalog?.entries[0]?.name).toBe("Updated example skill");
+	expect(directory.installedError).toBe("Installed status unavailable");
+	expect(directory.installedReady).toBe(true);
+	expect(directory.installedLoading).toBe(false);
+	expect(directory.installedKeys.has("skill:example")).toBe(true);
+	expect(mocks.invoke).toHaveBeenCalledTimes(2);
+
+	// Skipping that duplicate effect read must still subscribe to later changes.
+	mocks.invoke.mockResolvedValue({ installedKeys: [] });
+	await act(async () => invalidateExtensionInventoryCache());
+	expect(directory.installedError).toBeNull();
+	expect(directory.installedKeys.has("skill:example")).toBe(false);
+	expect(mocks.invoke).toHaveBeenCalledTimes(3);
+});
+
+it("keeps explicit refresh errors when local inventory changes while the catalog is pending", async () => {
+	let directory!: ReturnType<typeof useMarketplaceDirectory>;
+	function RefreshConsumer({ signature }: { signature: string }) {
+		directory = useMarketplaceDirectory(undefined, signature);
+		return null;
+	}
+	mocks.invoke.mockResolvedValue({ installedKeys: ["skill:example"] });
+	await act(async () =>
+		root.render(<RefreshConsumer signature="initial inventory" />),
+	);
+	const nextCatalog = {
+		entries: [{ ...entry, name: "Updated example skill" }],
+		tags: [],
+	};
+	let finishCatalog!: (catalog: typeof nextCatalog) => void;
+	mocks.catalog.mockReturnValueOnce(
+		new Promise((resolve) => {
+			finishCatalog = resolve;
+		}),
+	);
+	let refreshing!: Promise<void>;
+	await act(async () => {
+		refreshing = directory.refresh();
+	});
+	await act(async () =>
+		root.render(<RefreshConsumer signature="changed inventory" />),
+	);
+	expect(mocks.invoke).toHaveBeenCalledTimes(2);
+	mocks.invoke.mockRejectedValueOnce(new Error("Installed status unavailable"));
+	await act(async () => {
+		finishCatalog(nextCatalog);
+		await refreshing;
+	});
+	expect(directory.catalog?.entries[0]?.name).toBe("Updated example skill");
+	expect(directory.installedError).toBe("Installed status unavailable");
+	expect(directory.installedKeys.has("skill:example")).toBe(true);
+	expect(mocks.invoke).toHaveBeenCalledTimes(3);
 });
 
 it("finishes a detail action after returning to Browse without starting it twice", async () => {

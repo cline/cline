@@ -96,6 +96,7 @@ beforeEach(() => {
 		return {};
 	});
 	mocks.directory = {
+		refresh: vi.fn(async () => {}),
 		catalog: null,
 		errorMessage: null,
 		loading: false,

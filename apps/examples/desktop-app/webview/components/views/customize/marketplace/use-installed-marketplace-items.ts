@@ -69,6 +69,7 @@ export function useInstalledMarketplaceItems({
 		actionStates,
 		uninstall,
 		removeInstalledKeys,
+		refresh,
 	} = useMarketplaceDirectory(onInstalledItemsChanged, installedItemsSignature);
 	const normalizedQuery = searchQuery.trim().toLowerCase();
 	const primitiveEntries = useMemo(
@@ -232,6 +233,7 @@ export function useInstalledMarketplaceItems({
 		installedError,
 		actionStates,
 		uninstall,
+		refresh,
 		sharedCategory,
 		catalogResultsReady,
 		searchCount,
