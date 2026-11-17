@@ -853,6 +853,68 @@ describe("MCP item cards", () => {
 		expect(card?.querySelector("output")?.textContent).toBe("Action failed");
 	});
 
+	it("keeps another server's pending details open when a background toggle fails", async () => {
+		const other = { ...localServer, name: "other-tools" };
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_mcp_servers")
+				return inventory([localServer, other]);
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		const onOpenMcp = vi.fn();
+		await renderServers(false, onOpenMcp);
+		let failFirst!: (error: Error) => void;
+		let completeOther!: (response: ReturnType<typeof inventory>) => void;
+		invoke.mockReturnValueOnce(
+			new Promise((_resolve, reject) => {
+				failFirst = reject;
+			}),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLInputElement>('[aria-label="Enable local-tools"]')
+				?.click(),
+		);
+		invoke.mockReturnValueOnce(
+			new Promise((resolve) => {
+				completeOther = resolve;
+			}),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLInputElement>('[aria-label="Enable other-tools"]')
+				?.click(),
+		);
+		await act(async () => detailButton("View other-tools details").click());
+		await act(async () => failFirst(new Error("First server failed")));
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog?.querySelector('[aria-label="Edit local-tools"]')).toBeNull();
+		expect(dialog?.textContent).not.toContain("First server failed");
+		expect(detailButton("Edit other-tools", dialog as Element).disabled).toBe(
+			true,
+		);
+		expect(detailButton("Delete other-tools", dialog as Element).disabled).toBe(
+			true,
+		);
+		const firstCard = container
+			.querySelector('[aria-label="View local-tools details"]')
+			?.closest('[data-slot="item-card"]');
+		expect(firstCard?.querySelector("output")?.textContent).toBe(
+			"Action failed",
+		);
+		const savedOther = { ...other, disabled: true };
+		await act(async () => completeOther(inventory([localServer, savedOther])));
+		expect(firstCard?.querySelector("output")?.textContent).toBe(
+			"Action failed",
+		);
+		await act(async () => detailButton("Edit other-tools").click());
+		expect(onOpenMcp).toHaveBeenCalledWith(
+			{ server: savedOther, entry: undefined },
+			expect.anything(),
+		);
+	});
+
 	it("shows failed card authentication in details and allows retry from the card", async () => {
 		const server: McpServer = {
 			name: "remote-tools",

@@ -1,6 +1,13 @@
 import { SectionHeading, Switch } from "@cline/ui";
 import { Wrench } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	enqueueExtensionInventoryMutation,
@@ -117,6 +124,14 @@ export function ToolsSection({
 		toolId: string;
 		message: string;
 	} | null>(null);
+	const previousInventory = useRef(inventory);
+	useEffect(() => {
+		// Pending or failed refreshes retain the cached inventory and its error.
+		if (previousInventory.current !== inventory) {
+			previousInventory.current = inventory;
+			setToolToggleError(null);
+		}
+	}, [inventory]);
 	const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
 	const selectedTool = tools.find((tool) => tool.id === selectedToolId);
 	const setToolsEnabled = useCallback(

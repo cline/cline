@@ -67,12 +67,9 @@ function useMcpServersController(onInventoryChanged?: () => void) {
 		onInventoryChanged,
 		onActionError: (name) => {
 			// A mutation may finish after the user opened another server. Keep its
-			// error on the originating card rather than opening a hidden list's portal.
+			// error on the originating card without replacing the current details.
 			if (cardReturnFocusRef.current?.closest("[hidden]")) return;
-			setDialogSelection((current) => ({
-				name,
-				entry: current?.name === name ? current.entry : undefined,
-			}));
+			setDialogSelection((current) => current ?? { name });
 		},
 	});
 	return {

@@ -179,13 +179,14 @@ function CustomizationSectionView({
 	);
 }
 
-const { fetchMarketplaceCatalog, invoke } = vi.hoisted(() => ({
+const { fetchMarketplaceCatalog, invoke, subscribe } = vi.hoisted(() => ({
 	fetchMarketplaceCatalog: vi.fn(),
 	invoke: vi.fn(),
+	subscribe: vi.fn(() => () => {}),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke, subscribe: () => () => {} },
+	desktopClient: { invoke, subscribe },
 	openExternalUrl: vi.fn(),
 }));
 
@@ -1654,6 +1655,92 @@ describe("tool details", () => {
 });
 
 describe("tool state controls", () => {
+	it.each([
+		"Refresh",
+		"settings.changed",
+	])("clears stale card and dialog errors only after %s accepts fresh inventory", async (source) => {
+		const inventory = {
+			tools: [
+				{
+					id: "inspect",
+					name: "Inspect",
+					source: "builtin",
+					enabled: true,
+				},
+			],
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_user_instruction_configs") return inventory;
+			if (command === "set_tool_disabled")
+				throw new Error("Could not save tool settings.");
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		await act(async () =>
+			root.render(<CustomizationSectionView section="Tools" />),
+		);
+		await act(async () =>
+			container
+				.querySelector<HTMLInputElement>('[aria-label="Enable Inspect"]')
+				?.click(),
+		);
+		const card = container
+			.querySelector('[aria-label="View details for Inspect"]')
+			?.closest('[data-slot="item-card"]');
+		expect(card?.querySelector("output")?.textContent).toBe("Action failed");
+		await act(async () =>
+			card
+				?.querySelector<HTMLButtonElement>(
+					'[aria-label="View details for Inspect"]',
+				)
+				?.click(),
+		);
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog?.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not save tool settings.",
+		);
+		const refresh = async () =>
+			act(async () => {
+				if (source === "Refresh") {
+					container
+						.querySelector<HTMLButtonElement>('[aria-label="Refresh tools"]')
+						?.click();
+				} else {
+					const settingsChanged = (
+						subscribe.mock.calls as unknown as Array<[string, () => void]>
+					).find(([event]) => event === "settings.changed")?.[1];
+					if (!settingsChanged)
+						throw new Error("Expected settings subscription");
+					settingsChanged();
+				}
+			});
+		invoke.mockRejectedValueOnce(new Error("Inventory refresh failed"));
+		await refresh();
+		expect(card?.querySelector("output")?.textContent).toBe("Action failed");
+		expect(dialog?.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not save tool settings.",
+		);
+		let completeRefresh!: (value: typeof inventory) => void;
+		invoke.mockReturnValueOnce(
+			new Promise((resolve) => {
+				completeRefresh = resolve;
+			}),
+		);
+		await refresh();
+		expect(card?.querySelector("output")?.textContent).toBe("Action failed");
+		expect(card?.querySelector('[aria-label="Enable Inspect"]')).toBeNull();
+		expect(dialog?.querySelector('[role="alert"]')?.textContent).toBe(
+			"Could not save tool settings.",
+		);
+		await act(async () => completeRefresh(inventory));
+		expect(card?.textContent).not.toContain("Action failed");
+		expect(
+			card?.querySelector<HTMLInputElement>('[aria-label="Enable Inspect"]')
+				?.checked,
+		).toBe(true);
+		expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+		expect(dialog?.querySelector('[role="alert"]')).toBeNull();
+	});
+
 	it("serializes tool changes so inventory replies retain both updates", async () => {
 		const tools = ["Search", "Read"].map((name) => ({
 			id: name,
