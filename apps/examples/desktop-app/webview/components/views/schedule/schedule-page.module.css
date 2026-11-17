@@ -1,0 +1,29 @@
+.frame {
+	--schedule-content-width: 1056px;
+}
+
+/* Center the header, description, and both sections on the same narrow column. */
+.frame [data-page-header] > section,
+.frame [data-page-body] > p,
+.frame [data-page-layout] {
+	width: 100%;
+	max-width: var(--schedule-content-width);
+	margin-inline: auto;
+}
+
+.frame [data-page-body] > p {
+	margin-bottom: 2.75rem;
+}
+
+/* Saving locks the draft without flashing every control's disabled appearance.
+   Native radios and checkboxes stay transparent beneath their styled controls. */
+.saving
+:is(
+	button,
+	input:not([type="radio"], [type="checkbox"]),
+	textarea,
+	select,
+	fieldset
+):disabled {
+	opacity: 1;
+}
