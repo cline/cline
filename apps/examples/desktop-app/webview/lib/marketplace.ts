@@ -129,6 +129,17 @@ const CATALOG_CACHE_TTL_MS = 5 * 60_000;
 let catalogCache: { value: MarketplaceCatalog; fetchedAt: number } | null =
 	null;
 let catalogRequest: Promise<MarketplaceCatalog> | null = null;
+const catalogListeners = new Set<(catalog: MarketplaceCatalog) => void>();
+
+/** Notify mounted consumers when another view refreshes or retries the catalog. */
+export function subscribeMarketplaceCatalog(
+	listener: (catalog: MarketplaceCatalog) => void,
+): () => void {
+	catalogListeners.add(listener);
+	return () => {
+		catalogListeners.delete(listener);
+	};
+}
 
 export function getCachedMarketplaceCatalog(): MarketplaceCatalog | null {
 	return catalogCache?.value ?? null;
@@ -145,6 +156,7 @@ export function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	const request = loadMarketplaceCatalog()
 		.then((value) => {
 			catalogCache = { value, fetchedAt: Date.now() };
+			for (const listener of catalogListeners) listener(value);
 			return value;
 		})
 		.finally(() => {

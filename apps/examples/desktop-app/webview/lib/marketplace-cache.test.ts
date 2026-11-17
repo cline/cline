@@ -56,6 +56,24 @@ afterEach(() => {
 });
 
 describe("Shared marketplace catalog", () => {
+	it("notifies subscribed consumers when another request recovers the catalog", async () => {
+		const receiveCatalog = vi.fn();
+		const unsubscribe = marketplace.subscribeMarketplaceCatalog(receiveCatalog);
+		mocks.fetch.mockRejectedValueOnce(new Error("Offline"));
+		await expect(marketplace.fetchMarketplaceCatalog()).rejects.toThrow(
+			"Offline",
+		);
+		expect(receiveCatalog).not.toHaveBeenCalled();
+		mocks.fetch.mockResolvedValueOnce(Response.json(catalog()));
+		const recovered = await marketplace.fetchMarketplaceCatalog();
+		expect(receiveCatalog).toHaveBeenCalledExactlyOnceWith(recovered);
+		unsubscribe();
+		now += 5 * 60_000;
+		mocks.fetch.mockResolvedValueOnce(Response.json(catalog("Updated skill")));
+		await marketplace.fetchMarketplaceCatalog();
+		expect(receiveCatalog).toHaveBeenCalledTimes(1);
+	});
+
 	it("shares concurrent loads and reuses a fresh catalog across consumers", async () => {
 		const response = deferred<Response>();
 		mocks.fetch.mockReturnValue(response.promise);

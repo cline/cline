@@ -18,6 +18,7 @@ import {
 	getCachedMarketplaceCatalog,
 	type MarketplaceCatalog,
 	type MarketplaceEntry,
+	subscribeMarketplaceCatalog,
 } from "./marketplace";
 import { marketplaceEntryKey } from "./marketplace-entry";
 import {
@@ -113,21 +114,20 @@ export function useMarketplaceDirectory(
 
 	useEffect(() => {
 		let cancelled = false;
-		void fetchMarketplaceCatalog().then(
-			(nextCatalog) => {
-				if (cancelled) return;
-				setCatalog(nextCatalog);
-				setErrorMessage(null);
-			},
-			(error: unknown) => {
-				if (cancelled) return;
-				setErrorMessage(error instanceof Error ? error.message : String(error));
-				setInstalledReady(true);
-				setInstalledLoading(false);
-			},
-		);
+		const receiveCatalog = (nextCatalog: MarketplaceCatalog) => {
+			if (cancelled) return;
+			setCatalog(nextCatalog);
+			setErrorMessage(null);
+		};
+		const unsubscribe = subscribeMarketplaceCatalog(receiveCatalog);
+		void fetchMarketplaceCatalog().then(receiveCatalog, (error: unknown) => {
+			if (cancelled) return;
+			setErrorMessage(error instanceof Error ? error.message : String(error));
+			setInstalledLoading(false);
+		});
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, []);
 

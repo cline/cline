@@ -20,6 +20,7 @@ import {
 import {
 	fetchMarketplaceCatalog,
 	getCachedMarketplaceCatalog,
+	subscribeMarketplaceCatalog,
 } from "@/lib/marketplace";
 import { useComposioCatalog } from "@/lib/use-composio-catalog";
 import { useComposioStatus } from "@/lib/use-composio-status";
@@ -71,6 +72,7 @@ export function CustomizeCategoryFilterProvider({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Navigation rechecks cached catalogs so a failed first read can recover.
 	useEffect(() => {
 		let cancelled = false;
+		const unsubscribe = subscribeMarketplaceCatalog(setCatalog);
 		void fetchMarketplaceCatalog()
 			.then((value) => {
 				if (!cancelled) setCatalog(value);
@@ -78,6 +80,7 @@ export function CustomizeCategoryFilterProvider({
 			.catch(() => {}); // The content views present catalog loading errors.
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, [view]);
 
