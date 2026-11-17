@@ -75,7 +75,6 @@ import {
 	ProviderListContent,
 } from "./provider-list-view";
 import { RemoteEnvironmentsContent } from "./remote-environments-view";
-import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
 import { VoiceInputContent } from "./voice-input-view";
@@ -107,14 +106,12 @@ export function SettingsView({
 	section,
 	onNavigateSection,
 	onOpenConnectors,
-	onOpenSession,
 	onExportDiagnostics,
 }: {
 	section: SettingsSection;
 	onExportDiagnostics: () => void;
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenConnectors: () => void;
-	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
 	const { refreshAccount } = useAccount();
@@ -638,8 +635,6 @@ export function SettingsView({
 			<KeybindingsContent />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
-		) : activeNav === "Schedules" ? (
-			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Import" ? (
 			<ImportContent />
 		) : activeNav === "Remote" ? (

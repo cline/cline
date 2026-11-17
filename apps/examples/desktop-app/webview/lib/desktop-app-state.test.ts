@@ -60,6 +60,43 @@ describe("desktopAppReducer", () => {
 		expect(state.navigation.current.settingsSection).toBe("Providers");
 	});
 
+	it("keeps Schedule independent from Settings and restores it after opening a run", () => {
+		let state = createDesktopAppState("draft", "Providers", "local");
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "settings" },
+		});
+		const settings = state.navigation.current;
+		const threads = state.threads;
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...settings, view: "schedules" },
+		});
+		const schedule = state.navigation.current;
+		expect(schedule.settingsSection).toBe("Providers");
+		expect(state.threads).toBe(threads);
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current).toEqual(settings);
+		state = desktopAppReducer(state, { type: "forward" });
+		expect(state.navigation.current).toEqual(schedule);
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("scheduled-run"),
+			environmentId: "local",
+		});
+		expect(state.navigation.current.view).toBe("chat");
+		expect(state.threads.at(-1)?.historySession?.sessionId).toBe(
+			"scheduled-run",
+		);
+		state = desktopAppReducer(state, { type: "back" });
+		expect(state.navigation.current).toEqual(schedule);
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: { ...state.navigation.current, view: "settings" },
+		});
+		expect(state.navigation.current.settingsSection).toBe("Providers");
+	});
+
 	function onCustomize() {
 		const initial = createDesktopAppState("draft", settingsSection, "local");
 		return desktopAppReducer(initial, {
@@ -144,7 +181,10 @@ describe("desktopAppReducer", () => {
 		expect(state.navigation.current.detail).toBe(detail);
 	});
 
-	it("preserves Customize when its underlying session is deleted", () => {
+	it.each([
+		"customize",
+		"schedules",
+	] as const)("preserves %s when its underlying session is deleted", (view) => {
 		let state = createDesktopAppState("draft", settingsSection, "local");
 		state = desktopAppReducer(state, {
 			type: "thread-started",
@@ -155,7 +195,7 @@ describe("desktopAppReducer", () => {
 			type: "navigate",
 			destination: {
 				...state.navigation.current,
-				view: "customize",
+				view,
 				customizeSection: "manage",
 			},
 		});
@@ -169,7 +209,7 @@ describe("desktopAppReducer", () => {
 			activeThreadId: "replacement",
 			settingsSection: "General",
 			customizeSection: "manage",
-			view: "customize",
+			view,
 		});
 	});
 

@@ -45,9 +45,9 @@ export interface SessionThread {
 	status: SessionHistoryStatus;
 	pinned?: boolean;
 	isScheduled: boolean;
-	/** Raw start timestamp; the sidebar labels un-numbered scheduled runs with it. */
+	/** Raw start timestamp retained for session timing and ordering. */
 	startedAt?: string;
-	/** Schedule provenance for scheduled runs (metadata or executions list). */
+	/** Schedule provenance from metadata or the executions list. */
 	scheduleId?: string;
 	scheduleName?: string;
 	scheduleRunNumber?: number;

@@ -1,7 +1,7 @@
 /**
  * Settings navigation constants, split from settings-view.tsx so the sidebar
  * (always mounted) can reference section names without pulling the entire
- * settings module graph — providers, schedules, voice, account — into the
+ * settings module graph — providers, voice, account — into the
  * initial chat bundle. The heavy views load on demand via next/dynamic.
  */
 
@@ -17,7 +17,6 @@ const ALL_SETTINGS_SECTIONS = [
 	"Voice",
 	"Keybindings",
 	"Channels",
-	"Schedules",
 	"Import",
 	"Remote",
 	"Debug",

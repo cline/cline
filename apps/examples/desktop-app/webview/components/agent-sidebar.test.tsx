@@ -10,6 +10,10 @@ import {
 } from "@/components/agent-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AccountProvider } from "@/contexts/account-context";
+import {
+	resetScheduleRunNotificationsForTesting,
+	useHasUnreadScheduleRun,
+} from "@/hooks/use-schedule-run-notifications";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -21,7 +25,11 @@ import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
 const desktopMocks = vi.hoisted(() => ({
 	invoke: vi.fn(),
-	subscribe: vi.fn(() => () => undefined),
+	subscribe: vi.fn(
+		(_event: string, _listener: (payload: unknown) => void): (() => void) =>
+			() =>
+				undefined,
+	),
 	subscribeTransportState: vi.fn(() => () => undefined),
 }));
 const { invoke } = desktopMocks;
@@ -29,6 +37,10 @@ vi.mock("@/lib/desktop-client", () => ({ desktopClient: desktopMocks }));
 
 let container: HTMLDivElement;
 let root: Root;
+const subscriptions = new Set<{
+	event: string;
+	listener: (payload: unknown) => void;
+}>();
 
 function makeThread(project: string, index: number): SessionThread {
 	return {
@@ -79,6 +91,15 @@ async function click(element: Element): Promise<void> {
 		element.dispatchEvent(
 			new MouseEvent("click", { bubbles: true, cancelable: true }),
 		);
+		await Promise.resolve();
+	});
+}
+
+async function emitDesktopEvent(event: string, payload: unknown = {}) {
+	await act(async () => {
+		for (const { event: subscribedEvent, listener } of subscriptions) {
+			if (subscribedEvent === event) listener(payload);
+		}
 		await Promise.resolve();
 	});
 }
@@ -153,10 +174,16 @@ beforeEach(() => {
 		});
 	}
 	window.localStorage.clear();
+	resetScheduleRunNotificationsForTesting();
 	invoke.mockReset();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
 	desktopMocks.subscribe.mockReset();
-	desktopMocks.subscribe.mockImplementation(() => () => undefined);
+	subscriptions.clear();
+	desktopMocks.subscribe.mockImplementation((event, listener) => {
+		const subscription = { event, listener };
+		subscriptions.add(subscription);
+		return () => subscriptions.delete(subscription);
+	});
 	desktopMocks.subscribeTransportState.mockReset();
 	desktopMocks.subscribeTransportState.mockImplementation(
 		() => () => undefined,
@@ -272,29 +299,30 @@ describe("AgentSidebar session organization", () => {
 		);
 	});
 
-	it("marks scheduled sessions with a clock icon in the row", async () => {
+	it("omits scheduled sessions from time and project views", async () => {
 		const scheduled = {
-			...makeThread("alpha", 1),
-			source: "core",
+			...makeThread("scheduled", 1),
+			source: "hub-schedule",
 			isScheduled: true,
 		};
 		const pinnedScheduled = {
-			...makeThread("alpha", 2),
+			...makeThread("scheduled", 2),
 			isScheduled: true,
 			pinned: true,
 		};
-		const regular = { ...makeThread("alpha", 3), source: "core" };
+		const pinned = { ...makeThread("pinned", 1), pinned: true };
+		const regular = makeThread("regular", 1);
 
 		await act(async () => {
 			root.render(
 				<SidebarProvider>
 					<AgentSidebar
-						activeSessionId={null}
+						activeSessionId={scheduled.id}
 						onHome={vi.fn()}
 						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
 						sessionHistory={makeSessionHistory(
-							[scheduled, pinnedScheduled, regular],
+							[scheduled, pinnedScheduled, pinned, regular],
 							vi.fn(),
 						)}
 						setView={vi.fn()}
@@ -305,245 +333,21 @@ describe("AgentSidebar session organization", () => {
 			);
 		});
 
-		// The clock marks scheduled rows inline; a pinned scheduled session
-		// shows both indicators at once.
-		expect(
-			sessionRow("alpha session 1").querySelector('[aria-label="Scheduled"]'),
-		).not.toBeNull();
-		// The clock leads the row: it renders before the title text.
-		// The innermost matching span is the title itself (the outer flex
-		// span also carries the title text plus the icon).
-		const scheduledTitle = [
-			...sessionRow("alpha session 1").querySelectorAll("span"),
-		]
-			.filter((span) => span.textContent === "alpha session 1")
-			.pop();
-		expect(scheduledTitle).toBeDefined();
-		expect(
-			(
-				sessionRow("alpha session 1").querySelector(
-					'[aria-label="Scheduled"]',
-				) as Element
-			).compareDocumentPosition(scheduledTitle as Element) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			sessionRow("alpha session 1").querySelector('[aria-label="Pinned"]'),
-		).toBeNull();
-		expect(
-			sessionRow("alpha session 2").querySelector('[aria-label="Scheduled"]'),
-		).not.toBeNull();
-		expect(
-			sessionRow("alpha session 2").querySelector('[aria-label="Pinned"]'),
-		).not.toBeNull();
-		expect(
-			sessionRow("alpha session 3").querySelector('[aria-label="Scheduled"]'),
-		).toBeNull();
-
-		// The default time view groups these rows under category sections.
-		expect(buttonWithText("Pinned")).toBeDefined();
-		expect(buttonWithText("Scheduled")).toBeDefined();
-		expect(buttonWithText("Tasks")).toBeDefined();
-	});
-
-	it("folds a schedule's runs into one collapsible row", async () => {
-		const run = (index: number) => ({
-			...makeThread("alpha", index),
-			title: "Report today's date to the user.",
-			isScheduled: true,
-			scheduleId: "sched_daily",
-			scheduleName: "Daily date report",
-			scheduleRunNumber: index,
-		});
-		const openThread = vi.fn();
-		const sessionHistory = makeSessionHistory(
-			[run(2), makeThread("beta", 1), run(1)],
-			vi.fn(),
-		);
-		(sessionHistory as { openThread: unknown }).openThread = openThread;
-
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId={null}
-						onHome={vi.fn()}
-						onOpenCustomize={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={sessionHistory}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-
-		// One header per schedule, named after the schedule rather than the
-		// prompt, with the run count; the runs themselves start collapsed.
-		const header = sessionRow("Daily date report");
-		expect(header.textContent).toContain("2 runs");
-		expect(header.getAttribute("aria-expanded")).toBe("false");
-		expect(header.querySelector('[aria-label="Scheduled"]')).not.toBeNull();
-		expect(sessionIsVisible("Report today's date to the user.")).toBe(false);
-		expect(sessionIsVisible("Run 2")).toBe(false);
-		// The Scheduled section counts schedules, not runs.
-		expect(buttonWithText("Scheduled").textContent).toContain("1");
-		expect(sessionIsVisible("beta session 1")).toBe(true);
-
-		await click(header);
-		expect(header.getAttribute("aria-expanded")).toBe("true");
-		expect(sessionIsVisible("Run 2")).toBe(true);
-		expect(sessionIsVisible("Run 1")).toBe(true);
-		// Nested runs don't repeat the clock the header already shows.
-		expect(
-			sessionRow("Run 1").querySelector('[aria-label="Scheduled"]'),
-		).toBeNull();
-		expect(
-			sessionRow("Run 2").compareDocumentPosition(sessionRow("Run 1")) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-
-		await click(sessionRow("Run 1"));
-		expect(openThread).toHaveBeenCalledWith("alpha-1");
-
-		await click(header);
-		expect(sessionIsVisible("Run 1")).toBe(false);
-	});
-
-	it("expands the schedule group that holds the active session", async () => {
-		const run = (index: number) => ({
-			...makeThread("alpha", index),
-			isScheduled: true,
-			scheduleId: "sched_daily",
-			scheduleName: "Daily date report",
-			scheduleRunNumber: index,
-		});
-		const sessionHistory = makeSessionHistory([run(2), run(1)], vi.fn());
-		const render = async (activeSessionId: string) => {
-			await act(async () => {
-				root.render(
-					<SidebarProvider>
-						<AgentSidebar
-							activeSessionId={activeSessionId}
-							onHome={vi.fn()}
-							onOpenCustomize={vi.fn()}
-							onSettingsSectionChange={vi.fn()}
-							sessionHistory={sessionHistory}
-							setView={vi.fn()}
-							settingsSection="General"
-							view="chat"
-						/>
-					</SidebarProvider>,
-				);
-			});
-		};
-
-		await render("alpha-1");
-		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
-			"true",
-		);
-		expect(sessionIsVisible("Run 1")).toBe(true);
-
-		// The group can still be collapsed while it holds the active session,
-		// and stays collapsed across re-renders.
-		await click(sessionRow("Daily date report"));
-		await render("alpha-1");
-		expect(sessionIsVisible("Run 1")).toBe(false);
-
-		// Opening another run of the schedule (e.g. from the Schedules
-		// settings page) reopens the collapsed group so the run is visible.
-		await render("alpha-2");
-		expect(sessionRow("Daily date report").getAttribute("aria-expanded")).toBe(
-			"true",
-		);
-		expect(sessionIsVisible("Run 2")).toBe(true);
-	});
-
-	it("groups scheduled runs inside their project when sorted by project", async () => {
-		const run = (index: number) => ({
-			...makeThread("alpha", index),
-			isScheduled: true,
-			scheduleId: "sched_daily",
-			scheduleName: "Daily date report",
-			scheduleRunNumber: index,
-		});
-
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId={null}
-						onHome={vi.fn()}
-						onOpenCustomize={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory(
-							[run(2), makeThread("alpha", 3), run(1)],
-							vi.fn(),
-						)}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-		await switchToProjectSort();
-
-		const header = sessionRow("Daily date report");
-		expect(header.textContent).toContain("2 runs");
-		expect(sessionIsVisible("alpha session 3")).toBe(true);
-		expect(sessionIsVisible("Run 2")).toBe(false);
-		await click(header);
-		expect(sessionIsVisible("Run 2")).toBe(true);
-	});
-
-	it("defaults to Pinned, Scheduled, and Tasks sections sorted by time", async () => {
-		const pinned = { ...makeThread("alpha", 1), pinned: true };
-		const scheduled = { ...makeThread("beta", 1), isScheduled: true };
-		const regular = makeThread("gamma", 1);
-
-		await act(async () => {
-			root.render(
-				<SidebarProvider>
-					<AgentSidebar
-						activeSessionId={null}
-						onHome={vi.fn()}
-						onOpenCustomize={vi.fn()}
-						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory(
-							[regular, scheduled, pinned],
-							vi.fn(),
-						)}
-						setView={vi.fn()}
-						settingsSection="General"
-						view="chat"
-					/>
-				</SidebarProvider>,
-			);
-		});
-
-		// Sections appear in Pinned, Scheduled, Tasks order.
+		expect(sessionIsVisible("scheduled session 1")).toBe(false);
+		expect(sessionIsVisible("scheduled session 2")).toBe(false);
+		expect(sessionIsVisible("pinned session 1")).toBe(true);
+		expect(sessionIsVisible("regular session 1")).toBe(true);
 		const pinnedHeader = buttonWithText("Pinned");
-		const scheduledHeader = buttonWithText("Scheduled");
 		const tasksHeader = buttonWithText("Tasks");
 		expect(
-			pinnedHeader.compareDocumentPosition(scheduledHeader) &
+			pinnedHeader.compareDocumentPosition(tasksHeader) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
-		expect(
-			scheduledHeader.compareDocumentPosition(tasksHeader) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(sessionIsVisible("alpha session 1")).toBe(true);
-		expect(sessionIsVisible("beta session 1")).toBe(true);
-		expect(sessionIsVisible("gamma session 1")).toBe(true);
-
-		// Collapsing a section hides only its own rows.
-		await click(scheduledHeader);
-		expect(sessionIsVisible("beta session 1")).toBe(false);
-		expect(sessionIsVisible("alpha session 1")).toBe(true);
-		expect(sessionIsVisible("gamma session 1")).toBe(true);
+		await switchToProjectSort();
+		expect(sessionIsVisible("scheduled session 1")).toBe(false);
+		expect(sessionIsVisible("scheduled session 2")).toBe(false);
+		expect(sessionIsVisible("pinned session 1")).toBe(true);
+		expect(sessionIsVisible("regular session 1")).toBe(true);
 	});
 
 	it("deletes a session through the row's hover trash button", async () => {
@@ -714,7 +518,7 @@ describe("AgentSidebar session organization", () => {
 		expect(loadOlderSessions).toHaveBeenCalledTimes(2);
 	});
 
-	it("keeps a flat session list when nothing is pinned or scheduled", async () => {
+	it("keeps a flat session list when nothing is pinned", async () => {
 		await act(async () => {
 			root.render(
 				<SidebarProvider>
@@ -744,6 +548,11 @@ describe("AgentSidebar session organization", () => {
 	it("defaults to all sources and filters by the selected client source", async () => {
 		const desktop = { ...makeThread("desktop", 1), source: "desktop" };
 		const cli = { ...makeThread("cli", 1), source: "cli" };
+		const scheduled = {
+			...makeThread("scheduled", 1),
+			isScheduled: true,
+			source: "hub-schedule",
+		};
 
 		await act(async () => {
 			root.render(
@@ -753,7 +562,10 @@ describe("AgentSidebar session organization", () => {
 						onHome={vi.fn()}
 						onOpenCustomize={vi.fn()}
 						onSettingsSectionChange={vi.fn()}
-						sessionHistory={makeSessionHistory([desktop, cli], vi.fn())}
+						sessionHistory={makeSessionHistory(
+							[desktop, cli, scheduled],
+							vi.fn(),
+						)}
 						setView={vi.fn()}
 						settingsSection="General"
 						view="chat"
@@ -764,6 +576,7 @@ describe("AgentSidebar session organization", () => {
 
 		expect(sessionIsVisible("desktop session 1")).toBe(true);
 		expect(sessionIsVisible("cli session 1")).toBe(true);
+		expect(sessionIsVisible("scheduled session 1")).toBe(false);
 
 		await click(
 			container.querySelector('[aria-label="Filter sessions"]') as Element,
@@ -775,6 +588,11 @@ describe("AgentSidebar session organization", () => {
 			expect(option).toBeDefined();
 			return option as HTMLElement;
 		});
+		expect(
+			[
+				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+			].some((option) => option.textContent === "Hub Schedule"),
+		).toBe(false);
 		await click(cliOption);
 
 		expect(sessionIsVisible("desktop session 1")).toBe(false);
@@ -855,19 +673,6 @@ describe("AgentSidebar session organization", () => {
 		expect(
 			getSessionOverviewItems(thread).some(([label]) => label === "Status"),
 		).toBe(false);
-		// Scheduled runs lead with the schedule they belong to and which run
-		// this is; the row itself only says "Run N".
-		expect(
-			getSessionOverviewItems({
-				...makeThread("cline", 6),
-				isScheduled: true,
-				scheduleName: "Daily date report",
-				scheduleRunNumber: 6,
-			}).slice(0, 2),
-		).toEqual([
-			["Schedule", "Daily date report"],
-			["Run", "6"],
-		]);
 	});
 
 	it("labels a cloud session by repository", () => {
@@ -1271,20 +1076,97 @@ describe("AgentSidebar session organization", () => {
 		await click(buttonWithText("Session", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
-		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
-			"Schedules",
-		);
-		expect(setView).not.toHaveBeenCalled();
+		expect(setView).toHaveBeenCalledExactlyOnceWith("schedules");
 		await click(buttonWithText("Customize", actionsNav as ParentNode));
 		expect(onOpenCustomize).toHaveBeenCalledOnce();
-		expect(onSettingsSectionChange).toHaveBeenCalledOnce();
+		expect(onSettingsSectionChange).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		{ sortMode: "time" },
-		{ sortMode: "project" },
-	] as const)("preserves the $sortMode session list when Customize opens", async ({
+		{ defaultOpen: true, event: "schedule.execution_completed" },
+		{ defaultOpen: true, event: "schedule.execution_failed" },
+		{ defaultOpen: false, event: "schedule.execution_completed" },
+	] as const)("keeps the Schedule dot until navigation completes after $event when defaultOpen=$defaultOpen", async ({
+		defaultOpen,
+		event,
+	}) => {
+		const setView = vi.fn();
+		function RunStatus() {
+			const unread = useHasUnreadScheduleRun("schedule-2");
+			return (
+				<output aria-label="Run status">{unread ? "unread" : "read"}</output>
+			);
+		}
+		const render = (view: DesktopAppView, pageLoaded = false) =>
+			act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider defaultOpen={defaultOpen}>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onOpenCustomize={vi.fn()}
+								onSettingsSectionChange={vi.fn()}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={setView}
+								settingsSection="General"
+								view={view}
+							/>
+							{pageLoaded && <RunStatus />}
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+		await render("chat");
+
+		const scheduleButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Schedule"]',
+		);
+		expect(scheduleButton).not.toBeNull();
+		expect(
+			scheduleButton?.querySelector('[data-schedule-run-status="unread"]'),
+		).toBeNull();
+
+		await emitDesktopEvent(event, {
+			executionId: "execution-1",
+			scheduleId: "schedule-1",
+		});
+
+		const indicator = scheduleButton?.querySelector(
+			'[data-schedule-run-status="unread"]',
+		);
+		expect(indicator?.classList.contains("bg-cline-ui-info-solid")).toBe(true);
+		expect(indicator?.classList.contains("absolute")).toBe(!defaultOpen);
+
+		await click(scheduleButton as HTMLButtonElement);
+		expect(setView).toHaveBeenCalledExactlyOnceWith("schedules");
+		// Requesting navigation can be canceled by an unsaved-changes guard.
+		expect(
+			scheduleButton?.querySelector('[data-schedule-run-status="unread"]'),
+		).not.toBeNull();
+		await render("schedules");
+		expect(
+			scheduleButton?.querySelector('[data-schedule-run-status="unread"]'),
+		).toBeNull();
+		// The lazy page must receive runs completed before its chunk mounts.
+		await emitDesktopEvent(event, { scheduleId: "schedule-2" });
+		await render("schedules", true);
+		expect(
+			container.querySelector('[aria-label="Run status"]')?.textContent,
+		).toBe("unread");
+		expect(
+			scheduleButton?.querySelector('[data-schedule-run-status="unread"]'),
+		).toBeNull();
+	});
+
+	it.each([
+		{ sortMode: "time", pageLabel: "Customize" },
+		{ sortMode: "project", pageLabel: "Customize" },
+		{ sortMode: "time", pageLabel: "Schedule" },
+		{ sortMode: "project", pageLabel: "Schedule" },
+	] as const)("preserves the $sortMode session list when $pageLabel opens", async ({
 		sortMode,
+		pageLabel,
 	}) => {
 		const onOpenCustomize = vi.fn();
 		const onSettingsSectionChange = vi.fn();
@@ -1334,14 +1216,16 @@ describe("AgentSidebar session organization", () => {
 		const actionsNav = container.querySelector(
 			'[aria-label="Sidebar actions"]',
 		) as ParentNode;
-		const pageRow = buttonWithText("Customize", actionsNav);
+		const pageRow = buttonWithText(pageLabel, actionsNav);
 		expect(
 			[...actionsNav.querySelectorAll("button")].map(
 				(button) => button.textContent,
 			),
 		).toEqual(["Session", "Schedule", "Customize"]);
 		await click(pageRow);
-		expect(onOpenCustomize).toHaveBeenCalledOnce();
+		expect(onOpenCustomize).toHaveBeenCalledTimes(
+			pageLabel === "Customize" ? 1 : 0,
+		);
 		expect(onSettingsSectionChange).not.toHaveBeenCalled();
 		expect(
 			container.querySelector('[aria-label="Settings sections"]'),
@@ -1349,7 +1233,10 @@ describe("AgentSidebar session organization", () => {
 		expect(pageRow.getAttribute("aria-current")).toBe("page");
 		expect(pageRow.className.split(" ")).toContain("bg-surface-hover");
 		expect(
-			buttonWithText("Schedule", actionsNav).getAttribute("aria-current"),
+			buttonWithText(
+				pageLabel === "Customize" ? "Schedule" : "Customize",
+				actionsNav,
+			).getAttribute("aria-current"),
 		).toBeNull();
 		expect(
 			container.querySelector('[aria-label="Settings"]')?.className.split(" "),
@@ -1583,7 +1470,8 @@ describe("AgentSidebar session organization", () => {
 		"sessions",
 		"settings",
 		"customize",
-	] as const)("keeps Customize and Schedule as collapsed %s shortcuts", async (view) => {
+		"schedules",
+	] as const)("keeps Customize and Schedule separate in the collapsed %s sidebar", async (view) => {
 		const onOpenCustomize = vi.fn();
 		const onSettingsSectionChange = vi.fn();
 		const setView = vi.fn();
@@ -1625,20 +1513,20 @@ describe("AgentSidebar session organization", () => {
 		await click(customizeButton);
 		expect(onOpenCustomize).toHaveBeenCalledOnce();
 		const scheduleButtons = container.querySelectorAll(
-			'button[aria-label="Schedule"], button[aria-label="Schedules"]',
+			'button[aria-label="Schedule"]',
 		);
 		expect(scheduleButtons).toHaveLength(1);
 		const scheduleButton = scheduleButtons[0] as HTMLButtonElement;
 		expect(settingsNav?.contains(scheduleButton) ?? false).toBe(false);
-		expect(scheduleButton.getAttribute("aria-current")).toBeNull();
+		expect(scheduleButton.getAttribute("aria-current")).toBe(
+			view === "schedules" ? "page" : null,
+		);
 		expect(
 			scheduleButton.className.split(" ").includes("bg-surface-hover"),
-		).toBe(false);
+		).toBe(view === "schedules");
 		await click(scheduleButton);
-		expect(onSettingsSectionChange).toHaveBeenCalledExactlyOnceWith(
-			"Schedules",
-		);
-		expect(setView).not.toHaveBeenCalled();
+		expect(setView).toHaveBeenCalledExactlyOnceWith("schedules");
+		expect(onSettingsSectionChange).not.toHaveBeenCalled();
 	});
 
 	it("shows only the labeled Settings button when signed out", async () => {
