@@ -101,6 +101,13 @@ describe("FactoryVisualProofStrip", () => {
 			item.textContent?.includes("Typed the query"),
 		);
 		expect(step?.textContent).toContain("0:12");
+		// The steps are the recording's captions: listed open, not folded away.
+		expect(
+			document
+				.querySelector('[aria-label="What the tester did"]')
+				?.contains(step ?? null),
+		).toBe(true);
+		expect(step?.closest("details")).toBeNull();
 		if (!video) throw new Error("No video");
 		await act(async () => step?.click());
 		expect(video.currentTime).toBe(12);

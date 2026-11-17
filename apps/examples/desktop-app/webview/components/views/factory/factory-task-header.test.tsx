@@ -315,7 +315,7 @@ describe("FactoryTaskHeader primary action", () => {
 			state: { ...delivered, pullRequestUrl: "https://example.test/pr/1" },
 			delivery: { pullRequestUrl: "https://example.test/pr/1" },
 		});
-		expect(headline()).toBe("Draft PR ready");
+		expect(headline()).toBe("Delivered: draft PR ready");
 		expect(actions()).toEqual(["Open draft PR"]);
 		expect(progress()?.textContent).toContain("You decide when to merge.");
 	});

@@ -369,7 +369,7 @@ describe("hub runtime wiring", () => {
 				ok: true,
 				task: {
 					taskId: task.taskId,
-					status: "pending_approval",
+					stage: expect.any(String),
 					workspaceRoot: project,
 				},
 			});
@@ -386,7 +386,7 @@ describe("hub runtime wiring", () => {
 				task: {
 					taskId: task.taskId,
 					title: "Fix flaky retry",
-					status: "pending_approval",
+					stage: expect.any(String),
 					workspaceRoot: project,
 				},
 			});

@@ -18,6 +18,7 @@ import {
 } from "./factory-attention";
 import {
 	FACTORY_OPEN_FINDINGS,
+	FACTORY_READY,
 	FACTORY_SPLIT,
 	factoryReviewRequest,
 } from "./factory-copy";
@@ -260,12 +261,12 @@ function factoryAttention({ task, run }: FactoryTaskEvent): {
 									}
 								: reason.pullRequestUrl
 									? {
-											title: "Draft PR ready for your review",
+											title: FACTORY_READY.draftPr,
 											body: `${name} passed its checks and reviews. Factory opened a draft PR.`,
 										}
 									: {
-											title: "Factory result ready",
-											body: `${name} passed its checks and reviews and is ready for you.`,
+											title: FACTORY_READY.changes,
+											body: `${name} passed its checks and reviews.`,
 										}),
 					};
 				case "triage": {

@@ -1503,7 +1503,7 @@ it("leads a delivered card with its proof, the draft PR as the header's action a
 	};
 	await render(card);
 	expect(progress()?.querySelector("strong")?.textContent).toBe(
-		"Draft PR ready",
+		"Delivered: draft PR ready",
 	);
 	const proof = document.querySelector('[aria-label="Proof"]');
 	expect(proof?.textContent).toContain("Tester · model not recorded · passed");
@@ -2064,6 +2064,12 @@ it("lets a card stopped before scoping deliver on a branch, and claims no earlie
 		factory: { ...factory, publishPullRequest: false },
 		allWorkspaces: true,
 	});
+	// The card's plan settings follow its own delivery, not the PR it had.
+	await render(await mocks.updateAgendaTask.mock.results[0]?.value);
+	const settings = document.querySelector('[aria-label="Configuration"] p');
+	expect(settings?.textContent).toContain("On a branch, no PR");
+	expect(settings?.textContent).not.toContain("draft PR");
+	expect(settings?.textContent).not.toContain("Keeps it green");
 });
 
 it("offers Start scoping instead of promising progress for an unqueued hands-off card without a plan", async () => {
@@ -2604,7 +2610,7 @@ it("ends a sampled result at the draft PR, even on a manual card", async () => {
 	expect(document.querySelector('[aria-label="Proof"]')).not.toBeNull();
 	expect(button("Good")).toBeTruthy();
 	expect(() => button("Accept")).toThrow();
-	expect(progress()?.textContent).toContain("Draft PR ready");
+	expect(progress()?.textContent).toContain("Delivered: draft PR ready");
 	expect(button("Open draft PR")).toBeTruthy();
 });
 

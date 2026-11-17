@@ -22,7 +22,7 @@ export const FACTORY_PHASE_LABEL = {
 	repairing: "Fixing review findings",
 	publishing: "Opening draft PR",
 	watching: "Watching CI on the draft PR",
-	ready: "Ready for you",
+	ready: "Delivered",
 	blocked: "Blocked",
 } as const satisfies Record<string, string>;
 
@@ -89,7 +89,7 @@ export const FACTORY_DECISION = {
 
 /** What is ready for the user to look at. */
 export const FACTORY_READY = {
-	draftPr: "Draft PR ready",
+	draftPr: "Delivered: draft PR ready",
 	/** Factory marked the draft PR ready (workflow `pullRequestReady`). */
 	markedReady: "Marked ready for review",
 	changes: "Delivered on a branch, no PR",
@@ -373,9 +373,8 @@ export function factoryHistoryStatus(input: {
 		case "in_progress":
 			return "Working";
 	}
-	if (input.phase === "ready") return "Done";
 	if (input.phase) return factoryPhaseLabel(input.phase);
-	return input.status === "completed" ? "Done" : sentenceCase(input.status);
+	return sentenceCase(input.status);
 }
 
 /** "1 card", "2 cards". */
@@ -716,6 +715,9 @@ export const FACTORY_PROOF = {
 	failed: (text: string) => `Failed: ${text}`,
 	noTester: "No agent ran the app: this card has no tester.",
 	testerNoResult: "The tester did not record a result.",
+	/** The workflow has a tester; this card's plan did not need the running app. */
+	testerNotNeeded:
+		"Tester: not needed — this change has nothing to run in the app.",
 	checkLimitation: (name: string, limitations: readonly string[]) =>
 		`${name}: ${FACTORY_CHECK_RESULT.limitations(limitations)}`,
 	/** A path or behavior a reviewer or the tester did not verify. */
@@ -815,9 +817,9 @@ export const FACTORY_CARD_ACTION = {
 	deliverOnBranch: "Deliver on a branch",
 	deliverOnBranchHint:
 		"Factory opens no PR for this card; its changes stay on a branch.",
-	/** The run that already built this plan is not reused. */
+	/** A run of this plan exists: its build is delivered when it had passed. */
 	deliverOnBranchRebuilds:
-		"Factory builds the approved plan again, at new cost, and keeps the changes on a branch with no PR.",
+		"Factory delivers the build it already verified and reviewed on a branch, with no PR, at no new cost. Work that stopped with open findings is built again.",
 	editPlan: "Edit plan",
 	/** More → the delivered card's feedback box. */
 	rate: "Leave feedback…",

@@ -59,8 +59,10 @@ describe("Factory copy", () => {
 			"Reviewed",
 		);
 		expect(factoryHistoryStatus({ status: "completed", phase: "ready" })).toBe(
-			"Done",
+			"Delivered",
 		);
+		// Without its run, a finished card is not claimed delivered.
+		expect(factoryHistoryStatus({ status: "completed" })).toBe("Completed");
 		expect(factoryHistoryStatus({ status: "pending_approval" })).toBe(
 			"Waiting for approval",
 		);

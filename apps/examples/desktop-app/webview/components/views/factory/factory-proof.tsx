@@ -13,6 +13,7 @@ import {
 	factoryRecordedReviewIndependence,
 	factoryRepositoryRelative,
 	factoryRunRoute,
+	factoryVerifierNeeded,
 } from "@cline/shared/browser";
 import { CheckCircle2, CircleAlert, CircleSlash, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
@@ -231,9 +232,20 @@ export function factoryProofReceipt({
 	];
 
 	const notChecked: string[] = [];
+	// Core leaves the workflow's tester out of a run whose plan does not need
+	// it (factoryVerifierNeeded): say that, not that the card has no tester.
+	const input = state.inputSnapshot?.factory;
+	const testerNotNeeded =
+		input?.agents?.verifier &&
+		!state.agents?.verifier &&
+		!factoryVerifierNeeded(state.reviewSelection, criteria, input);
 	if (!verification)
 		notChecked.push(
-			hasVerifier ? FACTORY_PROOF.testerNoResult : FACTORY_PROOF.noTester,
+			hasVerifier
+				? FACTORY_PROOF.testerNoResult
+				: testerNotNeeded
+					? FACTORY_PROOF.testerNotNeeded
+					: FACTORY_PROOF.noTester,
 		);
 	if (!checks.length) notChecked.push(FACTORY_PROOF.noChecks);
 	for (const check of checks)

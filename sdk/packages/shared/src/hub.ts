@@ -546,7 +546,7 @@ export interface HubFactoryDuplicateOf {
 	/** Short id such as F12. */
 	factoryId?: string;
 	title: string;
-	/** Where the card is, in the board's words (e.g. "Draft PR ready"). */
+	/** Where the card is, in the board's words (e.g. "Delivered: draft PR ready"). */
 	state: string;
 	pullRequestUrl?: string;
 	/** A delivered original: its PR merged, or still open as a draft. */

@@ -2856,6 +2856,12 @@ export const factoryRunStateSchema = z.object({
 	pullRequestBase: z.string().optional(),
 	/** Why the draft PR could not be opened; cleared once it opens. */
 	pullRequestError: z.string().optional(),
+	/**
+	 * The card revision that only turned off draft PRs after this stopped
+	 * run's deliverable candidate could not open one: that revision's run
+	 * continues this one and delivers the candidate on a branch.
+	 */
+	carriedToRevision: z.number().int().positive().optional(),
 	/** Factory marked the draft PR ready for review (workflow `pullRequestReady`). */
 	pullRequestReady: z.boolean().optional(),
 	pullRequestWatch: z

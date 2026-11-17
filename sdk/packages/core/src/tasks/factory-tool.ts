@@ -281,8 +281,15 @@ export type FactoryToolInput = z.input<typeof FactoryToolInputSchema>;
 /** Echoing the brief, documents and frozen agents back would only cost context. */
 export type FactoryToolTask = Pick<
 	AgendaTaskRecord,
-	"taskId" | "title" | "status" | "workspaceRoot" | "archivedAt"
+	"taskId" | "title" | "workspaceRoot" | "archivedAt"
 > & {
+	/**
+	 * Where the card is, as factory_status says it. Not the raw task status:
+	 * a scoping card is pending_approval, which reads as a different state.
+	 */
+	stage: FactoryStage;
+	needsYou?: FactoryNeedsYou;
+	waiting?: string;
 	/** The card's short id, such as `F42`. */
 	factoryId?: string;
 	/** The card's project by short name (Factory manager chat only). */
@@ -375,7 +382,10 @@ interface FactoryToolOptions {
 }
 
 export interface CreateFactoryToolOptions extends FactoryToolOptions {
-	manager: Pick<AgendaTaskManagerApi, "createTask" | "fileFactoryCard">;
+	manager: Pick<
+		AgendaTaskManagerApi,
+		"createTask" | "fileFactoryCard" | "getTaskRuns" | "getFactoryQueueState"
+	>;
 	telemetry?: ITelemetryService;
 	/**
 	 * Caps cards created by sessions without a person in them. Hosts pass one
@@ -851,7 +861,7 @@ export function createFactoryTool(
 			"Pass start_scoping: false only to just queue. Pass priority only when the user or the work item states how urgent it is. A repeat of the same work returns the existing card. " +
 			'To have Factory draft a review of an existing pull request, pass deliverable "pr_review" with pull_request; only the user posts it, from Factory. ' +
 			"Factory checks every filing for an open or recently delivered card of the project that already covers it: then no card is created and the reply carries duplicateOf (that card's id, short id, title, state and PR link), reason and fileAnyway; pass allow_duplicate: true only if the user says it is different work. " +
-			"Returns the card's id, title, status and project, whether it already existed, relatedTo (cards Factory linked to a new card), and the designer's conclusion when no build was needed. " +
+			"Returns the card's id, title, stage (where it is, in the board's words), needsYou or waiting when they apply, and project, whether it already existed, relatedTo (cards Factory linked to a new card), and the designer's conclusion when no build was needed. " +
 			"pullRequestProblem means the card was filed but its project cannot open pull requests yet, so it waits for the user; tell them that sentence first.",
 		inputSchema: zodToJsonSchema(FactoryToolInputSchema),
 		retryable: false,
@@ -1066,13 +1076,19 @@ export function createFactoryTool(
 					? undefined
 					: factoryPullRequestStop(task);
 				const cannotPublish = publishCheck && (await publishCheck);
+				const described = describeFactoryCard(
+					task,
+					options.manager.getTaskRuns?.(task.taskId) ?? [],
+					options.manager.getFactoryQueueState?.(),
+				);
 				return {
 					ok: true,
 					task: {
 						taskId: task.taskId,
 						...factoryIdField(task),
 						title: task.title,
-						status: task.status,
+						stage: described.stage,
+						...pickNeedsFields(described),
 						workspaceRoot: task.workspaceRoot,
 						...(known && task.workspaceRoot
 							? { project: known.name(task.workspaceRoot) }
@@ -1277,7 +1293,7 @@ export type FactoryStage =
 	| "Verifying"
 	| "Reviewing"
 	| "Publishing"
-	| "Draft PR ready"
+	| "Delivered: draft PR ready"
 	| "Review draft ready"
 	| "Review posted"
 	| "Delivered"
@@ -1748,10 +1764,10 @@ function describeFactoryStage(
 				!card.deliverable.outcome &&
 				!state?.humanApproval &&
 				!state?.audit?.reviewedAt
-				? "Draft PR ready"
+				? "Delivered: draft PR ready"
 				: "Delivered";
 		case "delivered_with_findings":
-			return "Draft PR ready";
+			return "Delivered: draft PR ready";
 		case "stopped":
 			// The draft PR step comes after Review; Review itself passed. A
 			// card the check before scoping or a run stopped never got there.
@@ -2093,7 +2109,8 @@ function describeFactoryCardWithUrgency(
 		card.kind === "stopped" || card.kind === "closed"
 			? task.error || state?.error || run?.error
 			: undefined;
-	const delivered = stage === "Draft PR ready" || stage === "Delivered";
+	const delivered =
+		stage === "Delivered: draft PR ready" || stage === "Delivered";
 	const openFindings =
 		card.kind === "delivered_with_findings"
 			? state?.unresolvedFindings?.findings.length
@@ -2212,7 +2229,7 @@ export function createFactoryStatusTool(
 		name: FACTORY_STATUS_TOOL_NAME,
 		description:
 			"How this project's Factory work is going, in plain words; in the Factory manager chat, every project's (each card names its project, and the overview lists the projects) unless project names one. With no task_id or query, returns an overview: up to 20 cards (those needing the user first, then the open cards working, then the other open cards by priority), with needsYou, the cards waiting for the user's decision (the board's Needs you), in the order to handle them (priority, then urgency), and why; otherwise the matching card (by task id, short id such as F42, or title) with its stage, priority and who set it, who is working and for how long, its place in line, last error, pending question, PR link, the screenshots and recording a delivered change to the UI came with (or why none), and what happens next on its own. Cards carry priority (urgent, high, medium or low; absent means none). " +
-			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. action deliver_on_branch, only in the Factory manager chat and only when the user asks, delivers a card that stopped because its draft PR could not be opened on a branch with no PR instead; a card whose run already built it builds again. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
+			`action hold keeps a card that has not started from starting, start starts a held or queued card, retry tries a stopped card again (an agent may retry a card at most ${FACTORY_MAX_AGENT_RETRIES} times; after that the user retries it from the Factory board). action priority with priority (urgent, high, medium, low or none) changes a card's priority in any status, only in the Factory manager chat and only when the user asks; Urgent, or changing a priority the user set, asks the user to confirm in the app and changes nothing unless they do. It reorders waiting work and never stops running work. action deliver_on_branch, only in the Factory manager chat and only when the user asks, delivers a card that stopped because its draft PR could not be opened on a branch with no PR instead; a card whose run already passed verification and review delivers that build without building again; otherwise it builds the approved plan again. It never approves plans or breakdowns, reviews, merges or archives, and never starts a part that waits for an earlier part's merge. A card split into parts reports parts (its parts' progress); a part reports parent, and a waiting part waitingFor.`,
 		inputSchema: zodToJsonSchema(FactoryStatusToolInputSchema),
 		retryable: false,
 		maxRetries: 0,
@@ -2757,10 +2774,18 @@ async function runFactoryStatusAction(
 				factory: { ...task.factory, publishPullRequest: false },
 				updatedBy: actor,
 			});
-			if (updated.status === "approved")
-				return built
-					? `Queued to run again on a branch, with no PR. The earlier build is not reused: it builds the approved plan again, at new cost.${afterQueue}`
-					: `Queued to run on a branch, with no PR.${afterQueue}`;
+			if (updated.status === "approved") {
+				// Core carries a build that already passed verification and
+				// review to the new revision; anything else is built again.
+				const carried = (manager.getTaskRuns?.(task.taskId) ?? []).some(
+					(run) => run.factory?.carriedToRevision === updated.revision,
+				);
+				return carried
+					? `Queued to deliver its verified build on a branch, with no PR; nothing is built again.${afterQueue}`
+					: built
+						? `Queued to run again on a branch, with no PR. The earlier build is not reused: it builds the approved plan again, at new cost.${afterQueue}`
+						: `Queued to run on a branch, with no PR.${afterQueue}`;
+			}
 			await scope();
 			return `Queued for scoping, to deliver on a branch with no PR.${afterQueue}`;
 		}

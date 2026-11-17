@@ -305,9 +305,11 @@ function executionHeadline(
 				: checksHeadline(task, state);
 		case "reviewing":
 			return `${FACTORY_PHASE_LABEL.reviewing}${round}`;
+		// The run has its result but has not settled; the board says the same.
+		case "ready":
+			return FACTORY_ACTIVITY.finishing;
 		case "publishing":
 		case "watching":
-		case "ready":
 		case "blocked":
 			return FACTORY_PHASE_LABEL[state.phase];
 	}
@@ -689,7 +691,7 @@ function summarize(
 								: state?.pullRequestUrl
 									? FACTORY_READY.draftPr
 									: state
-										? FACTORY_PHASE_LABEL.ready
+										? FACTORY_READY.changes
 										: "Completed",
 					stage: "deliver",
 				}

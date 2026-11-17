@@ -400,7 +400,7 @@ describe("desktop notifications", () => {
 			});
 			await vi.waitFor(() => expect(notifications()).toHaveLength(1));
 			expect(notifications()[0]).toMatchObject({
-				title: "Draft PR ready for your review",
+				title: "Delivered: draft PR ready",
 				body: "Search notes passed its checks and reviews. Factory opened a draft PR.",
 			});
 			stop();
@@ -740,7 +740,7 @@ describe("desktop notifications", () => {
 			emit("task.updated", ready);
 			await vi.waitFor(() => expect(notifications()).toHaveLength(2));
 			expect(notifications()[1]).toMatchObject({
-				title: "Factory result ready",
+				title: "Delivered on a branch, no PR",
 				factoryTaskId: "task-1",
 			});
 			emit("task.updated", {
@@ -821,7 +821,7 @@ describe("desktop notifications", () => {
 				await vi.waitFor(() => expect(notifications()).toHaveLength(2));
 				await settle();
 				expect(notifications()).toEqual([
-					expect.objectContaining({ title: "Factory result ready" }),
+					expect.objectContaining({ title: "Delivered on a branch, no PR" }),
 					{
 						title: "Factory PR follow-up paused",
 						body: "Search notes is waiting for you to resume PR follow-up.",

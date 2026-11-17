@@ -614,7 +614,7 @@ function ConfigurationSummary({
 						? watch
 							? "Publishes a draft PR · Keeps it green"
 							: "Publishes a draft PR"
-						: "Keeps changes on a local branch"}
+						: "On a branch, no PR"}
 				</p>
 			</div>
 			{showChecks ? (

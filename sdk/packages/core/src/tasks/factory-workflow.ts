@@ -2,6 +2,7 @@ import type {
 	AgendaTaskRecord,
 	AgendaTaskRunRecord,
 	FactoryAcceptanceCriterion,
+	FactoryAgents,
 	FactoryAppEnvironment,
 	FactoryArtifact,
 	FactoryCandidate,
@@ -245,6 +246,33 @@ function hasCodeFindings(
 				verification,
 				(verification.coverage?.requiredGaps.length ?? 0) + unmet.verify.length,
 			))
+	);
+}
+
+/**
+ * Whether a recorded candidate passed every gate before delivery: each plan
+ * check and repository stage, every acceptance criterion, and a finding-free
+ * result from each configured reviewer and the verifier, when there is one.
+ * Only such a candidate is published, or delivered on a branch, as built.
+ */
+export function factoryCandidateDeliverable(
+	candidate: FactoryCandidate,
+	agents: Pick<FactoryAgents, "reviewers" | "verifier">,
+	config: Pick<FactoryTaskConfig, "checks" | "acceptanceCriteria">,
+): boolean {
+	const unmet = unmetFactoryAcceptance(config.acceptanceCriteria, candidate);
+	return (
+		candidate.checks.length === config.checks.length &&
+		candidate.checks.every((check) => check.status === "passed") &&
+		factoryStageFindings(candidate.stages).length === 0 &&
+		unmet.repair.length === 0 &&
+		unmet.verify.length === 0 &&
+		[
+			...(candidate.verification ? [candidate.verification.review] : []),
+			...candidate.reviews.map((entry) => entry.review),
+		].every((review) => factoryReviewFindings(review).length === 0) &&
+		candidate.reviews.length === agents.reviewers.length &&
+		(!agents.verifier || candidate.verification !== undefined)
 	);
 }
 
@@ -1400,10 +1428,8 @@ export async function runFactoryWorkflow(
 				signal,
 			});
 			if (
-				findings.length === 0 &&
-				unmet.verify.length === 0 &&
-				candidate.reviews.length === agents.reviewers.length &&
-				(!agents.verifier || candidate.verification)
+				!environmentFinding &&
+				factoryCandidateDeliverable(candidate, agents, config)
 			) {
 				// PR follow-up keeps the requirement frozen at delivery.
 				save({

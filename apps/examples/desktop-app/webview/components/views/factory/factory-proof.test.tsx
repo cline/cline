@@ -243,6 +243,45 @@ describe("FactoryProof", () => {
 		expect(block("Checked by")).not.toContain("Tester");
 	});
 
+	it("says the workflow's tester was not needed when the plan left it out", async () => {
+		const base = stateWith();
+		const input = base.inputSnapshot;
+		if (!input) throw new Error("fixture");
+		// A trivial docs change, every requirement with its own check: core
+		// freezes the run's agents without the workflow's tester.
+		const state = stateWith({
+			inputSnapshot: {
+				...input,
+				factory: {
+					...input.factory,
+					agents: { implementers: [{}], reviewers: [{}], verifier: {} },
+					acceptanceCriteria: [
+						{ id: "api", text: "API finds titles", check: "api" },
+					],
+				},
+			},
+			agents: { implementers: [{}], reviewers: [{}] },
+			reviewSelection: {
+				impact: "local",
+				size: "trivial",
+				rationale: "Docs only.",
+				affectedPaths: ["README.md"],
+				consumers: ["readers"],
+				planReviewerIndices: [],
+				reviewerIndices: [0],
+			},
+			candidate: { ...base.candidate, verification: undefined },
+		});
+		const hasVerifier = Boolean(state.agents?.verifier);
+		await act(async () =>
+			root.render(<FactoryProof hasVerifier={hasVerifier} state={state} />),
+		);
+		expect(block("Not checked")).toContain(
+			"Tester: not needed — this change has nothing to run in the app.",
+		);
+		expect(block("Not checked")).not.toContain("this card has no tester");
+	});
+
 	it("warns when the code reviewer runs on the builder's model", async () => {
 		await act(async () =>
 			root.render(

@@ -56,7 +56,7 @@ import {
 	FACTORY_RULE_NOMINATION_INSTRUCTION,
 	formatFactoryKnownRuleKeys,
 } from "./factory-repo-rules";
-import { describeFactoryCard } from "./factory-tool";
+import { describeFactoryCard, factoryStatusCardState } from "./factory-tool";
 import {
 	factoryVerificationProfileFileContent,
 	factoryVerificationProfileHash,
@@ -5270,6 +5270,209 @@ describe("hands-off Factory", () => {
 		expect((await h.manager.getTask(task.taskId))?.error).toContain(
 			"not signed in",
 		);
+	});
+
+	describe("Deliver on a branch after the draft PR could not open", () => {
+		const refused = () =>
+			spyPublishing(async () => {
+				throw new FactoryPublishError("GitHub refused the pull request.");
+			});
+		/** A hands-off card stopped at its draft PR, and its stopped run. */
+		const stoppedAtPublish = async (
+			h: ReturnType<typeof harness>,
+			factory: Record<string, unknown> = {},
+		) => {
+			await h.manager.start();
+			const created = await submit(h, { approval: "automatic", ...factory });
+			await vi.waitFor(
+				async () => expect(await status(h, created.taskId)).toBe("failed"),
+				{ timeout: 15000 },
+			);
+			const task = await h.manager.getTask(created.taskId);
+			const run = h.manager.getTaskRuns(created.taskId)[0];
+			if (!task?.factory || !run?.factory) throw new Error("Missing stop");
+			expect(task.error).toMatch(/^Could not open the draft PR: /);
+			return { task, run };
+		};
+		const branchOnly = (
+			manager: AgendaTaskManager,
+			task: AgendaTaskRecord,
+			change: Partial<Parameters<AgendaTaskManager["updateTask"]>[0]> = {},
+		) =>
+			manager.updateTask({
+				taskId: task.taskId,
+				expectedRevision: task.revision,
+				factory: {
+					...(task.factory as FactoryTaskConfig),
+					publishPullRequest: false,
+				},
+				updatedBy: { kind: "user" },
+				...change,
+			});
+		const latestRun = async (h: ReturnType<typeof harness>, taskId: string) => {
+			const task = await h.manager.getTask(taskId);
+			return h.manager
+				.getTaskRuns(taskId)
+				.find((run) => run.runId === task?.lastRunId);
+		};
+
+		it("delivers the run's verified candidate without building, verifying or reviewing again", async () => {
+			const h = harness({ independentReviewer: true });
+			const publish = refused();
+			const { task, run } = await stoppedAtPublish(h);
+			const sessions = vi.mocked(h.runtime.startSession).mock.calls.length;
+			await branchOnly(h.manager, task);
+			await vi.waitFor(
+				async () => expect(await status(h, task.taskId)).toBe("completed"),
+				{ timeout: 15000 },
+			);
+			const delivered = await latestRun(h, task.taskId);
+			expect(h.manager.getTaskRuns(task.taskId)).toHaveLength(2);
+			expect(delivered?.status).toBe("completed");
+			expect(delivered?.resultSummary).toBe(
+				`Verified candidate ${run.factory?.candidate?.commit}. Changes ready for review; publishing is disabled.`,
+			);
+			// The same build in the same worktree, with the evidence, reviews,
+			// stamp and spend it already had.
+			expect(delivered?.factory).toMatchObject({
+				phase: "ready",
+				workspace: run.factory?.workspace,
+				candidate: run.factory?.candidate,
+				humanReview: run.factory?.humanReview,
+				attempts: run.factory?.attempts,
+			});
+			expect(delivered?.factory?.pullRequestError).toBeUndefined();
+			expect(h.runtime.startSession).toHaveBeenCalledTimes(sessions);
+			expect(h.builds()).toBe(1);
+			expect(publish).toHaveBeenCalledTimes(1);
+			const card = factoryStatusCardState(
+				(await h.manager.getTask(task.taskId)) as AgendaTaskRecord,
+				delivered,
+				h.manager.getFactoryQueueState(),
+			);
+			expect(card).toMatchObject({
+				kind: "delivered",
+				deliverable: { kind: "branch" },
+			});
+		});
+
+		it("builds a card that stopped before it had a candidate, as before", async () => {
+			const h = harness({ independentReviewer: true });
+			resolveBase.mockRejectedValueOnce(
+				new FactoryPublishError("This project has no origin remote."),
+			);
+			const { task, run } = await stoppedAtPublish(h);
+			expect(run.factory?.candidate).toBeUndefined();
+			expect(h.builds()).toBe(0);
+			await branchOnly(h.manager, task);
+			await vi.waitFor(
+				async () => expect(await status(h, task.taskId)).toBe("completed"),
+				{ timeout: 15000 },
+			);
+			expect(h.builds()).toBe(1);
+			expect((await latestRun(h, task.taskId))?.factory?.phase).toBe("ready");
+		});
+
+		it("builds again when the stopped candidate did not pass its review", async () => {
+			const h = harness({
+				independentReviewer: true,
+				review: JSON.stringify({
+					verdict: "changes_requested",
+					findings: ["Rename the helper."],
+					summary: "Reviewed.",
+				}),
+			});
+			refused();
+			const { task, run } = await stoppedAtPublish(h, { maxRepairRounds: 0 });
+			expect(run.factory?.unresolvedFindings).toBeDefined();
+			expect(h.builds()).toBe(1);
+			await branchOnly(h.manager, task);
+			await vi.waitFor(
+				async () => expect(await status(h, task.taskId)).toBe("failed"),
+				{ timeout: 15000 },
+			);
+			expect(h.builds()).toBe(2);
+			expect(
+				h.manager.getTaskRuns(task.taskId).find((e) => e.runId === run.runId)
+					?.factory?.carriedToRevision,
+			).toBeUndefined();
+		});
+
+		it("delivers once, without building, across a restart before the run starts", async () => {
+			const h = harness({ independentReviewer: true });
+			refused();
+			const { task, run } = await stoppedAtPublish(h);
+			const sessions = vi.mocked(h.runtime.startSession).mock.calls.length;
+			await h.manager.dispose();
+			const open = () => {
+				const manager = new AgendaTaskManager({
+					runtime: h.runtime,
+					dbPath: join(h.root, "tasks.db"),
+					globalSpecsDir: join(h.root, "specs"),
+					watchFiles: false,
+					automationEnabled: false,
+				});
+				cleanup.unshift(() => manager.dispose());
+				return manager;
+			};
+			// The Hub stops after the update queued the run, before it started.
+			const before = open();
+			await branchOnly(before, task);
+			await before.dispose();
+			const after = open();
+			await after.start();
+			await vi.waitFor(
+				async () =>
+					expect((await after.getTask(task.taskId))?.status).toBe("completed"),
+				{ timeout: 15000 },
+			);
+			const runs = after.getTaskRuns(task.taskId);
+			expect(runs.map((entry) => entry.status).sort()).toEqual([
+				"completed",
+				"failed",
+			]);
+			expect(
+				runs.find((entry) => entry.status === "completed")?.factory?.candidate,
+			).toEqual(run.factory?.candidate);
+			expect(h.runtime.startSession).toHaveBeenCalledTimes(sessions);
+			expect(h.builds()).toBe(1);
+			// The same update again changes nothing.
+			await expect(branchOnly(after, task)).rejects.toThrow();
+			expect(after.getTaskRuns(task.taskId)).toHaveLength(2);
+			expect((await after.getTask(task.taskId))?.status).toBe("completed");
+		});
+
+		it("plans again when the brief changes as well", async () => {
+			const h = harness({ independentReviewer: true });
+			refused();
+			const { task, run } = await stoppedAtPublish(h);
+			const scoped = vi.mocked(h.runtime.runDesignSession).mock.calls.length;
+			const edited = await branchOnly(h.manager, task, {
+				instructions: "Acceptance: feature.txt contains after, twice checked.",
+			});
+			expect(edited.status).toBe("pending_approval");
+			// Scoped again; the person's changed plan is theirs to approve.
+			await vi.waitFor(
+				async () => {
+					const current = await h.manager.getTask(task.taskId);
+					expect(current?.revision).toBeGreaterThan(edited.revision);
+					expect(current?.factoryDesignProgress).toMatchObject({
+						revision: current?.revision,
+						phase: "complete",
+					});
+				},
+				{ timeout: 15000 },
+			);
+			expect(
+				vi.mocked(h.runtime.runDesignSession).mock.calls.length,
+			).toBeGreaterThan(scoped);
+			expect(await status(h, task.taskId)).toBe("pending_approval");
+			expect(h.manager.getTaskRuns(task.taskId)).toHaveLength(1);
+			expect(
+				h.manager.getTaskRuns(task.taskId).find((e) => e.runId === run.runId)
+					?.factory?.carriedToRevision,
+			).toBeUndefined();
+		});
 	});
 
 	it("defaults publishing and PR follow-up on, keeping explicit choices", async () => {

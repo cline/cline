@@ -3850,6 +3850,58 @@ describe("Factory quick archive", () => {
 		expect(archiveCalls()).toHaveLength(1);
 	});
 
+	it("opens Open and Archive on a right-click anywhere on a delivered card and its rail row", async () => {
+		arrange();
+		await render();
+		const rightClick = async (target: Element | null | undefined) => {
+			if (!target) throw new Error("Missing right-click target");
+			await act(async () => {
+				target.dispatchEvent(
+					new MouseEvent("contextmenu", {
+						bubbles: true,
+						cancelable: true,
+						button: 2,
+						clientX: 5,
+						clientY: 5,
+					}),
+				);
+			});
+			const items = Array.from(
+				document.querySelectorAll('[role="menuitem"]'),
+			).map((item) => item.textContent);
+			await act(async () => {
+				document.dispatchEvent(
+					new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+				);
+			});
+			return items;
+		};
+		// A working card has no menu, so each check sees only its own.
+		expect(await rightClick(row("Working", "working"))).toEqual([]);
+		const card = row("Delivered", "done-a").closest("li");
+		expect(await rightClick(card)).toEqual(["Open", "Archive"]);
+		expect(await rightClick(row("Delivered", "done-a"))).toEqual([
+			"Open",
+			"Archive",
+		]);
+		expect(
+			await rightClick(card?.querySelector("[data-factory-proof]")),
+		).toEqual(["Open", "Archive"]);
+		expect(await rightClick(card?.querySelector("[data-factory-id]"))).toEqual([
+			"Open",
+			"Archive",
+		]);
+		await act(async () => row("Delivered", "done-a").click());
+		const railRow = container.querySelector(
+			'nav[data-factory-rail] [data-factory-task="done-a"]',
+		);
+		expect(await rightClick(railRow)).toEqual(["Open", "Archive"]);
+		expect(await rightClick(railRow?.querySelector("span.truncate"))).toEqual([
+			"Open",
+			"Archive",
+		]);
+	});
+
 	it("undoes an archive from the notice, and says when archiving fails", async () => {
 		arrange();
 		await render();

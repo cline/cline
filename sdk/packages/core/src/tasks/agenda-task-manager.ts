@@ -265,6 +265,7 @@ import {
 	resolveFactoryVerificationProfile,
 } from "./factory-verification-profile";
 import {
+	factoryCandidateDeliverable,
 	retryUnavailableFactoryVerification,
 	runFactoryWorkflow,
 	unmetFactoryAcceptance,
@@ -3596,6 +3597,28 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				: undefined;
 		const keptApproval =
 			keptPlan !== undefined && current.approvedRevision === current.revision;
+		// A stopped run of this plan whose candidate passed every gate and only
+		// its draft PR failed is continued, not built again (see runTask).
+		// Invariant: only when the sole change is draft PRs on → off
+		// (keptPlan), with the approved plan kept and the run made from it.
+		const stopped =
+			keptApproval && current.status === "failed" && current.lastRunId
+				? this.store.getRun(current.lastRunId)
+				: undefined;
+		const carried =
+			stopped?.taskRevision === current.revision &&
+			stopped.status === "failed" &&
+			current.factory &&
+			stopped.factory?.candidate &&
+			stopped.factory.agents &&
+			!stopped.factory.pullRequestUrl &&
+			factoryCandidateDeliverable(
+				stopped.factory.candidate,
+				stopped.factory.agents,
+				current.factory,
+			)
+				? { runId: stopped.runId, factory: stopped.factory }
+				: undefined;
 		const desired = mergedEditableTask(current, input);
 		assertFutureExpiry(desired.expiresAt);
 		const location = normalizeAgendaTaskLocation(desired);
@@ -3691,6 +3714,10 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 			},
 			updated.revision,
 		);
+		if (carried)
+			this.store.updateRun(carried.runId, {
+				factory: { ...carried.factory, carriedToRevision: updated.revision },
+			});
 		if (current.specPath && current.specPath !== spec.specPath) {
 			this.fileStoreForTask(current).deleteSpec(current.specPath);
 		}
@@ -4352,9 +4379,26 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		const previous = current.lastRunId
 			? this.store.getRun(current.lastRunId)
 			: undefined;
+		// A run continues only on the revision it ran. The one exception: a
+		// revision that only turned off draft PRs, keeping the plan, continues
+		// the stopped run whose deliverable candidate could not open its PR
+		// (marked by updateTask), so that candidate is delivered as built.
+		const carried =
+			previous?.factory?.carriedToRevision === current.revision &&
+			!current.factory?.publishPullRequest
+				? {
+						...previous.factory,
+						carriedToRevision: undefined,
+						pullRequestError: undefined,
+					}
+				: undefined;
 		const inherited =
-			previous?.taskRevision === current.revision
-				? factoryResumeState(previous.factory, actor, previous.error)
+			carried || previous?.taskRevision === current.revision
+				? factoryResumeState(
+						carried ?? previous?.factory,
+						actor,
+						previous?.error,
+					)
 				: undefined;
 		// A note's analysis belongs to the run the note was given on; its
 		// analyst stops with that run.

@@ -99,19 +99,19 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 	],
 	"plan fault": ["Stopped", "Stays stopped until someone tries again."],
 	"draft PR left open with findings": [
-		"Draft PR ready",
+		"Delivered: draft PR ready",
 		/^Waits for a person to review the draft PR and its open findings/,
 	],
 	"delivered, stamp required": [
-		"Draft PR ready",
+		"Delivered: draft PR ready",
 		"Waits for a person to review the draft PR.",
 	],
 	"draft PR ready": [
-		"Draft PR ready",
+		"Delivered: draft PR ready",
 		"Waits for a person to review the draft PR.",
 	],
 	"draft PR watched": [
-		"Draft PR ready",
+		"Delivered: draft PR ready",
 		"Watches the draft PR and fixes failing checks or review feedback on its own.",
 	],
 	"draft PR merged": ["Delivered", "Nothing; the draft PR was merged."],
@@ -119,7 +119,10 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 		"Delivered",
 		"Nothing; the draft PR was closed without merging.",
 	],
-	"PR follow-up paused": ["Draft PR ready", /^Waits: PR follow-up is paused/],
+	"PR follow-up paused": [
+		"Delivered: draft PR ready",
+		/^Waits: PR follow-up is paused/,
+	],
 	"flagged delivery": ["Delivered", "Nothing; the work is delivered."],
 	"flagged delivery recorded as a stop by an older Hub": [
 		"Delivered",

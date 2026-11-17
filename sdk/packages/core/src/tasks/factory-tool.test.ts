@@ -125,7 +125,7 @@ describe("Factory intake tool", () => {
 			taskId: expect.any(String),
 			factoryId: "F1",
 			title: "Fix flaky retry",
-			status: "pending_approval",
+			stage: "Waiting for a free slot",
 			workspaceRoot,
 		});
 		const persisted = await manager.getTask(first.task.taskId);
@@ -319,7 +319,8 @@ describe("Factory intake tool", () => {
 				taskId: first.task.taskId,
 				factoryId: "F1",
 				title: "Fix flaky retry",
-				status: "pending_approval",
+				stage: "Waiting for plan approval",
+				needsYou: { reason: "confirm the designer's conclusion" },
 				workspaceRoot,
 				conclusion: {
 					outcome: "already_fixed",
@@ -556,8 +557,11 @@ describe("Factory intake tool", () => {
 		if (!first.ok) throw new Error(first.error.message);
 		expect(first).toMatchObject({
 			existing: false,
-			task: { workspaceRoot, status: "pending_approval" },
+			task: { workspaceRoot, stage: "Waiting for a free slot" },
 		});
+		// The board's state, not the raw task status the manager would repeat.
+		expect(first.task).not.toHaveProperty("status");
+		expect(JSON.stringify(first)).not.toContain("pending_approval");
 		const stored = await manager.getTask(first.task.taskId);
 		expect(stored?.factory).toMatchObject({
 			approval: "automatic",
@@ -797,7 +801,10 @@ describe("Factory intake tool", () => {
 		if (!first.ok) throw new Error(first.error.message);
 		expect(first).toMatchObject({
 			existing: false,
-			task: { title: "Export activity as CSV", status: "pending_approval" },
+			task: {
+				title: "Export activity as CSV",
+				stage: "Waiting for a free slot",
+			},
 		});
 		const persisted = await manager.getTask(first.task.taskId);
 		expect(persisted).toMatchObject({
@@ -1280,7 +1287,7 @@ describe("Factory status tool", () => {
 				],
 			),
 		).toMatchObject({
-			stage: "Draft PR ready",
+			stage: "Delivered: draft PR ready",
 			pullRequestUrl: "https://github.com/o/r/pull/7",
 			humanReview: "required (workflow always requires a stamp)",
 			next: "Waits for a person to review the draft PR.",
@@ -1428,7 +1435,7 @@ describe("Factory status tool", () => {
 			);
 		const card0 = stoppedWithPr();
 		expect(card0).toMatchObject({
-			stage: "Draft PR ready",
+			stage: "Delivered: draft PR ready",
 			pullRequestUrl: url,
 			humanReview: "required (review findings unresolved (3))",
 			next: "Waits for a person to review the draft PR and its open findings. Try again in Factory gives the builder one more repair round for them.",
@@ -1438,7 +1445,10 @@ describe("Factory status tool", () => {
 			stoppedWithPr({
 				humanApproval: { commit: "abc", approvedAt: minutesAgo(1) },
 			}),
-		).toMatchObject({ stage: "Draft PR ready", humanReview: "stamped" });
+		).toMatchObject({
+			stage: "Delivered: draft PR ready",
+			humanReview: "stamped",
+		});
 		// Without an open PR showing the candidate, it is an ordinary stop.
 		expect(
 			stoppedWithPr({

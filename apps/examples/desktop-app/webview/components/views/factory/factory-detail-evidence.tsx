@@ -3,6 +3,7 @@
 import type {
 	FactoryAcceptanceCriterion,
 	FactoryAcceptanceEvaluation,
+	FactoryArtifact,
 	FactoryCandidate,
 	FactoryCheckResult,
 	FactoryReview,
@@ -88,7 +89,8 @@ export function useEvidenceLoader({
 
 /**
  * A recorded screenshot or recording in the app's lightbox. A recording's
- * steps list below the player; choosing one seeks the video to its time.
+ * steps are its captions: always listed below the player; choosing one seeks
+ * the video to its time.
  */
 export function EvidenceDialog({
 	label,
@@ -127,9 +129,14 @@ export function EvidenceDialog({
 							<track kind="captions" />
 						</video>
 						{steps?.length ? (
-							<details className="max-h-40 w-full max-w-2xl shrink-0 overflow-auto text-sm">
-								<DetailsSummary>{FACTORY_VISUAL_PROOF.steps}</DetailsSummary>
-								<ol className="mt-2 space-y-1">
+							<section
+								aria-label={FACTORY_VISUAL_PROOF.steps}
+								className="max-h-40 w-full max-w-2xl shrink-0 overflow-auto text-sm"
+							>
+								<h3 className="text-xs font-medium text-muted-foreground">
+									{FACTORY_VISUAL_PROOF.steps}
+								</h3>
+								<ol className="mt-1 space-y-1">
 									{steps.map((step) => (
 										<li key={`${step.atMs}:${step.text}`}>
 											<button
@@ -148,7 +155,7 @@ export function EvidenceDialog({
 										</li>
 									))}
 								</ol>
-							</details>
+							</section>
 						) : null}
 						<Button
 							size="sm"
@@ -186,7 +193,7 @@ export function EvidencePreview({
 }: {
 	taskId: string;
 	runId: string;
-	artifact: { path: string; label: string; mimeType: string };
+	artifact: Pick<FactoryArtifact, "path" | "label" | "mimeType" | "steps">;
 }) {
 	const { dataUrl, error, loading, load } = useEvidenceLoader({
 		taskId,
@@ -217,6 +224,7 @@ export function EvidencePreview({
 				label={artifact.label}
 				dataUrl={dataUrl}
 				video={video}
+				steps={artifact.steps}
 				open={open}
 				onOpenChange={setOpen}
 			/>
