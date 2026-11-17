@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { filterBuiltinInventory } from "@/lib/extension-inventory";
 import { useExtensionInventory } from "@/lib/use-extension-inventory";
-import { useMcpInventory } from "@/lib/use-mcp-inventory";
 import { useConnectorResults } from "./connectors/use-connector-results";
 import {
 	selectInstalledHooks,
@@ -17,6 +16,7 @@ import {
 	skillMarketplaceItem,
 } from "./extensions/installed-marketplace-selectors";
 import { useInstalledMarketplaceItems } from "./marketplace/use-installed-marketplace-items";
+import { useMcpServers } from "./mcp/use-mcp-servers";
 import {
 	CUSTOMIZE_CATEGORIES,
 	type CustomizationKind,
@@ -40,11 +40,11 @@ export function useInstalledCustomizations({
 	const hasCategoryFilter = !searchResults && categoryFilter?.category != null;
 	const { inventory, loading, error, refresh } = useExtensionInventory();
 	const {
-		response: mcpInventory,
-		loading: mcpLoading,
-		error: mcpError,
-		refresh: refreshMcpInventory,
-	} = useMcpInventory();
+		servers: mcpServers,
+		isLoading: mcpLoading,
+		errorMessage: mcpError,
+		refreshServers: refreshMcpServers,
+	} = useMcpServers();
 	const includeBuiltinItems = searchResults || tab !== "all";
 	const visibleInventory = useMemo(
 		() =>
@@ -69,11 +69,10 @@ export function useInstalledCustomizations({
 	);
 	const mcpItems = useMemo(
 		() =>
-			getInstalledMcpServers(
-				mcpInventory?.servers ?? [],
-				includeBuiltinItems,
-			).map(mcpMarketplaceItem),
-		[mcpInventory, includeBuiltinItems],
+			getInstalledMcpServers(mcpServers, includeBuiltinItems).map(
+				mcpMarketplaceItem,
+			),
+		[mcpServers, includeBuiltinItems],
 	);
 	const handleInventoryChanged = useCallback(() => {
 		void refresh();
@@ -106,13 +105,15 @@ export function useInstalledCustomizations({
 	const refreshAll = useCallback(async () => {
 		await Promise.all([
 			refresh(true),
-			refreshMcpInventory(true),
+			// Both the data owner and mounted section use the success path that
+			// clears shared action errors, whichever refresh publishes last.
+			refreshMcpServers(true),
 			connectors.refreshStatus(),
 			connectors.refreshCatalog(),
 		]);
 	}, [
 		refresh,
-		refreshMcpInventory,
+		refreshMcpServers,
 		connectors.refreshStatus,
 		connectors.refreshCatalog,
 	]);
