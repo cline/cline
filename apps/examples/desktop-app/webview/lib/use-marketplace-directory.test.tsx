@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ catalog: vi.fn(), invoke: vi.fn() }));
 vi.mock("./marketplace", () => ({
 	fetchMarketplaceCatalog: mocks.catalog,
 	getCachedMarketplaceCatalog: () => null,
+	subscribeMarketplaceCatalog: () => () => {},
 }));
 vi.mock("./desktop-client", () => ({
 	desktopClient: { invoke: mocks.invoke, subscribe: () => () => {} },
