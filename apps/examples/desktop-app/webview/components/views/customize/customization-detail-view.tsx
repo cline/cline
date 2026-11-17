@@ -39,10 +39,12 @@ export function CustomizationDetailView({
 	selection,
 	backLabel,
 	onBack,
+	onSelectionChange,
 }: {
 	selection: CustomizationDetailSelection;
 	backLabel: string;
 	onBack: CloseCustomizationDetail;
+	onSelectionChange?: (selection: CustomizationDetailSelection) => void;
 }) {
 	const page = { backLabel, onBack };
 	switch (selection.type) {
@@ -55,8 +57,26 @@ export function CustomizationDetailView({
 		case "workflow":
 			return <WorkflowDetailPage selection={selection.selection} {...page} />;
 		case "mcp-create":
-			return <McpServerEditorPage {...page} />;
 		case "mcp":
+			// Keep the editor mounted when a first save or rename replaces the
+			// history selection, preserving its draft and Saved confirmation.
+			if (selection.type === "mcp-create" || selection.selection.server) {
+				const installed =
+					selection.type === "mcp" ? selection.selection : undefined;
+				return (
+					<McpServerEditorPage
+						server={installed?.server}
+						entry={installed?.entry}
+						onSaved={(server) =>
+							onSelectionChange?.({
+								type: "mcp",
+								selection: { ...installed, server },
+							})
+						}
+						{...page}
+					/>
+				);
+			}
 			return (
 				<InstalledMcpDetailPage selection={selection.selection} {...page} />
 			);

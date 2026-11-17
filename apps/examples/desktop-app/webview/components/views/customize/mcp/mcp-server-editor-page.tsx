@@ -39,14 +39,16 @@ export function McpServerEditorPage({
 	server,
 	entry,
 	onBack,
+	onSaved,
 	backLabel = "Manage",
 }: {
 	server?: McpServer;
 	entry?: MarketplaceEntry;
 	onBack: McpEditorBack;
+	onSaved?: (server: McpServer) => void;
 	backLabel?: string;
 }) {
-	const editor = useMcpServerEditor({ server, onBack });
+	const editor = useMcpServerEditor({ server, onBack, onSaved });
 	const { form, setForm, persistedServer, state, isBusy, isSaving, isSaved } =
 		editor;
 	const unsavedChanges = useUnsavedChangesGuard(editor.hasUnsavedChangesNow);
