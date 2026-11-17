@@ -70,6 +70,7 @@ import {
 	sendConfigOptionUpdate,
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
+	sendUsageUpdate,
 } from "./session-updates";
 
 const CHAT_MODEL_QUERY_OPTIONS = {
@@ -92,6 +93,12 @@ interface SessionState {
 	autoApproveTools: boolean;
 	/** Accumulated token usage for the in-flight prompt turn. */
 	turnUsage?: Usage;
+	/** Last observed context token usage for the session. */
+	lastUsedTokens?: number;
+	/** Cumulative cost observed within the current prompt turn. */
+	turnCost?: number;
+	/** Cumulative USD cost across all turns in this ACP session. */
+	cumulativeCost?: number;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -358,6 +365,7 @@ export class AcpAgent implements Agent {
 		session.abortController = abortController;
 		session.fatalError = undefined;
 		session.turnUsage = undefined;
+		session.turnCost = 0;
 
 		// If cancel() was already called before prompt() started, bail early.
 		if (abortController.signal.aborted) {
@@ -472,6 +480,11 @@ export class AcpAgent implements Agent {
 				params.modelId,
 			);
 		}
+		await this.refreshModelContextWindow(
+			session,
+			params.sessionId,
+			params.modelId,
+		);
 		return {};
 	}
 
@@ -519,9 +532,11 @@ export class AcpAgent implements Agent {
 					session.currentModelId,
 					providerModels,
 				);
-				session.currentContextWindow = resolveModelContextWindow(
-					providerModels,
+				await this.refreshModelContextWindow(
+					session,
+					params.sessionId,
 					session.currentModelId,
+					providerModels,
 				);
 				break;
 			}
@@ -555,6 +570,7 @@ export class AcpAgent implements Agent {
 						value,
 					);
 				}
+				await this.refreshModelContextWindow(session, params.sessionId, value);
 				break;
 			}
 
@@ -638,6 +654,31 @@ export class AcpAgent implements Agent {
 
 	private get accountApiKey(): string {
 		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+	}
+
+	private async refreshModelContextWindow(
+		session: SessionState,
+		sessionId: string,
+		modelId: string,
+		providerModels?: Record<string, Llms.ModelInfo>,
+	): Promise<void> {
+		const models =
+			providerModels ??
+			(await Llms.getModelsForProvider(
+				session.currentProviderId,
+				CHAT_MODEL_QUERY_OPTIONS,
+			));
+		const nextContextWindow = resolveModelContextWindow(models, modelId);
+		if (nextContextWindow !== session.currentContextWindow) {
+			session.currentContextWindow = nextContextWindow;
+			if (nextContextWindow !== undefined) {
+				sendUsageUpdate(this.conn, sessionId, {
+					used: session.lastUsedTokens ?? 0,
+					size: nextContextWindow,
+					costAmount: session.cumulativeCost,
+				});
+			}
+		}
 	}
 
 	private async getOrganizationConfigOption(
@@ -768,12 +809,21 @@ export class AcpAgent implements Agent {
 				}
 				if (event.type === "usage") {
 					session.turnUsage = accumulateTurnUsage(session.turnUsage, event);
+					session.lastUsedTokens =
+						(event.inputTokens ?? 0) +
+						(event.cacheReadTokens ?? 0) +
+						(event.cacheWriteTokens ?? 0);
+					const deltaCost = extractDeltaCost(session, event);
+					if (deltaCost !== undefined) {
+						session.cumulativeCost = (session.cumulativeCost ?? 0) + deltaCost;
+					}
 				}
 				forwardAgentEvent(
 					this.conn,
 					acpSessionId,
 					event,
 					session.currentContextWindow,
+					session.cumulativeCost,
 				);
 			},
 		);
@@ -1010,6 +1060,23 @@ function resolveModelContextWindow(
 	return typeof contextWindow === "number" && contextWindow > 0
 		? contextWindow
 		: undefined;
+}
+
+function extractDeltaCost(
+	session: SessionState,
+	event: AgentEvent & { type: "usage" },
+): number | undefined {
+	if (typeof event.cost === "number") {
+		session.turnCost = (session.turnCost ?? 0) + event.cost;
+		return event.cost;
+	}
+	if (typeof event.totalCost === "number") {
+		const prevTurnCost = session.turnCost ?? 0;
+		const delta = Math.max(0, event.totalCost - prevTurnCost);
+		session.turnCost = event.totalCost;
+		return delta;
+	}
+	return undefined;
 }
 
 function accumulateTurnUsage(

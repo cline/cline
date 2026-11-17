@@ -16,9 +16,10 @@ export function forwardAgentEvent(
 	conn: AgentSideConnection,
 	sessionId: string,
 	event: AgentEvent,
-	contextWindowSize = 0,
+	contextWindowSize?: number,
+	cumulativeCost?: number,
 ): void {
-	const updates = translateEvent(event, contextWindowSize);
+	const updates = translateEvent(event, contextWindowSize, cumulativeCost);
 	for (const update of updates) {
 		void conn.sessionUpdate({ sessionId, update });
 	}
@@ -26,7 +27,8 @@ export function forwardAgentEvent(
 
 function translateEvent(
 	event: AgentEvent,
-	contextWindowSize = 0,
+	contextWindowSize?: number,
+	cumulativeCost?: number,
 ): SessionUpdate[] {
 	switch (event.type) {
 		case "content_start":
@@ -41,7 +43,7 @@ function translateEvent(
 		case "iteration_end":
 			return [];
 		case "usage":
-			return translateUsage(event, contextWindowSize);
+			return translateUsage(event, contextWindowSize, cumulativeCost);
 		default:
 			return [];
 	}
@@ -49,13 +51,17 @@ function translateEvent(
 
 function translateUsage(
 	event: AgentEvent & { type: "usage" },
-	contextWindowSize: number,
+	contextWindowSize?: number,
+	cumulativeCost?: number,
 ): SessionUpdate[] {
+	if (typeof contextWindowSize !== "number" || contextWindowSize <= 0) {
+		return [];
+	}
 	const used =
 		(event.inputTokens ?? 0) +
 		(event.cacheReadTokens ?? 0) +
 		(event.cacheWriteTokens ?? 0);
-	const costAmount = event.totalCost ?? event.cost;
+	const costAmount = cumulativeCost ?? event.totalCost ?? event.cost;
 	return [
 		{
 			sessionUpdate: "usage_update",
@@ -216,5 +222,29 @@ export function sendSessionInfoUpdate(
 	void conn.sessionUpdate({
 		sessionId,
 		update: { sessionUpdate: "session_info_update", ...info },
+	});
+}
+
+/**
+ * Send a usage_update notification to the client when the context window size is known.
+ */
+export function sendUsageUpdate(
+	conn: AgentSideConnection,
+	sessionId: string,
+	usage: { used: number; size?: number; costAmount?: number },
+): void {
+	if (typeof usage.size !== "number" || usage.size <= 0) {
+		return;
+	}
+	void conn.sessionUpdate({
+		sessionId,
+		update: {
+			sessionUpdate: "usage_update",
+			used: usage.used,
+			size: usage.size,
+			...(typeof usage.costAmount === "number"
+				? { cost: { amount: usage.costAmount, currency: "USD" } }
+				: {}),
+		},
 	});
 }

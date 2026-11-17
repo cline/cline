@@ -230,4 +230,173 @@ describe("AcpAgent prompt + mcpServers + usage integration", () => {
 			},
 		});
 	});
+
+	it("recomputes context window on model switch, accumulates session cost across turns, and skips usage_update when size is unknown", async () => {
+		vi.resetModules();
+		process.env.CLINE_API_KEY = "test-api-key";
+		process.env.CLINE_PROVIDER = "anthropic";
+
+		const startMock = vi.fn().mockResolvedValue({ sessionId: "sess-2" });
+		const sendMock = vi.fn();
+		const sessionUpdateMock = vi.fn().mockResolvedValue(undefined);
+		let eventListener: ((event: unknown) => void) | undefined;
+
+		vi.doMock("@cline/core", async (importOriginal) => {
+			const actual = await importOriginal<typeof import("@cline/core")>();
+			return {
+				...actual,
+				Llms: {
+					...actual.Llms,
+					getModelsForProvider: vi.fn().mockResolvedValue({
+						"claude-sonnet-4-5": {
+							name: "Claude Sonnet 4.5",
+							contextWindow: 1_048_576,
+						},
+						"claude-haiku-4-5": {
+							name: "Claude Haiku 4.5",
+							contextWindow: 200_000,
+						},
+						"unknown-context-model": {
+							name: "Unknown Context",
+						},
+					}),
+				},
+			};
+		});
+
+		vi.doMock("../session/session", () => ({
+			createCliCore: vi.fn().mockResolvedValue({
+				start: startMock,
+				send: sendMock,
+				abort: vi.fn(),
+				dispose: vi.fn(),
+				readMessages: vi.fn().mockResolvedValue([]),
+				updateSessionModel: vi.fn().mockResolvedValue(undefined),
+			}),
+		}));
+
+		vi.doMock("../runtime/session-events", () => ({
+			subscribeToAgentEvents: vi.fn(
+				(_manager: unknown, listener: (event: unknown) => void) => {
+					eventListener = listener;
+					return () => {};
+				},
+			),
+		}));
+
+		vi.doMock("../runtime/prompt", () => ({
+			resolveSystemPrompt: vi.fn().mockResolvedValue("sys"),
+		}));
+
+		vi.doMock("../utils/common", () => ({
+			getCliBuildInfo: vi.fn().mockReturnValue({ name: "cline", version: "0" }),
+		}));
+
+		sendMock
+			.mockImplementationOnce(async () => {
+				eventListener?.({
+					type: "usage",
+					inputTokens: 100,
+					outputTokens: 20,
+					totalCost: 0.0055,
+				});
+				return { finishReason: "completed" };
+			})
+			.mockImplementationOnce(async () => {
+				eventListener?.({
+					type: "usage",
+					inputTokens: 150,
+					outputTokens: 30,
+					totalCost: 0.004,
+				});
+				return { finishReason: "completed" };
+			})
+			.mockImplementationOnce(async () => {
+				eventListener?.({
+					type: "usage",
+					inputTokens: 50,
+					outputTokens: 10,
+					totalCost: 0.001,
+				});
+				return { finishReason: "completed" };
+			});
+
+		const { AcpAgent } = await import("./acpAgent");
+		const conn = {
+			sessionUpdate: sessionUpdateMock,
+		} as unknown as AgentSideConnection;
+		const agent = new AcpAgent(conn);
+
+		const created = await agent.newSession({
+			cwd: "/tmp/project",
+			mcpServers: [],
+		});
+
+		// Turn 1 with default 1,048,576 context window
+		await agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "Turn 1" }],
+		});
+		expect(sessionUpdateMock).toHaveBeenCalledWith({
+			sessionId: created.sessionId,
+			update: {
+				sessionUpdate: "usage_update",
+				used: 100,
+				size: 1_048_576,
+				cost: { amount: 0.0055, currency: "USD" },
+			},
+		});
+
+		// Switch model via unstable_setSessionModel -> updates context window to 200,000 and emits usage_update
+		sessionUpdateMock.mockClear();
+		await agent.unstable_setSessionModel({
+			sessionId: created.sessionId,
+			modelId: "claude-haiku-4-5",
+		});
+		expect(sessionUpdateMock).toHaveBeenCalledWith({
+			sessionId: created.sessionId,
+			update: {
+				sessionUpdate: "usage_update",
+				used: 100,
+				size: 200_000,
+				cost: { amount: 0.0055, currency: "USD" },
+			},
+		});
+
+		// Turn 2 accumulates cost across turns (0.0055 + 0.004 = 0.0095) and uses updated 200,000 size
+		sessionUpdateMock.mockClear();
+		await agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "Turn 2" }],
+		});
+		const turn2UsageCall = sessionUpdateMock.mock.calls.find(
+			([arg]) => arg?.update?.sessionUpdate === "usage_update",
+		);
+		expect(turn2UsageCall?.[0].update.size).toBe(200_000);
+		expect(turn2UsageCall?.[0].update.cost.amount).toBeCloseTo(0.0095, 10);
+
+		// Switch via setSessionConfigOption to a model with unknown context window -> skips usage_update
+		sessionUpdateMock.mockClear();
+		await agent.setSessionConfigOption({
+			sessionId: created.sessionId,
+			configId: "model",
+			value: "unknown-context-model",
+		});
+		expect(
+			sessionUpdateMock.mock.calls.some(
+				([arg]) => arg?.update?.sessionUpdate === "usage_update",
+			),
+		).toBe(false);
+
+		sessionUpdateMock.mockClear();
+		await agent.prompt({
+			sessionId: created.sessionId,
+			prompt: [{ type: "text", text: "Turn 3" }],
+		});
+		expect(
+			sessionUpdateMock.mock.calls.some(
+				([arg]) => arg?.update?.sessionUpdate === "usage_update",
+			),
+		).toBe(false);
+	});
 });
