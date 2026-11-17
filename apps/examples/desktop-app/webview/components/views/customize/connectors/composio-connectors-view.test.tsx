@@ -104,6 +104,7 @@ vi.mock("@/lib/use-composio-connections", () => ({
 }));
 
 import { ConnectorLogo } from "@/components/connectors/connector-logo";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AccountProvider } from "@/contexts/account-context";
 import {
 	fetchComposioToolkitCatalog,
@@ -162,6 +163,28 @@ function Connectors({
 		<InstalledConnectorsView {...props} model={model} />
 	) : (
 		<ConnectorCatalogView {...props} model={model} />
+	);
+}
+
+/** Global search removes an empty catalog section and shows connected cards separately. */
+function ConnectorSearch() {
+	const catalog = useConnectorResults({
+		searchResults: true,
+		excludeConnected: true,
+	});
+	const installed = useConnectorResults({
+		searchResults: true,
+		variant: "installed",
+	});
+	return (
+		<ScrollArea>
+			<InstalledConnectorsView model={installed} searchResults />
+			{catalog.summary.count > 0 ? (
+				<section aria-label="Available connectors">
+					<ConnectorCatalogView model={catalog} searchResults />
+				</section>
+			) : null}
+		</ScrollArea>
 	);
 }
 
@@ -731,6 +754,117 @@ describe("Customize connector catalog", () => {
 		).toBe("Auth required");
 		expect(document.activeElement).toBe(opener);
 		expect(document.querySelector('[role="dialog"]')).toBeNull();
+	});
+
+	it.each([
+		["pending", false],
+		["pending", true],
+		["connected", false],
+		["connected", true],
+	] as const)("keeps focus in search after Connect becomes %s (other results: %s)", async (status, otherResults) => {
+		mocks.integrations = [];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "github", name: "GitHub" },
+				...(otherResults ? [{ slug: "gmail", name: "Gmail" }] : []),
+			],
+		});
+		await act(async () => root.render(<ConnectorSearch />));
+		const opener = detailButton("GitHub");
+		await act(async () => {
+			button("Connect")?.focus();
+			button("Connect")?.click();
+		});
+		expect(document.activeElement).toBe(opener);
+		mocks.integrations = [
+			{
+				toolkit: "github",
+				name: "GitHub",
+				description: "Code",
+				recommended: false,
+				status,
+			},
+		];
+		await act(async () => root.render(<ConnectorSearch />));
+		expect(opener?.isConnected).toBe(false);
+		expect(detailButton("GitHub")).not.toBeNull();
+		expect(detailButton("GitHub")).not.toBe(opener);
+		expect(
+			container.querySelector('[aria-label="Available connectors"]') !== null,
+		).toBe(otherResults);
+		expect(document.activeElement).toBe(
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
+		);
+	});
+
+	it.each([
+		"focus moved",
+		"hidden",
+		"blurred",
+	] as const)("does not reclaim focus when the last connector result disappears after its origin is %s", async (state) => {
+		mocks.integrations = [];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "github", name: "GitHub" }],
+		});
+		const renderSearch = () =>
+			root.render(
+				<>
+					<button type="button">Another view</button>
+					<ConnectorSearch />
+				</>,
+			);
+		await act(async () => renderSearch());
+		await act(async () => button("Connect")?.click());
+		if (state === "hidden") container.hidden = true;
+		else if (state === "blurred") detailButton("GitHub")?.blur();
+		else button("Another view")?.focus();
+		mocks.integrations = [
+			{
+				toolkit: "github",
+				name: "GitHub",
+				description: "Code",
+				recommended: false,
+				status: "pending",
+			},
+		];
+		await act(async () => renderSearch());
+		expect(
+			container.querySelector('[aria-label="Available connectors"]'),
+		).toBeNull();
+		expect(document.activeElement).toBe(
+			state === "focus moved" ? button("Another view") : document.body,
+		);
+	});
+
+	it("keeps a newer connector detail focused when an earlier connection leaves the catalog", async () => {
+		mocks.integrations = [];
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [
+				{ slug: "github", name: "GitHub" },
+				{ slug: "gmail", name: "Gmail" },
+			],
+		});
+		await act(async () => root.render(<ConnectorSearch />));
+		await act(async () => button("Connect")?.click());
+		await act(async () => detailButton("Gmail")?.click());
+		const activeDetail = document.activeElement;
+		mocks.integrations = [
+			{
+				toolkit: "github",
+				name: "GitHub",
+				description: "Code",
+				recommended: false,
+				status: "pending",
+			},
+		];
+		await act(async () => root.render(<ConnectorSearch />));
+		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+			"Gmail",
+		);
+		expect(document.activeElement).toBe(activeDetail);
 	});
 
 	it.each([

@@ -64,7 +64,43 @@ function useConnectorActions(model: ConnectorResults) {
 	const connectionTrigger = useRef<{
 		slug: ComposioToolkitSlug;
 		primary: HTMLButtonElement | null;
+		focusFallback: HTMLElement | null;
+		focused: boolean;
 	} | null>(null);
+	const restoreRemovedConnectionFocus = useCallback(() => {
+		const trigger = connectionTrigger.current;
+		if (!trigger?.primary || trigger.primary.isConnected) return;
+		connectionTrigger.current = null;
+		const { primary, focusFallback, focused } = trigger;
+		if (
+			focused &&
+			primary.ownerDocument.activeElement === primary.ownerDocument.body &&
+			focusFallback?.isConnected &&
+			!focusFallback.closest("[hidden], [inert]")
+		) {
+			if (!focusFallback.hasAttribute("tabindex")) focusFallback.tabIndex = -1;
+			focusFallback.focus({ preventScroll: true });
+		}
+	}, []);
+	useEffect(() => {
+		// Removing a focused node does not emit focusin. Remember whether focus
+		// moved elsewhere before search removed the card or its whole section.
+		const trackFocus = () => {
+			const trigger = connectionTrigger.current;
+			if (trigger) trigger.focused = document.activeElement === trigger.primary;
+		};
+		document.addEventListener("focusin", trackFocus);
+		document.addEventListener("focusout", trackFocus);
+		return () => {
+			document.removeEventListener("focusin", trackFocus);
+			document.removeEventListener("focusout", trackFocus);
+			restoreRemovedConnectionFocus();
+		};
+	}, [restoreRemovedConnectionFocus]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Connection status can remove a card from search without unmounting the results section.
+	useEffect(() => {
+		restoreRemovedConnectionFocus();
+	}, [statusBySlug, restoreRemovedConnectionFocus]);
 	const connectFromCard = (
 		slug: ComposioToolkitSlug,
 		trigger?: HTMLButtonElement,
@@ -72,9 +108,13 @@ function useConnectorActions(model: ConnectorResults) {
 		connectionTrigger.current = {
 			slug,
 			primary: trigger ?? null,
+			focusFallback: findScrollViewport(trigger),
+			focused: false,
 		};
 		// Connect disappears while browser authorization is pending.
 		connectionTrigger.current.primary?.focus({ preventScroll: true });
+		connectionTrigger.current.focused =
+			trigger?.ownerDocument.activeElement === trigger;
 		void connect(slug);
 	};
 	const openDetails = (slug: ComposioToolkitSlug) => {
