@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import type { TeamEvent } from "../../../extensions/tools/team";
 import type { CoreSessionConfig } from "../../../types/config";
 import type { ActiveSession } from "../../../types/session";
 import {
@@ -29,6 +30,20 @@ function createBridge(
 	return new AgentEventBridge(deps);
 }
 
+const toolEvent = {
+	type: "content_end",
+	contentType: "tool",
+	toolName: "run_commands",
+} as unknown as AgentEvent;
+
+function toolUsedProperties(telemetry: ReturnType<typeof createTelemetryStub>) {
+	const call = telemetry.capture.mock.calls.find(
+		([arg]) => arg.event === "task.tool_used",
+	);
+	expect(call).toBeDefined();
+	return call?.[0].properties as Record<string, unknown>;
+}
+
 describe("AgentEventBridge.dispatchAgentEvent", () => {
 	function createDispatchFixture() {
 		const telemetry = createTelemetryStub();
@@ -55,22 +70,6 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 			persistMessages: vi.fn(),
 		} as unknown as AgentEventBridgeDeps;
 		return { telemetry, config, sessions, bridge: new AgentEventBridge(deps) };
-	}
-
-	const toolEvent = {
-		type: "content_end",
-		contentType: "tool",
-		toolName: "run_commands",
-	} as unknown as AgentEvent;
-
-	function toolUsedProperties(
-		telemetry: ReturnType<typeof createTelemetryStub>,
-	) {
-		const call = telemetry.capture.mock.calls.find(
-			([arg]) => arg.event === "task.tool_used",
-		);
-		expect(call).toBeDefined();
-		return call?.[0].properties as Record<string, unknown>;
 	}
 
 	it("stamps root agent identity on tool events while the session is registered", () => {
@@ -120,6 +119,61 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 		expect(properties.ulid).toBe("session-unknown");
 		expect(properties.agentId).toBeUndefined();
 		expect(properties.agentKind).toBeUndefined();
+	});
+
+	it("reports act for a tool run by a session whose config omits a mode", () => {
+		const { telemetry, config, bridge } = createDispatchFixture();
+
+		bridge.dispatchAgentEvent(
+			"session-1",
+			{ ...config, mode: undefined },
+			toolEvent,
+		);
+
+		expect(toolUsedProperties(telemetry).mode).toBe("act");
+	});
+});
+
+describe("AgentEventBridge.handleTeamEvent", () => {
+	it("attributes a teammate tool that finishes after a same-id rebuild to the mode it started in", async () => {
+		const telemetry = createTelemetryStub();
+		const shared = { telemetry, providerId: "cline", modelId: "model-a" };
+		const planConfig = {
+			...shared,
+			mode: "plan",
+		} as unknown as CoreSessionConfig;
+		// The plan session that started the team is gone. A rebuild under the
+		// same id runs in act while the teammate's tool is still settling.
+		const rebuiltSession = {
+			config: { ...shared, mode: "act" },
+			agent: {
+				getAgentId: () => "agent-2",
+				getConversationId: () => "conv-2",
+			},
+			runtime: {},
+		} as unknown as ActiveSession;
+		const deps = {
+			getSession: () => rebuiltSession,
+			usageBySession: new Map(),
+			aggregateUsageBySession: new Map(),
+			emit: vi.fn(),
+			persistMessages: vi.fn(),
+			invokeBackendOptional: vi.fn().mockResolvedValue(undefined),
+		} as unknown as AgentEventBridgeDeps;
+		const bridge = new AgentEventBridge(deps);
+
+		await bridge.handleTeamEvent("session-1", planConfig, {
+			type: "agent_event",
+			agentId: "teammate-1",
+			event: toolEvent,
+		} as unknown as TeamEvent);
+
+		expect(toolUsedProperties(telemetry)).toMatchObject({
+			ulid: "session-1",
+			tool: "run_commands",
+			mode: "plan",
+			teamRole: "teammate",
+		});
 	});
 });
 
