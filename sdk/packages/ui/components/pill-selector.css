@@ -29,7 +29,7 @@
 		appearance: none;
 		display: inline-flex;
 		flex-shrink: 0;
-		align-items: center;
+		align-items: baseline;
 		justify-content: center;
 		gap: calc(var(--spacing, 0.25rem) * 1.5);
 		margin: 0;
@@ -43,7 +43,8 @@
 		font-size: var(--text-md);
 		/* Keep label widths stable when selection changes. */
 		font-weight: var(--font-weight-normal);
-		line-height: var(--text-md--line-height);
+		/* Center the label while aligning smaller counts and badges to its baseline. */
+		line-height: calc(var(--spacing, 0.25rem) * 9);
 		letter-spacing: var(--text-md--letter-spacing);
 		text-align: center;
 		text-decoration: none;
@@ -57,7 +58,7 @@
 		height: calc(var(--spacing, 0.25rem) * 8);
 		padding: 0 calc(var(--spacing, 0.25rem) * 3);
 		font-size: var(--text-sm);
-		line-height: var(--text-sm--line-height);
+		line-height: calc(var(--spacing, 0.25rem) * 8);
 		letter-spacing: var(--text-sm--letter-spacing);
 	}
 

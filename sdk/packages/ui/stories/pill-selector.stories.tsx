@@ -30,6 +30,7 @@ function CategoryItems() {
 	return FIGMA_CATEGORIES.map(([value, label]) => (
 		<PillSelectorItem key={value} value={value}>
 			{label}
+			{value === "connectors" ? <Badge tone="info">Beta</Badge> : null}
 		</PillSelectorItem>
 	));
 }
