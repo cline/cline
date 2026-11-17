@@ -3,9 +3,15 @@ import { type Dirent, realpathSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isMainThread, parentPort, Worker } from "node:worker_threads";
+import {
+	isMainThread,
+	parentPort,
+	Worker,
+	workerData,
+} from "node:worker_threads";
 import { toPosixSeparators } from "@cline/shared";
 
+const FILE_INDEX_WORKER_FLAG = "clineFileIndexWorker";
 const DEFAULT_INDEX_TTL_MS = 15_000;
 const STALE_CACHE_EVICTION_MS = 10 * 60_000;
 const WORKER_INDEX_REQUEST_TIMEOUT_MS = 1_000;
@@ -192,10 +198,21 @@ function startWorkerServer(): void {
 	if (isMainThread || !parentPort) {
 		return;
 	}
+	// Only the worker spawned by FileIndexWorkerClient serves index requests.
+	// This module is also bundled into @cline/core, which host applications may
+	// import inside their own workers. Listening there would ref their parentPort
+	// (keeping otherwise-finished workers alive) and consume their messages.
+	if (
+		typeof workerData !== "object" ||
+		workerData === null ||
+		(workerData as Record<string, unknown>)[FILE_INDEX_WORKER_FLAG] !== true
+	) {
+		return;
+	}
 	const port = parentPort;
 
-	port.on("message", (message: IndexRequestMessage) => {
-		if (message.type !== "index") {
+	port.on("message", (message: IndexRequestMessage | null) => {
+		if (!message || message.type !== "index") {
 			return;
 		}
 
@@ -223,7 +240,9 @@ function startWorkerServer(): void {
 }
 
 class FileIndexWorkerClient {
-	private readonly worker = new Worker(new URL(import.meta.url));
+	private readonly worker = new Worker(new URL(import.meta.url), {
+		workerData: { [FILE_INDEX_WORKER_FLAG]: true },
+	});
 	private nextRequestId = 0;
 	private pending = new Map<
 		number,
