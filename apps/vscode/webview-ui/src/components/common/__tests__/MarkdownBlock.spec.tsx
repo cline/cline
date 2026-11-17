@@ -99,6 +99,31 @@ describe("MarkdownBlock links to local files", () => {
 		expect(grpcMocks.openFileRelativePath).toHaveBeenLastCalledWith({ value: "html_demos\\_private\\index.html" })
 	})
 
+	it("keeps a backslash path that a reference link takes from its definition", () => {
+		fireEvent.click(renderLink("> [Quoted][f]\n>\n> [f]: C:\\Users\\jay\\.cline\\x.md", "Quoted"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\Users\\jay\\.cline\\x.md" })
+
+		fireEvent.click(renderLink('- [Listed][f]\n\n  [f]: <C:\\My Docs\\.cline\\x.md> "title"', "Listed"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\My Docs\\.cline\\x.md" })
+	})
+
+	it("keeps a backslash path whose name or title looks like link syntax", () => {
+		fireEvent.click(renderLink("[Angle](<C:\\project\\notes](draft)\\file.md>)", "Angle"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\project\\notes](draft)\\file.md" })
+
+		fireEvent.click(renderLink("[Bare](C:\\project\\notes](draft)\\file.md)", "Bare"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\project\\notes](draft)\\file.md" })
+
+		fireEvent.click(renderLink('[Titled](C:\\Users\\jay\\.cline\\x.md "see ](x)")', "Titled"))
+		expect(grpcMocks.openFile).toHaveBeenLastCalledWith({ value: "C:\\Users\\jay\\.cline\\x.md" })
+	})
+
+	it("leaves an image source to the markdown parser", () => {
+		render(<MarkdownBlock markdown={"![Shot](shots\\_new\\a.png)"} />)
+
+		expect(screen.getByText("shots_new%5Ca.png")).toBeTruthy()
+	})
+
 	it("still honours markdown escapes in a path without backslash separators", () => {
 		fireEvent.click(renderLink("[Draft](docs/my\\(draft\\).md)", "Draft"))
 		expect(grpcMocks.openFileRelativePath).toHaveBeenLastCalledWith({ value: "docs/my(draft).md" })

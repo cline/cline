@@ -7,6 +7,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import remarkGfm from "remark-gfm"
+import type { Processor } from "unified"
 import type { Node } from "unist"
 import { visit } from "unist-util-visit"
 import MermaidBlock from "@/components/common/MermaidBlock"
@@ -40,37 +41,34 @@ const BACKSLASH_SEPARATED_PATH = /^(?:[a-z]:\\|\\\\)|\\[^\s!-/:-@[-`{-~]/i
  * `C:\Users\jay\.cline\x.md` would otherwise parse as `C:\Users\jay.cline\x.md` and a UNC path would
  * lose its leading `\\`. A destination whose backslashes all precede punctuation, such as
  * `docs/my\(draft\).md`, is an escaped path and keeps its parsed form.
+ *
+ * The two readings cannot always be told apart: a path starting `C:\` or `\\` is never unescaped, and a
+ * relative one such as `src\_private.md` always is.
  */
-const remarkKeepBackslashDestinations = () => {
-	return (tree: Node, file: { value: unknown }) => {
-		const source = String(file.value)
-		visit(tree, "link", (node: any) => {
-			const start = node.position?.start?.offset
-			const end = node.position?.end?.offset
-			if (start == null || end == null) {
-				return
-			}
-			const destination = rawLinkDestination(source.slice(start, end))
-			if (destination && BACKSLASH_SEPARATED_PATH.test(destination)) {
-				node.url = destination
-			}
-		})
-	}
+function remarkKeepBackslashDestinations(this: Processor) {
+	const data = this.data() as { fromMarkdownExtensions?: unknown[] }
+	data.fromMarkdownExtensions ??= []
+	data.fromMarkdownExtensions.push({
+		exit: {
+			resourceDestinationString: keepBackslashDestination,
+			definitionDestinationString: keepBackslashDestination,
+		},
+	})
 }
 
-/** The destination of `[text](destination "title")` or `[text](<destination> "title")`, as written. */
-function rawLinkDestination(link: string): string | undefined {
-	const open = link.lastIndexOf("](")
-	if (open < 0 || !link.endsWith(")")) {
-		return undefined
-	}
-	const inside = link.slice(open + 2, -1).trim()
-	if (inside.startsWith("<")) {
-		const close = inside.indexOf(">")
-		return close < 0 ? undefined : inside.slice(1, close)
-	}
-	const title = inside.search(/\s/)
-	return title < 0 ? inside : inside.slice(0, title)
+/** What the markdown compiler gives a handler that runs when a link destination ends. */
+interface DestinationCompiler {
+	/** The destination after markdown escapes were applied. */
+	resume(): string
+	sliceSerialize(token: unknown): string
+	stack: Array<{ type: string; url?: string }>
+}
+
+function keepBackslashDestination(this: DestinationCompiler, token: unknown) {
+	const parsed = this.resume()
+	const written = this.sliceSerialize(token)
+	const node = this.stack[this.stack.length - 1]
+	node.url = node.type !== "image" && BACKSLASH_SEPARATED_PATH.test(written) ? written : parsed
 }
 
 function openLocalFile(link: NonNullable<ReturnType<typeof localFileLink>>) {
