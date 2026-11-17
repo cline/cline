@@ -212,6 +212,111 @@ describe("PR snapshot boundaries", () => {
 			});
 	});
 
+	const noneRequired = {
+		exitCode: 1,
+		output: "no required checks reported on the 'feat/test' branch\n",
+	};
+	it.each([
+		[
+			"no check at all",
+			{ exitCode: 1, output: "no checks reported on the 'feat/test' branch\n" },
+			[],
+			{ status: "none", required: false, checks: [] },
+		],
+		[
+			"no required check, all succeeded",
+			noneRequired,
+			[
+				{ name: "Build", status: "COMPLETED", conclusion: "SUCCESS" },
+				{ context: "deploy", state: "SUCCESS" },
+				{ name: "Docs", status: "COMPLETED", conclusion: "SKIPPED" },
+			],
+			{
+				status: "passed",
+				required: false,
+				checks: [
+					{ name: "Build", status: "pass" },
+					{ name: "deploy", status: "pass" },
+					{ name: "Docs", status: "skipping" },
+				],
+			},
+		],
+		[
+			"no required check, one running",
+			{ exitCode: 0, output: "[]" },
+			[
+				{ name: "Build", status: "COMPLETED", conclusion: "SUCCESS" },
+				{ name: "Tests", status: "IN_PROGRESS", conclusion: null },
+			],
+			{ status: "pending", required: false },
+		],
+		[
+			"required checks only",
+			{
+				exitCode: 0,
+				output: JSON.stringify([{ name: "Build", bucket: "pass" }]),
+			},
+			[
+				{ name: "Build", status: "COMPLETED", conclusion: "SUCCESS" },
+				{ name: "Optional", status: "QUEUED", conclusion: null },
+			],
+			{
+				status: "passed",
+				required: true,
+				checks: [{ name: "Build", status: "pass" }],
+			},
+		],
+		[
+			"an unreadable answer",
+			{ exitCode: 1, output: "HTTP 502: Bad Gateway\n" },
+			[],
+			{ status: "unknown", checks: [] },
+		],
+	])("reads %s", async (_, checksAnswer, rollup, expected) => {
+		const run = vi.fn<typeof runFactoryCommand>(async ({ args }) => {
+			const answer =
+				args[1] === "checks"
+					? checksAnswer
+					: {
+							exitCode: 0,
+							output: JSON.stringify(
+								args[0] === "api"
+									? {
+											data: {
+												repository: {
+													pullRequest: {
+														state: "OPEN",
+														headRefOid: "candidate",
+														headRefName: "feat/test",
+														comments: connection([]),
+														reviews: connection([]),
+														reviewThreads: connection([]),
+													},
+												},
+											},
+										}
+									: args.at(-1) === "headRefOid"
+										? { headRefOid: "candidate" }
+										: { statusCheckRollup: rollup },
+							),
+						};
+			return { ...answer, timedOut: false, truncated: false };
+		});
+		const snapshot = await readFactoryPullRequest(
+			{
+				url: "https://github.com/example/project/pull/1",
+				cwd: "/tmp",
+				signal: new AbortController().signal,
+			},
+			run,
+		);
+		expect(snapshot.requiredChecks).toMatchObject({
+			headCommit: "candidate",
+			...expected,
+		});
+		expect(snapshot.feedback).toEqual([]);
+	});
+
 	it("stops on incomplete feedback instead of silently claiming full coverage", async () => {
 		const run = vi.fn<typeof runFactoryCommand>(async () => ({
 			exitCode: 0,

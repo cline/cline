@@ -4133,7 +4133,7 @@ describe.skipIf(process.platform === "win32")(
 			const reviewer = p.sessions.find((session) => session.role === "reviewer")
 				?.task.instructions;
 			expect(reviewer).toContain(
-				`never publish it.\n\n${formatFactoryVerificationProfileForFinalReviewer(p.hash)}\n\nREVIEW SELECTION AND ESCALATION:`,
+				`never publish it.\n\n${formatFactoryVerificationProfileForFinalReviewer({ hash: p.hash, origin: "proposed" })}\n\nREVIEW SELECTION AND ESCALATION:`,
 			);
 			// Rule nominations are off unless the card opts into repoRules.
 			expect(reviewer).not.toContain(FACTORY_RULE_NOMINATION_INSTRUCTION);

@@ -16,6 +16,7 @@ import {
 	FACTORY_READY,
 	factoryApprovalReasonText,
 	factoryFeedbackLabel,
+	factoryFollowUpLine,
 	factoryHistoryStatus,
 	factoryPhaseLabel,
 	factoryReviewReason,
@@ -29,10 +30,34 @@ describe("Factory copy", () => {
 	it("names run phases in plain words", () => {
 		expect(factoryPhaseLabel("implementing")).toBe("Building");
 		expect(factoryPhaseLabel("verifying")).toBe("Testing");
-		expect(factoryPhaseLabel("watching")).toBe("Watching CI on the draft PR");
+		// Following its draft PR, the card is delivered (History reads this).
+		expect(factoryPhaseLabel("watching")).toBe("Delivered: draft PR ready");
 		expect(factoryPhaseLabel("some_new_phase")).toBe("Some new phase");
 		expect(Object.values(FACTORY_PHASE_LABEL).join(" ")).not.toMatch(
 			/implement|candidate|verif/i,
+		);
+	});
+
+	it("says what PR follow-up last saw, in one line", () => {
+		expect(factoryFollowUpLine(undefined)).toBe("Factory is watching this PR.");
+		expect(factoryFollowUpLine({ status: "unknown" })).toBe(
+			"Factory is watching this PR: no required check results yet.",
+		);
+		expect(factoryFollowUpLine({ status: "pending" })).toBe(
+			"Factory is watching this PR: required checks running.",
+		);
+		expect(factoryFollowUpLine({ status: "passed" })).toBe(
+			"Factory is watching this PR: required checks passed.",
+		);
+		expect(factoryFollowUpLine({ status: "failed" })).toBe(
+			"Factory is watching this PR: a required check failed.",
+		);
+		// No check is required: the status covers every check.
+		expect(factoryFollowUpLine({ status: "none", required: false })).toBe(
+			"Factory is watching this PR: it has no checks.",
+		);
+		expect(factoryFollowUpLine({ status: "passed", required: false })).toBe(
+			"Factory is watching this PR: checks passed.",
 		);
 	});
 

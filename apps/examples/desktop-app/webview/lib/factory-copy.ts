@@ -2,6 +2,7 @@ import type {
 	FactoryPartsSummary,
 	FactoryPriority,
 	FactoryPriorityState,
+	FactoryPullRequestChecks,
 	FactoryReviewSize,
 	FactoryRunRoute,
 	FactoryRunState,
@@ -21,7 +22,8 @@ export const FACTORY_PHASE_LABEL = {
 	reviewing: "Reviewing code",
 	repairing: "Fixing review findings",
 	publishing: "Opening draft PR",
-	watching: "Watching CI on the draft PR",
+	/** Delivered; Factory follows the draft PR (factoryFollowUpLine says how). */
+	watching: "Delivered: draft PR ready",
 	ready: "Delivered",
 	blocked: "Blocked",
 } as const satisfies Record<string, string>;
@@ -86,6 +88,32 @@ export const FACTORY_DECISION = {
 	/** An earlier part will never merge, so this part cannot start on its own. */
 	unmerged: "Start anyway or cancel",
 } as const;
+
+/**
+ * The line beside Pause PR follow-up on a delivered card whose draft PR
+ * Factory watches, from the last poll. Polls read the PR's required checks,
+ * or every check when none is required (`required: false`).
+ */
+export function factoryFollowUpLine(
+	checks: Pick<FactoryPullRequestChecks, "status" | "required"> | undefined,
+): string {
+	const lead = "Factory is watching this PR";
+	const required = checks?.required === false ? "" : "required ";
+	switch (checks?.status) {
+		case "passed":
+			return `${lead}: ${required}checks passed.`;
+		case "pending":
+			return `${lead}: ${required}checks running.`;
+		case "failed":
+			return `${lead}: a ${required}check failed.`;
+		case "none":
+			return `${lead}: it has no checks.`;
+		case "unknown":
+			return `${lead}: no required check results yet.`;
+		default:
+			return `${lead}.`;
+	}
+}
 
 /** What is ready for the user to look at. */
 export const FACTORY_READY = {
@@ -416,6 +444,7 @@ export const FACTORY_PANEL = {
 		passed: "CI passed",
 		pending: "CI running",
 		failed: "CI failed",
+		none: "No CI checks",
 		unknown: "CI status unknown",
 	},
 	reviewsHeading: "Code review",

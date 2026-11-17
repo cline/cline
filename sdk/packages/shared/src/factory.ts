@@ -2198,7 +2198,14 @@ export type FactoryAttempt = z.infer<typeof factoryAttemptSchema>;
 
 export const factoryPullRequestChecksSchema = z.object({
 	headCommit: z.string(),
-	status: z.enum(["passed", "pending", "failed", "unknown"]),
+	/**
+	 * From the required checks, or from every check when none is required.
+	 * `none`: no check is required and none ran. `unknown`: not read yet, or
+	 * gh's answer could not be read.
+	 */
+	status: z.enum(["passed", "pending", "failed", "none", "unknown"]),
+	/** False when no check is required and `checks` lists every check. */
+	required: z.boolean().optional(),
 	checks: z.array(
 		z.object({
 			name: z.string(),

@@ -675,9 +675,13 @@ function summarize(
 			spinning: true,
 		};
 	// A blocked run that is not a stop here is an older Hub's feedback note:
-	// the delivery stands.
+	// the delivery stands. Watching its draft PR is follow-up on a delivered
+	// card, not work; a repair it starts is.
 	if (task.status === "completed")
-		return !state || state.phase === "ready" || state.phase === "blocked"
+		return !state ||
+			state.phase === "ready" ||
+			state.phase === "watching" ||
+			state.phase === "blocked"
 			? {
 					// Core asked for the user's review at delivery.
 					tone: card.reasonCode === "review_required" ? "attention" : "accent",

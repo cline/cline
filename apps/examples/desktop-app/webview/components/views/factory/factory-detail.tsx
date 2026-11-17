@@ -91,6 +91,7 @@ import {
 	FACTORY_SPLIT,
 	FACTORY_UNREADABLE,
 	factoryApprovalReasonText,
+	factoryFollowUpLine,
 	factoryPullRequestReference,
 	factoryReviewRequest,
 } from "@/lib/factory-copy";
@@ -712,7 +713,8 @@ export function FeatureDetail({
 			questions.length === 0 &&
 			(state.phase === "ready" ||
 				(state.phase === "watching" &&
-					state.pullRequestChecks?.status === "passed" &&
+					(state.pullRequestChecks?.status === "passed" ||
+						state.pullRequestChecks?.status === "none") &&
 					state.pullRequestChecks.headCommit === state.candidate?.commit)) &&
 			state.candidate,
 	);
@@ -2045,7 +2047,9 @@ export function FeatureDetail({
 							? "PR follow-up paused."
 							: state?.phase === "blocked"
 								? "PR follow-up needs attention. Resuming keeps the existing repair budget."
-								: "You decide when to merge the PR."}
+								: state?.phase === "watching"
+									? factoryFollowUpLine(state.pullRequestChecks)
+									: "You decide when to merge the PR."}
 					</p>
 				) : showApprove ? (
 					<p>

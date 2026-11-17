@@ -635,8 +635,25 @@ describe("prompt blocks", () => {
 		expect(plan).toContain("Challenge every command");
 		expect(plan).toContain("- The start command uses sudo.");
 		expect(plan).toContain("```json\n");
-		const final = formatFactoryVerificationProfileForFinalReviewer(hash);
+		// A card that changes the test setup gets it reviewed.
+		const final = formatFactoryVerificationProfileForFinalReviewer({
+			hash,
+			origin: "proposed",
+		});
 		expect(final).toContain("Factory, not the builder, writes");
 		expect(final).toContain(hash.slice(0, 12));
+		expect(final).toContain(
+			"flag it if the file in the candidate does not match",
+		);
+		// The repository's own file, unchanged and so absent from the diff, is
+		// not part of the change and never an unchecked gap.
+		expect(
+			formatFactoryVerificationProfileForFinalReviewer({
+				hash,
+				origin: "repository",
+			}),
+		).toBe(
+			"VERIFICATION PROFILE: .cline/factory/verification.json is the repository's own test setup, which this card does not change; it is not part of the change, so do not review it or report it as not checked.",
+		);
 	});
 });

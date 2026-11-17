@@ -518,6 +518,8 @@ export const FACTORY_CARD_FIXTURES: readonly FactoryCardFixture[] = [
 				phase: "watching",
 				pullRequestUrl: PR,
 				pullRequestWatch: { headCommit: "abc", handledFeedbackIds: [] },
+				// Not read yet, or gh's answer was unreadable.
+				pullRequestChecks: { headCommit: "abc", status: "unknown", checks: [] },
 			},
 			{ factory: { ...handsOff, watchPullRequest: true } },
 		),
@@ -526,6 +528,56 @@ export const FACTORY_CARD_FIXTURES: readonly FactoryCardFixture[] = [
 			waitingOn: "nobody",
 			reasonCode: "none",
 			stage: "delivered",
+		},
+	},
+	{
+		name: "draft PR watched without checks, stamp required",
+		...delivered(
+			{
+				phase: "watching",
+				pullRequestUrl: PR,
+				humanReview: { required: true, reason: "sensitive paths" },
+				pullRequestWatch: { headCommit: "abc", handledFeedbackIds: [] },
+				// A repository without CI: nothing to wait for.
+				pullRequestChecks: {
+					headCommit: "abc",
+					status: "none",
+					required: false,
+					checks: [],
+				},
+			},
+			{ factory: { ...handsOff, watchPullRequest: true } },
+		),
+		card: {
+			kind: "delivered",
+			waitingOn: "person",
+			reasonCode: "review_required",
+			stage: "delivered",
+		},
+	},
+	{
+		name: "draft PR watched, repair under way",
+		...delivered(
+			{
+				phase: "repairing",
+				pullRequestUrl: PR,
+				pullRequestWatch: {
+					headCommit: "abc",
+					handledFeedbackIds: [],
+					pending: {
+						feedbackIds: ["check:abc:1"],
+						instructions: "Fix the failing test.",
+						phase: "repair",
+					},
+				},
+			},
+			{ factory: { ...handsOff, watchPullRequest: true } },
+		),
+		card: {
+			kind: "delivered",
+			waitingOn: "nobody",
+			reasonCode: "none",
+			stage: "build",
 		},
 	},
 	{
@@ -1091,6 +1143,7 @@ export const FACTORY_NEEDS_YOU_ORDER: readonly string[] = [
 	// Results to review, then a proposed rule.
 	"draft PR left open with findings",
 	"PR follow-up paused",
+	"draft PR watched without checks, stamp required",
 	"delivered, stamp required",
 	"proposed rule",
 ];

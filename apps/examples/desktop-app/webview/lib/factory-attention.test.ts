@@ -374,6 +374,36 @@ describe("review by risk", () => {
 		).toBe(true);
 	});
 
+	it("announces a watched draft PR with no checks, but not one not read yet", () => {
+		const required = { required: true, reason: "shared contract" };
+		const watched = (status: string) =>
+			delivered({
+				phase: "watching",
+				humanReview: required,
+				pullRequestWatch: {
+					headCommit: "b".repeat(40),
+					handledFeedbackIds: [],
+				},
+				pullRequestChecks: {
+					headCommit: "b".repeat(40),
+					status,
+					required: false,
+					checks: [],
+				},
+			});
+		expect(factoryAttentionReasons(completed(), watched("none"))).toEqual([
+			{
+				kind: "ready",
+				commit: "b".repeat(40),
+				pullRequestUrl: "https://github.com/o/r/pull/1",
+				humanReview: required,
+			},
+		]);
+		expect(factoryAttentionReasons(completed(), watched("unknown"))).toEqual(
+			[],
+		);
+	});
+
 	it("keeps a sampled result ready without asking for review", () => {
 		const sampled = { required: false, reason: "local change" };
 		const [reason] = factoryAttentionReasons(

@@ -326,8 +326,10 @@ export const FactoryListToolInputSchema = z
 export type FactoryListToolInput = z.input<typeof FactoryListToolInputSchema>;
 export type FactoryListCard = Pick<
 	AgendaTaskRecord,
-	"taskId" | "title" | "status" | "createdAt" | "archivedAt"
+	"taskId" | "title" | "createdAt" | "archivedAt"
 > & {
+	/** Where the card is, as factory_status says it; not the raw task status. */
+	stage: FactoryStage;
 	factoryId?: string;
 	/** The card's project by short name (Factory manager chat only). */
 	project?: string;
@@ -1142,7 +1144,7 @@ export function createFactoryListTool(
 		name: FACTORY_LIST_TOOL_NAME,
 		description:
 			"List this project's Factory cards, newest first, to check for existing work before submitting; in the Factory manager chat, every project's cards (each naming its project) unless project names one. " +
-			"Returns open cards unless include_closed is set (which also lists archived cards; Factory archives delivered cards by itself once their pull request is merged or closed, or after days without activity, as the user's settings say), at most limit (default 10, maximum 20), each with id, short id (factoryId, such as F42), title, status, creation time, a short summary, any source issue URL, priority (absent: none), needsYou (only when the card waits for the user's decision, with the reason) or waiting (not started, on hold).",
+			"Returns open cards unless include_closed is set (which also lists archived cards; Factory archives delivered cards by itself once their pull request is merged or closed, or after days without activity, as the user's settings say), at most limit (default 10, maximum 20), each with id, short id (factoryId, such as F42), title, stage (where it is, in the Factory board's words), creation time, a short summary, any source issue URL, priority (absent: none), needsYou (only when the card waits for the user's decision, with the reason) or waiting (not started, on hold).",
 		inputSchema: zodToJsonSchema(FactoryListToolInputSchema),
 		retryable: true,
 		execute: async (rawInput, context) => {
@@ -1179,30 +1181,31 @@ export function createFactoryListTool(
 				return {
 					ok: true,
 					...(workspaceRoot ? { workspaceRoot } : {}),
-					cards: tasks.slice(0, input.limit).map((task) => ({
-						...pickNeedsFields(
-							describeFactoryCard(
-								task,
-								options.manager.getTaskRuns?.(task.taskId) ?? [],
-								queue,
+					cards: tasks.slice(0, input.limit).map((task) => {
+						const described = describeFactoryCard(
+							task,
+							options.manager.getTaskRuns?.(task.taskId) ?? [],
+							queue,
+						);
+						return {
+							...pickNeedsFields(described),
+							taskId: task.taskId,
+							...factoryIdField(task),
+							...(known && task.workspaceRoot
+								? { project: known.name(task.workspaceRoot) }
+								: {}),
+							title: task.title,
+							stage: described.stage,
+							createdAt: task.createdAt,
+							archivedAt: task.archivedAt,
+							summary: (task.description || task.instructions).slice(
+								0,
+								CARD_SUMMARY_CHARS,
 							),
-						),
-						taskId: task.taskId,
-						...factoryIdField(task),
-						...(known && task.workspaceRoot
-							? { project: known.name(task.workspaceRoot) }
-							: {}),
-						title: task.title,
-						status: task.status,
-						createdAt: task.createdAt,
-						archivedAt: task.archivedAt,
-						summary: (task.description || task.instructions).slice(
-							0,
-							CARD_SUMMARY_CHARS,
-						),
-						sourceIssueUrl: task.factory?.sourceIssue?.url,
-						...factoryPriorityField(task),
-					})),
+							sourceIssueUrl: task.factory?.sourceIssue?.url,
+							...factoryPriorityField(task),
+						};
+					}),
 					more: tasks.length > input.limit,
 				};
 			} catch (error) {
@@ -1274,7 +1277,9 @@ export type FactoryStatusToolInput = z.input<
 
 /** Where a card is, in the words the Factory board uses. */
 export type FactoryStage =
+	| "Waiting to start"
 	| "Waiting for a free slot"
+	| "Waiting for Factory to resume"
 	| "Waiting for the daily spending limit"
 	| "Waiting to resume"
 	| "Not started"
@@ -1733,12 +1738,19 @@ function describeFactoryStage(
 				task.factoryDesignProgress.phase === "complete"
 			)
 				return "Waiting for plan approval";
-			if (card.reasonCode === "daily_spend_limit")
-				return "Waiting for the daily spending limit";
+			switch (card.reasonCode) {
+				case "factory_paused":
+					return "Waiting for Factory to resume";
+				case "daily_spend_limit":
+					return "Waiting for the daily spending limit";
+				case "slots_full":
+					return "Waiting for a free slot";
+			}
 			// A deferred run waits for its recorded reason (origin down, say).
+			// Otherwise nothing holds it: the queue picks it up next.
 			return card.reasonCode === "interrupted" && card.reasonText
 				? "Waiting to resume"
-				: "Waiting for a free slot";
+				: "Waiting to start";
 		case "scoping":
 			return scopingReview ? "Checking the plan" : "Scoping";
 		case "awaiting_approval":
@@ -1862,7 +1874,9 @@ function describeFactoryNext(
 				return `Waits: ${card.reasonText}`;
 			return task.status === "pending_approval" && card.waitingOn === "nobody"
 				? "Continues on its own."
-				: "Starts on its own when a working slot frees up.";
+				: card.reasonCode === "slots_full"
+					? "Starts on its own when a working slot frees up."
+					: "Starts on its own.";
 		case "awaiting_approval":
 			return card.planHold
 				? `Waits for someone to approve the plan in Factory: ${PLAN_HOLD_NEXT[card.planHold]}.`
@@ -2030,6 +2044,8 @@ export function factoryStatusCardState(
 			runLive: live && task.status !== "pending_approval",
 			paused: queue?.paused,
 			dailyLimitReached: queue?.dailyLimitReached,
+			// As the queue admits work: every card being worked holds a slot.
+			slotsFull: queue ? queue.working.length >= queue.concurrency : undefined,
 		},
 	});
 }

@@ -125,7 +125,7 @@ describe("Factory intake tool", () => {
 			taskId: expect.any(String),
 			factoryId: "F1",
 			title: "Fix flaky retry",
-			stage: "Waiting for a free slot",
+			stage: "Waiting to start",
 			workspaceRoot,
 		});
 		const persisted = await manager.getTask(first.task.taskId);
@@ -557,7 +557,7 @@ describe("Factory intake tool", () => {
 		if (!first.ok) throw new Error(first.error.message);
 		expect(first).toMatchObject({
 			existing: false,
-			task: { workspaceRoot, stage: "Waiting for a free slot" },
+			task: { workspaceRoot, stage: "Waiting to start" },
 		});
 		// The board's state, not the raw task status the manager would repeat.
 		expect(first.task).not.toHaveProperty("status");
@@ -803,7 +803,7 @@ describe("Factory intake tool", () => {
 			existing: false,
 			task: {
 				title: "Export activity as CSV",
-				stage: "Waiting for a free slot",
+				stage: "Waiting to start",
 			},
 		});
 		const persisted = await manager.getTask(first.task.taskId);
@@ -893,7 +893,8 @@ describe("Factory intake tool", () => {
 			taskId: first.task.taskId,
 			factoryId: "F1",
 			title: "Export activity as CSV",
-			status: "pending_approval",
+			// The board's words, as the filing reply says them.
+			stage: "Waiting to start",
 			createdAt: expect.any(String),
 			summary: expect.stringContaining("Export the activity view"),
 			sourceIssueUrl: sourceIssue.url,
@@ -1161,11 +1162,22 @@ describe("Factory status tool", () => {
 			stage: "On hold",
 			next: "Waits until someone starts it.",
 		});
+		// A slot is free: nothing holds it, the queue starts it next.
 		expect(
 			describe(card({ factoryQueued: "run", status: "approved" })),
 		).toMatchObject({
-			stage: "Waiting for a free slot",
+			stage: "Waiting to start",
 			queue: "2nd in line (1 of 2 slots in use)",
+			next: "Starts on its own.",
+		});
+		expect(
+			describe(card({ factoryQueued: "run", status: "approved" }), [], {
+				...queue,
+				working: ["task_live", "task_other"],
+			}),
+		).toMatchObject({
+			stage: "Waiting for a free slot",
+			queue: "2nd in line (2 of 2 slots in use)",
 			next: "Starts on its own when a working slot frees up.",
 		});
 		expect(
@@ -1174,6 +1186,7 @@ describe("Factory status tool", () => {
 				paused: true,
 			}),
 		).toMatchObject({
+			stage: "Waiting for Factory to resume",
 			queue: "Factory is paused",
 			next: "Waits: Factory is paused. It starts when Factory resumes.",
 		});
@@ -1554,9 +1567,9 @@ describe("Factory status tool", () => {
 					taskId: "task_a",
 					title: "Export CSV",
 					status: "approved",
-					stage: "Waiting for a free slot",
+					stage: "Waiting to start",
 					queue: "2nd in line (1 of 2 slots in use)",
-					next: "Starts on its own when a working slot frees up.",
+					next: "Starts on its own.",
 				},
 				{
 					taskId: "task_b",
@@ -2167,7 +2180,7 @@ describe("Factory status tool", () => {
 		await expect(status({})).resolves.toMatchObject({
 			cards: [
 				{
-					stage: "Waiting for a free slot",
+					stage: "Waiting to start",
 					queue: "1st in line (0 of 2 slots in use)",
 				},
 			],
@@ -2189,7 +2202,7 @@ describe("Factory status tool", () => {
 		);
 		await expect(status({ action: "start" }, true)).resolves.toMatchObject({
 			ok: true,
-			cards: [{ stage: "Waiting for a free slot" }],
+			cards: [{ stage: "Waiting to start" }],
 		});
 		const started = await manager.getTask(submitted.task.taskId);
 		expect(started?.factory?.hold).toBeUndefined();

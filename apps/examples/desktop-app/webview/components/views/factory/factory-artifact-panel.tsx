@@ -704,6 +704,7 @@ const CI_STYLE: Record<
 	passed: { tone: "success", icon: CheckCircle2 },
 	pending: { tone: "working", icon: Clock },
 	failed: { tone: "danger", icon: XCircle },
+	none: { tone: "neutral", icon: CircleAlert },
 	unknown: { tone: "neutral", icon: CircleAlert },
 };
 

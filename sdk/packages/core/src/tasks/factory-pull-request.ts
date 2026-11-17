@@ -246,6 +246,9 @@ export async function readFactoryPullRequest(
 		status: "unknown",
 		checks: [],
 	};
+	// Every check on the head, as `gh pr checks` buckets them; the status
+	// falls back to these when no check is required.
+	const allChecks: FactoryPullRequestChecks["checks"] = [];
 	if (snapshot.state === "OPEN") {
 		const checks = checksSchema.parse(
 			JSON.parse(
@@ -261,18 +264,29 @@ export async function readFactoryPullRequest(
 		for (const check of checks.statusCheckRollup ?? []) {
 			const result =
 				check.status === "COMPLETED" ? check.conclusion : check.state;
-			if (
-				![
-					"FAILURE",
-					"ERROR",
-					"CANCELLED",
-					"TIMED_OUT",
-					"ACTION_REQUIRED",
-					"STARTUP_FAILURE",
-					"STALE",
-				].includes(result ?? "")
-			)
-				continue;
+			const failed = [
+				"FAILURE",
+				"ERROR",
+				"CANCELLED",
+				"TIMED_OUT",
+				"ACTION_REQUIRED",
+				"STARTUP_FAILURE",
+				"STALE",
+			].includes(result ?? "");
+			allChecks.push({
+				name: check.name ?? check.context ?? "Check",
+				// Anything not known to have finished is still running.
+				status: failed
+					? result === "CANCELLED"
+						? "cancel"
+						: "fail"
+					: result === "SUCCESS" || result === "NEUTRAL"
+						? "pass"
+						: result === "SKIPPED"
+							? "skipping"
+							: "pending",
+			});
+			if (!failed) continue;
 			const text = `CI check ${check.name ?? check.context ?? "Check"}: ${result}\n${check.detailsUrl ?? check.targetUrl ?? ""}`;
 			const id = `check:${snapshot.headRefOid}:${digest(text)}`;
 			if (input.handledFeedbackIds?.includes(id)) {
@@ -337,7 +351,26 @@ export async function readFactoryPullRequest(
 					}),
 				)
 				.safeParse(parsed);
-			if (checks.success) {
+			// gh answers a PR without required checks with an error, not `[]`:
+			// "no required checks reported on the '<branch>' branch", or "no
+			// checks reported …" when the head has no checks at all.
+			const listed = checks.success
+				? checks.data.map((check) => ({
+						name: check.name,
+						status: check.bucket,
+					}))
+				: undefined;
+			const noneRequired =
+				listed?.length === 0 ||
+				/^no (?:required )?checks reported on the '.*' branch$/m.test(
+					required.output,
+				);
+			const values = listed?.length
+				? listed
+				: noneRequired
+					? allChecks
+					: undefined;
+			if (values) {
 				const confirmed = await checkedCommand(
 					{
 						...options,
@@ -351,23 +384,24 @@ export async function readFactoryPullRequest(
 					.parse(JSON.parse(confirmed));
 				if (head.headRefOid !== snapshot.headRefOid)
 					throw new Error("PR head changed while collecting required checks");
-				const values = checks.data;
 				requiredChecks = {
 					headCommit: head.headRefOid,
 					status: values.some(
-						(check) => check.bucket === "fail" || check.bucket === "cancel",
+						(check) => check.status === "fail" || check.status === "cancel",
 					)
 						? "failed"
-						: values.some((check) => check.bucket === "pending")
+						: values.some((check) => check.status === "pending")
 							? "pending"
-							: values.length > 0 &&
-									values.every((check) => check.bucket === "pass")
-								? "passed"
-								: "unknown",
-					checks: values.map((check) => ({
-						name: check.name,
-						status: check.bucket,
-					})),
+							: !noneRequired
+								? values.every((check) => check.status === "pass")
+									? "passed"
+									: "unknown"
+								: // Skipped checks alone checked nothing.
+									values.some((check) => check.status === "pass")
+									? "passed"
+									: "none",
+					required: !noneRequired,
+					checks: values,
 				};
 			}
 		}

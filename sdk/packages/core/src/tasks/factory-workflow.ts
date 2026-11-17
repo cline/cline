@@ -774,9 +774,7 @@ export async function runFactoryWorkflow(
 		task.factory?.repoRules === true && !isFactoryRuleCard(task);
 	const reviewerNotes = [
 		nominateRules ? formatFactoryKnownRuleKeys(input.knownRuleKeys ?? []) : "",
-		profile
-			? formatFactoryVerificationProfileForFinalReviewer(profile.hash)
-			: "",
+		profile ? formatFactoryVerificationProfileForFinalReviewer(profile) : "",
 	]
 		.filter(Boolean)
 		.map((note) => `\n\n${note}`)

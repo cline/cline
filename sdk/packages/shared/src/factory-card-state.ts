@@ -877,12 +877,14 @@ function deriveFactoryCardState({
 		// Frozen at delivery; runs from before that ask for no stamp.
 		const stamp = state?.humanReview;
 		// The stamp is asked for once the result settled: ready, or watched
-		// with CI passed on the delivered commit and nothing to repair.
+		// with CI passed (or no checks at all) on the delivered commit and
+		// nothing to repair.
 		const settledResult =
 			state?.phase === "ready" ||
 			(state?.phase === "watching" &&
 				!state.pullRequestWatch?.pending &&
-				state.pullRequestChecks?.status === "passed" &&
+				(state.pullRequestChecks?.status === "passed" ||
+					state.pullRequestChecks?.status === "none") &&
 				state.pullRequestChecks.headCommit === state.candidate?.commit);
 		if (stamp?.required && settledResult)
 			return delivered({

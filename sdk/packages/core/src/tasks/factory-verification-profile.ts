@@ -11,6 +11,7 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import {
 	FACTORY_VERIFICATION_PROFILE_PATH,
+	type FactoryTaskConfig,
 	type FactoryVerificationProfile,
 	factoryVerificationProfileCanonicalJson,
 	factoryVerificationProfileSchema,
@@ -840,9 +841,19 @@ export function formatFactoryVerificationProfileForPlanReviewer(
 	return lines.join("\n");
 }
 
-/** The final reviewer's note: the profile file is Factory-written. */
-export function formatFactoryVerificationProfileForFinalReviewer(
-	hash: string,
-): string {
+/**
+ * The final reviewer's note: the profile file is Factory-written. A
+ * repository profile is the repository's own file, which Factory leaves as it
+ * is, so the reviewed diff need not contain it.
+ */
+export function formatFactoryVerificationProfileForFinalReviewer({
+	hash,
+	origin,
+}: Pick<
+	NonNullable<FactoryTaskConfig["verificationProfile"]>,
+	"hash" | "origin"
+>): string {
+	if (origin === "repository")
+		return `VERIFICATION PROFILE: ${FACTORY_VERIFICATION_PROFILE_PATH} is the repository's own test setup, which this card does not change; it is not part of the change, so do not review it or report it as not checked.`;
 	return `VERIFICATION PROFILE: Factory, not the builder, writes ${FACTORY_VERIFICATION_PROFILE_PATH} from the profile frozen with the approved plan (${hash.slice(0, SHORT_HASH)}); builder edits to it are overwritten. Do not review its content as builder work, but flag it if the file in the candidate does not match the approved plan's profile.`;
 }

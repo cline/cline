@@ -1704,6 +1704,12 @@ describe("Factory workflow", () => {
 							baseCommit: "base",
 						},
 						pullRequestUrl: "https://github.com/owner/repo/pull/9",
+						// A repository without CI: the poll found no required checks.
+						pullRequestChecks: {
+							headCommit: "candidate",
+							status: "unknown",
+							checks: [],
+						},
 						pullRequestWatch:
 							phase === "closed"
 								? undefined
@@ -1743,6 +1749,20 @@ describe("Factory workflow", () => {
 			expect(document.body.textContent).not.toContain("Resume PR follow-up");
 			expect(document.body.textContent).not.toContain("Pause PR follow-up");
 			return;
+		}
+		if (phase === "watching") {
+			// Delivered first; following the PR is one line beside its control.
+			const progress = document.querySelector('[aria-label="Task progress"]');
+			expect(progress?.querySelector("strong")?.textContent).toBe(
+				"Delivered: draft PR ready",
+			);
+			expect(progress?.textContent).toContain("You decide when to merge.");
+			expect(progress?.querySelector(".animate-spin")).toBeNull();
+			expect(
+				document.querySelector('[data-testid="factory-footer"]')?.textContent,
+			).toContain(
+				"Factory is watching this PR: no required check results yet.",
+			);
 		}
 		await act(async () =>
 			button(

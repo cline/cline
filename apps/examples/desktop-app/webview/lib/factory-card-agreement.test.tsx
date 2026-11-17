@@ -79,7 +79,11 @@ const HEADLINE: Record<string, string> = {
 		"Draft PR open · reviewer has 2 unresolved findings",
 	"delivered, stamp required": "Needs your review",
 	"draft PR ready": "Delivered: draft PR ready",
-	"draft PR watched": "Watching CI on the draft PR",
+	// Delivered: following the draft PR is not work in progress.
+	"draft PR watched": "Delivered: draft PR ready",
+	"draft PR watched without checks, stamp required": "Needs your review",
+	// A repair follow-up started is.
+	"draft PR watched, repair under way": "Fixing review findings",
 	"draft PR merged": "Merged as delivered",
 	"draft PR closed": "Closed without merging",
 	"PR follow-up paused": "Delivered: draft PR ready",

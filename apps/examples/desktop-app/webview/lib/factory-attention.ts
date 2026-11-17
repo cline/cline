@@ -370,7 +370,9 @@ export function factoryAttentionReasons<
 		(state.phase === "ready" ||
 			(state.phase === "watching" &&
 				!state.pullRequestWatch?.pending &&
-				state.pullRequestChecks?.status === "passed" &&
+				// Nothing left to wait for: CI passed, or the PR has no checks.
+				(state.pullRequestChecks?.status === "passed" ||
+					state.pullRequestChecks?.status === "none") &&
 				state.pullRequestChecks.headCommit === state.candidate?.commit))
 	)
 		// A result to look at; it needs the person only with a required stamp.

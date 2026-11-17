@@ -26,10 +26,8 @@ import {
 /** What the tool says for each fixture: its stage and what happens next. */
 const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 	"held before scoping": ["On hold", "Waits until someone starts it."],
-	"queued for scoping": [
-		"Waiting for a free slot",
-		"Starts on its own when a working slot frees up.",
-	],
+	// A slot is free: the queue starts it next.
+	"queued for scoping": ["Waiting to start", "Starts on its own."],
 	scoping: ["Scoping", "Continues on its own."],
 	"scoping question": [
 		"Scoping",
@@ -68,17 +66,11 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 		"Stays stopped until someone tries again.",
 	],
 	"scoping failed": ["Stopped", "Stays stopped until someone tries again."],
-	"queued to run": [
-		"Waiting for a free slot",
-		"Starts on its own when a working slot frees up.",
-	],
-	"automatic retry queued": [
-		"Waiting for a free slot",
-		"Starts on its own when a working slot frees up.",
-	],
+	"queued to run": ["Waiting to start", "Starts on its own."],
+	"automatic retry queued": ["Waiting to start", "Starts on its own."],
 	"retried by a person after a stop": [
-		"Waiting for a free slot",
-		"Starts on its own when a working slot frees up.",
+		"Waiting to start",
+		"Starts on its own.",
 	],
 	building: ["Building", "Continues on its own."],
 	"running checks": ["Running checks", "Continues on its own."],
@@ -111,6 +103,14 @@ const TOOL: Record<string, [stage: FactoryStage, next: string | RegExp]> = {
 		"Waits for a person to review the draft PR.",
 	],
 	"draft PR watched": [
+		"Delivered: draft PR ready",
+		"Watches the draft PR and fixes failing checks or review feedback on its own.",
+	],
+	"draft PR watched without checks, stamp required": [
+		"Delivered: draft PR ready",
+		"Waits for a person to review the draft PR.",
+	],
+	"draft PR watched, repair under way": [
 		"Delivered: draft PR ready",
 		"Watches the draft PR and fixes failing checks or review feedback on its own.",
 	],
@@ -174,6 +174,7 @@ const NEEDS_YOU: Record<string, string | RegExp> = {
 	"plan fault": /^stopped: /,
 	"draft PR left open with findings": "review the draft PR (open findings)",
 	"delivered, stamp required": "review the delivery",
+	"draft PR watched without checks, stamp required": "review the delivery",
 	"PR follow-up paused": "resume PR follow-up",
 	"proposed rule": "review a proposed rule",
 	"PR follow-up stopped after delivery": /^stopped: /,
@@ -322,10 +323,7 @@ const REVIEW_TOOL: Record<
 	string,
 	[stage: FactoryStage, next: string | RegExp]
 > = {
-	"review queued": [
-		"Waiting for a free slot",
-		"Starts on its own when a working slot frees up.",
-	],
+	"review queued": ["Waiting to start", "Starts on its own."],
 	reviewing: ["Reviewing", "Continues on its own."],
 	"review draft ready": [
 		"Review draft ready",

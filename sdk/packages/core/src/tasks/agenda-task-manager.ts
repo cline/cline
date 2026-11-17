@@ -8423,7 +8423,9 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				snapshot.state !== "OPEN" ||
 				snapshot.headCommit !== expectedHead ||
 				snapshot.requiredChecks?.headCommit !== expectedHead ||
-				snapshot.requiredChecks.status !== "passed" ||
+				// A PR without checks has none to wait for.
+				(snapshot.requiredChecks.status !== "passed" &&
+					snapshot.requiredChecks.status !== "none") ||
 				snapshot.feedback.some(
 					(item) =>
 						!state.pullRequestWatch?.handledFeedbackIds.includes(item.id),
