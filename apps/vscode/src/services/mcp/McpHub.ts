@@ -32,6 +32,7 @@ import {
 	type McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
+import { getMcpPlanModeAccess } from "@shared/mcp-plan-mode"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
@@ -842,6 +843,20 @@ export class McpHub {
 		connection.server.resources = resources ?? []
 		connection.server.resourceTemplates = resourceTemplates ?? []
 		connection.server.prompts = prompts ?? []
+		// The settings file is read here because the config a connection is
+		// opened with can be older: an automatic reconnect reuses the one from
+		// the first connect.
+		McpHub.applyPlanModeOverrides(connection.server, await this.readSavedServerSettings(name))
+	}
+
+	private async readSavedServerSettings(serverName: string): Promise<unknown> {
+		try {
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			return JSON.parse(await fs.readFile(settingsPath, "utf-8")).mcpServers?.[serverName]
+		} catch (error) {
+			Logger.warn(`[MCP] Could not read the saved settings of ${serverName}:`, error)
+			return undefined
+		}
 	}
 
 	/**
@@ -888,7 +903,7 @@ export class McpHub {
 				timeout: resolveMcpServerTimeoutMs(connection.server.config),
 			})
 
-			// Get autoApprove settings
+			// Get the per-tool settings
 			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
@@ -1144,6 +1159,7 @@ export class McpHub {
 
 		if (tools !== undefined) {
 			connection.server.tools = tools
+			McpHub.applyPlanModeOverrides(connection.server, JSON.parse(connection.server.config))
 		}
 		if (resources !== undefined) {
 			connection.server.resources = resources
@@ -1277,6 +1293,7 @@ export class McpHub {
 						autoApprove: autoApprove.includes(tool.name),
 					}))
 				}
+				McpHub.applyPlanModeOverrides(currentConnection.server, config)
 				// Also update Cline-specific settings in the stored config.
 				// This handles the case where someone manually edits the MCP settings file -
 				// the file watcher triggers this code path, and we need to sync the in-memory
@@ -1303,6 +1320,7 @@ export class McpHub {
 
 		// Track if any connection-level changes occurred (excludes Cline-specific settings)
 		let connectionChangesOccurred = false
+		let planModeOverridesChanged = false
 
 		// Delete removed servers
 		for (const name of currentNames) {
@@ -1368,6 +1386,9 @@ export class McpHub {
 						autoApprove: autoApprove.includes(tool.name),
 					}))
 				}
+				if (McpHub.applyPlanModeOverrides(currentConnection.server, config)) {
+					planModeOverridesChanged = true
+				}
 				// Also update Cline-specific settings in the stored config
 				const currentConfig = JSON.parse(currentConnection.server.config)
 				currentConfig.autoApprove = config.autoApprove
@@ -1378,8 +1399,10 @@ export class McpHub {
 
 		// Only notify webview if actual connection changes occurred.
 		// For Cline-specific settings changes, the RPC response already updated the webview,
-		// so we skip notification to avoid race conditions.
-		if (connectionChangesOccurred) {
+		// so we skip notification to avoid race conditions. Plan-mode overrides are the
+		// exception: this window's own saves never reach here, so a change seen here was
+		// made elsewhere, and it can also change which tools a Plan-mode session offers.
+		if (connectionChangesOccurred || planModeOverridesChanged) {
 			await this.notifyWebviewOfServerChanges()
 		}
 		this.isConnecting = false
@@ -1391,6 +1414,7 @@ export class McpHub {
 	 *
 	 * ## Cline-specific settings (don't require restart):
 	 * - `autoApprove`: tool approval list (UI setting)
+	 * - `allowInPlanMode`, `allowAllInPlanMode`: Plan-mode overrides (UI setting)
 	 *
 	 * ## MCP client settings (require restart):
 	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`
@@ -1412,6 +1436,8 @@ export class McpHub {
 		// serverGainedOAuthTokens in updateServerConnections.
 		const {
 			autoApprove: _oldAutoApprove,
+			allowInPlanMode: _oldAllowInPlanMode,
+			allowAllInPlanMode: _oldAllowAllInPlanMode,
 			remoteConfigured: _oldRemoteConfigured,
 			oauth: _oldOauth,
 			metadata: _oldMetadata,
@@ -1419,6 +1445,8 @@ export class McpHub {
 		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
 		const {
 			autoApprove: _newAutoApprove,
+			allowInPlanMode: _newAllowInPlanMode,
+			allowAllInPlanMode: _newAllowAllInPlanMode,
 			remoteConfigured: _newRemoteConfigured,
 			oauth: _newOauth,
 			metadata: _newMetadata,
@@ -1769,6 +1797,68 @@ export class McpHub {
 	}
 
 	/**
+	 * Copies the Plan-mode overrides of a server's settings entry onto the
+	 * in-memory server, its tools, and its stored config, which a restart and a
+	 * refreshed tool list read them back from. Call it wherever the overrides
+	 * change or `server.tools` is replaced by a list fetched from the server.
+	 * Anything malformed in the entry counts as not allowed.
+	 * @returns whether the overrides differ from the ones applied before
+	 */
+	private static applyPlanModeOverrides(server: McpServer, settingsEntry: unknown): boolean {
+		const entry = (settingsEntry ?? {}) as { allowInPlanMode?: unknown; allowAllInPlanMode?: unknown }
+		const allowInPlanMode = Array.isArray(entry.allowInPlanMode)
+			? entry.allowInPlanMode.filter((name): name is string => typeof name === "string")
+			: []
+		const allowAllInPlanMode = entry.allowAllInPlanMode === true
+
+		const storedConfig = JSON.parse(server.config)
+		const changed = !deepEqual(
+			[storedConfig.allowInPlanMode ?? [], storedConfig.allowAllInPlanMode === true],
+			[allowInPlanMode, allowAllInPlanMode],
+		)
+		server.allowAllInPlanMode = allowAllInPlanMode
+		server.tools = server.tools?.map(({ allowInPlanMode: _previous, ...tool }) =>
+			allowInPlanMode.includes(tool.name) ? { ...tool, allowInPlanMode: true } : tool,
+		)
+		server.config = JSON.stringify({ ...storedConfig, allowInPlanMode, allowAllInPlanMode })
+		return changed
+	}
+
+	/**
+	 * Saves a Plan-mode override for the named tools, or for the whole server
+	 * when `toolNames` is omitted.
+	 * @returns Array of updated MCP servers
+	 */
+	async setPlanModeAccess(serverName: string, allowed: boolean, toolNames?: string[]): Promise<McpServer[]> {
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+		const mcpServers = await updateMcpSettingsFile(settingsPath, (parsed) => {
+			const servers = parsed.mcpServers as Record<string, McpServerConfig>
+			const server = servers[serverName]
+			if (!server) {
+				throw new Error(`MCP server "${serverName}" is not in the settings file`)
+			}
+			if (toolNames) {
+				const kept = (server.allowInPlanMode ?? []).filter((name) => !toolNames.includes(name))
+				server.allowInPlanMode = allowed ? [...kept, ...toolNames] : kept
+			} else {
+				server.allowAllInPlanMode = allowed
+			}
+			return servers
+		})
+		this.recordSettingsFingerprint(mcpServers)
+
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (connection) {
+			McpHub.applyPlanModeOverrides(connection.server, mcpServers[serverName])
+		}
+		// A tool that was hidden from Plan mode becomes visible, or the reverse.
+		this.checkToolListChanged()
+		this.telemetryService.captureMcpPlanModeOverride(serverName, toolNames ? "tool" : "server", allowed)
+
+		return this.getSortedMcpServers(Object.keys(mcpServers))
+	}
+
+	/**
 	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
 	 * @param serverName The name of the MCP server
 	 * @param toolNames Array of tool names to toggle auto-approve for
@@ -2060,6 +2150,8 @@ export class McpHub {
 	 * captured by createMcpTools: server name, tool name, description, input
 	 * schema, annotations, and timeout. A change to any captured value must
 	 * rebuild the active session even when the set of tool names is unchanged.
+	 * So must a change to whether Plan mode hides the tool, since a Plan-mode
+	 * session is built without the hidden ones.
 	 */
 	computeToolFingerprint(): string {
 		const entries: string[] = []
@@ -2077,6 +2169,7 @@ export class McpHub {
 						tool.inputSchema ?? {},
 						tool.annotations ?? null,
 						timeoutMs,
+						getMcpPlanModeAccess(tool, conn.server) === "hidden",
 					]),
 				)
 			}

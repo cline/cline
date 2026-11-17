@@ -51,6 +51,39 @@ describe("McpHubToolProvider", () => {
 		])
 	})
 
+	describe("in a Plan-mode session", () => {
+		const getServers = sinon.stub().returns([
+			{
+				name: "ide",
+				tools: [
+					{ name: "read", inputSchema: {}, annotations: { readOnlyHint: true } },
+					{ name: "rename", inputSchema: {}, annotations: { readOnlyHint: false } },
+					{ name: "run", inputSchema: {} },
+					{ name: "format", inputSchema: {}, annotations: { readOnlyHint: false }, allowInPlanMode: true },
+				],
+			},
+			{
+				name: "trusted",
+				allowAllInPlanMode: true,
+				tools: [{ name: "write", inputSchema: {}, annotations: { readOnlyHint: false } }],
+			},
+		])
+		const names = async (mode: "plan" | "act", serverName: string) =>
+			(await new McpHubToolProvider({ getServers } as never, { mode }).listTools(serverName)).map((tool) => tool.name)
+
+		it("leaves out the tools the server declares as modifying", async () => {
+			expect(await names("plan", "ide")).toEqual(["read", "run", "format"])
+		})
+
+		it("keeps every tool of a server the user allowed", async () => {
+			expect(await names("plan", "trusted")).toEqual(["write"])
+		})
+
+		it("does not apply to an Act-mode session", async () => {
+			expect(await names("act", "ide")).toEqual(["read", "rename", "run", "format"])
+		})
+	})
+
 	it("stamps the session mode on MCP tool calls", async () => {
 		const callTool = sinon.stub().resolves({ content: [] })
 		const provider = new McpHubToolProvider({ callTool } as never, { mode: "plan" })

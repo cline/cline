@@ -276,6 +276,37 @@ describe("McpSettingsSchema", () => {
 	})
 
 	// -------------------------------------------------------------------------
+	// Plan-mode overrides
+	// -------------------------------------------------------------------------
+
+	describe("Plan-mode overrides", () => {
+		it("keeps the overrides on flat and nested servers", () => {
+			const overrides = { allowInPlanMode: ["get_file"], allowAllInPlanMode: true }
+			const result = McpSettingsSchema.safeParse({
+				mcpServers: {
+					flat: { command: "node", ...overrides },
+					nested: { transport: { type: "stdio", command: "node" }, ...overrides },
+				},
+			})
+
+			result.success.should.be.true()
+			for (const name of ["flat", "nested"]) {
+				const server = result.data!.mcpServers[name]
+				server.allowInPlanMode!.should.deepEqual(["get_file"])
+				server.allowAllInPlanMode!.should.be.true()
+			}
+		})
+
+		it("leaves the overrides unset when the file has none", () => {
+			const result = McpSettingsSchema.safeParse({ mcpServers: { plain: { command: "node" } } })
+
+			result.success.should.be.true()
+			;("allowInPlanMode" in result.data!.mcpServers.plain).should.be.false()
+			;("allowAllInPlanMode" in result.data!.mcpServers.plain).should.be.false()
+		})
+	})
+
+	// -------------------------------------------------------------------------
 	// ServerConfigSchema – direct usage
 	// -------------------------------------------------------------------------
 

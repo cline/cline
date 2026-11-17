@@ -364,6 +364,16 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+	/**
+	 * How Plan mode treated this tool call, when it changed the outcome.
+	 * - `ask`: the user is asked only because the server does not mark the tool read-only.
+	 * - `ask_unlisted`: the user is asked only because no connected server lists
+	 *   the tool any more, so nothing is known about it. `serverName` and
+	 *   `toolName` are then a guess, and no override can be saved under them.
+	 * - `read_only`: the call ran without asking because the server declares
+	 *   the tool read-only.
+	 */
+	planMode?: "ask" | "ask_unlisted" | "read_only"
 }
 
 export interface ClineAskUseSubagents {

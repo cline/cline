@@ -24,6 +24,27 @@ Use Plan mode to:
 - Create a clear implementation strategy
 - Review code and understand complex workflows
 
+### MCP tools in Plan mode
+
+MCP servers can offer tools that change things, so in the VS Code and JetBrains extensions Plan mode decides per tool. It goes by the `readOnlyHint` each server declares for its tools:
+
+| The server says the tool is | In Plan mode |
+|---|---|
+| Read-only | Available, with the same approval rules as in Act mode |
+| Not read-only | Hidden from Cline until you switch to Act mode |
+| Nothing either way | Available, but Cline asks before every call, even with **Use MCP servers** auto-approval on |
+
+The hint is the server's own claim. Cline does not verify it.
+
+Cline also asks before a tool that its server no longer lists, for example after the server disconnected. Nothing is known about such a tool, so there is nothing to allow.
+
+If a server gives no hints, or gives wrong ones, you can allow a tool or a whole server in Plan mode:
+
+- On the approval prompt, check **Always allow in Plan mode** for the tool, or allow all tools from that server.
+- In the MCP Servers tab, expand a server and check **Allow in Plan mode** next to a tool, or **Allow all tools in Plan mode**.
+
+An allowed tool behaves in Plan mode as it does in Act mode. The choice is saved per server in `cline_mcp_settings.json` as `allowInPlanMode` (a list of tool names) and `allowAllInPlanMode`.
+
 ## Act Mode
 
 Once you have a plan, switch to Act mode. Cline retains the full context from your planning session and can now modify files, run commands, and execute your strategy.

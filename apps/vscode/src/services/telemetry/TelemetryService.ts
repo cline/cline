@@ -280,6 +280,12 @@ export class TelemetryService {
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when MCP tools are used
 			MCP_TOOL_CALLED: "task.mcp_tool_called",
+			// Tracks how many of a server's tools a Plan-mode session was built without
+			MCP_PLAN_MODE_TOOLS_HIDDEN: "task.mcp_plan_mode_tools_hidden",
+			// Tracks the user's answer when Plan mode asks before an MCP tool with no read-only hint
+			MCP_PLAN_MODE_APPROVAL: "task.mcp_plan_mode_approval",
+			// Tracks when the user allows or disallows MCP tools in Plan mode
+			MCP_PLAN_MODE_OVERRIDE: "task.mcp_plan_mode_override",
 			// Tracks legacy VS Code task history migration into SDK sessions
 			LEGACY_TASK_MIGRATION: "task.legacy_task_migration",
 			// Tracks when the browser tool is started
@@ -1026,6 +1032,30 @@ export class TelemetryService {
 	 * @param commandName The name of the command (e.g., "newtask", "reportbug", or custom workflow name)
 	 * @param commandType Whether it's a built-in command, custom workflow, or MCP prompt
 	 */
+	/** Records that a Plan-mode session was built without some of a server's tools. */
+	public captureMcpPlanModeToolsHidden(ulid: string | undefined, serverName: string, hiddenCount: number, toolCount: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_PLAN_MODE_TOOLS_HIDDEN,
+			properties: { ulid, serverName, hiddenCount, toolCount },
+		})
+	}
+
+	/** Records the user's answer when Plan mode asked before an MCP tool with no read-only hint. */
+	public captureMcpPlanModeApproval(ulid: string, serverName: string, toolName: string, approved: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_PLAN_MODE_APPROVAL,
+			properties: { ulid, serverName, toolName, approved },
+		})
+	}
+
+	/** Records a saved Plan-mode override, for single tools or for a whole server. */
+	public captureMcpPlanModeOverride(serverName: string, scope: "tool" | "server", allowed: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_PLAN_MODE_OVERRIDE,
+			properties: { serverName, scope, allowed },
+		})
+	}
+
 	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow" | "mcp_prompt") {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,

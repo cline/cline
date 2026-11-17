@@ -45,6 +45,15 @@ export interface SdkInteractionCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
 	resolveMcpTool?: McpToolResolver
+	/**
+	 * How Plan mode changes a call the settings would auto-approve: `ask` asks
+	 * anyway, `read_only` approves and is reported through
+	 * `recordPlanModeReadOnlyTool`. Consulted only for auto-approved calls.
+	 */
+	getPlanModeApproval?: (request: ToolApprovalRequest) => "ask" | "read_only" | undefined
+	recordPlanModeReadOnlyTool?: (toolCallId: string) => void
+	/** The user answered an ask that only Plan mode caused. */
+	onPlanModeApprovalDecision?: (toolName: string, approved: boolean) => void
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
@@ -82,6 +91,7 @@ export class SdkInteractionCoordinator {
 				toolCallId: string
 				messageTs: number
 				toolName: string
+				askedByPlanMode: boolean
 		  }
 		| undefined
 
@@ -117,7 +127,13 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
-		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
+		const autoApproved = request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true
+		const planModeApproval = autoApproved ? this.options.getPlanModeApproval?.(request) : undefined
+		const askedByPlanMode = planModeApproval === "ask"
+		if (autoApproved && !askedByPlanMode) {
+			if (planModeApproval === "read_only") {
+				this.options.recordPlanModeReadOnlyTool?.(request.toolCallId)
+			}
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
 		}
@@ -137,6 +153,7 @@ export class SdkInteractionCoordinator {
 			this.nextMessageTs(),
 			this.options.getCwd?.(),
 			this.options.resolveMcpTool,
+			askedByPlanMode,
 		)
 
 		this.options.messages.appendAndEmit([toolAskMessage], {
@@ -157,6 +174,7 @@ export class SdkInteractionCoordinator {
 			toolCallId: request.toolCallId,
 			messageTs: toolAskMessage.ts,
 			toolName: request.toolName,
+			askedByPlanMode,
 		}
 
 		void Promise.resolve()
@@ -248,6 +266,9 @@ export class SdkInteractionCoordinator {
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
 		if (approved && pendingMessage) {
 			this.options.recordApprovedToolMessage?.(pendingMessage.toolCallId, pendingMessage.messageTs)
+		}
+		if (pendingMessage?.askedByPlanMode) {
+			this.options.onPlanModeApprovalDecision?.(pendingMessage.toolName, approved)
 		}
 
 		// Approved or rejected by approval controls, the agent resumes its turn and returns to streaming.

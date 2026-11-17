@@ -4108,11 +4108,17 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 			expect(identity(translateSessionEvent(toolEvent("content_end"), state).messages[0].text)).toEqual(real)
 		})
 
-		it("asks for approval under those names", () => {
-			const ask = buildToolApprovalAskMessage(REWRITTEN, {}, 1, undefined, resolveMcpTool)
+		it("asks for approval under those names, which the Plan-mode checkboxes save", () => {
+			const ask = buildToolApprovalAskMessage(REWRITTEN, {}, 1, undefined, resolveMcpTool, true)
 
 			expect(ask.ask).toBe("use_mcp_server")
-			expect(identity(ask.text)).toEqual(real)
+			expect(JSON.parse(ask.text!)).toMatchObject({ ...real, planMode: "ask" })
+		})
+
+		it("offers no override in an ask for a tool no connected server lists", () => {
+			const ask = buildToolApprovalAskMessage("gone__tool", {}, 1, undefined, resolveMcpTool, true)
+
+			expect(JSON.parse(ask.text!)).toMatchObject({ serverName: "gone", toolName: "tool", planMode: "ask_unlisted" })
 		})
 
 		it("restores those names from history", () => {
@@ -4140,6 +4146,28 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 				toolName: "tool",
 			})
 		})
+	})
+
+	it("marks an MCP call that Plan mode ran on the server's read-only hint, on both of its rows", () => {
+		const state = new MessageTranslatorState()
+		const toolEvent = (type: "content_start" | "content_end", toolCallId: string): CoreSessionEvent => ({
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: { type, contentType: "tool", toolName: "ide__read", toolCallId, input: {}, output: "ok" } as AgentEvent,
+			},
+		})
+		const planMode = (event: CoreSessionEvent) =>
+			(JSON.parse(translateSessionEvent(event, state).messages[0].text!) as ClineAskUseMcpServer).planMode
+
+		state.recordPlanModeReadOnlyTool("c1")
+
+		expect(planMode(toolEvent("content_start", "c1"))).toBe("read_only")
+		expect(planMode(toolEvent("content_end", "c1"))).toBe("read_only")
+		// The record belongs to that call alone.
+		expect(planMode(toolEvent("content_start", "c2"))).toBeUndefined()
+		expect(planMode(toolEvent("content_end", "c2"))).toBeUndefined()
+		expect(state.isPlanModeReadOnlyTool("c1")).toBe(false)
 	})
 
 	it("content_end for MCP tool preserves an untyped object with an empty result", () => {

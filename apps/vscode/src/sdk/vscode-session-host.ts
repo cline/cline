@@ -39,8 +39,10 @@ import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { type VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
+import { describeMcpToolsHiddenInPlanMode } from "./plan-mode-hidden-mcp-tools"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
@@ -158,6 +160,20 @@ export class VscodeSessionHost implements SdkSessionHost {
 				...inputWithRemoteConfig.config,
 				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
 				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+			}
+			if (config.mode === "plan") {
+				const hidden = describeMcpToolsHiddenInPlanMode(options.mcpHub.getServers())
+				if (hidden.promptSection) {
+					config.systemPrompt = `${config.systemPrompt}\n\n${hidden.promptSection}`
+				}
+				for (const server of hidden.servers) {
+					telemetryService.captureMcpPlanModeToolsHidden(
+						config.sessionId,
+						server.serverName,
+						server.hiddenCount,
+						server.toolCount,
+					)
+				}
 			}
 			return {
 				...inputWithRemoteConfig,

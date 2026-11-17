@@ -103,7 +103,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
-import { isToolAutoApproved } from "./sdk-tool-policies"
+import { getPlanModeApproval, isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
@@ -420,6 +420,16 @@ export class Controller {
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
+			},
+			getPlanModeApproval: (request) =>
+				getPlanModeApproval(request.toolName, this.sessions.getActiveSession()?.mode, this.mcpHub),
+			recordPlanModeReadOnlyTool: (toolCallId) => this.messageTranslatorState.recordPlanModeReadOnlyTool(toolCallId),
+			onPlanModeApprovalDecision: (toolName, approved) => {
+				const match = this.findMcpTool(toolName)
+				const sessionId = this.sessions.getActiveSession()?.sessionId
+				if (match && sessionId) {
+					telemetryService.captureMcpPlanModeApproval(sessionId, match.server.name, match.tool.name, approved)
+				}
 			},
 			resolveMcpTool: (sdkToolName) => this.findMcpTool(sdkToolName),
 			getCwd: () => this.lastKnownWorkspaceRoot,

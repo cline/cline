@@ -3,6 +3,7 @@ import type { AgentMode, AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
+import { getMcpPlanModeAccess } from "@/shared/mcp-plan-mode"
 import { Logger } from "@/shared/services/Logger"
 import { getMcpSdkToolName, getMcpToolsBySdkName } from "./mcp-sdk-tool-name"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
@@ -17,7 +18,10 @@ interface McpToolDescriptor {
 }
 
 export interface McpHubToolProviderOptions {
-	/** Session mode the tools are built for; stamped on tool-call telemetry. */
+	/**
+	 * Session mode the tools are built for; stamped on tool-call telemetry. A
+	 * Plan-mode session is built without the tools Plan mode hides.
+	 */
 	mode?: AgentMode
 }
 
@@ -50,7 +54,9 @@ export class McpHubToolProvider {
 			return false
 		})
 
-		return tools.map((tool) => ({
+		const offered =
+			this.options.mode === "plan" ? tools.filter((tool) => getMcpPlanModeAccess(tool, server) !== "hidden") : tools
+		return offered.map((tool) => ({
 			name: tool.name,
 			description: tool.description ?? undefined,
 			inputSchema: (tool.inputSchema as Record<string, unknown>) ?? {

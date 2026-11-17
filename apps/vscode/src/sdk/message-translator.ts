@@ -151,6 +151,8 @@ export class MessageTranslatorState {
 	private openCompactionTs: number | undefined
 	/** Tool calls rejected by the user; they should not render as red tool failures. */
 	private deniedToolApprovalsByCallId = new Map<string, { toolName: string; reason: string }>()
+	/** MCP calls Plan mode ran without asking because the server declares the tool read-only. */
+	private planModeReadOnlyToolCallIds = new Set<string>()
 	/**
 	 * Process-wide id/seq/epoch authority. Shared with the interaction coordinator and history
 	 * rendering so that message ids never collide across generators. See message-id-minter.ts.
@@ -302,6 +304,20 @@ export class MessageTranslatorState {
 
 	recordDeniedToolApproval(toolCallId: string, toolName: string, reason: string): void {
 		this.deniedToolApprovalsByCallId.set(toolCallId, { toolName, reason })
+	}
+
+	/** Remember that Plan mode ran this MCP call without asking because the server declares the tool read-only. */
+	recordPlanModeReadOnlyTool(toolCallId: string): void {
+		this.planModeReadOnlyToolCallIds.add(toolCallId)
+	}
+
+	isPlanModeReadOnlyTool(toolCallId: string | undefined): boolean {
+		return toolCallId !== undefined && this.planModeReadOnlyToolCallIds.has(toolCallId)
+	}
+
+	/** Same as isPlanModeReadOnlyTool, for the tool's final row: the record is no longer needed after it. */
+	consumePlanModeReadOnlyTool(toolCallId: string | undefined): boolean {
+		return toolCallId !== undefined && this.planModeReadOnlyToolCallIds.delete(toolCallId)
 	}
 
 	isToolApprovalDenied(toolCallId: string | undefined): boolean {
@@ -557,6 +573,7 @@ export class MessageTranslatorState {
 		this.streamingCommandOutput = undefined
 		this.clearApprovedToolMessageTs()
 		this.deniedToolApprovalsByCallId.clear()
+		this.planModeReadOnlyToolCallIds.clear()
 		this.clearSpawnAgents()
 	}
 
@@ -1132,7 +1149,12 @@ export function extractToolOutputText(output: unknown): string {
 // MCP tool detection
 // ---------------------------------------------------------------------------
 
-type McpToolIdentity = { serverName: string; toolName: string }
+type McpToolIdentity = {
+	serverName: string
+	toolName: string
+	/** A connected server lists the tool. Otherwise the names are read from the SDK tool name and can be wrong. */
+	listed: boolean
+}
 
 /** Looks an SDK tool name up among the connected MCP servers' tools. */
 export type McpToolResolver = (sdkToolName: string) => { server: { name: string }; tool: { name: string } } | undefined
@@ -1145,13 +1167,13 @@ export type McpToolResolver = (sdkToolName: string) => { server: { name: string 
  */
 function getMcpToolIdentity(sdkToolName: string, resolveMcpTool: McpToolResolver | undefined): McpToolIdentity | undefined {
 	const resolved = resolveMcpTool?.(sdkToolName)
-	if (resolved) return { serverName: resolved.server.name, toolName: resolved.tool.name }
+	if (resolved) return { serverName: resolved.server.name, toolName: resolved.tool.name, listed: true }
 	const separatorIndex = sdkToolName.indexOf("__")
 	if (separatorIndex <= 0) return undefined
 	const serverName = sdkToolName.substring(0, separatorIndex)
 	const mcpToolName = sdkToolName.substring(separatorIndex + 2)
 	if (!mcpToolName) return undefined
-	return { serverName, toolName: mcpToolName }
+	return { serverName, toolName: mcpToolName, listed: false }
 }
 
 /**
@@ -1159,7 +1181,7 @@ function getMcpToolIdentity(sdkToolName: string, resolveMcpTool: McpToolResolver
  * This is what the webview's ChatRow expects when rendering MCP tool calls
  * (message.ask === "use_mcp_server" or message.say === "use_mcp_server").
  */
-function buildMcpToolPayload(mcpInfo: McpToolIdentity, input?: unknown): string {
+function buildMcpToolPayload(mcpInfo: McpToolIdentity, input?: unknown, planMode?: ClineAskUseMcpServer["planMode"]): string {
 	const parsedInput = parseToolInput(input)
 	// Format arguments as a JSON string (matching classic ClineAskUseMcpServer.arguments)
 	let argumentsStr: string | undefined
@@ -1174,6 +1196,7 @@ function buildMcpToolPayload(mcpInfo: McpToolIdentity, input?: unknown): string 
 		serverName: mcpInfo.serverName,
 		toolName: mcpInfo.toolName,
 		arguments: argumentsStr,
+		...(planMode ? { planMode } : {}),
 	} satisfies ClineAskUseMcpServer)
 }
 
@@ -1207,14 +1230,18 @@ export function buildToolApprovalAskMessage(
 	ts: number,
 	cwd?: string,
 	resolveMcpTool?: McpToolResolver,
+	/** The settings would auto-approve this MCP call; Plan mode asks because the tool is not marked read-only. */
+	askedByPlanMode = false,
 ): ClineMessage {
 	const mcpInfo = getMcpToolIdentity(toolName, resolveMcpTool)
 	if (mcpInfo) {
+		// An override is saved under the server and tool names, so the ask offers one only for names a server gave.
+		const planMode = askedByPlanMode ? (mcpInfo.listed ? "ask" : "ask_unlisted") : undefined
 		return {
 			ts,
 			type: "ask",
 			ask: "use_mcp_server",
-			text: buildMcpToolPayload(mcpInfo, input),
+			text: buildMcpToolPayload(mcpInfo, input, planMode),
 			partial: false,
 		}
 	}
@@ -1498,7 +1525,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// with ClineAskUseMcpServer JSON, not generic say="tool".
 					const mcpInfo = state.mcpToolIdentity(toolName)
 					if (mcpInfo) {
-						const mcpPayload = buildMcpToolPayload(mcpInfo, input)
+						const mcpPayload = buildMcpToolPayload(
+							mcpInfo,
+							input,
+							state.isPlanModeReadOnlyTool(event.toolCallId) ? "read_only" : undefined,
+						)
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -1790,7 +1821,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					if (mcpInfoEnd) {
 						const storedMcpInput = state.getStreamingToolInput()
 						const mcpTs = state.clearStreamingTool()
-						const mcpPayload = buildMcpToolPayload(mcpInfoEnd, storedMcpInput)
+						const mcpPayload = buildMcpToolPayload(
+							mcpInfoEnd,
+							storedMcpInput,
+							state.consumePlanModeReadOnlyTool(event.toolCallId) ? "read_only" : undefined,
+						)
 
 						// Finalize the use_mcp_server message (non-partial)
 						messages.push({

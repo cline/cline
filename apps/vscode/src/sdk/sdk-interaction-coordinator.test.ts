@@ -339,6 +339,132 @@ describe("SdkInteractionCoordinator", () => {
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 	})
 
+	describe("in Plan mode", () => {
+		const request = {
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "ide__run",
+			input: { target: "app" },
+			policy: { autoApprove: false },
+		}
+		function createCoordinator(options: { planModeApproval: "ask" | "read_only" | undefined; autoApproved?: boolean }) {
+			const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+			const getPlanModeApproval = vi.fn(() => options.planModeApproval)
+			const recordPlanModeReadOnlyTool = vi.fn()
+			const onPlanModeApprovalDecision = vi.fn()
+			const coordinator = new SdkInteractionCoordinator({
+				messages: new SdkMessageCoordinator({ getTask: () => task }),
+				getSessionId: () => "session-123",
+				postStateToWebview: vi.fn().mockResolvedValue(undefined),
+				shouldAutoApproveTool: () => options.autoApproved ?? true,
+				getPlanModeApproval,
+				recordPlanModeReadOnlyTool,
+				onPlanModeApprovalDecision,
+				resolveMcpTool: (sdkToolName) =>
+					sdkToolName === "ide__run" ? { server: { name: "ide" }, tool: { name: "run" } } : undefined,
+			})
+			const askPayload = async () => {
+				await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+				return JSON.parse(task.messageStateHandler.getClineMessages()[0].text || "{}")
+			}
+			return { coordinator, askPayload, getPlanModeApproval, recordPlanModeReadOnlyTool, onPlanModeApprovalDecision }
+		}
+
+		it("asks before an auto-approved MCP tool with no read-only hint, and says why", async () => {
+			const { coordinator, askPayload, onPlanModeApprovalDecision } = createCoordinator({ planModeApproval: "ask" })
+
+			const approval = coordinator.handleRequestToolApproval(request)
+
+			expect(await askPayload()).toMatchObject({ serverName: "ide", toolName: "run", planMode: "ask" })
+			coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")
+			await expect(approval).resolves.toEqual({ approved: true })
+			expect(onPlanModeApprovalDecision).toHaveBeenCalledExactlyOnceWith("ide__run", true)
+		})
+
+		it("asks under the names the hub knows the tool by", async () => {
+			const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+			const coordinator = new SdkInteractionCoordinator({
+				messages: new SdkMessageCoordinator({ getTask: () => task }),
+				getSessionId: () => "session-123",
+				postStateToWebview: vi.fn().mockResolvedValue(undefined),
+				shouldAutoApproveTool: () => true,
+				getPlanModeApproval: () => "ask",
+				resolveMcpTool: () => ({ server: { name: "github.com/acme/ide" }, tool: { name: "run" } }),
+			})
+
+			void coordinator.handleRequestToolApproval({ ...request, toolName: "github_com_acme_ide__run_0a1b2c3d" })
+
+			await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+			expect(JSON.parse(task.messageStateHandler.getClineMessages()[0].text || "{}")).toMatchObject({
+				serverName: "github.com/acme/ide",
+				toolName: "run",
+				planMode: "ask",
+			})
+		})
+
+		it("asks without offering an override when no server lists the tool any more", async () => {
+			const { coordinator, askPayload } = createCoordinator({ planModeApproval: "ask" })
+
+			void coordinator.handleRequestToolApproval({ ...request, toolName: "a__b__run" })
+
+			// The names are a guess from the tool name, and server "a" may be another server.
+			expect(await askPayload()).toMatchObject({ serverName: "a", toolName: "b__run", planMode: "ask_unlisted" })
+		})
+
+		it("reports a rejected Plan-mode ask", async () => {
+			const { coordinator, askPayload, onPlanModeApprovalDecision } = createCoordinator({ planModeApproval: "ask" })
+
+			const approval = coordinator.handleRequestToolApproval(request)
+			await askPayload()
+			coordinator.resolvePendingToolApproval(undefined, "noButtonClicked")
+
+			await expect(approval).resolves.toMatchObject({ approved: false })
+			expect(onPlanModeApprovalDecision).toHaveBeenCalledExactlyOnceWith("ide__run", false)
+		})
+
+		it("does not report a Plan-mode ask that the task's end cancelled", async () => {
+			const { coordinator, askPayload, onPlanModeApprovalDecision } = createCoordinator({ planModeApproval: "ask" })
+
+			const approval = coordinator.handleRequestToolApproval(request)
+			await askPayload()
+			coordinator.clearPending("Task cancelled")
+
+			await expect(approval).resolves.toMatchObject({ approved: false })
+			expect(onPlanModeApprovalDecision).not.toHaveBeenCalled()
+		})
+
+		it("auto-approves a declared read-only tool and records why", async () => {
+			const { coordinator, recordPlanModeReadOnlyTool } = createCoordinator({ planModeApproval: "read_only" })
+
+			await expect(coordinator.handleRequestToolApproval(request)).resolves.toEqual({ approved: true })
+			expect(recordPlanModeReadOnlyTool).toHaveBeenCalledExactlyOnceWith("tool-call")
+		})
+
+		it("leaves a tool the settings already ask about as an ordinary ask", async () => {
+			const { coordinator, askPayload, getPlanModeApproval, onPlanModeApprovalDecision } = createCoordinator({
+				planModeApproval: "ask",
+				autoApproved: false,
+			})
+
+			void coordinator.handleRequestToolApproval(request)
+
+			// "Always allow in Plan mode" would not stop this ask, so it is not offered.
+			expect(await askPayload()).not.toHaveProperty("planMode")
+			expect(getPlanModeApproval).not.toHaveBeenCalled()
+			coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")
+			expect(onPlanModeApprovalDecision).not.toHaveBeenCalled()
+		})
+
+		it("auto-approves as usual when Plan mode changes nothing", async () => {
+			const { coordinator, recordPlanModeReadOnlyTool } = createCoordinator({ planModeApproval: undefined })
+
+			await expect(coordinator.handleRequestToolApproval(request)).resolves.toEqual({ approved: true })
+			expect(recordPlanModeReadOnlyTool).not.toHaveBeenCalled()
+		})
+	})
+
 	it("emits an MCP approval ask with server, tool, and arguments", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({

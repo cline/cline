@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const mockClineCoreCreate = vi.hoisted(() => vi.fn())
 const mockCreateVscodeExtraTools = vi.hoisted(() => vi.fn(async () => []))
 const mockInnerStart = vi.hoisted(() => vi.fn())
+const mockCaptureToolsHidden = vi.hoisted(() => vi.fn())
 
 vi.mock("@cline/core", async () => {
 	const actual = await vi.importActual<typeof import("@cline/core")>("@cline/core")
@@ -14,6 +15,9 @@ vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: { get: () => ({ getGlobalStateKey: () => undefined }) },
 }))
 vi.mock("./vscode-runtime-builder", () => ({ createVscodeExtraTools: mockCreateVscodeExtraTools }))
+vi.mock("@/services/telemetry", () => ({
+	telemetryService: { captureMcpPlanModeToolsHidden: mockCaptureToolsHidden },
+}))
 
 import { VscodeGitTelemetry } from "./git-telemetry"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -317,5 +321,51 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		await host.restore({ sessionId: "session-1", checkpointRunCount: 1 })
 		expect(beforeStartSession).not.toHaveBeenCalled()
 		expect(restore).toHaveBeenCalledWith({ sessionId: "session-1", checkpointRunCount: 1 })
+	})
+})
+
+describe("VscodeSessionHost MCP tools in Plan mode", () => {
+	const mcpHub = {
+		getServers: () => [
+			{
+				name: "ide",
+				tools: [
+					{ name: "read", annotations: { readOnlyHint: true } },
+					{ name: "rename", annotations: { readOnlyHint: false } },
+				],
+			},
+		],
+	}
+	const start = async (mode: "plan" | "act") => {
+		const host = await VscodeSessionHost.create({ mcpHub: mcpHub as never })
+		await host.start({ config: { ...gitStartInput.config, mode } })
+		await host.dispose()
+		return mockInnerStart.mock.calls[0][0].config.systemPrompt as string
+	}
+
+	beforeEach(() => {
+		vi.restoreAllMocks()
+		mockCaptureToolsHidden.mockReset()
+		mockInnerStart.mockReset().mockResolvedValue({ sessionId: "core-task" })
+		mockClineCoreCreate.mockReset().mockResolvedValue({
+			start: mockInnerStart,
+			stop: async () => {},
+			dispose: async () => {},
+		})
+		mockCreateVscodeExtraTools.mockReset().mockResolvedValue([])
+	})
+
+	it("tells the model which tools it gets back in Act mode, and reports how many were hidden", async () => {
+		const systemPrompt = await start("plan")
+
+		expect(systemPrompt.startsWith("test\n\n")).toBe(true)
+		expect(systemPrompt).toContain("ide__rename")
+		expect(systemPrompt).not.toContain("ide__read")
+		expect(mockCaptureToolsHidden).toHaveBeenCalledExactlyOnceWith("git-task", "ide", 1, 2)
+	})
+
+	it("leaves an Act-mode session's prompt alone", async () => {
+		expect(await start("act")).toBe("test")
+		expect(mockCaptureToolsHidden).not.toHaveBeenCalled()
 	})
 })
