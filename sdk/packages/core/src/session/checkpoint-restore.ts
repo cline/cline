@@ -19,6 +19,8 @@ export interface CheckpointRestorePlan {
 }
 
 export interface WorktreeRestoreTransaction {
+	/** Paths ignored before snapshotting can change the worktree ignore rules. */
+	ignoredPaths?: readonly string[];
 	commit(): Promise<void>;
 	rollback(): Promise<void>;
 }
@@ -37,6 +39,57 @@ async function resolveOptionalGitRef(
 	} catch {
 		return undefined;
 	}
+}
+
+/** Capture before stash/reset can remove uncommitted ignore rules. */
+async function ignoredWorktreePaths(cwd: string): Promise<string[]> {
+	const result = await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"ls-files",
+			"--others",
+			"--ignored",
+			"--exclude-standard",
+			"--directory",
+			"--full-name",
+			"-z",
+		],
+		{ windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+	);
+	return result.stdout.split("\0").filter(Boolean);
+}
+
+function cleanExclusions(ignoredPaths: readonly string[]): string[] {
+	// Anchor literal paths: Git's -e arguments are ignore patterns, not pathspecs.
+	const exclusions = ignoredPaths.flatMap((path) => [
+		"-e",
+		`/${path.replace(/[\\*?[\] !#]/g, "\\$&")}`,
+	]);
+	// Keep well below platform argv limits, including Windows UTF-16 limits.
+	// Validate before stash/reset, so an oversized inventory cannot strand a
+	// changed worktree with a rollback command that fails for the same reason.
+	const size = exclusions.reduce(
+		(total, arg) => total + Buffer.byteLength(arg, "utf8") + arg.length * 2 + 4,
+		0,
+	);
+	if (size > 24 * 1024) {
+		throw new Error(
+			"Cannot restore workspace: too many ignored paths to preserve safely. Back up ignored files and restore manually.",
+		);
+	}
+	return exclusions;
+}
+
+async function cleanUntracked(
+	cwd: string,
+	ignoredPaths: readonly string[],
+): Promise<void> {
+	const exclusions = cleanExclusions(ignoredPaths);
+	await execFile("git", ["-C", cwd, "clean", "-fd", ...exclusions], {
+		windowsHide: true,
+	});
 }
 
 /**
@@ -63,6 +116,8 @@ export async function beginWorktreeRestoreTransaction(
 			windowsHide: true,
 		})
 	).stdout.trim();
+	const ignoredPaths = await ignoredWorktreePaths(cwd);
+	cleanExclusions(ignoredPaths);
 	const previousStashRef = await resolveOptionalGitRef(cwd, "refs/stash");
 	const transactionId = randomUUID();
 	const privateRef = `refs/cline/restore-transactions/${transactionId}`;
@@ -99,9 +154,7 @@ export async function beginWorktreeRestoreTransaction(
 				await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 					windowsHide: true,
 				});
-				await execFile("git", ["-C", cwd, "clean", "-fd"], {
-					windowsHide: true,
-				});
+				await cleanUntracked(cwd, ignoredPaths);
 				await execFile(
 					"git",
 					["-C", cwd, "stash", "apply", "--index", capturedRef],
@@ -119,6 +172,7 @@ export async function beginWorktreeRestoreTransaction(
 
 	let completed = false;
 	return {
+		ignoredPaths,
 		async commit() {
 			if (completed) return;
 			completed = true;
@@ -135,9 +189,7 @@ export async function beginWorktreeRestoreTransaction(
 			await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 				windowsHide: true,
 			});
-			await execFile("git", ["-C", cwd, "clean", "-fd"], {
-				windowsHide: true,
-			});
+			await cleanUntracked(cwd, ignoredPaths);
 			if (hasSnapshot) {
 				await execFile(
 					"git",
@@ -376,6 +428,7 @@ async function countCommitsBetween(
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
+	ignoredPaths?: readonly string[],
 ): Promise<void> {
 	const check = await execFile(
 		"git",
@@ -436,6 +489,10 @@ export async function applyCheckpointToWorktree(
 		cwd,
 		checkpoint.ref,
 	);
+	const preservedIgnoredPaths = capturedUntracked
+		? (ignoredPaths ?? (await ignoredWorktreePaths(cwd)))
+		: [];
+	cleanExclusions(preservedIgnoredPaths);
 	// `git update-ref <ref> <new> <old>` is git's native compare-and-swap: it
 	// moves HEAD to the restore base only if HEAD still points at the commit
 	// verified above, closing the race between the guard check and the reset.
@@ -461,13 +518,13 @@ export async function applyCheckpointToWorktree(
 	// Only clear untracked files for snapshots that captured them (third
 	// parent): the following `git stash apply` restores each one to its
 	// checkpoint-time content from ^3, and files created after the checkpoint
-	// are meant to be rewound away. `git clean -fd` leaves .gitignored paths
-	// (build output, node_modules, .env) alone, and clearing before apply also
+	// are meant to be rewound away. Preserve paths ignored before stash/reset
+	// changed the ignore rules. Clearing before apply also
 	// avoids "already exists" apply conflicts. For 2-parent stashes and
 	// HEAD-commit fallbacks (no ^3) untracked files can't be reconstructed, so
 	// they are left untouched — deleting them would be unrecoverable data loss.
 	if (capturedUntracked) {
-		await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
+		await cleanUntracked(cwd, preservedIgnoredPaths);
 	}
 	if (checkpointKind === "commit") {
 		return;
