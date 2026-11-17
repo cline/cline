@@ -53,6 +53,10 @@ export type CloudSessionState = {
 	promptsInQueue: CloudQueuedPrompt[];
 	busy: boolean;
 	startedAt: number;
+	/** Accepted recency from Hub activity and newer API activity while disconnected. */
+	lastActivityAt?: number;
+	/** API activity already observed when this viewer's connection ended. */
+	apiActivityAtDisposal?: number;
 	endedAt?: number;
 	status: string;
 	prompt?: string;

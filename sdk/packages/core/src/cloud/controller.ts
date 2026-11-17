@@ -41,6 +41,7 @@ import {
 } from "./snapshots";
 import {
 	immutableCopy,
+	recordActivity,
 	reduceCloudEvent,
 	resolveSessionListTitle,
 } from "./state";
@@ -698,7 +699,25 @@ export class CloudSessionController {
 	 * making account/environment availability a prerequisite for opening it. */
 	getCachedDiscoveryRecord(sessionId: string): JsonRecord | undefined {
 		const record = this.knownSessions.get(sessionId);
-		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
+		return record ? this.discoveryRecord(record) : undefined;
+	}
+
+	private discoveryRecord(record: CloudSessionRecord): JsonRecord {
+		const projected = cloudSessionToDiscoveryRecord(record);
+		const live = this.sessions.get(record.id);
+		if (live?.lastActivityAt === undefined) return projected;
+		const apiActivityAt =
+			Date.parse(record.lastActivityAt ?? record.createdAt) || 0;
+		if (
+			!this.connections.has(record.id) &&
+			apiActivityAt >
+				Math.max(live.lastActivityAt, live.apiActivityAtDisposal ?? 0)
+		) {
+			recordActivity(live, apiActivityAt);
+			return projected;
+		}
+		projected.lastActivityAt = new Date(live.lastActivityAt).toISOString();
+		return projected;
 	}
 
 	/** Revalidates a cached row by id when the active-scope list does not include it. */
@@ -1023,8 +1042,8 @@ export class CloudSessionController {
 			].map((record) => [record.id, record]),
 		);
 		const listed = [...recordsById.values()].map((record) => {
-			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.sessions.get(record.id);
+			const projected = this.discoveryRecord(record);
 			if (!live) {
 				return projected;
 			}
@@ -2657,8 +2676,10 @@ export class CloudSessionController {
 				) {
 					throw error;
 				}
-				if (this.connections.get(outerSessionId) === connection)
+				if (this.connections.get(outerSessionId) === connection) {
+					this.recordApiActivityAtDisposal(outerSessionId);
 					this.connections.delete(outerSessionId);
+				}
 				connection.disposed = true;
 				connection.unsubscribe();
 				// Approvals stored during the failed setup hold resolve closures
@@ -2735,8 +2756,7 @@ export class CloudSessionController {
 		this.pendingInitialTasks.delete(outerSessionId);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(outerSessionId, connection);
-		const modelId = sessionRowModelId(session);
-		if (modelId) this.applyModel(connection, modelId);
+		this.applySessionModel(connection, session);
 		await this.ensureAttached(connection);
 	}
 
@@ -3365,12 +3385,22 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
+		if (live) recordActivity(live, updatedAt(row));
 		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&
 			(mode === "act" || mode === "plan" || mode === "yolo" || mode === "zen")
 		)
 			live.config.mode = mode;
+	}
+
+	private recordApiActivityAtDisposal(sessionId: string): void {
+		const live = this.sessions.get(sessionId);
+		if (live?.lastActivityAt === undefined) return;
+		live.apiActivityAtDisposal = Math.max(
+			live.apiActivityAtDisposal ?? 0,
+			Date.parse(this.knownSessions.get(sessionId)?.lastActivityAt ?? "") || 0,
+		);
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {
@@ -3380,6 +3410,7 @@ export class CloudSessionController {
 		if (!connection) {
 			return;
 		}
+		this.recordApiActivityAtDisposal(outerSessionId);
 		connection.disposed = true;
 		connection.pendingInputs?.clear();
 		connection.unsubscribe();

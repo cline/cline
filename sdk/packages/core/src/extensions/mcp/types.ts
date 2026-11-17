@@ -1,9 +1,23 @@
 import type { AgentToolContext } from "@cline/shared";
 
+/**
+ * Tool behavior hints as declared by the server (MCP `ToolAnnotations`).
+ * Hints are the server's claim, not a guarantee; a missing hint means
+ * "unknown", not "safe".
+ */
+export interface McpToolAnnotations {
+	title?: string;
+	readOnlyHint?: boolean;
+	destructiveHint?: boolean;
+	idempotentHint?: boolean;
+	openWorldHint?: boolean;
+}
+
 export interface McpToolDescriptor {
 	name: string;
 	description?: string;
 	inputSchema: Record<string, unknown>;
+	annotations?: McpToolAnnotations;
 	_meta?: Record<string, unknown>;
 }
 

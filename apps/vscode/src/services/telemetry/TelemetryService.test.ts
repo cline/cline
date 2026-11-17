@@ -376,12 +376,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			const defaultConfigs = TelemetryProviderFactory.getDefaultConfigs()
 
-			// Should include at least PostHog
 			assert.ok(defaultConfigs.length > 0, "Should return at least one configuration")
-			assert.ok(
-				defaultConfigs.some((c) => c.type === "posthog"),
-				"Should include PostHog configuration",
-			)
 
 			// Restore the stubs
 			isPostHogConfigValidStub.restore()
@@ -405,16 +400,16 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			isPostHogConfigValidStub.restore()
 		})
 
-		it("should include PostHog config when NOT in selfHosted mode and config is valid", () => {
+		it("should NOT include PostHog config when NOT in selfHosted mode and config is valid", () => {
 			// Stub ClineEndpoint.isSelfHosted() to return false (normal mode)
 			const isSelfHostedStub = sinon.stub(ClineEndpoint, "isSelfHosted").returns(false)
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
 
 			const configs = TelemetryProviderFactory.getDefaultConfigs()
 
-			// Should include PostHog when NOT in selfHosted mode and config is valid
+			// PostHog is only used for feature flags, never as a telemetry sink
 			const hasPosthog = configs.some((c) => c.type === "posthog")
-			assert.strictEqual(hasPosthog, true, "Should include PostHog configuration when not in selfHosted mode")
+			assert.strictEqual(hasPosthog, false, "Should NOT include PostHog configuration")
 
 			// Restore the stubs
 			isSelfHostedStub.restore()

@@ -109,6 +109,53 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+it.each([
+	undefined,
+	"2026-07-20T11:00:00.000Z",
+])("keeps cloud ordering and time stable when only hydration timestamps change (%s)", async (lastActivityAt) => {
+	vi.setSystemTime(new Date("2026-07-20T18:00:00.000Z"));
+	const rows = (endedAt: string, activity = lastActivityAt) => [
+		{ ...sessionRow("local-recent"), endedAt: "2026-07-20T15:00:00.000Z" },
+		{
+			...sessionRow("ses-idle"),
+			origin: "cloud",
+			lastActivityAt: activity,
+			endedAt,
+			updatedAt: endedAt,
+		},
+	];
+	await act(async () => root.render(<HookHarness />));
+	await flush();
+	await act(async () =>
+		pendingLists[0].resolve(rows("2026-07-20T11:00:00.000Z")),
+	);
+	const initialTime = current.threads.find(
+		(thread) => thread.origin === "cloud",
+	)?.time;
+	expect(initialTime).toBe(lastActivityAt ? "7h" : "8h");
+	await flush(12_000);
+	await act(async () =>
+		pendingLists[1].resolve(rows("2026-07-20T16:00:00.000Z")),
+	);
+	expect(current.sessions.map((row) => row.sessionId)).toEqual([
+		"local-recent",
+		"ses-idle",
+	]);
+	expect(
+		current.threads.find((thread) => thread.origin === "cloud")?.time,
+	).toBe(initialTime);
+	await flush(12_000);
+	await act(async () =>
+		pendingLists[2].resolve(
+			rows("2026-07-20T16:00:00.000Z", "2026-07-20T17:00:00.000Z"),
+		),
+	);
+	expect(current.sessions.map((row) => row.sessionId)).toEqual([
+		"ses-idle",
+		"local-recent",
+	]);
+});
+
 describe("useSessionHistory session mapping", () => {
 	it("accepts refreshed titles without reverting a rename during the refresh", async () => {
 		const row = (title: string) => ({

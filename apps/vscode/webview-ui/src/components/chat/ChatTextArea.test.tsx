@@ -12,7 +12,6 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		mode: "act",
 		apiConfiguration: {},
-		openRouterModels: {},
 		platform: "darwin",
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
