@@ -310,16 +310,54 @@ export function InstalledMarketplaceItems({
 		setDetailEntry(null),
 	);
 	const pendingUninstalls = useRef(
-		new Map<string, { entry: MarketplaceEntry; trigger?: HTMLButtonElement }>(),
+		new Map<
+			string,
+			{
+				entry: MarketplaceEntry;
+				trigger?: HTMLButtonElement;
+				confirmation: Element | null;
+				allowDetails: boolean;
+			}
+		>(),
 	);
 	useEffect(() => {
-		for (const [key, { entry, trigger }] of pendingUninstalls.current) {
+		const trackFocus = (event: FocusEvent) => {
+			const target = event.target as Element | null;
+			for (const pending of pendingUninstalls.current.values()) {
+				// Confirmation closes asynchronously and restores the card's focus.
+				if (
+					!target ||
+					target === document.body ||
+					target === pending.trigger ||
+					pending.confirmation?.contains(target)
+				)
+					continue;
+				pending.allowDetails = false;
+			}
+		};
+		document.addEventListener("focusin", trackFocus);
+		return () => document.removeEventListener("focusin", trackFocus);
+	}, []);
+	useEffect(() => {
+		for (const [
+			key,
+			{ entry, trigger, allowDetails },
+		] of pendingUninstalls.current) {
 			const state = actionStates.get(key);
 			if (state?.status === "failed") {
-				if (entry.type === "plugin" && onOpenPlugin)
-					onOpenPlugin(entry, trigger);
-				else setDetailEntry(entry);
 				pendingUninstalls.current.delete(key);
+				// An open detail already shows its own feedback. Otherwise, only
+				// navigate while the user remains at the originating visible card.
+				if (
+					!detailEntry &&
+					allowDetails &&
+					trigger?.isConnected &&
+					!trigger.closest("[hidden], [inert]")
+				) {
+					if (entry.type === "plugin" && onOpenPlugin)
+						onOpenPlugin(entry, trigger);
+					else setDetailEntry(entry);
+				}
 			} else if (state?.status === "uninstalled") {
 				setDetailEntry((current) =>
 					current && entryKey(current) === key ? null : current,
@@ -327,7 +365,7 @@ export function InstalledMarketplaceItems({
 				pendingUninstalls.current.delete(key);
 			}
 		}
-	}, [actionStates, onOpenPlugin]);
+	}, [actionStates, detailEntry, onOpenPlugin]);
 
 	const uninstallEntry = (
 		entry: MarketplaceEntry,
@@ -340,14 +378,37 @@ export function InstalledMarketplaceItems({
 			pendingUninstalls.current.has(entryKey(entry))
 		)
 			return;
-		pendingUninstalls.current.set(entryKey(entry), { entry, trigger });
+		pendingUninstalls.current.set(entryKey(entry), {
+			entry,
+			trigger,
+			confirmation:
+				document.activeElement?.closest('[role="alertdialog"]') ?? null,
+			allowDetails: true,
+		});
 		void uninstall(entry);
 	};
 	const requestUninstall = (
 		entry: MarketplaceEntry,
 		trigger?: HTMLButtonElement,
 	) => {
+		// Keep confirmation's return target available when the action is disabled.
+		trigger?.focus({ preventScroll: true });
 		setUninstallTarget({ entry, trigger });
+	};
+	const openDetails = (
+		entry: MarketplaceEntry,
+		trigger?: HTMLButtonElement,
+	) => {
+		for (const pending of pendingUninstalls.current.values())
+			pending.allowDetails = false;
+		const open =
+			entry.type === "mcp"
+				? onOpenMcp
+				: entry.type === "skill"
+					? onOpenSkill
+					: onOpenPlugin;
+		if (open) open(entry, trigger);
+		else setDetailEntry(entry);
 	};
 	const uninstallState = uninstallTarget
 		? actionStates.get(entryKey(uninstallTarget.entry))
@@ -392,10 +453,10 @@ export function InstalledMarketplaceItems({
 					renderLocalItem={({ item, matchedEntries }) =>
 						renderers.get(item.key)?.({ matchedEntries })
 					}
-					onOpenMcp={onOpenMcp}
-					onOpenSkill={onOpenSkill}
-					onOpenPlugin={onOpenPlugin}
-					onOpenDetails={setDetailEntry}
+					onOpenMcp={openDetails}
+					onOpenSkill={openDetails}
+					onOpenPlugin={openDetails}
+					onOpenDetails={openDetails}
 					onUninstall={requestUninstall}
 				/>
 			) : null}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ComponentProps, useEffect } from "react";
+import { act, type ComponentProps, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MarketplaceLocalInstalledItem } from "./installed-marketplace-types";
@@ -93,6 +93,216 @@ async function confirmUninstall() {
 }
 
 describe("Installed marketplace fallback cards", () => {
+	it.each([
+		"plugin",
+		"mcp",
+	] as const)("does not reopen %s details dismissed before uninstall fails", async (type) => {
+		const customization = { ...entry, type };
+		mocks.catalog.mockResolvedValue({ entries: [customization], tags: [] });
+		let rejectUninstall!: (error: Error) => void;
+		const pending = new Promise((_resolve, reject) => {
+			rejectUninstall = reject;
+		});
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "uninstall_marketplace_entry"
+				? pending
+				: Promise.resolve({ installedKeys: [`${type}:example-server`] }),
+		);
+		await act(async () => root.render(<InstalledItems primitive={type} />));
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="View Example server details"]',
+		);
+		await act(async () => {
+			trigger?.focus();
+			trigger?.click();
+		});
+		const detail = document.querySelector('[role="dialog"]');
+		await act(async () =>
+			[...(detail?.querySelectorAll("button") ?? [])]
+				.find((button) => button.textContent === "Uninstall")
+				?.click(),
+		);
+		await confirmUninstall();
+		await act(async () =>
+			detail
+				?.querySelector<HTMLButtonElement>('button[aria-label="Close"]')
+				?.click(),
+		);
+		await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+		await act(async () => rejectUninstall(new Error("Uninstall unavailable")));
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(container.textContent).toContain("Uninstall failed");
+	});
+
+	it.each([
+		"plugin",
+		"mcp",
+	] as const)("keeps newer %s details when an earlier uninstall fails", async (type) => {
+		const first = { ...entry, type, name: `First ${type}` };
+		const second = { ...first, id: "second", name: `Second ${type}` };
+		mocks.catalog.mockResolvedValue({ entries: [first, second], tags: [] });
+		let rejectUninstall!: (error: Error) => void;
+		const pending = new Promise((_resolve, reject) => {
+			rejectUninstall = reject;
+		});
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "uninstall_marketplace_entry"
+				? pending
+				: Promise.resolve({
+						installedKeys: [`${type}:example-server`, `${type}:second`],
+					}),
+		);
+		const onOpenPlugin = vi.fn();
+		function Harness() {
+			const [selection, setSelection] = useState<string | null>(null);
+			return (
+				<>
+					<div hidden={selection !== null}>
+						<InstalledItems
+							primitive={type}
+							onOpenPlugin={(item, trigger) => {
+								onOpenPlugin(item, trigger);
+								setSelection(item.name);
+							}}
+						/>
+					</div>
+					<output data-selected-detail>{selection}</output>
+				</>
+			);
+		}
+		await act(async () => root.render(<Harness />));
+		const firstCard = container.querySelector('[data-slot="item-card"]');
+		await act(async () =>
+			[...(firstCard?.querySelectorAll("button") ?? [])]
+				.find((button) => button.textContent === "Uninstall")
+				?.click(),
+		);
+		await confirmUninstall();
+		await act(async () =>
+			container
+				.querySelector<HTMLButtonElement>(
+					`button[aria-label="View ${second.name} details"]`,
+				)
+				?.click(),
+		);
+		await act(async () =>
+			rejectUninstall(new Error("Earlier uninstall failed")),
+		);
+		if (type === "plugin") {
+			expect(onOpenPlugin).toHaveBeenCalledTimes(1);
+			expect(onOpenPlugin.mock.calls[0][0]).toEqual(second);
+			expect(
+				container.querySelector("[data-selected-detail]")?.textContent,
+			).toBe(second.name);
+			expect(document.querySelector('[role="dialog"]')).toBeNull();
+		} else {
+			const dialog = document.querySelector('[role="dialog"]');
+			expect(dialog?.textContent).toContain(second.name);
+			expect(dialog?.textContent).not.toContain("Earlier uninstall failed");
+		}
+		expect(firstCard?.textContent).toContain("Uninstall failed");
+	});
+
+	it.each([
+		"plugin",
+		"mcp",
+	] as const)("opens %s failure details while the originating card remains active", async (type) => {
+		const customization = { ...entry, type };
+		mocks.catalog.mockResolvedValue({ entries: [customization], tags: [] });
+		let rejectUninstall!: (error: Error) => void;
+		const pending = new Promise((_resolve, reject) => {
+			rejectUninstall = reject;
+		});
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "uninstall_marketplace_entry"
+				? pending
+				: Promise.resolve({ installedKeys: [`${type}:example-server`] }),
+		);
+		const onOpenPlugin = vi.fn();
+		await act(async () =>
+			root.render(
+				<InstalledItems primitive={type} onOpenPlugin={onOpenPlugin} />,
+			),
+		);
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="View Example server details"]',
+		);
+		await act(async () =>
+			[...container.querySelectorAll("button")]
+				.find((button) => button.textContent === "Uninstall")
+				?.click(),
+		);
+		await confirmUninstall();
+		await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+		await act(async () => rejectUninstall(new Error("Uninstall unavailable")));
+		if (type === "plugin") {
+			expect(onOpenPlugin).toHaveBeenCalledExactlyOnceWith(
+				customization,
+				trigger,
+			);
+		} else {
+			expect(
+				document.querySelector('[role="dialog"] [role="alert"]')?.textContent,
+			).toBe("Uninstall unavailable");
+		}
+	});
+
+	it.each([
+		{ type: "plugin", departure: "hidden list" },
+		{ type: "mcp", departure: "hidden list" },
+		{ type: "plugin", departure: "other focused control" },
+		{ type: "mcp", departure: "other focused control" },
+	] as const)("keeps an uninstall failure on its $type card after leaving for $departure", async ({
+		type,
+		departure,
+	}) => {
+		const customization = { ...entry, type };
+		mocks.catalog.mockResolvedValue({ entries: [customization], tags: [] });
+		let rejectUninstall!: (error: Error) => void;
+		const pending = new Promise((_resolve, reject) => {
+			rejectUninstall = reject;
+		});
+		mocks.invoke.mockImplementation((command: string) =>
+			command === "uninstall_marketplace_entry"
+				? pending
+				: Promise.resolve({ installedKeys: [`${type}:example-server`] }),
+		);
+		const onOpenPlugin = vi.fn();
+		const render = (hidden: boolean) =>
+			root.render(
+				<>
+					<button type="button" data-other-control>
+						Other control
+					</button>
+					<div hidden={hidden}>
+						<InstalledItems primitive={type} onOpenPlugin={onOpenPlugin} />
+					</div>
+				</>,
+			);
+		await act(async () => render(false));
+		await act(async () =>
+			[...container.querySelectorAll("button")]
+				.find((button) => button.textContent === "Uninstall")
+				?.click(),
+		);
+		await confirmUninstall();
+		if (departure === "hidden list") {
+			await act(async () => render(true));
+		} else {
+			const trigger = container.querySelector<HTMLButtonElement>(
+				'button[aria-label="View Example server details"]',
+			);
+			await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+			container
+				.querySelector<HTMLButtonElement>("[data-other-control]")
+				?.focus();
+		}
+		await act(async () => rejectUninstall(new Error("Uninstall unavailable")));
+		expect(onOpenPlugin).not.toHaveBeenCalled();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(container.textContent).toContain("Uninstall failed");
+	});
+
 	it.each([
 		{ primitive: "plugin", message: "No plugins found." },
 		{ primitive: "skill", message: "No skills found." },
