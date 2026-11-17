@@ -242,6 +242,14 @@ const CustomizePage = dynamic(
 	{ loading: viewLoading, ssr: false },
 );
 
+const SchedulePage = dynamic(
+	() =>
+		import("@/components/views/schedule/schedule-page").then(
+			(module) => module.SchedulePage,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
 const SessionsView = dynamic(
 	() =>
 		import("@/components/views/sessions/sessions-view").then(
@@ -578,7 +586,8 @@ function App() {
 	}, [promptDrafts, threads]);
 	const { activeThreadId, customizeSection, settingsSection, view } =
 		navigation.current;
-	const pageOverlayOpen = view === "settings" || view === "customize";
+	const pageOverlayOpen =
+		view === "settings" || view === "customize" || view === "schedules";
 	const activeEnvironmentId =
 		activeRemoteEnvironment?.id ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
 
@@ -1363,10 +1372,14 @@ function App() {
 						</Sidebar>
 						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-							{/* Customize owns its desktop drag area. Settings keeps
+							{/* Customize and Schedule own their desktop drag areas. Settings keeps
 							    the shell row above its legacy pages. */}
 							<WindowTitleBar
-								className={view === "customize" ? "md:h-0" : undefined}
+								className={
+									view === "customize" || view === "schedules"
+										? "md:h-0"
+										: undefined
+								}
 							/>
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 								{view === "sessions" ? (
@@ -1474,7 +1487,6 @@ function App() {
 											onOpenConnectors={() =>
 												handleCustomizeSectionChange("manage", "connectors")
 											}
-											onOpenSession={openSessionFromNavigation}
 											section={settingsSection}
 										/>
 									</div>
@@ -1490,6 +1502,16 @@ function App() {
 														handleSettingsSectionChange("Providers")
 													}
 													section={customizeSection}
+												/>
+											</DetailNavigationProvider>
+										</UnsavedChangesProvider>
+									</div>
+								) : view === "schedules" ? (
+									<div className="cline-schedules-content absolute inset-0 z-30 overflow-hidden bg-background text-foreground">
+										<UnsavedChangesProvider registry={unsavedChanges}>
+											<DetailNavigationProvider value={detailNavigation}>
+												<SchedulePage
+													onOpenSession={openSessionFromNavigation}
 												/>
 											</DetailNavigationProvider>
 										</UnsavedChangesProvider>

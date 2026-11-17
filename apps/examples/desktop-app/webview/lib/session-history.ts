@@ -25,8 +25,8 @@ export type SessionMetadata = {
 	};
 	/**
 	 * Provenance the cron runner stamps onto sessions it starts (see
-	 * `buildRunSessionMetadata` in @cline/core). The sidebar groups a
-	 * schedule's runs by `scheduleId` and labels each with `scheduleRunNumber`.
+	 * `buildRunSessionMetadata` in @cline/core). Schedule history uses
+	 * `scheduleId` and `scheduleRunNumber` to identify each run.
 	 */
 	scheduleId?: string;
 	scheduleName?: string;
