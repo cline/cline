@@ -549,6 +549,22 @@ describe("Marketplace directory", () => {
 		expect(container.textContent).toContain("Install failed");
 	});
 
+	it("shows failed installed-status checks in Browse and clears them after recovery", async () => {
+		mocks.configured = false;
+		mocks.marketplace.mockResolvedValue({ tags: [], entries: [exampleSkill] });
+		mocks.invoke.mockRejectedValue(new Error("Inventory unavailable"));
+		await render({ typeFilter: "skill" });
+		expect(container.textContent).toContain("Example skill");
+		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+			"Unable to check installed customizations: Inventory unavailable",
+		);
+		mocks.invoke.mockResolvedValue({ installedKeys: ["skill:example-skill"] });
+		await act(async () => invalidateExtensionInventoryCache());
+		expect(container.querySelector('[role="alert"]')).toBeNull();
+		expect(addSkillButton()).toBeNull();
+		expect(container.textContent).toContain("Installed");
+	});
+
 	it("disables inline Add until installed status is known", async () => {
 		mocks.marketplace.mockResolvedValue({ tags: [], entries: [exampleSkill] });
 		let resolveStatus: (result: { installedKeys: string[] }) => void = () => {};

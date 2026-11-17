@@ -61,7 +61,7 @@ export function MarketplaceResults({
 					{directory.errorMessage}
 				</p>
 			) : null}
-			{searchResults && directory.installedError ? (
+			{directory.installedError ? (
 				<p className="text-error-text text-sm" role="alert">
 					Unable to check installed customizations: {directory.installedError}
 				</p>
