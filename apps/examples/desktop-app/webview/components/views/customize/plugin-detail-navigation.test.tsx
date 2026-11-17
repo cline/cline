@@ -213,6 +213,73 @@ describe("Plugin detail navigation", () => {
 		expect(trigger.closest("[hidden]")).toBeNull();
 	});
 
+	it.each([
+		"catalog-only",
+		"local",
+	])("keeps the current %s plugin detail when an earlier catalog-only uninstall fails", async (source) => {
+		const otherEntry = {
+			...entry,
+			id: "other-plugin",
+			name: "Other plugin",
+			install: { command: "cline", args: ["plugins", "add", "other-plugin"] },
+		};
+		mocks.plugins =
+			source === "local"
+				? [
+						{
+							...plugin,
+							id: otherEntry.id,
+							name: otherEntry.name,
+							path: "/workspace/customizations/other-plugin",
+						},
+					]
+				: [];
+		mocks.installedKeys.push("plugin:other-plugin");
+		mocks.catalog.mockResolvedValue({ entries: [entry, otherEntry], tags: [] });
+		let failUninstall!: (error: Error) => void;
+		const pending = new Promise((_, reject) => {
+			failUninstall = reject;
+		});
+		const original = mocks.invoke.getMockImplementation();
+		if (!original) throw new Error("Missing desktop command mock");
+		mocks.invoke.mockImplementation((command: string, args: unknown) =>
+			command === "uninstall_marketplace_entry"
+				? pending
+				: original(command, args),
+		);
+		await render("manage");
+		const trigger = button("View agent-browser details");
+		const card = trigger.closest('[data-slot="item-card"]');
+		if (!card) throw new Error("Missing catalog-only plugin card");
+		await act(async () => button("Uninstall", card).click());
+		const confirmation = document.querySelector('[role="alertdialog"]');
+		if (!confirmation) throw new Error("Missing uninstall confirmation");
+		await act(async () => button("Uninstall", confirmation).click());
+		expect(mocks.invoke).toHaveBeenCalledWith(
+			"uninstall_marketplace_entry",
+			{ entry },
+			{ timeoutMs: 300_000 },
+		);
+		await act(async () => button("View Other plugin details").click());
+		expect(trigger.closest("[hidden]")).not.toBeNull();
+		await act(async () => failUninstall(new Error("Plugin files are busy")));
+		visiblePluginPage();
+		const visibleHeadings = [...container.querySelectorAll("h1,h2")]
+			.filter((node) => !node.closest("[hidden]"))
+			.map((node) => node.textContent);
+		expect(visibleHeadings).toContain("Other plugin");
+		expect(visibleHeadings).not.toContain("agent-browser");
+		expect(card.textContent).toContain("Uninstall failed");
+		expect(container.querySelector('[role="alert"]')).toBeNull();
+		await act(async () => button("Back to Manage").click());
+		expect(trigger.closest("[hidden]")).toBeNull();
+		expect(card.textContent).toContain("Uninstall failed");
+		await act(async () => trigger.click());
+		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+			"Plugin files are busy",
+		);
+	});
+
 	it("clears a failed card toggle after retrying successfully in the detail page", async () => {
 		await render("manage");
 		const trigger = button("View agent-browser details");
