@@ -112,6 +112,7 @@ vi.mock("@/lib/desktop-client", () => ({
 vi.mock("@/lib/marketplace", () => ({
 	fetchMarketplaceCatalog: mocks.marketplaceCatalog,
 	getCachedMarketplaceCatalog: () => null,
+	subscribeMarketplaceCatalog: () => () => {},
 }));
 vi.mock("./connectors/composio-connectors-view", () => ({
 	InstalledConnectorsView: (props: CategoryProps) => {
