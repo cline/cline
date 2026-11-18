@@ -138,13 +138,15 @@ async function assertIgnoresLaunchDirectoryConfig(
 		};
 		delete env.CLINE_MCP_SETTINGS_PATH;
 
-		const config = JSON.parse(
-			await $`${binary} config --json`.cwd(launchDir).env(env).text(),
-		) as { mcp?: { name?: string }[] };
+		// `config mcp` only reads the settings file; bare `config` would start
+		// a background hub.
+		const servers = JSON.parse(
+			await $`${binary} config mcp --json`.cwd(launchDir).env(env).text(),
+		) as { name?: string }[];
 		if (existsSync(preloadMarker)) {
 			throw new Error("The binary ran a bunfig.toml preload from its cwd");
 		}
-		if (config.mcp?.some((server) => server.name === envFileServer)) {
+		if (servers.some((server) => server.name === envFileServer)) {
 			throw new Error("The binary loaded a .env file from its cwd");
 		}
 	} finally {
@@ -193,9 +195,7 @@ for (const item of targets) {
 			}
 			console.log(`  Passed: ${actualVersion}`);
 
-			console.log("  Smoke test: launch-directory .env and bunfig.toml");
 			await assertIgnoresLaunchDirectoryConfig(outfile);
-			console.log("  Passed: launch-directory config ignored");
 
 			// `--version` only proves the binary launches. Bun's bundler has had
 			// compile-time regressions (chunk ordering with `splitting: true`)
