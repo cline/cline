@@ -112,6 +112,7 @@ function context(
 	return {
 		board: () => current,
 		openCard: vi.fn(),
+		openBoard: vi.fn(),
 		openExternalUrl: vi.fn(async () => undefined),
 		askManager: vi.fn(async () => true),
 		setActivity: vi.fn(),
@@ -249,6 +250,15 @@ describe("runFactoryTool", () => {
 		expect(
 			await runFactoryTool("ask_factory", { request: "Add export" }, ctx),
 		).toMatchObject({ ok: false });
+	});
+
+	it("shows the whole board, the way back from a card", async () => {
+		const ctx = context(board());
+		expect(await runFactoryTool("show_factory_board", {}, ctx)).toEqual({
+			ok: true,
+		});
+		expect(ctx.openBoard).toHaveBeenCalledOnce();
+		expect(ctx.openCard).not.toHaveBeenCalled();
 	});
 
 	it("shows a card, or opens its pull request", async () => {

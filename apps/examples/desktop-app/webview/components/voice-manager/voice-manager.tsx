@@ -10,6 +10,7 @@ import type {
 } from "ai";
 import { PhoneOff, SendHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FACTORY_ACTIVITY_REQUEST } from "@/components/views/factory/factory-ui";
 import type {
 	AskQuestionRequestItem,
 	ToolApprovalRequestItem,
@@ -317,6 +318,7 @@ export function VoiceManager({
 			const factoryResult = await runFactoryTool(name, args, {
 				board: () => factoryBoardRef.current,
 				openCard: onOpenFactoryTask,
+				openBoard: () => onOpenFactoryTask(FACTORY_ACTIVITY_REQUEST),
 				openExternalUrl,
 				setActivity,
 				askManager: async (request) => {

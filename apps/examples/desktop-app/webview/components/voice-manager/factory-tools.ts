@@ -34,6 +34,8 @@ export type VoiceFactoryContext = {
 	board: () => VoiceFactoryBoard;
 	/** Shows a card in the Factory view. */
 	openCard: (taskId: string) => void;
+	/** Shows the Factory board, with every card in its column. */
+	openBoard: () => void;
 	openExternalUrl: (url: string) => Promise<unknown> | undefined;
 	/** Sends a request to the Factory manager conversation. */
 	askManager: (request: string) => Promise<boolean>;
@@ -45,7 +47,7 @@ Send work to the Factory when the user wants something built and delivered witho
 To add work, or to hold, start, retry or reprioritize a card, call ask_factory with the request in the user's own words. The Factory answers a little later as an app update; say you passed it on, then tell them the answer when it comes.
 Call factory_board before saying what the Factory is doing. Refer to cards by their titles, adding the short ID such as F12 only when titles are alike.
 When a card has a question, read the question and its options aloud, then pass the user's answer on with answer_factory_question. Approve a plan with approve_factory_plan only after the user has clearly said to.
-When the user wants to see a card, its proof or its pull request, call show_factory_card.`;
+When the user wants to see a card, its proof or its pull request, call show_factory_card. When they want the whole board again, or to go back from a card, call show_factory_board.`;
 
 const CARD_PARAM = {
 	card: {
@@ -134,6 +136,13 @@ export const FACTORY_TOOLS: NonNullable<
 			},
 			required: ["card"],
 		},
+	},
+	{
+		type: "function",
+		name: "show_factory_board",
+		description:
+			"Show the Factory board on screen: every card in its column. Also the way back from a card to the overview.",
+		parameters: { type: "object", properties: {} },
 	},
 ];
 
@@ -309,6 +318,11 @@ export async function runFactoryTool(
 			if ("error" in found) return { ok: false, error: found.error };
 			context.setActivity(`Approving the plan for “${found.task.title}”`);
 			await board.approvePlan(found.task);
+			return { ok: true };
+		}
+		case "show_factory_board": {
+			context.setActivity("Showing the Factory board");
+			context.openBoard();
 			return { ok: true };
 		}
 		case "show_factory_card": {
