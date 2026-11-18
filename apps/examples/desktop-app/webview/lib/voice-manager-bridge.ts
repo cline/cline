@@ -6,6 +6,8 @@ export type VoiceManagerActiveChat = {
 	sessionId: string | null;
 	status: ChatSessionStatus;
 	isHydrating: boolean;
+	/** The pane is the Factory manager's conversation ("Ask Factory"). */
+	factoryManager: boolean;
 	/** Settles when the agent's turn ends; false if the prompt never reached it. */
 	send: (prompt: string) => Promise<boolean>;
 	/** Opens the browser panel on its stored URL, reloading it if already open. */

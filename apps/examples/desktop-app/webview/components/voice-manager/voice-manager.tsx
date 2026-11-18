@@ -15,8 +15,10 @@ import type { UseSessionHistoryResult } from "@/hooks/use-session-history";
 import type { ChatMessage } from "@/lib/chat-schema";
 import {
 	desktopClient,
+	openExternalUrl,
 	resolveDesktopBackendWsEndpoint,
 } from "@/lib/desktop-client";
+import { readFactoryManagerSessionId } from "@/lib/factory-manager-panel";
 import { eventEnvironmentId } from "@/lib/session-identity";
 import { cn } from "@/lib/utils";
 import {
@@ -26,7 +28,18 @@ import {
 } from "@/lib/voice-manager-bridge";
 import { ClineBot, type ClineBotState } from "./cline-bot";
 
+import {
+	createFactoryAnnouncer,
+	FACTORY_INSTRUCTIONS,
+	FACTORY_TOOLS,
+	runFactoryTool,
+	type VoiceFactoryBoard,
+} from "./factory-tools";
+
 const APP_UPDATE_PREFIX = "[app update]";
+
+/** What the robot passes as a session ID to mean the Factory manager's chat. */
+const FACTORY_SESSION = "factory";
 
 const INSTRUCTIONS = `You are Cline, a small friendly robot who lives in the corner of the Cline desktop app.
 You manage the user's Cline coding agents, called sessions. You never write code yourself: you check on sessions, start new ones, send them instructions, interrupt them, and stop them.
@@ -35,7 +48,8 @@ When the user mentions a session, call list_sessions to find it. Use read_sessio
 To redirect a session that is running, use send_message with interrupt set to true, without stopping it first. To queue a follow-up instead, leave interrupt false.
 When the user asks for something they can look at, like a web page or an app, ask the session to serve it with a standard dev server that hot reloads, such as Vite, started in the background, and to tell you its URL. Once the session reports the URL, open it with show_preview.
 While the preview is open, treat what the user says about the page as feedback for that session: pass it on with send_message straight away, and tell them when the change is in. The page updates by itself; if it does not, call show_preview again to reload it.
-Messages starting with "${APP_UPDATE_PREFIX}" come from the app, not the user. Give the user a quick heads-up about them in a few words.`;
+Messages starting with "${APP_UPDATE_PREFIX}" come from the app, not the user. Give the user a quick heads-up about them in a few words.
+${FACTORY_INSTRUCTIONS}`;
 
 const SESSION_ID_PARAM = {
 	sessionId: {
@@ -146,8 +160,17 @@ const SESSION_CONFIG: Experimental_RealtimeSessionConfig = {
 				required: ["sessionId", "approve"],
 			},
 		},
+		...FACTORY_TOOLS,
 	],
 };
+
+const FACTORY_TASK_EVENTS = [
+	"task.created",
+	"task.updated",
+	"task.run.started",
+	"task.run.completed",
+	"task.run.failed",
+] as const;
 
 type VoiceManagerModelInfo = {
 	transport: "openai-native" | "vercel-ai-gateway";
@@ -205,6 +228,9 @@ export function VoiceManager({
 	onOpenSession,
 	onNewThread,
 	onOpenProviders,
+	factoryBoard,
+	onOpenFactoryTask,
+	onOpenFactoryManager,
 }: {
 	sessionHistory: UseSessionHistoryResult;
 	onOpenSession: (
@@ -213,6 +239,10 @@ export function VoiceManager({
 	) => Promise<{ opened: boolean } | undefined>;
 	onNewThread: () => void;
 	onOpenProviders: () => void;
+	factoryBoard: VoiceFactoryBoard;
+	onOpenFactoryTask: (taskId: string) => void;
+	/** Shows the Factory with its manager conversation open. */
+	onOpenFactoryManager: () => void;
 }) {
 	const [modelInfo, setModelInfo] = useState<VoiceManagerModelInfo>({
 		transport: "openai-native",
@@ -242,6 +272,11 @@ export function VoiceManager({
 	const pendingApprovalsRef = useRef(new Map<string, PendingApprovals>());
 	const sessionHistoryRef = useRef(sessionHistory);
 	sessionHistoryRef.current = sessionHistory;
+	const factoryBoardRef = useRef(factoryBoard);
+	factoryBoardRef.current = factoryBoard;
+	// Manager replies the robot is owed for requests it passed on; what the
+	// user types to the manager themselves is not announced back to them.
+	const managerRepliesOwedRef = useRef(0);
 
 	const findSession = useCallback((sessionId: string) => {
 		const history = sessionHistoryRef.current;
@@ -254,8 +289,29 @@ export function VoiceManager({
 
 	const runTool = useCallback(
 		async (name: string, args: Record<string, unknown>): Promise<unknown> => {
-			const sessionId =
+			const factoryResult = await runFactoryTool(name, args, {
+				board: () => factoryBoardRef.current,
+				openCard: onOpenFactoryTask,
+				openExternalUrl,
+				setActivity,
+				askManager: async (request) => {
+					onOpenFactoryManager();
+					const chat = await waitForVoiceManagerActiveChat(
+						(candidate) => candidate.factoryManager && !candidate.isHydrating,
+						20_000,
+					);
+					const sent = await dispatchPrompt(chat, request);
+					if (sent) managerRepliesOwedRef.current += 1;
+					return sent;
+				},
+			});
+			if (factoryResult !== undefined) return factoryResult;
+			const requestedSessionId =
 				typeof args.sessionId === "string" ? args.sessionId : "";
+			const sessionId =
+				requestedSessionId === FACTORY_SESSION
+					? (readFactoryManagerSessionId() ?? "")
+					: requestedSessionId;
 			const { thread, session, title } = findSession(sessionId);
 			const openSession = async () => {
 				const result = await onOpenSession(sessionId, {
@@ -423,7 +479,13 @@ export function VoiceManager({
 					return { ok: false, error: `Unknown tool ${name}` };
 			}
 		},
-		[findSession, onNewThread, onOpenSession],
+		[
+			findSession,
+			onNewThread,
+			onOpenFactoryManager,
+			onOpenFactoryTask,
+			onOpenSession,
+		],
 	);
 
 	const realtime = experimental_useRealtime({
@@ -464,6 +526,9 @@ export function VoiceManager({
 
 	useEffect(() => {
 		const titleFor = (sessionId: string) => findSession(sessionId).title;
+		const factory = createFactoryAnnouncer();
+		const isManager = (sessionId: string) =>
+			sessionId === readFactoryManagerSessionId();
 		const unsubscribeDone = desktopClient.subscribe("chat_event", (payload) => {
 			const event = payload as {
 				sessionId?: string;
@@ -478,6 +543,19 @@ export function VoiceManager({
 			const reason = String(done.reason ?? "").toLowerCase();
 			if (reason === "aborted" || reason === "cancelled") return;
 			const failed = reason === "error" || reason === "failed";
+			if (isManager(event.sessionId)) {
+				if (managerRepliesOwedRef.current < 1) return;
+				managerRepliesOwedRef.current -= 1;
+				pushUpdate(
+					failed
+						? "The Factory could not finish answering."
+						: `The Factory answered: ${truncate(done.text ?? "", 600) || "done."}`,
+				);
+				return;
+			}
+			// Factory's own builders, testers and reviewers report through their
+			// card, announced below, not as sessions that finished.
+			if (factory.isFactorySession(event.sessionId)) return;
 			pushUpdate(
 				`Session “${titleFor(event.sessionId)}” ${failed ? "failed" : "finished"}.${
 					done.text ? ` Its last message: ${truncate(done.text, 300)}` : ""
@@ -500,15 +578,29 @@ export function VoiceManager({
 				for (const item of record.items) {
 					if (previous?.items.some((old) => old.requestId === item.requestId))
 						continue;
+					if (isManager(record.sessionId)) {
+						pushUpdate(
+							`The Factory wants the user's go-ahead to use ${item.toolName}. Ask them, then answer with respond_to_approval using the session ID "${FACTORY_SESSION}".`,
+						);
+						continue;
+					}
+					if (factory.isFactorySession(record.sessionId)) continue;
 					pushUpdate(
 						`Session “${titleFor(record.sessionId)}” is waiting for approval to use ${item.toolName}.`,
 					);
 				}
 			},
 		);
+		const unsubscribeFactory = FACTORY_TASK_EVENTS.map((name) =>
+			desktopClient.subscribe(name, (payload) => {
+				const update = factory.read(payload);
+				if (update) pushUpdate(update);
+			}),
+		);
 		return () => {
 			unsubscribeDone();
 			unsubscribeApprovals();
+			for (const unsubscribe of unsubscribeFactory) unsubscribe();
 		};
 	}, [findSession, pushUpdate]);
 

@@ -843,6 +843,12 @@ export default function Home() {
 		},
 		[handleViewChange],
 	);
+	// The Cline robot passes spoken requests to the manager conversation.
+	const openFactoryManager = useCallback(() => {
+		setManagerPanelOpen(true);
+		writeFactoryManagerPanelOpen(true);
+		handleViewChange("factory");
+	}, [handleViewChange]);
 	// The sidebar's New row reads as selected while the fresh, not-yet-started
 	// task page is showing; once the task starts the session row takes over.
 	const newTaskActive =
@@ -1461,6 +1467,14 @@ export default function Home() {
 				<VoiceManager
 					onNewThread={handleNewThread}
 					onOpenProviders={() => handleSettingsSectionChange("Providers")}
+					factoryBoard={{
+						tasks: factoryAgenda.tasks,
+						attention: factoryAttention.items,
+						answer: factoryAttention.answer,
+						approvePlan: factoryAgenda.approveTask,
+					}}
+					onOpenFactoryManager={openFactoryManager}
+					onOpenFactoryTask={handleOpenFactoryTask}
 					onOpenSession={async (sessionId, options) => {
 						await handleOpenSessionById(sessionId, options?.environmentId);
 						return undefined;
@@ -2439,6 +2453,7 @@ function ChatThreadPane({
 			sessionId: sessionId ?? null,
 			status,
 			isHydrating: isHydratingSession,
+			factoryManager,
 			// Not handleSend: that would consume the user's unsent draft and attachments.
 			send: (prompt) => {
 				onThreadStarted?.(threadId);
@@ -2449,6 +2464,7 @@ function ChatThreadPane({
 			showPreview: showBrowserPanel,
 		});
 	}, [
+		factoryManager,
 		isHydratingSession,
 		isNewThread,
 		onThreadStarted,
