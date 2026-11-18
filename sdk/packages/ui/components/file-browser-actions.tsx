@@ -125,7 +125,7 @@ export function FileBrowserActions({
 							) : (
 								<Copy aria-hidden="true" />
 							)}
-							Copy path
+							{copied ? "Copied" : "Copy path"}
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Portal>

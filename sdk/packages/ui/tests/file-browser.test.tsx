@@ -677,16 +677,19 @@ describe("FileBrowserContent actions", () => {
 		expect(writeText).toHaveBeenCalledExactlyOnceWith("SKILL.md");
 		expect(document.querySelector('[role="menu"]')).not.toBeNull();
 		expect(document.activeElement).toBe(copyItem);
+		expect(copyItem.textContent).toBe("Copied");
 		expect(copyItem.querySelector(".lucide-check")).not.toBeNull();
 		expect(container.textContent).toContain("Path copied.");
 		expect(
 			container.querySelector("output")?.closest('[aria-hidden="true"]'),
 		).toBeNull();
 		await act(async () => vi.advanceTimersByTimeAsync(1499));
+		expect(copyItem.textContent).toBe("Copied");
 		expect(copyItem.querySelector(".lucide-check")).not.toBeNull();
 		await act(async () => vi.advanceTimersByTimeAsync(1));
 		expect(copyItem.querySelector(".lucide-check")).toBeNull();
 		expect(copyItem.querySelector(".lucide-copy")).not.toBeNull();
+		expect(copyItem.textContent).toBe("Copy path");
 		expect(container.textContent).not.toContain("Path copied.");
 		expect(document.querySelector('[role="menu"]')).not.toBeNull();
 		await pressKey(copyItem, "Escape");
@@ -701,10 +704,10 @@ describe("FileBrowserContent actions", () => {
 		vi.useFakeTimers();
 		await select("Copy path");
 		await act(async () => vi.advanceTimersByTimeAsync(1000));
-		await select("Copy path");
+		await select("Copied");
 		expect(writeText).toHaveBeenCalledTimes(2);
 		await act(async () => vi.advanceTimersByTimeAsync(1000));
-		expect(item("Copy path").querySelector(".lucide-check")).not.toBeNull();
+		expect(item("Copied").querySelector(".lucide-check")).not.toBeNull();
 		await act(async () => vi.advanceTimersByTimeAsync(500));
 		expect(item("Copy path").querySelector(".lucide-copy")).not.toBeNull();
 		expect(container.textContent).not.toContain("Path copied.");
@@ -737,7 +740,7 @@ describe("FileBrowserContent actions", () => {
 		});
 		expect(container.querySelector('[role="alert"]')).toBeNull();
 		expect(container.textContent).toContain("Path copied.");
-		expect(item("Copy path").querySelector(".lucide-check")).not.toBeNull();
+		expect(item("Copied").querySelector(".lucide-check")).not.toBeNull();
 	});
 
 	it("ignores a delayed failure from an actions menu replaced during loading", async () => {
