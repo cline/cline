@@ -86,6 +86,9 @@ export const SegmentedControl = forwardRef<
 			(option) => option.value === selectedValue,
 		);
 		const groupName = name ?? `cline-segmented-${id}`;
+		// A generated name only groups the radios. Keep it out of an
+		// enclosing form, which would otherwise submit and reset it.
+		const formOwner = form ?? (name === undefined ? "" : undefined);
 		// The fieldset is always mounted before this layout effect runs.
 		useImperativeHandle(
 			ref,
@@ -172,7 +175,7 @@ export const SegmentedControl = forwardRef<
 				data-icon-only={iconOnly || undefined}
 				data-size={size}
 				data-slot="segmented-control"
-				form={form}
+				form={formOwner}
 				ref={fieldsetRef}
 				style={
 					{
@@ -191,7 +194,7 @@ export const SegmentedControl = forwardRef<
 							className="cline-ui-segmented-control__input"
 							data-slot="segmented-control-input"
 							disabled={option.disabled}
-							form={form}
+							form={formOwner}
 							name={groupName}
 							onChange={(event) => {
 								if (!event.currentTarget.checked) return;

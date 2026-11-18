@@ -1173,8 +1173,10 @@ scroll region; an item `onFocus` handler can call `preventDefault()` to take ove
 
 `SegmentedControl` accepts `options` with `value` and readable `label` fields.
 Use `value`/`onValueChange` for controlled selection or `defaultValue` for internal
-state. Native radios support arrow-key selection, `name`, `required`, and `form`;
-uncontrolled groups follow form resets without emitting a user change.
+state. Native radios support arrow-key selection, `name`, `required`, and `form`.
+Pass `name` to submit the value with a form; named uncontrolled groups follow
+form resets without emitting a user change. Without `name`, the control stays
+out of an enclosing form's data and resets.
 
 Options accept `icon`, `disabled`, and `tooltip`. `iconOnly` hides labels visually;
 provide an icon for every option. Group `disabled` disables all options, and `dir`

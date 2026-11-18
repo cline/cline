@@ -224,6 +224,24 @@ describe("SegmentedControl", () => {
 		expect(input("system", second).checked).toBe(true);
 	});
 
+	it("stays out of an enclosing form unless it is named", async () => {
+		await render(
+			<form>
+				<SegmentedControl
+					aria-label="Color theme"
+					defaultValue="system"
+					options={options}
+				/>
+			</form>,
+		);
+		expect(input("system").form).toBeNull();
+		await act(async () => input("dark").click());
+		expect(input("dark").checked).toBe(true);
+		expect(Array.from(new FormData(form()).keys())).toEqual([]);
+		await act(async () => form().reset());
+		expect(input("dark").checked).toBe(true);
+	});
+
 	it("supports an external form, explicit field name, and required validation", async () => {
 		await render(
 			<>
@@ -410,6 +428,7 @@ describe("SegmentedControl", () => {
 				<SegmentedControl
 					aria-label="Color theme"
 					defaultValue="system"
+					name="theme"
 					options={options}
 				/>
 			</form>,
@@ -520,6 +539,7 @@ describe("SegmentedControl", () => {
 					<SegmentedControl
 						aria-label="Color theme"
 						defaultValue="system"
+						name="theme"
 						options={options}
 					/>
 					<button type="reset">Reset</button>
