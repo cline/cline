@@ -142,6 +142,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		fallbackName: "ai&",
 		signupUrl: "https://console.aiand.com/",
 	},
+	coralbricks: {
+		fallbackName: "CoralBricks",
+		signupUrl: "https://www.coralbricks.ai/docs/cline",
+	},
 	"zai-coding-plan": {
 		fallbackName: "Z.AI Coding Plan",
 	},
