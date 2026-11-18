@@ -67,7 +67,6 @@ function isRejectedToolInputError(content: string): boolean {
 
 	const trimmed = errorText.trim();
 	return (
-		trimmed === "Invalid input" ||
 		trimmed === "✖ Invalid input" ||
 		/^✖ Unrecognized key: ".+"\n✖ Invalid input: expected .+ → at \S+$/u.test(
 			trimmed,
