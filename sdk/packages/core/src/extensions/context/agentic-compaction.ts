@@ -1,4 +1,14 @@
-import type { BasicLogger } from "@cline/shared";
+import {
+	estimateRequestInputTokens,
+	type BasicLogger,
+	type Message,
+	type MessageWithMetadata,
+	type ToolDefinition,
+} from "@cline/shared";
+import {
+	agentMessagesToMessages,
+	messagesToAgentMessages,
+} from "../../runtime/config/agent-message-codec";
 import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
@@ -11,6 +21,7 @@ import {
 	buildBudgetProjection,
 } from "./budget-projection";
 import {
+	buildInPlaceSummaryInstruction,
 	buildSummaryMessage,
 	buildSummaryRequest,
 	type EstimateMessageTokens,
@@ -20,6 +31,8 @@ import {
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
+	type FileOperationSummary,
+	isSameModelAsActiveSession,
 	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeConversation,
@@ -49,6 +62,90 @@ function safeJsonSize(value: unknown): number {
 	}
 }
 
+type InPlaceSummaryPlan = {
+	systemPrompt: string;
+	messages: Message[];
+	tools: ToolDefinition[];
+	estimatedInputTokens: number;
+};
+
+/**
+ * Plan an in-place summary: replay the session transcript verbatim (plus one
+ * short instruction message) instead of re-serializing it as plain text. When
+ * the summarizer IS the active session model, the replayed prefix is
+ * byte-identical to the prompt the provider already evaluated for this
+ * session, so prompt-prefix caching (e.g. llama.cpp slots) skips the
+ * full-conversation re-prefill. Every condition below must hold; any doubt
+ * falls back to the serialized request path.
+ */
+function resolveInPlaceSummary(options: {
+	messages: CoreCompactionContext["messages"];
+	cutIndex: number;
+	fileOps: FileOperationSummary;
+	systemPrompt: string | undefined;
+	apiMessages: CoreCompactionContext["messages"] | undefined;
+	tools: readonly unknown[] | undefined;
+	activeProviderConfig: ProviderConfig;
+	summarizer?: CoreCompactionSummarizerConfig;
+	summarizerInputLimit: number;
+	logger?: BasicLogger;
+}): InPlaceSummaryPlan | undefined {
+	const { systemPrompt, apiMessages } = options;
+	if (!systemPrompt || !apiMessages) {
+		return undefined;
+	}
+	if (apiMessages.length !== options.messages.length) {
+		// The API-safe transcript is not 1:1 aligned with the canonical one,
+		// so a head slice could not be proven a stable prompt prefix.
+		return undefined;
+	}
+	if (
+		!isSameModelAsActiveSession({
+			activeProviderConfig: options.activeProviderConfig,
+			summarizer: options.summarizer,
+		})
+	) {
+		return undefined;
+	}
+	const tools = toToolDefinitions(options.tools ?? []);
+	const transcript: MessageWithMetadata[] = [
+		...apiMessages.slice(0, options.cutIndex),
+		{
+			role: "user",
+			content: buildInPlaceSummaryInstruction({ fileOps: options.fileOps }),
+		},
+	];
+	const messages = agentMessagesToMessages(messagesToAgentMessages(transcript));
+	const estimatedInputTokens = estimateRequestInputTokens({
+		systemPrompt,
+		messages,
+		tools,
+	});
+	if (estimatedInputTokens > options.summarizerInputLimit) {
+		options.logger?.debug(
+			"Skipping in-place summary: transcript exceeds the summarizer input budget",
+			{
+				estimatedInputTokens,
+				summarizerInputLimit: options.summarizerInputLimit,
+			},
+		);
+		return undefined;
+	}
+	return { systemPrompt, messages, tools, estimatedInputTokens };
+}
+
+/** Same tool mapping as the model request (apihandler-agent-model-adapter). */
+function toToolDefinitions(tools: readonly unknown[]): ToolDefinition[] {
+	return tools.map((tool) => {
+		const definition = tool as Partial<ToolDefinition>;
+		return {
+			name: String(definition.name ?? ""),
+			description: String(definition.description ?? ""),
+			inputSchema: (definition.inputSchema ?? {}) as Record<string, unknown>,
+		};
+	});
+}
+
 export async function runAgenticCompaction(options: {
 	context: CoreCompactionContext;
 	providerConfig: ProviderConfig;
@@ -56,6 +153,12 @@ export async function runAgenticCompaction(options: {
 	preserveRecentTokens: number;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
+	/** System prompt of the live session turn; enables in-place summaries. */
+	systemPrompt?: string;
+	/** API-safe transcript; must stay 1:1 aligned with `context.messages`. */
+	apiMessages?: CoreCompactionContext["messages"];
+	/** Session tool definitions — the same objects the model request gets. */
+	tools?: readonly unknown[];
 }): Promise<CoreCompactionResult | undefined> {
 	const messages = options.context.messages;
 	if (messages.length < 2) {
@@ -159,46 +262,78 @@ export async function runAgenticCompaction(options: {
 		return undefined;
 	}
 	const fileOps = extractFileOps(summaryInputBudget.messages);
-	const conversationText = serializeConversation(summaryInputBudget.messages);
-	const summaryRequest = buildSummaryRequest({
-		previousSummary,
-		conversationText,
+	const inPlace = resolveInPlaceSummary({
+		messages,
+		cutIndex,
 		fileOps,
-	});
-	options.logger?.debug("Agentic compaction summarizer diagnostics", {
-		messagesToSummarize: messagesToSummarize.length,
-		newMessagesToFold: newMessagesToFold.length,
-		preservedMessages: messages.length - cutIndex,
-		previousSummaryChars: previousSummary?.length ?? 0,
-		conversationTextChars: conversationText.length,
-		summaryRequestChars: summaryRequest.length,
-		summaryRequestEstimatedTokens: estimateTokens(summaryRequest.length),
-		newMessagesJsonChars: safeJsonSize(newMessagesToFold),
-		summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
-		summaryInputActions: summaryInputBudget.actions.length,
-		summaryInputWarnings: summaryInputBudget.warnings.map(
-			(warning) => warning.code,
-		),
-		summaryRequestOverheadTokens,
-		summarizerProviderId: summarizerProviderConfig.providerId,
-		summarizerModelId: summarizerProviderConfig.modelId,
+		systemPrompt: options.systemPrompt,
+		apiMessages: options.apiMessages,
+		tools: options.tools,
+		activeProviderConfig: options.providerConfig,
+		summarizer: options.summarizer,
 		summarizerInputLimit,
-		maxInputTokens: options.context.budget.request.maxInputTokens,
-		triggerTokens: options.context.budget.request.triggerTokens,
+		logger: options.logger,
 	});
-	const summaryResult = await generateSummary({
-		providerConfig: summarizerProviderConfig,
-		systemPrompt:
-			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
-		request: summaryRequest,
-	});
-	options.logger?.debug("Generated compaction summary", {
-		outputChars: summaryResult.text.length,
-		reasoningChars: summaryResult.reasoningChars,
-		incompleteReason: summaryResult.incompleteReason,
-		modelId: summarizerProviderConfig.modelId,
-		providerId: summarizerProviderConfig.providerId,
-	});
+	let summaryResult: Awaited<ReturnType<typeof generateSummary>>;
+	if (inPlace) {
+		summaryResult = await generateSummary({
+			providerConfig: summarizerProviderConfig,
+			systemPrompt: inPlace.systemPrompt,
+			messages: inPlace.messages,
+			tools: inPlace.tools,
+		});
+		options.logger?.debug("Generated compaction summary", {
+			mode: "in_place",
+			outputChars: summaryResult.text.length,
+			reasoningChars: summaryResult.reasoningChars,
+			incompleteReason: summaryResult.incompleteReason,
+			modelId: summarizerProviderConfig.modelId,
+			providerId: summarizerProviderConfig.providerId,
+			estimatedInputTokens: inPlace.estimatedInputTokens,
+		});
+	} else {
+		const conversationText = serializeConversation(summaryInputBudget.messages);
+		const summaryRequest = buildSummaryRequest({
+			previousSummary,
+			conversationText,
+			fileOps,
+		});
+		options.logger?.debug("Agentic compaction summarizer diagnostics", {
+			messagesToSummarize: messagesToSummarize.length,
+			newMessagesToFold: newMessagesToFold.length,
+			preservedMessages: messages.length - cutIndex,
+			previousSummaryChars: previousSummary?.length ?? 0,
+			conversationTextChars: conversationText.length,
+			summaryRequestChars: summaryRequest.length,
+			summaryRequestEstimatedTokens: estimateTokens(summaryRequest.length),
+			newMessagesJsonChars: safeJsonSize(newMessagesToFold),
+			summaryInputEstimatedTokens: summaryInputBudget.estimatedTokens,
+			summaryInputActions: summaryInputBudget.actions.length,
+			summaryInputWarnings: summaryInputBudget.warnings.map(
+				(warning) => warning.code,
+			),
+			summaryRequestOverheadTokens,
+			summarizerProviderId: summarizerProviderConfig.providerId,
+			summarizerModelId: summarizerProviderConfig.modelId,
+			summarizerInputLimit,
+			maxInputTokens: options.context.budget.request.maxInputTokens,
+			triggerTokens: options.context.budget.request.triggerTokens,
+		});
+		summaryResult = await generateSummary({
+			providerConfig: summarizerProviderConfig,
+			systemPrompt:
+				"Summarize the provided coding session into a concise continuation note with detailed next steps.",
+			request: summaryRequest,
+		});
+		options.logger?.debug("Generated compaction summary", {
+			mode: "serialized",
+			outputChars: summaryResult.text.length,
+			reasoningChars: summaryResult.reasoningChars,
+			incompleteReason: summaryResult.incompleteReason,
+			modelId: summarizerProviderConfig.modelId,
+			providerId: summarizerProviderConfig.providerId,
+		});
+	}
 	const rawSummary = summaryResult.text.trim();
 	if (!rawSummary) {
 		options.logger?.log(
