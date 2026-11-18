@@ -49,6 +49,42 @@ function safeJsonSize(value: unknown): number {
 	}
 }
 
+function removeRejectedToolInputPairs(
+	messages: CoreCompactionContext["messages"],
+): CoreCompactionContext["messages"] {
+	const rejectedToolUseIds = new Set<string>();
+	for (const message of messages) {
+		if (typeof message.content === "string") continue;
+		for (const block of message.content) {
+			if (block.type !== "tool_result" || block.is_error !== true) continue;
+			const errorText = Array.isArray(block.content)
+				? block.content
+						.map((part) => (part.type === "text" ? part.text : ""))
+						.join("\n")
+				: block.content;
+			if (/invalid input|unrecognized key/i.test(errorText)) {
+				rejectedToolUseIds.add(block.tool_use_id);
+			}
+		}
+	}
+	if (rejectedToolUseIds.size === 0) return messages;
+
+	return messages.flatMap((message) => {
+		if (typeof message.content === "string") return [message];
+		const content = message.content.filter((block) => {
+			if (block.type === "tool_use") {
+				return !rejectedToolUseIds.has(block.id);
+			}
+			if (block.type === "tool_result") {
+				return !rejectedToolUseIds.has(block.tool_use_id);
+			}
+			return true;
+		});
+		if (content.length === message.content.length) return [message];
+		return content.length === 0 ? [] : [{ ...message, content }];
+	});
+}
+
 export async function runAgenticCompaction(options: {
 	context: CoreCompactionContext;
 	providerConfig: ProviderConfig;
@@ -231,7 +267,7 @@ export async function runAgenticCompaction(options: {
 			tokensBefore,
 			userRunSpan: countUserRunMessages(messagesToSummarize),
 		}),
-		...messages.slice(cutIndex),
+		...removeRejectedToolInputPairs(messages.slice(cutIndex)),
 	];
 	const tokensAfter = resultMessages.reduce(
 		(total, message) => total + options.estimateMessageTokens(message),

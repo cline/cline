@@ -2441,8 +2441,11 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_use",
 						id: `loop-tool-${i}`,
-						name: "read_files",
-						input: { file_paths: [`/tmp/f${i}.ts`] },
+						name: i === 10 ? "run_commands" : "read_files",
+						input:
+							i === 10
+								? { arguments: '{"commands":["pwd"]}' }
+								: { file_paths: [`/tmp/f${i}.ts`] },
 					},
 				],
 			});
@@ -2452,8 +2455,14 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: `loop-tool-${i}`,
-						name: "read_files",
-						content: "x".repeat(1_500),
+						name: i === 10 ? "run_commands" : "read_files",
+						content:
+							i === 10
+								? "Invalid input"
+								: i === 9
+									? "ENOENT: no such file or directory"
+									: "x".repeat(1_500),
+						...(i === 9 || i === 10 ? { is_error: true } : {}),
 					},
 				],
 			});
@@ -2504,9 +2513,16 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 		expect(result?.messages.length).toBeLessThan(messages.length);
 		// The preserved tail must not orphan either half of a tool pair.
+		const state = createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: result?.messages ?? [],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const resumedMessages = projectSessionCompactionState(state, messages);
+		expect(resumedMessages).toEqual(result?.messages);
 		const toolUseIds2 = new Set<string>();
 		const toolResultIds2 = new Set<string>();
-		for (const msg of result?.messages ?? []) {
+		for (const msg of resumedMessages ?? []) {
 			if (!Array.isArray(msg.content)) continue;
 			for (const block of msg.content) {
 				if (block.type === "tool_use") toolUseIds2.add(block.id);
@@ -2521,6 +2537,9 @@ describe("createContextCompactionPrepareTurn", () => {
 		for (const id of toolResultIds2) {
 			expect(toolUseIds2.has(id)).toBe(true);
 		}
+		expect(toolUseIds2).toContain("loop-tool-11");
+		expect(toolUseIds2).toContain("loop-tool-9");
+		expect(toolUseIds2).not.toContain("loop-tool-10");
 	});
 
 	it("re-compacts a projection that starts with a compaction summary", async () => {
