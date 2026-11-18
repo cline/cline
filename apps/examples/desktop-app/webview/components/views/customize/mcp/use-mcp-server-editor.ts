@@ -59,6 +59,7 @@ export function useMcpServerEditor({
 	const onBackRef = useRef(onBack);
 	onBackRef.current = onBack;
 	const pendingRef = useRef<EditorAction | null>(null);
+	const awaitingSaveResponse = useRef(false);
 	const [pendingAction, setPendingAction] = useState<EditorAction | null>(null);
 	const cancellingRef = useRef(false);
 	const [isCancelling, setIsCancelling] = useState(false);
@@ -85,6 +86,9 @@ export function useMcpServerEditor({
 			const next = response.servers.find(
 				(item) => item.name === serverName.current,
 			);
+			// A refresh can see a rename before Save's connection check finishes.
+			// Keep the editor until the save response establishes its new identity.
+			if (!next && awaitingSaveResponse.current) return;
 			persistedServerRef.current = next;
 			setPersistedServer(next);
 			if (!next) {
@@ -101,6 +105,8 @@ export function useMcpServerEditor({
 				setForm((current) => ({ ...current, disabled: next.disabled }));
 		},
 		onServerSaved: (name, previousName) => {
+			// The completed Save's response must still detect an actual deletion.
+			awaitingSaveResponse.current = false;
 			// Follow this editor's server through its first save and any rename.
 			if (previousName === undefined || serverName.current === previousName)
 				serverName.current = name;
@@ -134,6 +140,7 @@ export function useMcpServerEditor({
 					persistedServerRef.current?.disabled ?? formRef.current.disabled,
 			});
 			const submitted = formRef.current;
+			awaitingSaveResponse.current = true;
 			await state.upsertServer(input);
 			if (!mounted.current || closed.current) return;
 			// Stay on the page: the saved server is now what this editor edits.
@@ -153,6 +160,7 @@ export function useMcpServerEditor({
 			if (mounted.current && !closed.current)
 				setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
+			awaitingSaveResponse.current = false;
 			finish();
 		}
 	};

@@ -88,10 +88,16 @@ async function mount(
 	server: McpServer | undefined = localServer,
 	entry?: MarketplaceEntry,
 	onBack = vi.fn(),
+	onSaved?: (server: McpServer) => void,
 ) {
 	await act(async () => {
 		root.render(
-			<McpServerEditorPage server={server} entry={entry} onBack={onBack} />,
+			<McpServerEditorPage
+				server={server}
+				entry={entry}
+				onBack={onBack}
+				onSaved={onSaved}
+			/>,
 		);
 	});
 	await act(async () => {
@@ -434,6 +440,94 @@ describe("MCP server editor page", () => {
 		await act(async () => complete(inventory()));
 		expectSavedInPlace(onBack);
 		expect(button("Back to Manage").disabled).toBe(false);
+	});
+
+	it.each([
+		"success",
+		"failure",
+		"deletion",
+	] as const)("keeps a pending remote rename open when inventory observes the saved name before %s", async (outcome) => {
+		const server: McpServer = {
+			name: "remote-tools",
+			transportType: "streamableHttp",
+			disabled: false,
+			url: "https://example.com/original",
+		};
+		const renamed = {
+			...server,
+			name: "renamed-tools",
+			url: "https://example.com/updated",
+		};
+		invoke.mockResolvedValue(inventory([server]));
+		const onSaved = vi.fn();
+		const onBack = await mount(server, undefined, vi.fn(), onSaved);
+		await changeField("mcp-name", renamed.name);
+		await changeField("mcp-url", renamed.url);
+		let complete!: (response: ReturnType<typeof inventory>) => void;
+		let fail!: (reason: Error) => void;
+		invoke.mockReturnValueOnce(
+			new Promise((resolve, reject) => {
+				complete = resolve;
+				fail = reject;
+			}),
+		);
+		const form = container.querySelector('form[aria-label="Edit MCP server"]');
+		await act(async () => button("Save").click());
+		expect(saveCalls()[0]?.[1]).toMatchObject({
+			input: {
+				previousName: server.name,
+				name: renamed.name,
+				url: renamed.url,
+			},
+		});
+		// The settings file has changed, but the remote connection check has
+		// not completed the upsert request yet.
+		await act(async () =>
+			commitMcpServersResponse(inventory([{ ...renamed, disabled: true }])),
+		);
+		expect(onBack).not.toHaveBeenCalled();
+		expect(onSaved).not.toHaveBeenCalled();
+		expect(container.querySelector("form")).toBe(form);
+		expect(button("Saving…").disabled).toBe(true);
+		expect(container.querySelector<HTMLInputElement>("#mcp-name")?.value).toBe(
+			renamed.name,
+		);
+		expect(container.querySelector<HTMLInputElement>("#mcp-url")?.value).toBe(
+			renamed.url,
+		);
+		await act(async () => {
+			if (outcome === "success") complete(inventory([renamed]));
+			else if (outcome === "deletion") complete(inventory([]));
+			else fail(new Error("Remote connection check failed"));
+		});
+		if (outcome === "deletion") {
+			expect(onBack).toHaveBeenCalledExactlyOnceWith({ uninstalled: true });
+			expect(onSaved).not.toHaveBeenCalled();
+			return;
+		}
+		expect(onBack).not.toHaveBeenCalled();
+		expect(container.querySelector("form")).toBe(form);
+		if (outcome === "success") {
+			expectSavedInPlace(onBack);
+			expect(onSaved).toHaveBeenCalledExactlyOnceWith(renamed);
+			expect(button("Delete renamed-tools").disabled).toBe(false);
+		} else {
+			expect(onSaved).not.toHaveBeenCalled();
+			expect(container.textContent).toContain("Remote connection check failed");
+			expect(document.activeElement?.textContent).toContain(
+				"Remote connection check failed",
+			);
+			expect(button("Save").disabled).toBe(false);
+			// Once Save fails, a later confirmed deletion must no longer be ignored.
+			await act(async () => commitMcpServersResponse(inventory([])));
+			expect(onBack).toHaveBeenCalledExactlyOnceWith({ uninstalled: true });
+		}
+	});
+
+	it("dismisses an idle editor when inventory confirms its server was deleted", async () => {
+		const onBack = await mount();
+		await act(async () => commitMcpServersResponse(inventory([])));
+		expect(onBack).toHaveBeenCalledExactlyOnceWith({ uninstalled: true });
 	});
 
 	it("does not navigate after an old Save completes following unmount", async () => {
