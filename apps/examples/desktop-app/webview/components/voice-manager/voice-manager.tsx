@@ -10,7 +10,10 @@ import type {
 } from "ai";
 import { PhoneOff, SendHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ToolApprovalRequestItem } from "@/hooks/chat-session/types";
+import type {
+	AskQuestionRequestItem,
+	ToolApprovalRequestItem,
+} from "@/hooks/chat-session/types";
 import type { UseSessionHistoryResult } from "@/hooks/use-session-history";
 import type { ChatMessage } from "@/lib/chat-schema";
 import {
@@ -49,6 +52,7 @@ To redirect a session that is running, use send_message with interrupt set to tr
 When the user asks for something they can look at, like a web page or an app, ask the session to serve it with a standard dev server that hot reloads, such as Vite, started in the background, and to tell you its URL. Once the session reports the URL, open it with show_preview.
 While the preview is open, treat what the user says about the page as feedback for that session: pass it on with send_message straight away, and tell them when the change is in. The page updates by itself; if it does not, call show_preview again to reload it.
 Messages starting with "${APP_UPDATE_PREFIX}" come from the app, not the user. Give the user a quick heads-up about them in a few words.
+When an app update says a session or the Factory is asking a question, read the question and its options to the user, then pass their answer on with answer_question.
 ${FACTORY_INSTRUCTIONS}`;
 
 const SESSION_ID_PARAM = {
@@ -160,6 +164,24 @@ const SESSION_CONFIG: Experimental_RealtimeSessionConfig = {
 				required: ["sessionId", "approve"],
 			},
 		},
+		{
+			type: "function",
+			name: "answer_question",
+			description:
+				"Give the user's answer to a question a session, or the Factory, asked them.",
+			parameters: {
+				type: "object",
+				properties: {
+					...SESSION_ID_PARAM,
+					answer: {
+						type: "string",
+						description:
+							"The answer. When the question came with options, the chosen option's exact text.",
+					},
+				},
+				required: ["sessionId", "answer"],
+			},
+		},
 		...FACTORY_TOOLS,
 	],
 };
@@ -176,6 +198,8 @@ type VoiceManagerModelInfo = {
 	transport: "openai-native" | "vercel-ai-gateway";
 	modelId: string;
 };
+
+type PendingQuestion = { environmentId: string; requestId: string };
 
 type PendingApprovals = {
 	environmentId: string;
@@ -270,6 +294,7 @@ export function VoiceManager({
 	const greetedRef = useRef(false);
 	const awaitingToolResponseRef = useRef(false);
 	const pendingApprovalsRef = useRef(new Map<string, PendingApprovals>());
+	const pendingQuestionsRef = useRef(new Map<string, PendingQuestion>());
 	const sessionHistoryRef = useRef(sessionHistory);
 	sessionHistoryRef.current = sessionHistory;
 	const factoryBoardRef = useRef(factoryBoard);
@@ -454,6 +479,21 @@ export function VoiceManager({
 					chat.showPreview();
 					return { ok: true };
 				}
+				case "answer_question": {
+					const pending = pendingQuestionsRef.current.get(sessionId);
+					const answer = String(args.answer ?? "").trim();
+					if (!pending)
+						return { ok: false, error: "Nothing there is asking a question." };
+					if (!answer) return { ok: false, error: "There was no answer." };
+					setActivity("Passing on your answer");
+					await desktopClient.invoke("respond_ask_question", {
+						environmentId: pending.environmentId,
+						requestId: pending.requestId,
+						answer,
+					});
+					pendingQuestionsRef.current.delete(sessionId);
+					return { ok: true };
+				}
 				case "respond_to_approval": {
 					const pending = pendingApprovalsRef.current.get(sessionId);
 					if (!pending?.items.length) {
@@ -591,6 +631,49 @@ export function VoiceManager({
 				}
 			},
 		);
+		const unsubscribeAsked = desktopClient.subscribe(
+			"ask_question_requested",
+			(payload) => {
+				const item = payload as Partial<AskQuestionRequestItem>;
+				if (!item?.sessionId || !item.requestId || !item.question) return;
+				// A card's own questions are announced with the card, below.
+				if (factory.isFactorySession(item.sessionId)) return;
+				if (
+					pendingQuestionsRef.current.get(item.sessionId)?.requestId ===
+					item.requestId
+				)
+					return;
+				pendingQuestionsRef.current.set(item.sessionId, {
+					environmentId: eventEnvironmentId(payload),
+					requestId: item.requestId,
+				});
+				const manager = isManager(item.sessionId);
+				const options = item.options?.length
+					? ` The options: ${item.options.join("; ")}.`
+					: "";
+				pushUpdate(
+					`${manager ? "The Factory" : `Session “${titleFor(item.sessionId)}”`} is asking the user: ${truncate(item.question, 400)}${options}${
+						manager
+							? ` Answer with answer_question using the session ID "${FACTORY_SESSION}".`
+							: ""
+					}`,
+				);
+			},
+		);
+		const forgetQuestion = (payload: unknown) => {
+			const record = payload as { sessionId?: string; requestId?: string };
+			for (const [sessionId, pending] of pendingQuestionsRef.current) {
+				if (
+					pending.requestId === record?.requestId ||
+					(!record?.requestId && sessionId === record?.sessionId)
+				)
+					pendingQuestionsRef.current.delete(sessionId);
+			}
+		};
+		const unsubscribeQuestionEnded = [
+			desktopClient.subscribe("ask_question_answered", forgetQuestion),
+			desktopClient.subscribe("ask_question_cancelled", forgetQuestion),
+		];
 		const unsubscribeFactory = FACTORY_TASK_EVENTS.map((name) =>
 			desktopClient.subscribe(name, (payload) => {
 				const update = factory.read(payload);
@@ -600,6 +683,8 @@ export function VoiceManager({
 		return () => {
 			unsubscribeDone();
 			unsubscribeApprovals();
+			unsubscribeAsked();
+			for (const unsubscribe of unsubscribeQuestionEnded) unsubscribe();
 			for (const unsubscribe of unsubscribeFactory) unsubscribe();
 		};
 	}, [findSession, pushUpdate]);

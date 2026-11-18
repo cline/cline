@@ -1471,7 +1471,14 @@ export default function Home() {
 						tasks: factoryAgenda.tasks,
 						attention: factoryAttention.items,
 						answer: factoryAttention.answer,
-						approvePlan: factoryAgenda.approveTask,
+						// Cards live in any project, so approval looks across them
+						// all, as the card's own Approve does.
+						approvePlan: (task) =>
+							desktopClient.approveAgendaTask({
+								taskId: task.taskId,
+								expectedRevision: task.revision,
+								allWorkspaces: true,
+							}),
 					}}
 					onOpenFactoryManager={openFactoryManager}
 					onOpenFactoryTask={handleOpenFactoryTask}
@@ -2459,6 +2466,9 @@ function ChatThreadPane({
 				onThreadStarted?.(threadId);
 				return sendPrompt(prompt, [], {
 					inNewWorktree: workIn === "worktree" && isNewThread,
+					// A request the robot passes on opens the manager's
+					// conversation the way typing into it does.
+					factoryManager: factoryManager && isNewThread ? true : undefined,
 				});
 			},
 			showPreview: showBrowserPanel,
