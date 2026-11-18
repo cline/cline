@@ -2435,16 +2435,28 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "<task>Build the feature</task>" },
 		];
 		for (let i = 0; i < 12; i++) {
+			const rejectedInput = i === 10 || i === 11;
 			messages.push({
 				role: "assistant",
 				content: [
+					...(i === 11
+						? [
+								{
+									type: "thinking" as const,
+									thinking: "reasoning",
+									signature: "sig",
+								},
+								{ type: "text" as const, text: "Attempting the command." },
+							]
+						: []),
 					{
 						type: "tool_use",
 						id: `loop-tool-${i}`,
-						name: i === 10 ? "run_commands" : "read_files",
-						input:
-							i === 10
-								? { arguments: '{"commands":["pwd"]}' }
+						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
+						input: rejectedInput
+							? { arguments: '{"commands":["pwd"]}' }
+							: i === 8
+								? { commands: ["bad"] }
 								: { file_paths: [`/tmp/f${i}.ts`] },
 					},
 				],
@@ -2455,19 +2467,24 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: `loop-tool-${i}`,
-						name: i === 10 ? "run_commands" : "read_files",
-						content:
-							i === 10
-								? "Invalid input"
+						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
+						content: rejectedInput
+							? JSON.stringify({
+									error:
+										i === 11
+											? '✖ Unrecognized key: "arguments"\n✖ Invalid input: expected array, received undefined → at commands'
+											: "✖ Invalid input",
+								})
+							: i === 8
+								? "invalid input syntax for type uuid"
 								: i === 9
 									? "ENOENT: no such file or directory"
 									: "x".repeat(1_500),
-						...(i === 9 || i === 10 ? { is_error: true } : {}),
+						...(i === 8 || i === 9 || rejectedInput ? { is_error: true } : {}),
 					},
 				],
 			});
 		}
-		messages.push({ role: "assistant", content: "working on it" });
 
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -2537,9 +2554,11 @@ describe("createContextCompactionPrepareTurn", () => {
 		for (const id of toolResultIds2) {
 			expect(toolUseIds2.has(id)).toBe(true);
 		}
-		expect(toolUseIds2).toContain("loop-tool-11");
+		expect(toolUseIds2).not.toContain("loop-tool-11");
+		expect(toolUseIds2).toContain("loop-tool-8");
 		expect(toolUseIds2).toContain("loop-tool-9");
 		expect(toolUseIds2).not.toContain("loop-tool-10");
+		expect(resumedMessages?.at(-1)?.role).toBe("user");
 	});
 
 	it("re-compacts a projection that starts with a compaction summary", async () => {

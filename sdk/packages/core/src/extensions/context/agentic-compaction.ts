@@ -49,6 +49,32 @@ function safeJsonSize(value: unknown): number {
 	}
 }
 
+function isRejectedToolInputError(content: string): boolean {
+	let errorText = content;
+	try {
+		const parsed: unknown = JSON.parse(content);
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			"error" in parsed &&
+			typeof parsed.error === "string"
+		) {
+			errorText = parsed.error;
+		}
+	} catch {
+		// Tool results may also persist as plain error text.
+	}
+
+	const trimmed = errorText.trim();
+	return (
+		trimmed === "Invalid input" ||
+		trimmed === "✖ Invalid input" ||
+		/^✖ Unrecognized key: ".+"\n✖ Invalid input: expected .+ → at \S+$/u.test(
+			trimmed,
+		)
+	);
+}
+
 function removeRejectedToolInputPairs(
 	messages: CoreCompactionContext["messages"],
 ): CoreCompactionContext["messages"] {
@@ -62,7 +88,7 @@ function removeRejectedToolInputPairs(
 						.map((part) => (part.type === "text" ? part.text : ""))
 						.join("\n")
 				: block.content;
-			if (/invalid input|unrecognized key/i.test(errorText)) {
+			if (isRejectedToolInputError(errorText)) {
 				rejectedToolUseIds.add(block.tool_use_id);
 			}
 		}
@@ -81,6 +107,12 @@ function removeRejectedToolInputPairs(
 			return true;
 		});
 		if (content.length === message.content.length) return [message];
+		if (message.role === "assistant") {
+			const hasRemainingToolUse = content.some(
+				(block) => block.type === "tool_use",
+			);
+			if (!hasRemainingToolUse) return [];
+		}
 		return content.length === 0 ? [] : [{ ...message, content }];
 	});
 }
