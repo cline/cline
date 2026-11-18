@@ -212,6 +212,7 @@ import type {
 	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
+import { getVoiceManagerModel } from "./voice-manager";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
@@ -3034,6 +3035,9 @@ export async function handleCommand(
 		// Tiered picker data (recommended / free / clinePass) with
 		// display-ready names; falls back to a bundled list offline.
 		return await fetchClineRecommendedModels();
+	}
+	if (command === "get_voice_manager_model") {
+		return getVoiceManagerModel();
 	}
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();

@@ -35,6 +35,16 @@ export function WorkspacePanelFrame({
 			observer?.disconnect();
 		};
 	}, [panel]);
+
+	// Lets fixed overlays such as the Cline robot keep clear of the panel.
+	useEffect(() => {
+		const root = document.documentElement;
+		root.style.setProperty("--workspace-panel-width", `${width}px`);
+		return () => {
+			root.style.removeProperty("--workspace-panel-width");
+		};
+	}, [width]);
+
 	const resize = (next: number) => {
 		const clamped = clampWorkspacePanelWidth(next);
 		setWidth(clamped);

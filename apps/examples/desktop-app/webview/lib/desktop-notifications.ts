@@ -184,7 +184,7 @@ const factoryTaskEventSchema = z.object({
 });
 type FactoryTaskEvent = z.infer<typeof factoryTaskEventSchema>;
 
-type FactoryAttentionEpisode = {
+export type FactoryAttentionEpisode = {
 	key: string;
 	eventType: DesktopNotificationEventType;
 	title: string;
@@ -336,6 +336,27 @@ function factorySessionIds({ task, run }: FactoryTaskEvent): string[] {
 		run?.sessionId,
 		...(run?.factory?.sessions ?? []).map((session) => session.sessionId),
 	].filter((sessionId): sessionId is string => Boolean(sessionId));
+}
+
+/**
+ * What a Factory task event says needs the person, in the words the native
+ * notification uses, for surfaces that announce it another way (the voice
+ * manager speaks it). `sessionIds` are the sessions Factory runs for the card.
+ * Null when the payload is not a Factory task event.
+ */
+export function readFactoryTaskEvent(payload: unknown): {
+	taskId: string;
+	sessionIds: string[];
+	episodes: FactoryAttentionEpisode[];
+	unknown: (key: string) => boolean;
+} | null {
+	const parsed = factoryTaskEventSchema.safeParse(payload);
+	if (!parsed.success) return null;
+	return {
+		taskId: parsed.data.task.taskId,
+		sessionIds: factorySessionIds(parsed.data),
+		...factoryAttention(parsed.data),
+	};
 }
 
 function cloneDefaultSettings(): DesktopNotificationSettings {
