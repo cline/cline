@@ -1,14 +1,9 @@
 import {
-	estimateRequestInputTokens,
 	type BasicLogger,
+	estimateRequestInputTokens,
 	type Message,
-	type MessageWithMetadata,
 	type ToolDefinition,
 } from "@cline/shared";
-import {
-	agentMessagesToMessages,
-	messagesToAgentMessages,
-} from "../../runtime/config/agent-message-codec";
 import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
@@ -28,10 +23,10 @@ import {
 	ensureFilesSection,
 	estimateTokens,
 	extractFileOps,
+	type FileOperationSummary,
 	findCutIndex,
 	findLatestSummaryIndex,
 	getCompactionSummaryMetadata,
-	type FileOperationSummary,
 	isSameModelAsActiveSession,
 	resolveProviderMaxInputTokens,
 	resolveSummarizerConfig,
@@ -70,13 +65,52 @@ type InPlaceSummaryPlan = {
 };
 
 /**
+ * Fuse consecutive pure tool-result user messages exactly the way the live
+ * model request renders them: `agentMessagesToMessages` (agent-message-codec)
+ * performs this fusion before `MessageBuilder.buildForApi`, and
+ * `buildForApi`'s own `addMissingToolResults` re-performs it whenever a
+ * repair happens. The prepareTurn API transcript is derived WITHOUT the
+ * codec fusion, so replaying it verbatim would render different chat-template
+ * bytes than the prompt the provider already evaluated for this session;
+ * re-fusing restores a byte-identical prefix even for tool-heavy transcripts.
+ * Messages are cloned so the shared API transcript is never mutated.
+ */
+function fuseConsecutiveToolResultMessages(
+	messages: readonly Message[],
+): Message[] {
+	const out: Message[] = [];
+	for (const message of messages) {
+		const previous = out[out.length - 1];
+		if (
+			message.role === "user" &&
+			Array.isArray(message.content) &&
+			message.content.length > 0 &&
+			message.content.every((block) => block.type === "tool_result") &&
+			previous?.role === "user" &&
+			Array.isArray(previous.content) &&
+			previous.content.every((block) => block.type === "tool_result")
+		) {
+			previous.content.push(...message.content);
+			continue;
+		}
+		out.push(
+			Array.isArray(message.content)
+				? { ...message, content: [...message.content] }
+				: message,
+		);
+	}
+	return out;
+}
+
+/**
  * Plan an in-place summary: replay the session transcript verbatim (plus one
  * short instruction message) instead of re-serializing it as plain text. When
  * the summarizer IS the active session model, the replayed prefix is
  * byte-identical to the prompt the provider already evaluated for this
  * session, so prompt-prefix caching (e.g. llama.cpp slots) skips the
  * full-conversation re-prefill. Every condition below must hold; any doubt
- * falls back to the serialized request path.
+ * falls back to the serialized request path — and every refusal is logged as
+ * a plain string because the VS Code OutputChannel drops structured payloads.
  */
 function resolveInPlaceSummary(options: {
 	messages: CoreCompactionContext["messages"];
@@ -88,34 +122,60 @@ function resolveInPlaceSummary(options: {
 	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
 	summarizerInputLimit: number;
+	preserveRecentTokens: number;
+	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
 }): InPlaceSummaryPlan | undefined {
 	const { systemPrompt, apiMessages } = options;
 	if (!systemPrompt || !apiMessages) {
+		options.logger?.debug(
+			`In-place summary unavailable: missing request context (systemPrompt ${systemPrompt ? "present" : "missing"}, api transcript ${apiMessages ? "present" : "missing"})`,
+		);
 		return undefined;
 	}
+	// The replayed head must render to a strict prefix of the bytes the live
+	// model request sends. prepareTurn's API transcript is derived from the
+	// canonical one; when the two are 1:1 aligned the canonical cut applies
+	// verbatim. When they are not aligned (provider message builders added or
+	// dropped messages), re-cut the API transcript itself so the slice stays a
+	// true prefix of it.
+	let cutIndex = options.cutIndex;
 	if (apiMessages.length !== options.messages.length) {
-		// The API-safe transcript is not 1:1 aligned with the canonical one,
-		// so a head slice could not be proven a stable prompt prefix.
+		cutIndex = findCutIndex(
+			apiMessages,
+			options.preserveRecentTokens,
+			options.estimateMessageTokens,
+		);
+		options.logger?.debug(
+			`In-place summary note: transcripts not 1:1 aligned (${options.messages.length} canonical / ${apiMessages.length} api) — re-cut on the API transcript (cut=${cutIndex})`,
+		);
+	}
+	if (cutIndex <= 0 || cutIndex >= apiMessages.length) {
+		options.logger?.debug(
+			`In-place summary unavailable: no valid cut on the API transcript (cut=${cutIndex}/${apiMessages.length})`,
+		);
 		return undefined;
 	}
+	const head = apiMessages.slice(0, cutIndex);
 	if (
 		!isSameModelAsActiveSession({
 			activeProviderConfig: options.activeProviderConfig,
 			summarizer: options.summarizer,
 		})
 	) {
+		options.logger?.debug(
+			"In-place summary unavailable: summarizer is not the active session model",
+		);
 		return undefined;
 	}
 	const tools = toToolDefinitions(options.tools ?? []);
-	const transcript: MessageWithMetadata[] = [
-		...apiMessages.slice(0, options.cutIndex),
+	const messages: Message[] = [
+		...fuseConsecutiveToolResultMessages(head),
 		{
 			role: "user",
 			content: buildInPlaceSummaryInstruction({ fileOps: options.fileOps }),
 		},
 	];
-	const messages = agentMessagesToMessages(messagesToAgentMessages(transcript));
 	const estimatedInputTokens = estimateRequestInputTokens({
 		systemPrompt,
 		messages,
@@ -123,14 +183,13 @@ function resolveInPlaceSummary(options: {
 	});
 	if (estimatedInputTokens > options.summarizerInputLimit) {
 		options.logger?.debug(
-			"Skipping in-place summary: transcript exceeds the summarizer input budget",
-			{
-				estimatedInputTokens,
-				summarizerInputLimit: options.summarizerInputLimit,
-			},
+			`Skipping in-place summary: transcript exceeds the summarizer input budget (${estimatedInputTokens} > ${options.summarizerInputLimit})`,
 		);
 		return undefined;
 	}
+	options.logger?.debug(
+		`In-place summary planned: cut=${cutIndex}/${apiMessages.length} estimatedInputTokens=${estimatedInputTokens}`,
+	);
 	return { systemPrompt, messages, tools, estimatedInputTokens };
 }
 
@@ -272,8 +331,15 @@ export async function runAgenticCompaction(options: {
 		activeProviderConfig: options.providerConfig,
 		summarizer: options.summarizer,
 		summarizerInputLimit,
+		preserveRecentTokens: options.preserveRecentTokens,
+		estimateMessageTokens: options.estimateMessageTokens,
 		logger: options.logger,
 	});
+	// Plain string on purpose: the VS Code OutputChannel drops structured
+	// payloads, so this is the only way to see the chosen path in logs.
+	options.logger?.debug(
+		`Agentic compaction summarizer path: ${inPlace ? "in_place" : "serialized"}`,
+	);
 	let summaryResult: Awaited<ReturnType<typeof generateSummary>>;
 	if (inPlace) {
 		summaryResult = await generateSummary({

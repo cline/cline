@@ -24,9 +24,9 @@ import {
 	createTokenEstimator,
 	DEFAULT_MAX_INPUT_TOKENS,
 	estimateTokens,
+	isSameModelAsActiveSession,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
-	isSameModelAsActiveSession,
 	resolveSummarizerConfig,
 	serializeMessage,
 	TOOL_RESULT_CHAR_LIMIT,
@@ -5194,7 +5194,7 @@ describe("agentic compaction in-place summaries", () => {
 		expect(messageText(sentMessages[0])).toContain("Conversation:");
 	});
 
-	it("falls back to the serialized request when apiMessages is not 1:1 aligned", async () => {
+	it("re-cuts the API transcript when it is not 1:1 aligned with the canonical one", async () => {
 		const createMessage = mockSummaryHandler();
 		const messages = baseTranscript();
 		const result = await runManualAgenticTurn({
@@ -5204,9 +5204,88 @@ describe("agentic compaction in-place summaries", () => {
 
 		expect(result?.messages?.length).toBeGreaterThan(0);
 		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe("You are helpful.");
+		expect(messageText(sentMessages[sentMessages.length - 1])).toContain(
+			"Summarize the conversation above this message",
+		);
+		for (const message of sentMessages) {
+			expect(messageText(message)).not.toContain("Conversation:");
+		}
+	});
+
+	it("falls back to the serialized request when the re-cut on the API transcript is invalid", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages = baseTranscript();
+		const result = await runManualAgenticTurn({
+			messages,
+			apiMessages: [{ role: "user", content: "Only one message survived" }],
+		});
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
 		const [, sentMessages] = createMessage.mock.calls[0];
 		expect(sentMessages.length).toBe(1);
 		expect(messageText(sentMessages[0])).toContain("Conversation:");
+	});
+
+	it("replays tool-heavy transcripts verbatim, fusing consecutive tool results", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "call-1", name: "read_files", input: {} },
+					{ type: "tool_use", id: "call-2", name: "run_commands", input: {} },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call-1",
+						name: "read_files",
+						content: "file contents",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call-2",
+						name: "run_commands",
+						content: "command output",
+					},
+				],
+			},
+			{ role: "assistant", content: "Done reading" },
+			{ role: "user", content: "Now implement the change" },
+			{ role: "assistant", content: "Implemented" },
+		];
+		const result = await runManualAgenticTurn({ messages });
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe("You are helpful.");
+		expect(messageText(sentMessages[sentMessages.length - 1])).toContain(
+			"Summarize the conversation above this message",
+		);
+		for (const message of sentMessages) {
+			expect(messageText(message)).not.toContain("Conversation:");
+		}
+		// Consecutive pure tool-result messages fuse into one wire message,
+		// matching the live request's merged rendering (byte-stable prefix).
+		const fused = sentMessages.find(
+			(message) =>
+				Array.isArray(message.content) &&
+				message.content.filter((block) => block.type === "tool_result")
+					.length === 2,
+		);
+		expect(fused).toBeDefined();
 	});
 
 	it("detects same-model versus external summarizers", () => {
