@@ -61,6 +61,7 @@ import {
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
+import { VoiceManager } from "@/components/voice-manager/voice-manager";
 import { WhatsNewDialog } from "@/components/whats-new-dialog";
 import {
 	WindowTitleBar,
@@ -165,6 +166,10 @@ import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
+	clearVoiceManagerActiveChat,
+	setVoiceManagerActiveChat,
+} from "@/lib/voice-manager-bridge";
+import {
 	markCurrentWhatsNewSeen,
 	markWhatsNewSeen,
 	pendingWhatsNew,
@@ -241,6 +246,14 @@ const DiffView = dynamic(
 	() =>
 		import("@/components/views/chat/diff-view").then(
 			(module) => module.DiffView,
+		),
+	{ loading: viewLoading, ssr: false },
+);
+
+const BrowserPanel = dynamic(
+	() =>
+		import("@/components/views/chat/browser-panel").then(
+			(module) => module.BrowserPanel,
 		),
 	{ loading: viewLoading, ssr: false },
 );
@@ -1444,6 +1457,17 @@ export default function Home() {
 				onOpenSession={handleOpenSessionById}
 				open={commandBarOpen && !showOnboarding}
 			/>
+			{!showOnboarding ? (
+				<VoiceManager
+					onNewThread={handleNewThread}
+					onOpenProviders={() => handleSettingsSectionChange("Providers")}
+					onOpenSession={async (sessionId, options) => {
+						await handleOpenSessionById(sessionId, options?.environmentId);
+						return undefined;
+					}}
+					sessionHistory={sessionHistory}
+				/>
+			) : null}
 			{remoteDirectoryPicker ? (
 				<RemoteDirectoryPicker
 					environmentId={remoteDirectoryPicker.id}
@@ -1603,6 +1627,18 @@ function ChatThreadPane({
 		writeWorkInToWindow(next);
 	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
+	const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
+	const toggleBrowserPanel = useCallback(
+		() => setBrowserPanelOpen((open) => !open),
+		[],
+	);
+	// The panel reads its URL when it mounts, so a new key points it at the
+	// URL the voice manager just stored.
+	const [browserPanelKey, setBrowserPanelKey] = useState(0);
+	const showBrowserPanel = useCallback(() => {
+		setBrowserPanelKey((key) => key + 1);
+		setBrowserPanelOpen(true);
+	}, []);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
@@ -2388,6 +2424,43 @@ function ChatThreadPane({
 			workIn,
 		],
 	);
+	// A fresh pane picks up its provider key a render after mounting; a prompt
+	// sent before that would go out without credentials.
+	const selectedCredentials = providerCredentials[config.provider];
+	const providerKeySynced =
+		providersLoaded &&
+		(!selectedCredentials ||
+			(config.apiKey === selectedCredentials.apiKey &&
+				config.providerAuth === selectedCredentials.auth));
+	useEffect(() => {
+		if (!providerKeySynced) return;
+		setVoiceManagerActiveChat({
+			threadId,
+			sessionId: sessionId ?? null,
+			status,
+			isHydrating: isHydratingSession,
+			// Not handleSend: that would consume the user's unsent draft and attachments.
+			send: (prompt) => {
+				onThreadStarted?.(threadId);
+				return sendPrompt(prompt, [], {
+					inNewWorktree: workIn === "worktree" && isNewThread,
+				});
+			},
+			showPreview: showBrowserPanel,
+		});
+	}, [
+		isHydratingSession,
+		isNewThread,
+		onThreadStarted,
+		providerKeySynced,
+		sendPrompt,
+		sessionId,
+		showBrowserPanel,
+		status,
+		threadId,
+		workIn,
+	]);
+	useEffect(() => () => clearVoiceManagerActiveChat(threadId), [threadId]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -3052,6 +3125,7 @@ function ChatThreadPane({
 		cloudSessionError?.code === "github_not_connected"
 			? cloudSessionError.connectUrl
 			: undefined;
+	const browserPanelVisible = !isWelcomeState && browserPanelOpen;
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -3060,7 +3134,11 @@ function ChatThreadPane({
 				className={
 					showWelcomeHero
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						: browserPanelVisible
+							? // The panel is placed explicitly in column 2 spanning both
+								// rows, so the transcript and composer auto-flow into column 1.
+								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+							: "grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
 				disabled={isCloudSessionExpired}
 				description={
@@ -3104,6 +3182,8 @@ function ChatThreadPane({
 									renamingTitle={renamingSession}
 									status={headerStatus}
 									title={threadTitle}
+									onToggleBrowser={toggleBrowserPanel}
+									browserOpen={browserPanelVisible}
 								/>
 							</div>
 						</div>
@@ -3247,6 +3327,9 @@ function ChatThreadPane({
 					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>
+				{browserPanelVisible ? (
+					<BrowserPanel key={browserPanelKey} onClose={toggleBrowserPanel} />
+				) : null}
 			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}

@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Clock3,
 	CornerUpLeft,
+	Globe,
 	Loader2,
 	MoreHorizontal,
 	Plus,
@@ -60,6 +61,8 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	onToggleBrowser?: () => void;
+	browserOpen?: boolean;
 };
 
 function AgentHeaderImpl({
@@ -83,6 +86,8 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	onToggleBrowser,
+	browserOpen = false,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -156,6 +161,20 @@ function AgentHeaderImpl({
 								<span className="text-destructive">-{deletions}</span>
 							</Button>
 						)}
+						{onToggleBrowser ? (
+							<Button
+								aria-label={browserOpen ? "Hide browser" : "Show browser"}
+								aria-pressed={browserOpen}
+								id="toggle-browser"
+								onClick={onToggleBrowser}
+								size="icon-sm"
+								title={browserOpen ? "Hide browser" : "Show browser"}
+								type="button"
+								variant="ghost"
+							>
+								<Globe className="size-4" />
+							</Button>
+						) : null}
 						{/* A child agent run leads back to its parent instead of starting a
 					    new session: "new session" is a top-level action that does not
 					    belong to a run nested inside another one. */}
