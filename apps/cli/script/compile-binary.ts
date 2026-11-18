@@ -86,8 +86,9 @@ export interface CompileCliBinaryOptions {
 	execArgv?: string[];
 	/**
 	 * Read `.env` / `bunfig.toml` from the launch directory before the CLI
-	 * starts. Bun's default; binaries launched in directories the user did not
-	 * pick (an SSH home, a GUI app's cwd) should turn this off.
+	 * starts. Off unless a caller opts in: the launch directory is whatever
+	 * project the user happens to be in, and its files must not configure the
+	 * CLI (or preload scripts into it) before any of our code runs.
 	 */
 	autoloadLaunchDirectoryConfig?: boolean;
 }
@@ -122,7 +123,7 @@ export async function compileCliBinary(
 	process.chdir(scratchRoot);
 	let result: Awaited<ReturnType<typeof Bun.build>>;
 	try {
-		const autoload = input.autoloadLaunchDirectoryConfig !== false;
+		const autoload = input.autoloadLaunchDirectoryConfig === true;
 		result = await Bun.build({
 			entrypoints: [entrypoint, parserWorker],
 			root: rootDir,

@@ -1,6 +1,13 @@
 #!/usr/bin/env bun
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { type AddressInfo, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -87,6 +94,64 @@ function findFreePort(): Promise<number> {
 	});
 }
 
+/**
+ * The binary must take no configuration from the directory it is launched in.
+ * Run it in a directory holding a `bunfig.toml` preload and a `.env` that
+ * redirects the MCP settings file, and fail the build if either is honoured.
+ */
+async function assertIgnoresLaunchDirectoryConfig(
+	binary: string,
+): Promise<void> {
+	const dir = mkdtempSync(join(tmpdir(), "cline-smoke-launch-dir-"));
+	try {
+		const home = join(dir, "home");
+		const launchDir = join(dir, "project");
+		mkdirSync(home);
+		mkdirSync(launchDir);
+		const preloadMarker = join(launchDir, "preload-ran");
+		writeFileSync(
+			join(launchDir, "bunfig.toml"),
+			'preload = ["./preload.js"]\n',
+		);
+		writeFileSync(
+			join(launchDir, "preload.js"),
+			`require("node:fs").writeFileSync(${JSON.stringify(preloadMarker)}, "");\n`,
+		);
+		const envFileServer = "launch-dir-env-file";
+		for (const name of [".env", ".env.local"]) {
+			writeFileSync(
+				join(launchDir, name),
+				"CLINE_MCP_SETTINGS_PATH=./mcp.json\n",
+			);
+		}
+		writeFileSync(
+			join(launchDir, "mcp.json"),
+			JSON.stringify({ mcpServers: { [envFileServer]: { command: "true" } } }),
+		);
+
+		const env: Record<string, string | undefined> = {
+			...process.env,
+			HOME: home,
+			USERPROFILE: home,
+			CLINE_DIR: join(home, ".cline"),
+			CLINE_DATA_DIR: join(home, "data"),
+		};
+		delete env.CLINE_MCP_SETTINGS_PATH;
+
+		const config = JSON.parse(
+			await $`${binary} config --json`.cwd(launchDir).env(env).text(),
+		) as { mcp?: { name?: string }[] };
+		if (existsSync(preloadMarker)) {
+			throw new Error("The binary ran a bunfig.toml preload from its cwd");
+		}
+		if (config.mcp?.some((server) => server.name === envFileServer)) {
+			throw new Error("The binary loaded a .env file from its cwd");
+		}
+	} finally {
+		rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
+	}
+}
+
 function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
@@ -127,6 +192,10 @@ for (const item of targets) {
 				);
 			}
 			console.log(`  Passed: ${actualVersion}`);
+
+			console.log("  Smoke test: launch-directory .env and bunfig.toml");
+			await assertIgnoresLaunchDirectoryConfig(outfile);
+			console.log("  Passed: launch-directory config ignored");
 
 			// `--version` only proves the binary launches. Bun's bundler has had
 			// compile-time regressions (chunk ordering with `splitting: true`)
