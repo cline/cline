@@ -1,7 +1,7 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Check, Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
+import { Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconButton } from "./button.js";
 
@@ -103,11 +103,7 @@ export function FileBrowserActions({
 							disabled={busy}
 							onSelect={() => void runAction("copy")}
 						>
-							{copied ? (
-								<Check aria-hidden="true" />
-							) : (
-								<Copy aria-hidden="true" />
-							)}
+							<Copy aria-hidden="true" />
 							Copy path
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
