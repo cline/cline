@@ -1,12 +1,13 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
+import { Check, Copy, EllipsisVertical, FolderOpen, Globe } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconButton } from "./button.js";
 
 const useBrowserLayoutEffect =
 	typeof document === "undefined" ? useEffect : useLayoutEffect;
+const COPIED_RESET_MS = 1500;
 
 export interface FileBrowserActionHandlers {
 	/** Reveal the file using the host's file manager or open its remote source URL. */
@@ -31,11 +32,15 @@ export function FileBrowserActions({
 	const [busy, setBusy] = useState(false);
 	const pending = useRef(false);
 	const mounted = useRef(false);
+	const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
 
 	useBrowserLayoutEffect(() => {
 		mounted.current = true;
 		return () => {
 			mounted.current = false;
+			clearTimeout(copiedTimer.current);
 		};
 	}, []);
 
@@ -44,14 +49,23 @@ export function FileBrowserActions({
 		pending.current = true;
 		setBusy(true);
 		onError(null);
-		if (action === "copy") setCopied(false);
+		if (action === "copy") {
+			clearTimeout(copiedTimer.current);
+			setCopied(false);
+		}
 		try {
 			if (action === "open") {
 				await onOpenFileLocation?.(path);
 			} else {
 				if (onCopyPath) await onCopyPath(path);
 				else await navigator.clipboard.writeText(path);
-				if (mounted.current) setCopied(true);
+				if (mounted.current) {
+					setCopied(true);
+					copiedTimer.current = setTimeout(() => {
+						setCopied(false);
+						copiedTimer.current = undefined;
+					}, COPIED_RESET_MS);
+				}
 			}
 		} catch {
 			if (mounted.current) {
@@ -101,15 +115,25 @@ export function FileBrowserActions({
 						<DropdownMenu.Item
 							className="cline-ui-file-browser__menu-item"
 							disabled={busy}
-							onSelect={() => void runAction("copy")}
+							onSelect={(event) => {
+								event.preventDefault();
+								void runAction("copy");
+							}}
 						>
-							<Copy aria-hidden="true" />
+							{copied ? (
+								<Check aria-hidden="true" />
+							) : (
+								<Copy aria-hidden="true" />
+							)}
 							Copy path
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Portal>
 			</DropdownMenu.Root>
-			<output className="cline-ui-file-browser__action-status">
+			<output
+				aria-live="polite"
+				className="cline-ui-file-browser__action-status"
+			>
 				{copied ? "Path copied." : ""}
 			</output>
 		</>

@@ -617,6 +617,11 @@ async function select(label: string) {
 }
 
 describe("FileBrowserContent actions", () => {
+	afterEach(async () => {
+		await render(null);
+		vi.useRealTimers();
+	});
+
 	it("shows by default, copies the displayed path, and allows consumers to opt out", async () => {
 		await render(<FileBrowserContent path="references/guide.md" />);
 		await openMenu();
@@ -662,18 +667,77 @@ describe("FileBrowserContent actions", () => {
 		expect(writeText).not.toHaveBeenCalled();
 	});
 
-	it("reports failures and lets the user retry", async () => {
-		writeText.mockRejectedValueOnce(new Error("Permission denied"));
+	it("keeps keyboard copy confirmation visible briefly without closing the menu", async () => {
+		await render(<FileBrowserContent path="SKILL.md" />);
+		const trigger = await openMenu();
+		const copyItem = item("Copy path");
+		vi.useFakeTimers();
+		await act(async () => copyItem.focus());
+		await pressKey(copyItem, "Enter");
+		expect(writeText).toHaveBeenCalledExactlyOnceWith("SKILL.md");
+		expect(document.querySelector('[role="menu"]')).not.toBeNull();
+		expect(document.activeElement).toBe(copyItem);
+		expect(copyItem.querySelector(".lucide-check")).not.toBeNull();
+		expect(container.textContent).toContain("Path copied.");
+		expect(
+			container.querySelector("output")?.closest('[aria-hidden="true"]'),
+		).toBeNull();
+		await act(async () => vi.advanceTimersByTimeAsync(1499));
+		expect(copyItem.querySelector(".lucide-check")).not.toBeNull();
+		await act(async () => vi.advanceTimersByTimeAsync(1));
+		expect(copyItem.querySelector(".lucide-check")).toBeNull();
+		expect(copyItem.querySelector(".lucide-copy")).not.toBeNull();
+		expect(container.textContent).not.toContain("Path copied.");
+		expect(document.querySelector('[role="menu"]')).not.toBeNull();
+		await pressKey(copyItem, "Escape");
+		await act(async () => vi.advanceTimersByTimeAsync(0));
+		expect(document.querySelector('[role="menu"]')).toBeNull();
+		expect(document.activeElement).toBe(trigger);
+	});
+
+	it("restarts the visible confirmation after another successful copy", async () => {
+		await render(<FileBrowserContent path="SKILL.md" />);
+		await openMenu();
+		vi.useFakeTimers();
+		await select("Copy path");
+		await act(async () => vi.advanceTimersByTimeAsync(1000));
+		await select("Copy path");
+		expect(writeText).toHaveBeenCalledTimes(2);
+		await act(async () => vi.advanceTimersByTimeAsync(1000));
+		expect(item("Copy path").querySelector(".lucide-check")).not.toBeNull();
+		await act(async () => vi.advanceTimersByTimeAsync(500));
+		expect(item("Copy path").querySelector(".lucide-copy")).not.toBeNull();
+		expect(container.textContent).not.toContain("Path copied.");
+	});
+
+	it("shows confirmation only after success and lets the user retry failures in place", async () => {
+		const firstCopy = deferred();
+		const retry = deferred();
+		writeText
+			.mockReturnValueOnce(firstCopy.promise)
+			.mockReturnValueOnce(retry.promise);
 		await render(<FileBrowserContent path="SKILL.md" />);
 		await openMenu();
 		await select("Copy path");
+		expect(item("Copy path").getAttribute("aria-disabled")).toBe("true");
+		expect(item("Copy path").querySelector(".lucide-check")).toBeNull();
+		await act(async () => {
+			firstCopy.reject(new Error("Permission denied"));
+			await Promise.resolve();
+		});
 		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
 			"Could not copy path.",
 		);
-		await openMenu();
+		expect(item("Copy path").querySelector(".lucide-check")).toBeNull();
 		await select("Copy path");
+		expect(item("Copy path").querySelector(".lucide-check")).toBeNull();
+		await act(async () => {
+			retry.resolve();
+			await retry.promise;
+		});
 		expect(container.querySelector('[role="alert"]')).toBeNull();
 		expect(container.textContent).toContain("Path copied.");
+		expect(item("Copy path").querySelector(".lucide-check")).not.toBeNull();
 	});
 
 	it("ignores a delayed failure from an actions menu replaced during loading", async () => {
