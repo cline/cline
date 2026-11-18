@@ -19,7 +19,6 @@ export interface RunAbortedOptions {
 }
 
 export interface RunOutputter {
-	readonly verbose: boolean;
 	welcome(message: string): void;
 	runStarted(sessionId: string): void;
 	abortRequested(reason: "sigint" | "sigterm"): void;
@@ -36,11 +35,7 @@ export interface RunOutputter {
 }
 
 export class JsonRunOutputter implements RunOutputter {
-	readonly verbose: boolean;
-
-	constructor(private readonly config: Config) {
-		this.verbose = config.verbose;
-	}
+	constructor(private readonly config: Config) {}
 
 	welcome(_message: string): void {}
 
@@ -109,7 +104,7 @@ export class JsonRunOutputter implements RunOutputter {
 }
 
 export class ConsoleRunOutputter implements RunOutputter {
-	readonly verbose: boolean;
+	private readonly verbose: boolean;
 
 	constructor(private readonly config: Config) {
 		this.verbose = config.verbose;
