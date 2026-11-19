@@ -3,11 +3,15 @@
 import { Badge, DetailList, DetailListItem } from "@cline/ui";
 import { FileText } from "lucide-react";
 import type { RuleItem } from "@/lib/extension-inventory";
+import { useExtensionInventory } from "@/lib/use-extension-inventory";
 import { CustomizationDetailPage } from "../shared/customization-detail-page";
 import { CustomizationItemDetails } from "../shared/customization-item-details";
 import { InstalledInstructionFilePreview } from "../shared/installed-instruction-file-preview";
 import { PathDetailListItem } from "../shared/path-detail-list-item";
-import type { ItemScope } from "./installed-inventory-selectors";
+import {
+	type ItemScope,
+	selectInstalledRules,
+} from "./installed-inventory-selectors";
 
 export type RuleSelection = {
 	rule: RuleItem;
@@ -15,7 +19,7 @@ export type RuleSelection = {
 };
 
 export function RuleDetailPage({
-	selection: { rule, scope },
+	selection,
 	onBack,
 	backLabel = "Manage",
 }: {
@@ -23,6 +27,13 @@ export function RuleDetailPage({
 	onBack: () => void;
 	backLabel?: string;
 }) {
+	const { inventory } = useExtensionInventory();
+	const { rule, scope } =
+		(inventory &&
+			selectInstalledRules(inventory).find(
+				({ rule }) => rule.path === selection.rule.path,
+			)) ??
+		selection;
 	return (
 		<CustomizationDetailPage
 			backLabel={backLabel}

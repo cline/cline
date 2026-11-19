@@ -10,6 +10,7 @@ import {
 	getCachedMarketplaceCatalog,
 	type MarketplaceEntry,
 } from "@/lib/marketplace";
+import { useExtensionInventory } from "@/lib/use-extension-inventory";
 import { MarketplaceEntrySetupDetails } from "../marketplace/marketplace-entry-setup";
 import { CustomizationDeleteDialog } from "../shared/customization-delete-dialog";
 import { CustomizationDescription } from "../shared/customization-description";
@@ -18,6 +19,7 @@ import { CustomizationItemDetails } from "../shared/customization-item-details";
 import { InstalledInstructionFilePreview } from "../shared/installed-instruction-file-preview";
 import { PathDetailListItem } from "../shared/path-detail-list-item";
 import type { CommandItem } from "./installed-inventory-selectors";
+import { getInstalledCommands } from "./installed-marketplace-selectors";
 
 export type WorkflowSelection = {
 	workflow: CommandItem;
@@ -25,12 +27,21 @@ export type WorkflowSelection = {
 };
 
 function WorkflowDetails({
-	selection: { workflow, entries },
+	selection,
 	onBack,
 }: {
 	selection: WorkflowSelection;
 	onBack: (options?: { uninstalled: boolean }) => void;
 }) {
+	const { inventory } = useExtensionInventory();
+	const workflow =
+		(inventory &&
+			getInstalledCommands(inventory).find(
+				(item) =>
+					item.type === "workflow" && item.path === selection.workflow.path,
+			)) ??
+		selection.workflow;
+	const { entries } = selection;
 	const tagLabels = new Map(
 		getCachedMarketplaceCatalog()?.tags.map((tag) => [tag.id, tag.label]) ?? [],
 	);
