@@ -55,12 +55,13 @@ const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo="
 
 function renderTextArea(selectedImages: string[] = []) {
 	const setSelectedImages = vi.fn()
+	const onSend = vi.fn()
 	render(
 		<ChatTextArea
 			activeQuote={null}
 			inputValue=""
 			onSelectFilesAndImages={vi.fn()}
-			onSend={vi.fn()}
+			onSend={onSend}
 			placeholderText="Type a message"
 			selectedFiles={[]}
 			selectedImages={selectedImages}
@@ -71,7 +72,7 @@ function renderTextArea(selectedImages: string[] = []) {
 			shouldDisableFilesAndImages={false}
 		/>,
 	)
-	return { textarea: screen.getByPlaceholderText("Type a message"), setSelectedImages }
+	return { textarea: screen.getByPlaceholderText("Type a message"), setSelectedImages, onSend }
 }
 
 function pasteImage(target: HTMLElement) {
@@ -147,7 +148,9 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		renderTextArea([PNG_DATA_URL, PNG_DATA_URL])
 
 		const notice = screen.getByTestId("images-unsupported-notice")
-		expect(notice).toHaveTextContent("text-only-model doesn't support images, so the 2 attached images will be ignored.")
+		expect(notice).toHaveTextContent(
+			"text-only-model doesn't support images, so the 2 attached images can't be sent with this model.",
+		)
 		expect(screen.getAllByTestId("image-unsupported-badge")).toHaveLength(2)
 
 		// A native button, so keyboard users get Enter/Space activation without extra handlers.
@@ -161,7 +164,9 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		mocks.supportsImages = false
 		renderTextArea([PNG_DATA_URL])
 
-		expect(screen.getByTestId("images-unsupported-notice")).toHaveTextContent("the attached image will be ignored")
+		expect(screen.getByTestId("images-unsupported-notice")).toHaveTextContent(
+			"the attached image can't be sent with this model",
+		)
 		expect(screen.getByTestId("images-unsupported-notice")).toHaveTextContent("or remove it.")
 	})
 
@@ -184,5 +189,34 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		renderTextArea()
 
 		expect(screen.queryByTestId("images-unsupported-notice")).not.toBeInTheDocument()
+	})
+
+	it("refuses to send while images are attached to a text-only model", () => {
+		mocks.supportsImages = false
+		const { textarea, onSend } = renderTextArea([PNG_DATA_URL])
+
+		fireEvent.click(screen.getByTestId("send-button"))
+		expect(onSend).not.toHaveBeenCalled()
+
+		fireEvent.keyDown(textarea, { key: "Enter" })
+		expect(onSend).not.toHaveBeenCalled()
+	})
+
+	it("still sends when the model supports images", () => {
+		const { textarea, onSend } = renderTextArea([PNG_DATA_URL])
+
+		fireEvent.click(screen.getByTestId("send-button"))
+		expect(onSend).toHaveBeenCalledTimes(1)
+
+		fireEvent.keyDown(textarea, { key: "Enter" })
+		expect(onSend).toHaveBeenCalledTimes(2)
+	})
+
+	it("still sends when the model's image support is unknown", () => {
+		mocks.supportsImages = undefined
+		const { onSend } = renderTextArea([PNG_DATA_URL])
+
+		fireEvent.click(screen.getByTestId("send-button"))
+		expect(onSend).toHaveBeenCalledTimes(1)
 	})
 })
