@@ -101,6 +101,21 @@ describe("Shared marketplace catalog", () => {
 		expect(mocks.fetch).toHaveBeenCalledTimes(2);
 	});
 
+	it("shares an explicit refresh even while the catalog cache is fresh", async () => {
+		mocks.fetch.mockResolvedValueOnce(Response.json(catalog()));
+		await marketplace.fetchMarketplaceCatalog();
+		const response = deferred<Response>();
+		mocks.fetch.mockReturnValue(response.promise);
+		const refresh = marketplace.fetchMarketplaceCatalog({ force: true });
+		expect(marketplace.fetchMarketplaceCatalog({ force: true })).toBe(refresh);
+		expect(marketplace.fetchMarketplaceCatalog()).toBe(refresh);
+		response.resolve(Response.json(catalog("Updated skill")));
+		const updated = await refresh;
+		expect(updated.entries[0].name).toBe("Updated skill");
+		expect(await marketplace.fetchMarketplaceCatalog()).toBe(updated);
+		expect(mocks.fetch).toHaveBeenCalledTimes(2);
+	});
+
 	it("allows retry after a failed refresh", async () => {
 		mocks.fetch.mockResolvedValueOnce(Response.json(catalog()));
 		await marketplace.fetchMarketplaceCatalog();

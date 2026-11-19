@@ -86,6 +86,7 @@ export type MarketplaceDirectory = {
 	install: (entry: MarketplaceEntry) => Promise<void>;
 	uninstall: (entry: MarketplaceEntry) => Promise<void>;
 	removeInstalledKeys: (keys: readonly string[]) => void;
+	refresh: () => Promise<void>;
 };
 
 /** Catalog, installed status, and mutations shared by Browse, Manage, and details. */
@@ -106,7 +107,16 @@ export function useMarketplaceDirectory(
 	);
 	const [installedError, setInstalledError] = useState<string | null>(null);
 	const installedRevision = useRef(0);
+	const catalogRevision = useRef(0);
+	const explicitlyRefreshed = useRef<{
+		catalog: MarketplaceCatalog;
+		signature: string | undefined;
+	} | null>(null);
 	const previousItemsSignature = useRef(installedItemsSignature);
+	const latestItemsSignature = useRef(installedItemsSignature);
+	useEffect(() => {
+		latestItemsSignature.current = installedItemsSignature;
+	}, [installedItemsSignature]);
 	const sharedActions = useContext(MarketplaceActionsContext);
 	const localActions = useMarketplaceActionState();
 	const { actionStates, setActionStates, pendingActions } =
@@ -127,48 +137,87 @@ export function useMarketplaceDirectory(
 		});
 		return () => {
 			cancelled = true;
+			catalogRevision.current += 1;
+			installedRevision.current += 1;
 			unsubscribe();
 		};
 	}, []);
 
-	useEffect(() => {
-		if (!catalog) return;
-		let cancelled = false;
-		const force = previousItemsSignature.current !== installedItemsSignature;
-		previousItemsSignature.current = installedItemsSignature;
-		const refresh = async () => {
+	const refreshInstalled = useCallback(
+		async (currentCatalog: MarketplaceCatalog, force = false) => {
 			const revision = ++installedRevision.current;
-			setInstalledLoading(!getCachedMarketplaceInstalledEntries(catalog));
+			setInstalledLoading(
+				!getCachedMarketplaceInstalledEntries(currentCatalog),
+			);
 			setInstalledError(null);
 			try {
-				const response = await fetchMarketplaceInstalledEntries(catalog, {
-					force,
-				});
-				if (!cancelled && revision === installedRevision.current) {
+				const response = await fetchMarketplaceInstalledEntries(
+					currentCatalog,
+					{
+						force,
+					},
+				);
+				if (revision === installedRevision.current) {
 					setInstalledKeys(new Set(response.installedKeys));
 				}
 			} catch (error) {
-				if (!cancelled && revision === installedRevision.current) {
+				if (revision === installedRevision.current) {
 					setInstalledError(
 						error instanceof Error ? error.message : String(error),
 					);
 				}
 			} finally {
-				if (!cancelled && revision === installedRevision.current) {
+				if (revision === installedRevision.current) {
 					setInstalledReady(true);
 					setInstalledLoading(false);
 				}
 			}
-		};
-		void refresh();
+		},
+		[],
+	);
+
+	useEffect(() => {
+		if (!catalog) return;
+		const force = previousItemsSignature.current !== installedItemsSignature;
+		previousItemsSignature.current = installedItemsSignature;
+		const refresh = () => refreshInstalled(catalog, force);
+		// The explicit refresh already checked this catalog, including failures.
+		// Rechecking here could replace its error with a still-fresh cached result.
+		const handled = explicitlyRefreshed.current;
+		if (
+			handled?.catalog !== catalog ||
+			handled.signature !== installedItemsSignature
+		) {
+			void refresh();
+		}
+		explicitlyRefreshed.current = null;
 		const unsubscribe = subscribeToExtensionInventoryInvalidation(
 			() => void refresh(),
 		);
 		return () => {
-			cancelled = true;
 			unsubscribe();
 		};
-	}, [catalog, installedItemsSignature]);
+	}, [catalog, installedItemsSignature, refreshInstalled]);
+
+	const refresh = useCallback(async () => {
+		const revision = ++catalogRevision.current;
+		setErrorMessage(null);
+		try {
+			// Shared requests coalesce refreshes from the different item categories.
+			const nextCatalog = await fetchMarketplaceCatalog({ force: true });
+			if (revision !== catalogRevision.current) return;
+			explicitlyRefreshed.current = {
+				catalog: nextCatalog,
+				signature: latestItemsSignature.current,
+			};
+			setCatalog(nextCatalog);
+			await refreshInstalled(nextCatalog, true);
+		} catch (error) {
+			if (revision !== catalogRevision.current) return;
+			setErrorMessage(error instanceof Error ? error.message : String(error));
+			setInstalledLoading(false);
+		}
+	}, [refreshInstalled]);
 
 	const tagLabels = useMemo(
 		() => new Map(catalog?.tags.map((tag) => [tag.id, tag.label]) ?? []),
@@ -240,5 +289,6 @@ export function useMarketplaceDirectory(
 		install: (entry) => mutate(entry, true),
 		uninstall: (entry) => mutate(entry, false),
 		removeInstalledKeys,
+		refresh,
 	};
 }
