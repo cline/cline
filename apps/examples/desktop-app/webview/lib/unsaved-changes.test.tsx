@@ -12,8 +12,10 @@ import {
 let root: Root;
 let container: HTMLDivElement;
 let dirty: boolean;
-let confirmLeaveFromShell: (proceed: () => void) => void;
-let confirmLeaveFromPage: (proceed: () => void) => void;
+let confirmLeaveFromShell: ReturnType<
+	typeof useUnsavedChangesRegistry
+>["confirmLeave"];
+let confirmLeaveFromPage: ReturnType<typeof useLeaveConfirmation>;
 let guard: ReturnType<typeof useUnsavedChangesGuard>;
 let dirtyEditors: boolean[] = [];
 let editorGuards: Array<ReturnType<typeof useUnsavedChangesGuard>> = [];
@@ -84,19 +86,22 @@ it("lets navigation through when nothing would be lost", () => {
 it("holds navigation from the shell or the page until the draft is discarded", async () => {
 	dirty = true;
 	const proceed = vi.fn();
-	await act(async () => confirmLeaveFromShell(proceed));
+	const onCancel = vi.fn();
+	await act(async () => confirmLeaveFromShell(proceed, onCancel));
 	expect(proceed).not.toHaveBeenCalled();
 	expect(status()).toBe("confirming");
 
 	await act(async () => guard.cancel());
 	expect(status()).toBe("idle");
 	expect(proceed).not.toHaveBeenCalled();
+	expect(onCancel).toHaveBeenCalledOnce();
 
-	await act(async () => confirmLeaveFromPage(proceed));
+	await act(async () => confirmLeaveFromPage(proceed, onCancel));
 	expect(status()).toBe("confirming");
 	await act(async () => guard.confirm());
 	expect(proceed).toHaveBeenCalledOnce();
 	expect(status()).toBe("idle");
+	expect(onCancel).toHaveBeenCalledOnce();
 });
 
 it("asks once when a confirmed leave navigates through the shell", async () => {
@@ -116,22 +121,30 @@ it("keeps one pending navigation intent while the dialog is open", async () => {
 	dirty = true;
 	const first = vi.fn();
 	const competing = vi.fn();
+	const cancelFirst = vi.fn();
+	const cancelCompeting = vi.fn();
 	await act(async () => {
-		confirmLeaveFromShell(first);
-		confirmLeaveFromShell(competing);
+		confirmLeaveFromShell(first, cancelFirst);
+		confirmLeaveFromShell(competing, cancelCompeting);
 	});
+	expect(cancelCompeting).toHaveBeenCalledOnce();
 
 	await act(async () => guard.confirm());
 	expect(first).toHaveBeenCalledOnce();
 	expect(competing).not.toHaveBeenCalled();
+	expect(cancelFirst).not.toHaveBeenCalled();
 });
 
-it("confirms every dirty editor before navigating", async () => {
+it.each([
+	"confirm",
+	"cancel",
+] as const)("waits for every dirty editor before navigating (%s)", async (decision) => {
 	dirtyEditors = [true, true];
 	await act(async () => root.render(<MultipleEditorsShell />));
 	const proceed = vi.fn();
+	const onCancel = vi.fn();
 
-	await act(async () => confirmLeaveFromShell(proceed));
+	await act(async () => confirmLeaveFromShell(proceed, onCancel));
 	expect(editorGuards[0].isConfirming).toBe(true);
 	expect(editorGuards[1].isConfirming).toBe(false);
 
@@ -139,14 +152,34 @@ it("confirms every dirty editor before navigating", async () => {
 	expect(proceed).not.toHaveBeenCalled();
 	expect(editorGuards[1].isConfirming).toBe(true);
 
-	await act(async () => editorGuards[1].confirm());
-	expect(proceed).toHaveBeenCalledOnce();
+	await act(async () => editorGuards[1][decision]());
+	expect(proceed).toHaveBeenCalledTimes(decision === "confirm" ? 1 : 0);
+	expect(onCancel).toHaveBeenCalledTimes(decision === "cancel" ? 1 : 0);
 });
 
-it("stops guarding once the editor is gone", async () => {
+it("cancels a pending navigation when its editor disappears", async () => {
 	dirty = true;
+	const pending = vi.fn();
+	const onCancel = vi.fn();
+	await act(async () => confirmLeaveFromShell(pending, onCancel));
 	await act(async () => root.render(<Shell editing={false} />));
+	expect(pending).not.toHaveBeenCalled();
+	expect(onCancel).toHaveBeenCalledOnce();
 	const proceed = vi.fn();
 	confirmLeaveFromShell(proceed);
 	expect(proceed).toHaveBeenCalledOnce();
+});
+
+it("does not cancel a confirmed navigation when it removes the editor", async () => {
+	dirty = true;
+	const onCancel = vi.fn();
+	await act(async () =>
+		confirmLeaveFromShell(
+			() => root.render(<Shell editing={false} />),
+			onCancel,
+		),
+	);
+	await act(async () => guard.confirm());
+	expect(container.querySelector("output")).toBeNull();
+	expect(onCancel).not.toHaveBeenCalled();
 });

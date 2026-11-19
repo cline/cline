@@ -230,14 +230,12 @@ export function ConnectorActionButton({
 
 export function ComposioConnectorsView({
 	variant = "catalog",
-	onChanged,
 	searchQuery,
 	onCatalogCountChange,
 	renderItem,
 	appendOnScroll = false,
 }: {
 	variant?: "catalog" | "installed";
-	onChanged?: () => void;
 	appendOnScroll?: boolean;
 	/** Use the host page search instead of rendering a separate search field. */
 	searchQuery?: string;
@@ -261,7 +259,7 @@ export function ComposioConnectorsView({
 		connect,
 		cancelConnect,
 		disconnect,
-	} = useComposioConnections({ onChanged });
+	} = useComposioConnections();
 
 	const [catalog, setCatalog] = useState<ComposioCatalogToolkit[] | null>(null);
 	const [catalogError, setCatalogError] = useState<string | null>(null);

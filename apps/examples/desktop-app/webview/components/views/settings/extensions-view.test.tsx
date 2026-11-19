@@ -8,14 +8,33 @@ import {
 	invalidateExtensionInventoryCache,
 } from "./extensions-view";
 
-const { fetchMarketplaceCatalog, invoke } = vi.hoisted(() => ({
-	fetchMarketplaceCatalog: vi.fn(),
-	invoke: vi.fn(),
-}));
+const { connectorChanges, fetchMarketplaceCatalog, invoke, subscribers } =
+	vi.hoisted(() => ({
+		connectorChanges: new Set<() => void>(),
+		fetchMarketplaceCatalog: vi.fn(),
+		invoke: vi.fn(),
+		subscribers: new Map<string, () => void>(),
+	}));
 
 vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+	desktopClient: {
+		invoke,
+		subscribe: (eventName: string, callback: () => void) => {
+			subscribers.set(eventName, callback);
+			return () => {
+				if (subscribers.get(eventName) === callback) {
+					subscribers.delete(eventName);
+				}
+			};
+		},
+	},
 	openExternalUrl: vi.fn(),
+}));
+vi.mock("@/lib/composio", () => ({
+	subscribeComposioInventoryChanges: (callback: () => void) => {
+		connectorChanges.add(callback);
+		return () => connectorChanges.delete(callback);
+	},
 }));
 
 vi.mock("@/lib/marketplace", async (importOriginal) => ({
@@ -81,7 +100,14 @@ beforeEach(() => {
 				skills: [AGENT_PLUGIN_SKILL],
 				agents: [],
 				plugins: [AGENT_PLUGIN],
-				tools: [],
+				tools: [
+					{
+						id: "read_file",
+						name: "read_file",
+						source: "builtin",
+						enabled: true,
+					},
+				],
 				hooks: [],
 				mcp: { servers: [] },
 				warnings: [],
@@ -146,6 +172,87 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 		expect(details?.open).toBe(false);
 	});
 
+	it("serializes full-inventory mutations so older replies cannot undo newer toggles", async () => {
+		const secondPlugin = {
+			...AGENT_PLUGIN,
+			id: "agent-plugin:/Users/test/.agents/plugins/second",
+			name: "agent-plugins-second",
+			path: "/Users/test/.agents/plugins/second",
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") {
+				return {
+					workspaceRoot: "/workspace",
+					plugins: [AGENT_PLUGIN, secondPlugin],
+				};
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		await act(async () => {
+			root.render(
+				<CustomizationSectionView
+					catalogPrimitive="plugin"
+					chrome="embedded"
+					marketplaceVariant="installed"
+					section="Plugins"
+				/>,
+			);
+		});
+		const firstToggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Toggle agent-plugins-example"]',
+		);
+		const secondToggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Toggle agent-plugins-second"]',
+		);
+		let resolveFirst!: (response: unknown) => void;
+		let resolveSecond!: (response: unknown) => void;
+		const first = new Promise((resolve) => {
+			resolveFirst = resolve;
+		});
+		const second = new Promise((resolve) => {
+			resolveSecond = resolve;
+		});
+		invoke.mockReset();
+		invoke.mockReturnValueOnce(first).mockReturnValueOnce(second);
+
+		await act(async () => {
+			firstToggle?.click();
+			secondToggle?.click();
+			await Promise.resolve();
+		});
+		expect(invoke).toHaveBeenCalledExactlyOnceWith("set_plugin_disabled", {
+			path: AGENT_PLUGIN.path,
+			disabled: true,
+		});
+		await act(async () =>
+			resolveFirst({
+				workspaceRoot: "/workspace",
+				plugins: [
+					{ ...AGENT_PLUGIN, enabled: false },
+					{ ...secondPlugin, enabled: true },
+				],
+			}),
+		);
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(invoke).toHaveBeenLastCalledWith("set_plugin_disabled", {
+			path: secondPlugin.path,
+			disabled: true,
+		});
+		await act(async () =>
+			resolveSecond({
+				workspaceRoot: "/workspace",
+				plugins: [
+					{ ...AGENT_PLUGIN, enabled: false },
+					{ ...secondPlugin, enabled: false },
+				],
+			}),
+		);
+		expect(firstToggle?.checked).toBe(false);
+		expect(secondToggle?.checked).toBe(false);
+	});
+
 	it("shows Hub-managed Agent Plugins in the installed Plugins view", async () => {
 		await act(async () => {
 			root.render(
@@ -180,6 +287,45 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 			expect(container.textContent).toContain("example-skill");
 			expect(container.textContent).toContain("Agent Plugin");
 		});
+	});
+
+	it("invalidates cached inventory after connector and account changes while unmounted", async () => {
+		const renderPlugins = async () => {
+			await act(async () => {
+				root.render(
+					<CustomizationSectionView
+						catalogPrimitive="plugin"
+						chrome="embedded"
+						marketplaceVariant="installed"
+						section="Plugins"
+					/>,
+				);
+			});
+		};
+		const inventoryReads = () =>
+			invoke.mock.calls.filter(
+				([command]) => command === "list_user_instruction_configs",
+			).length;
+
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(1));
+		expect(subscribers.has("settings.changed")).toBe(true);
+		expect(subscribers.has("cloud_sessions_changed")).toBe(true);
+		expect(connectorChanges.size).toBe(1);
+
+		await act(async () => root.unmount());
+		act(() => {
+			for (const callback of connectorChanges) callback();
+		});
+		root = createRoot(container);
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(2));
+
+		await act(async () => root.unmount());
+		act(() => subscribers.get("cloud_sessions_changed")?.());
+		root = createRoot(container);
+		await renderPlugins();
+		await vi.waitFor(() => expect(inventoryReads()).toBe(3));
 	});
 });
 
@@ -282,11 +428,14 @@ describe("tool state controls", () => {
 		await act(async () => {
 			root.render(<CustomizationSectionView section="Tools" />);
 		});
-		await act(async () => {
-			container
-				.querySelector<HTMLInputElement>('[aria-label="Toggle web_search"]')
-				?.click();
+		const toggle = await vi.waitFor(() => {
+			const element = container.querySelector<HTMLInputElement>(
+				'[aria-label="Toggle web_search"]',
+			);
+			expect(element).not.toBeNull();
+			return element;
 		});
+		await act(async () => toggle?.click());
 		expect(enabled).toBe(!initialEnabled);
 		expect(invoke).toHaveBeenCalledWith("set_tool_disabled", {
 			names: ["web_search", "web_search"],

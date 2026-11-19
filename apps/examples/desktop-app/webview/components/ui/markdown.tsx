@@ -1,4 +1,4 @@
-import { agentComposerTokenClassName } from "@cline/ui";
+import { AlertDialog, agentComposerTokenClassName } from "@cline/ui";
 import {
 	agentMarkdownControls,
 	DIAGRAM_LINK_HREF_ATTRIBUTE,
@@ -16,23 +16,15 @@ import type {
 import { isValidElement, memo, useMemo, useRef, useState } from "react";
 import {
 	type Components,
+	defaultRehypePlugins,
 	defaultRemarkPlugins,
+	defaultUrlTransform,
 	type ExtraProps,
 	type LinkSafetyModalProps,
 	Streamdown,
 } from "streamdown";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "./alert-dialog";
 import { CHIP_TOKEN_TAG, remarkChipTokens } from "./markdown-chip-tokens";
 
 /**
@@ -62,27 +54,48 @@ export function MarkdownLinkSafetyModal({
 				if (!open) onClose();
 			}}
 			open={isOpen}
+			title="Open external link?"
+			description="You are about to leave Cline and visit this address."
+			confirmLabel="Open link"
+			onConfirm={onConfirm}
 		>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Open external link?</AlertDialogTitle>
-					<AlertDialogDescription>
-						You are about to leave Cline and visit this address.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				<div className="max-h-32 overflow-y-auto wrap-break-word rounded-md bg-muted p-3 font-mono text-sm">
-					{url}
-				</div>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction onClick={onConfirm}>Open link</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
+			<div className="max-h-32 overflow-y-auto wrap-break-word rounded-md bg-muted p-3 font-mono text-sm">
+				{url}
+			</div>
 		</AlertDialog>
 	);
 }
 
 type MarkdownLinkProps = ComponentProps<"a"> & ExtraProps;
+
+type MarkdownTreeNode = {
+	type: string;
+	tagName?: string;
+	properties?: Record<string, unknown>;
+	data?: Record<string, unknown>;
+	children?: MarkdownTreeNode[];
+};
+
+/** Keep document-relative references as inert text until their owner resolves them. */
+function preserveLocalLinks() {
+	return (tree: MarkdownTreeNode) => {
+		const visit = (node: MarkdownTreeNode) => {
+			const href = node.properties?.href;
+			if (
+				node.tagName === "a" &&
+				typeof href === "string" &&
+				href.trim() &&
+				!/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href.trim())
+			) {
+				node.tagName = "span";
+				node.data = { ...node.data, clineLocalHref: href.trim() };
+				node.properties = { title: node.properties?.title };
+			}
+			for (const child of node.children ?? []) visit(child);
+		};
+		visit(tree);
+	};
+}
 
 function extractLinkText(children: ReactNode): string {
 	if (typeof children === "string" || typeof children === "number") {
@@ -386,6 +399,8 @@ export const MemoizedMarkdown = memo(
 	({
 		content,
 		classNames,
+		linkBaseUrl,
+		resolveLocalLink,
 		streaming = false,
 		chipTokens,
 	}: {
@@ -394,14 +409,89 @@ export const MemoizedMarkdown = memo(
 		classNames?: string;
 		/** Exact `/command` and `@path` tokens to render as composer chips. */
 		chipTokens?: ReadonlySet<string>;
+		/** Resolve repository-document links without navigating the app webview. */
+		linkBaseUrl?: string;
+		/** Resolve local document references to an action; unavailable files stay inert. */
+		resolveLocalLink?: (href: string) => (() => void) | undefined;
 	}) => {
+		const rehypePlugins = useMemo<
+			ComponentProps<typeof Streamdown>["rehypePlugins"]
+		>(() => {
+			if (!linkBaseUrl && !resolveLocalLink) return undefined;
+			const plugins: NonNullable<
+				ComponentProps<typeof Streamdown>["rehypePlugins"]
+			> = [];
+			for (const [name, plugin] of Object.entries(defaultRehypePlugins)) {
+				// Streamdown only extends allowedTags for its default plugin list.
+				// Preserve chip tokens when document links need a custom list too.
+				if (name === "sanitize" && chipTokens?.size && Array.isArray(plugin)) {
+					plugins.push([
+						plugin[0],
+						{
+							...plugin[1],
+							tagNames: [...(plugin[1]?.tagNames ?? []), CHIP_TOKEN_TAG],
+							attributes: { ...plugin[1]?.attributes, ...chipTokenAllowedTags },
+						},
+					]);
+					continue;
+				}
+				if (name === "harden" && resolveLocalLink)
+					plugins.push(preserveLocalLinks);
+				plugins.push(
+					name === "harden" && linkBaseUrl && Array.isArray(plugin)
+						? [plugin[0], { ...plugin[1], defaultOrigin: linkBaseUrl }]
+						: plugin,
+				);
+			}
+			return plugins;
+		}, [chipTokens, linkBaseUrl, resolveLocalLink]);
+		const components = useMemo<Components>(
+			() =>
+				resolveLocalLink
+					? {
+							...(chipTokens?.size ? chipTokenComponents : markdownComponents),
+							span: ({ children, node, ...props }) => {
+								const data = node?.data;
+								const href =
+									data && "clineLocalHref" in data
+										? data.clineLocalHref
+										: undefined;
+								if (typeof href !== "string")
+									return <span {...props}>{children}</span>;
+								const onOpen = resolveLocalLink(href);
+								return onOpen ? (
+									<button
+										className="wrap-anywhere cursor-pointer font-medium text-primary underline"
+										onClick={onOpen}
+										title={props.title}
+										type="button"
+									>
+										{children}
+									</button>
+								) : (
+									<span
+										className="text-muted-foreground"
+										title={props.title ?? "File unavailable"}
+									>
+										{children}
+									</span>
+								);
+							},
+						}
+					: chipTokens?.size
+						? chipTokenComponents
+						: markdownComponents,
+			[chipTokens, resolveLocalLink],
+		);
 		const {
 			captureDiagramLink,
 			pendingUrl,
 			recordDiagramLinkPress,
 			setPendingUrl,
 		} = useDiagramLinkTarget();
-		const remarkPlugins = useMemo(
+		const remarkPlugins = useMemo<
+			ComponentProps<typeof Streamdown>["remarkPlugins"]
+		>(
 			() =>
 				chipTokens?.size
 					? [
@@ -425,7 +515,7 @@ export const MemoizedMarkdown = memo(
 				<Streamdown
 					allowedTags={remarkPlugins ? chipTokenAllowedTags : undefined}
 					className={cn("cline-markdown", classNames)}
-					components={remarkPlugins ? chipTokenComponents : markdownComponents}
+					components={components}
 					controls={agentMarkdownControls}
 					dir="auto"
 					isAnimating={streaming}
@@ -435,6 +525,22 @@ export const MemoizedMarkdown = memo(
 					parseIncompleteMarkdown={streaming}
 					plugins={streamdownPlugins}
 					remarkPlugins={remarkPlugins}
+					rehypePlugins={rehypePlugins}
+					urlTransform={
+						linkBaseUrl
+							? (url, key, node) => {
+									const safeUrl = defaultUrlTransform(url, key, node);
+									if (!safeUrl) return safeUrl;
+									try {
+										// Images remain blocked by MarkdownImage, including relative
+										// repository images that would otherwise look app-local.
+										return new URL(safeUrl, linkBaseUrl).href;
+									} catch {
+										return undefined;
+									}
+								}
+							: undefined
+					}
 				>
 					{content}
 				</Streamdown>

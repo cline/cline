@@ -13,7 +13,7 @@ import {
 
 type LeaveGuard = {
 	hasChanges: () => boolean;
-	requestLeave: (proceed: () => void) => void;
+	requestLeave: (proceed: () => void, onCancel?: () => void) => void;
 };
 
 /** The editors that currently have something to lose, wherever they render. */
@@ -26,14 +26,15 @@ const UnsavedChangesContext = createContext<UnsavedChangesRegistry | null>(
 function confirmWith(
 	registry: UnsavedChangesRegistry,
 	proceed: () => void,
+	onCancel?: () => void,
 	confirmed = new Set<LeaveGuard>(),
 ) {
 	for (const guard of registry) {
 		if (!confirmed.has(guard) && guard.hasChanges()) {
 			guard.requestLeave(() => {
 				confirmed.add(guard);
-				confirmWith(registry, proceed, confirmed);
-			});
+				confirmWith(registry, proceed, onCancel, confirmed);
+			}, onCancel);
 			return;
 		}
 	}
@@ -47,7 +48,8 @@ function confirmWith(
 export function useUnsavedChangesRegistry() {
 	const registry = useMemo<UnsavedChangesRegistry>(() => new Set(), []);
 	const confirmLeave = useCallback(
-		(proceed: () => void) => confirmWith(registry, proceed),
+		(proceed: () => void, onCancel?: () => void) =>
+			confirmWith(registry, proceed, onCancel),
 		[registry],
 	);
 	return { registry, confirmLeave };
@@ -68,11 +70,11 @@ export function UnsavedChangesProvider({
 }
 
 /** Run a navigation that leaves the current page, asking first when a draft would be lost. */
-export function useLeaveConfirmation(): (proceed: () => void) => void {
+export function useLeaveConfirmation(): LeaveGuard["requestLeave"] {
 	const registry = useContext(UnsavedChangesContext);
 	return useCallback(
-		(proceed: () => void) => {
-			if (registry) confirmWith(registry, proceed);
+		(proceed: () => void, onCancel?: () => void) => {
+			if (registry) confirmWith(registry, proceed, onCancel);
 			else proceed();
 		},
 		[registry],
@@ -89,9 +91,12 @@ export function useUnsavedChangesGuard(hasChanges: () => boolean) {
 	hasChangesRef.current = hasChanges;
 	// Set while a confirmed leave runs, so nested checks do not ask twice.
 	const leaving = useRef(false);
-	// One confirmation represents one navigation intent. Ignore repeated Back
-	// presses or competing destinations while its dialog is already open.
-	const pendingLeave = useRef<(() => void) | null>(null);
+	// One confirmation represents one navigation intent. Cancel competing
+	// requests so async callers can settle while the first dialog stays open.
+	const pendingLeave = useRef<{
+		proceed: () => void;
+		onCancel?: () => void;
+	} | null>(null);
 	const [isConfirming, setIsConfirming] = useState(false);
 
 	const leave = useCallback((proceed: () => void) => {
@@ -103,37 +108,44 @@ export function useUnsavedChangesGuard(hasChanges: () => boolean) {
 		}
 	}, []);
 	const requestLeave = useCallback(
-		(proceed: () => void) => {
-			if (pendingLeave.current) return;
+		(proceed: () => void, onCancel?: () => void) => {
+			if (pendingLeave.current) {
+				onCancel?.();
+				return;
+			}
 			if (leaving.current || !hasChangesRef.current()) {
 				leave(proceed);
 				return;
 			}
-			pendingLeave.current = proceed;
+			pendingLeave.current = { proceed, onCancel };
 			setIsConfirming(true);
 		},
 		[leave],
 	);
 	const confirm = useCallback(() => {
-		const proceed = pendingLeave.current;
+		const pending = pendingLeave.current;
 		pendingLeave.current = null;
 		setIsConfirming(false);
-		if (proceed) leave(proceed);
+		if (pending) leave(pending.proceed);
 	}, [leave]);
 	const cancel = useCallback(() => {
+		const pending = pendingLeave.current;
 		pendingLeave.current = null;
 		setIsConfirming(false);
+		pending?.onCancel?.();
 	}, []);
 
 	useEffect(() => {
-		if (!registry) return;
 		const guard: LeaveGuard = {
 			hasChanges: () => !leaving.current && hasChangesRef.current(),
 			requestLeave,
 		};
-		registry.add(guard);
+		registry?.add(guard);
 		return () => {
-			registry.delete(guard);
+			registry?.delete(guard);
+			const pending = pendingLeave.current;
+			pendingLeave.current = null;
+			pending?.onCancel?.();
 		};
 	}, [registry, requestLeave]);
 

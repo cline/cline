@@ -1,4 +1,5 @@
 import type { ComposioToolkitSlug } from "./composio-types";
+import type { HubTheme } from "./theme";
 
 /**
  * Suggested connector combinations shown on Customize > Connectors. A recipe
@@ -68,8 +69,23 @@ export const COMPOSIO_RECIPES: ComposioRecipe[] = [
 	},
 ];
 
-/** Composio serves toolkit logos by slug; used when the status payload has
- * no logo for a connector that is not connected yet. */
-export function composioLogoUrl(slug: ComposioToolkitSlug): string {
-	return `https://logos.composio.dev/api/${slug}`;
+/** Theme Composio CDN logos while preserving externally hosted catalog assets. */
+export function composioLogoUrl(
+	slug: ComposioToolkitSlug,
+	theme: HubTheme = "light",
+	logo?: string,
+): string {
+	const src = logo || `https://logos.composio.dev/api/${slug}`;
+	try {
+		const url = new URL(src);
+		if (url.origin !== "https://logos.composio.dev") return src;
+		if (theme === "dark") {
+			url.searchParams.set("theme", "dark");
+		} else {
+			url.searchParams.delete("theme");
+		}
+		return url.toString();
+	} catch {
+		return src;
+	}
 }
