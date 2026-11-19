@@ -463,6 +463,8 @@ describe("LocalRuntimeHost", () => {
 						ulid: "with-apps",
 						tool: "weather__refresh_view",
 						success: true,
+						// The session config omits a mode, which runs as act.
+						mode: "act",
 					}),
 				},
 				{
