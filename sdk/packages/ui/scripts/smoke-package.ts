@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	Button, IconButton, Badge,
+	AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading,
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
@@ -83,12 +84,15 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
-for (const control of [Button, IconButton, Badge]) {
+for (const control of [Button, IconButton, Badge, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading]) {
  if (!control) throw new Error("packed shared control export is missing");
 }
 const componentStyles = readFileSync(new URL("./components.css", packageJsonUrl), "utf8");
-if (!existsSync(fileURLToPath(new URL("./components/button.css", packageJsonUrl))) || !componentStyles.includes("./components/button.css")) {
- throw new Error("packed button stylesheet is missing");
+for (const name of ["button", "banner", "detail-list", "detail-list-item", "dialog", "empty-state", "item-card", "section-heading"]) {
+ const path = "./components/" + name + ".css";
+ if (!existsSync(fileURLToPath(new URL(path, packageJsonUrl))) || !componentStyles.includes(path)) {
+  throw new Error("packed component stylesheet is missing: " + name);
+ }
 }
 
 for (const name of ["agent-changes", "agent-pull-request-bar", "agent-ux-verification"]) {
@@ -232,13 +236,13 @@ function createConsumer(
 	);
 }
 
-async function verifyDiffDeclarations(root: string): Promise<void> {
+async function verifyDeclarations(root: string): Promise<void> {
 	const consumer = join(root, "tool-diff-consumer.ts");
 	writeFileSync(
 		consumer,
 		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { createElement, createRef, type ComponentProps } from "react";
-import { Badge, Button, IconButton, Switch, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
+import { Badge, Button, IconButton, Switch, AlertDialog, Banner, DetailList, DetailListItem, Dialog, EmptyState, ItemCard, SectionHeading, type BadgeProps, type InteractiveBadgeProps } from "@cline/ui";
 interface LegacyBadgeWrapperProps extends BadgeProps { hint?: string }
 const spanProps: LegacyBadgeWrapperProps = { title: "Status", onClick(event) { event.currentTarget.dataset.clicked = "true"; } };
 const buttonBadge: InteractiveBadgeProps = { interactive: true, onClick(event) { event.currentTarget.disabled = true; } };
@@ -247,6 +251,13 @@ createElement(Badge, { ...buttonBadge, ref: createRef<HTMLButtonElement>() });
 createElement(Button, { variant: "fill", asChild: true });
 createElement(IconButton, { "aria-label": "Close", variant: "surface", children: "X" });
 createElement(Switch, { tone: "neutral", ref: createRef<HTMLInputElement>() });
+createElement(AlertDialog, { open: false, onOpenChange() {}, title: "Confirm", description: "Continue?", confirmLabel: "Continue", onConfirm() {} });
+createElement(Banner, { title: "Update", tone: "info", actions: [{ id: "reload", label: "Reload", onClick() {} }], ref: createRef<HTMLDivElement>() });
+createElement(DetailList, { ref: createRef<HTMLDListElement>() }, createElement(DetailListItem, { title: "Path", description: "/project" }));
+createElement(Dialog, { open: false, onOpenChange() {}, title: "Details" });
+createElement(EmptyState, { title: "No files", description: "Add a file." });
+createElement(ItemCard, { title: "Skill", description: "A reusable skill" });
+createElement(SectionHeading, { title: "Skills", count: 2 });
 const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
 	diffStyle: "split",
 };
@@ -437,7 +448,7 @@ try {
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
-	await verifyDiffDeclarations(bunConsumer);
+	await verifyDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
@@ -468,7 +479,7 @@ try {
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
-	await verifyDiffDeclarations(npmConsumer);
+	await verifyDeclarations(npmConsumer);
 	await verifyTailwindContract(npmConsumer, [
 		"npx",
 		"--no-install",

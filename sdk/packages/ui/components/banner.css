@@ -1,0 +1,179 @@
+@layer components {
+	.cline-ui-banner {
+		--cline-ui-banner-padding-inline: 1rem;
+		display: flex;
+		box-sizing: border-box;
+		width: 100%;
+		min-width: 0;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 0.75rem;
+		padding: 0.75rem var(--cline-ui-banner-padding-inline);
+		/* Draw the border without changing the banner's dimensions. */
+		box-shadow: 0 0 0 1px var(--info-border);
+		border-radius: var(--radius-md);
+		background: var(--info-surface);
+		color: var(--info-11);
+		font-size: var(--text-sm);
+		font-weight: var(--font-weight-normal);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	.cline-ui-banner[data-tone="neutral"] {
+		background: var(--muted);
+		box-shadow: 0 0 0 1px var(--border);
+		color: var(--foreground);
+	}
+
+	.cline-ui-banner[data-tone="success"] {
+		background: var(--success-surface);
+		box-shadow: 0 0 0 1px var(--success-border);
+		color: var(--success-11);
+	}
+
+	.cline-ui-banner[data-tone="warning"] {
+		background: var(--warning-surface);
+		box-shadow: 0 0 0 1px var(--warning-border);
+		color: var(--warning-11);
+	}
+
+	.cline-ui-banner[data-tone="error"] {
+		background: var(--error-surface);
+		box-shadow: 0 0 0 1px var(--error-border);
+		color: var(--error-11);
+	}
+
+	.cline-ui-banner__body {
+		display: flex;
+		min-width: 0;
+		flex: 1 1 18rem;
+		align-items: flex-start;
+		gap: 1rem;
+	}
+
+	.cline-ui-banner__icon {
+		display: flex;
+		min-height: 1lh;
+		flex: 0 0 auto;
+		align-items: center;
+	}
+
+	.cline-ui-banner__icon > svg {
+		width: 1.15em;
+		height: 1.15em;
+	}
+
+	.cline-ui-banner__content {
+		min-width: 0;
+		flex: 1;
+		overflow-wrap: anywhere;
+	}
+
+	.cline-ui-banner__title {
+		font-size: var(--text-md);
+		line-height: var(--text-md--line-height);
+		letter-spacing: var(--text-md--letter-spacing);
+		font-weight: var(--font-weight-medium);
+	}
+
+	.cline-ui-banner__title + .cline-ui-banner__description {
+		margin-top: 0.125rem;
+	}
+
+	.cline-ui-banner__actions {
+		display: flex;
+		min-width: 0;
+		max-width: 100%;
+		flex: 0 1 auto;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin-inline-start: auto;
+		overflow-wrap: anywhere;
+	}
+
+	.cline-ui-banner__actions > * {
+		min-width: 0;
+		max-width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	.cline-ui-banner__actions > .cline-ui-button {
+		height: auto;
+		min-height: calc(var(--spacing, 0.25rem) * 9);
+		padding-block: calc(var(--spacing, 0.25rem) * 1.5);
+	}
+	.cline-ui-banner[data-size="sm"] .cline-ui-banner__action {
+		min-height: calc(var(--spacing, 0.25rem) * 8);
+	}
+
+	/* Match notice controls to its tone while preserving destructive actions. */
+	.cline-ui-banner .cline-ui-banner__action.cline-ui-button-neutral,
+	.cline-ui-banner .cline-ui-banner__dismiss.cline-ui-button-neutral {
+		color: inherit;
+	}
+
+	@media (hover: hover) {
+		.cline-ui-banner .cline-ui-banner__action.cline-ui-button-neutral:hover,
+		.cline-ui-banner .cline-ui-banner__dismiss.cline-ui-button-neutral:hover {
+			background-color: color-mix(in srgb, currentColor 6%, transparent);
+			color: inherit;
+		}
+	}
+
+	.cline-ui-banner__dismiss {
+		position: absolute;
+		inset-block-start: 0.5rem;
+		inset-inline-end: 0.5rem;
+	}
+
+	.cline-ui-banner[data-size="sm"] {
+		--cline-ui-banner-padding-inline: 0.85rem;
+		font-size: var(--text-xs);
+		line-height: var(--text-xs--line-height);
+		letter-spacing: var(--text-xs--letter-spacing);
+	}
+
+	.cline-ui-banner[data-size="sm"] .cline-ui-banner__body {
+		gap: 0.75rem;
+	}
+
+	.cline-ui-banner[data-size="sm"] .cline-ui-banner__title {
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+	}
+
+	/* Reserve space for dismissal on the first row. */
+	.cline-ui-banner[data-dismissible="true"] {
+		--cline-ui-banner-dismiss-padding: 2.5rem;
+		position: relative;
+		min-height: 3rem;
+		padding-inline-end: var(--cline-ui-banner-dismiss-padding);
+	}
+
+	.cline-ui-banner[data-dismissible="true"][data-size="sm"] {
+		min-height: 2.75rem;
+	}
+
+	/* Move wrapped actions to the normal inset without changing when they wrap. */
+	.cline-ui-banner[data-dismissible="true"]
+	> .cline-ui-banner__actions[data-wrapped="true"] {
+		position: relative;
+		inset-inline-end: calc(
+			var(--cline-ui-banner-padding-inline) -
+			var(--cline-ui-banner-dismiss-padding)
+		);
+	}
+	@media (forced-colors: active) {
+		.cline-ui-banner {
+			outline: 1px solid CanvasText;
+		}
+	}
+}
+
+.cline-ui-banner[hidden]:not([hidden="until-found"]) {
+	display: none;
+}
