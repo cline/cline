@@ -431,7 +431,11 @@ function runStatusMutation<T>(
 				mutation.revision === statusRevision
 			) {
 				commitStatus(readStatus(result), { mutation: true });
-			} else if (mutation.generation !== availabilityGeneration) {
+			} else {
+				// Requests from different consumers can finish out of order. An older
+				// request may have applied its change last, so neither snapshot alone
+				// is authoritative. Reconcile after newer work finishes, including
+				// when navigation replaced the initiating consumer's action queue.
 				void refreshStatusAfterMutations().catch(() => {});
 			}
 			return result;

@@ -275,6 +275,37 @@ describe("connector connection state across navigation", () => {
 		);
 	});
 
+	it("reconciles a disconnect that completes after another consumer's mutation", async () => {
+		const disconnect = deferred<ComposioStatusResponse>();
+		const githubConnect = deferred<{ status: ComposioStatusResponse }>();
+		const finalStatus = status("not_connected");
+		mocks.invoke
+			.mockResolvedValueOnce(status())
+			.mockReturnValueOnce(disconnect.promise)
+			.mockReturnValueOnce(githubConnect.promise)
+			.mockResolvedValueOnce(finalStatus);
+		await act(async () => root.render(<Probe key="manage" />));
+		await act(async () => container.querySelectorAll("button")[1]?.click());
+		// Navigation replaces the initiating hook and its local action queue.
+		await act(async () => root.render(<Probe key="browse" />));
+		await act(async () => {
+			[...container.querySelectorAll("button")]
+				.find((button) => button.textContent === "Connect GitHub")
+				?.click();
+		});
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
+		await act(async () => githubConnect.resolve({ status: status() }));
+		expect(container.querySelector("output")?.textContent).toBe("connected");
+		await act(async () => disconnect.resolve(finalStatus));
+		expect(mocks.invoke).toHaveBeenLastCalledWith("composio_integrations", {
+			operation: "status",
+			refresh: true,
+		});
+		expect(container.querySelector("output")?.textContent).toBe(
+			"not_connected",
+		);
+	});
+
 	it("reloads mounted consumers after account invalidation without restoring old account data", async () => {
 		mocks.invoke.mockResolvedValueOnce(status());
 		await act(async () => root.render(<Probe />));

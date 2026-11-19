@@ -338,6 +338,85 @@ describe("shared connector data cache", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(5);
 	});
 
+	it.each([
+		"older-first",
+		"newer-first",
+	])("reconciles overlapping mutations completed %s without serializing requests", async (completionOrder) => {
+		const api = await import("./composio");
+		const both = (
+			gmail: "connected" | "not_connected",
+			github: "connected" | "not_connected",
+		) => ({
+			configured: true,
+			integrations: [
+				...status(gmail).integrations,
+				...status(github).integrations.map((integration) => ({
+					...integration,
+					toolkit: "github",
+				})),
+			],
+		});
+		const older = deferred<ComposioStatusResponse>();
+		const newer = deferred<ComposioStatusResponse>();
+		const recovery = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockResolvedValueOnce(both("connected", "connected"))
+			.mockReturnValueOnce(older.promise)
+			.mockReturnValueOnce(newer.promise)
+			.mockReturnValueOnce(recovery.promise);
+		await api.fetchComposioStatus();
+		const first = api.disconnectComposioIntegration("gmail");
+		const second = api.disconnectComposioIntegration("github");
+		await Promise.resolve();
+		expect(mocks.invoke).toHaveBeenCalledTimes(3);
+		const finalStatus = both("not_connected", "not_connected");
+		if (completionOrder === "older-first") {
+			older.resolve(both("not_connected", "connected"));
+			await first;
+			expect(mocks.invoke).toHaveBeenCalledTimes(3);
+			newer.resolve(finalStatus);
+			await second;
+		} else {
+			newer.resolve(both("connected", "not_connected"));
+			await second;
+			older.resolve(finalStatus);
+			await first;
+		}
+		await vi.waitFor(() =>
+			expect(mocks.invoke).toHaveBeenLastCalledWith("composio_integrations", {
+				operation: "status",
+				refresh: true,
+			}),
+		);
+		const read = api.fetchComposioStatus();
+		recovery.resolve(finalStatus);
+		expect(await read).toBe(finalStatus);
+		expect(api.getComposioStatusSnapshot().status).toBe(finalStatus);
+		expect(mocks.invoke).toHaveBeenCalledTimes(4);
+	});
+
+	it("keeps completed mutations successful when overlap recovery fails and permits retry", async () => {
+		const api = await import("./composio");
+		const older = deferred<ComposioStatusResponse>();
+		mocks.invoke
+			.mockReturnValueOnce(older.promise)
+			.mockResolvedValueOnce(status())
+			.mockRejectedValueOnce(new Error("offline"));
+		const first = api.disconnectComposioIntegration("gmail");
+		await api.disconnectComposioIntegration("github");
+		const finalStatus = status("not_connected");
+		older.resolve(finalStatus);
+		await expect(first).resolves.toBe(finalStatus);
+		expect(api.getComposioStatusSnapshot().error).toBe("offline");
+		mocks.invoke.mockResolvedValueOnce(finalStatus);
+		await api.fetchComposioStatus({ refresh: true });
+		expect(api.getComposioStatusSnapshot()).toEqual({
+			status: finalStatus,
+			loading: false,
+			error: null,
+		});
+	});
+
 	it("reads current account status instead of publishing an old mutation response", async () => {
 		const api = await import("./composio");
 		const mutation = deferred<ComposioStatusResponse>();
@@ -389,7 +468,10 @@ describe("shared connector data cache", () => {
 		expect(mocks.invoke).toHaveBeenCalledTimes(3);
 	});
 
-	it("recovers an invalidated connection after a newer mutation fails", async () => {
+	it.each([
+		false,
+		true,
+	])("recovers a superseded connection after a newer mutation fails (invalidated: %s)", async (invalidated) => {
 		vi.useFakeTimers();
 		const api = await import("./composio");
 		const connection = deferred<{ status: ComposioStatusResponse }>();
@@ -401,7 +483,7 @@ describe("shared connector data cache", () => {
 			.mockReturnValueOnce(recovery.promise);
 		const connect = api.connectComposioIntegration("gmail");
 		await Promise.resolve();
-		emitDesktopEvent("settings.changed");
+		if (invalidated) emitDesktopEvent("settings.changed");
 		const cancel = api.cancelComposioConnect("gmail");
 		connection.resolve({ status: status("pending") });
 		await connect;
