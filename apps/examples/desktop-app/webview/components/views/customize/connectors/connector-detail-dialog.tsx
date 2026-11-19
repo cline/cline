@@ -2,7 +2,7 @@
 
 import { DetailList, DetailListItem, Dialog } from "@cline/ui";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { ConnectorLogo } from "@/components/connectors/connector-logo";
 import type {
@@ -10,6 +10,7 @@ import type {
 	ComposioIntegrationSummary,
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
+import { findScrollViewport } from "../../shared/page-scroll";
 import {
 	CustomizationCategoryBadges,
 	useCustomizationCategoryDialog,
@@ -49,6 +50,10 @@ export function ConnectorDetailDialog({
 }) {
 	const [disconnectTarget, setDisconnectTarget] =
 		useState<ComposioToolkitSlug | null>(null);
+	const returnFocus = useRef<{
+		opener: HTMLElement | null;
+		viewport: HTMLElement | null;
+	} | null>(null);
 	const status = summary?.status ?? "not_connected";
 	const error = actionError ?? summary?.error;
 	const displayStatus = getConnectorDisplayStatus({
@@ -65,7 +70,24 @@ export function ConnectorDetailDialog({
 		<Dialog
 			className="h-120 select-text"
 			bodyClassName="flex-1 gap-4"
-			onCloseAutoFocus={categoryDialog.onCloseAutoFocus}
+			onOpenAutoFocus={() => {
+				const activeElement = document.activeElement;
+				const opener =
+					activeElement instanceof HTMLElement ? activeElement : null;
+				returnFocus.current = { opener, viewport: findScrollViewport(opener) };
+			}}
+			onCloseAutoFocus={(event) => {
+				categoryDialog.onCloseAutoFocus(event);
+				if (event.defaultPrevented) return;
+				const { opener, viewport } = returnFocus.current ?? {};
+				if (opener?.isConnected && !opener.closest("[hidden], [inert]")) return;
+				// Connecting can move the card out of marketplace search results.
+				if (viewport?.isConnected && !viewport.closest("[hidden], [inert]")) {
+					event.preventDefault();
+					if (!viewport.hasAttribute("tabindex")) viewport.tabIndex = -1;
+					viewport.focus({ preventScroll: true });
+				}
+			}}
 			onOpenChange={(open) => {
 				if (!open) setDisconnectTarget(null);
 				onOpenChange(open);
