@@ -300,6 +300,67 @@ describe("SegmentedControl", () => {
 		expect(onValueChange).toHaveBeenCalledExactlyOnceWith("dark");
 	});
 
+	it("resets an external form after its detached control is attached", async () => {
+		const onValueChange = vi.fn();
+		const externalForm = document.createElement("form");
+		externalForm.id = "preferences";
+		document.body.appendChild(externalForm);
+		container.remove();
+		try {
+			await render(
+				<SegmentedControl
+					aria-label="Color theme"
+					defaultValue="system"
+					form="preferences"
+					name="theme"
+					onValueChange={onValueChange}
+					options={options}
+				/>,
+			);
+			expect(fieldset().form).toBeNull();
+			document.body.appendChild(container);
+			expect(fieldset().form).toBe(externalForm);
+			await act(async () => input("dark").click());
+			expect(new FormData(externalForm).getAll("theme")).toEqual(["dark"]);
+			await act(async () => externalForm.reset());
+			expect(
+				fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+			).toBe("0");
+			expect(input("system").checked).toBe(true);
+			expect(input("dark").checked).toBe(false);
+			expect(new FormData(externalForm).getAll("theme")).toEqual(["system"]);
+			expect(onValueChange).toHaveBeenCalledExactlyOnceWith("dark");
+		} finally {
+			externalForm.remove();
+		}
+	});
+
+	it("keeps a contained form working before and after attachment", async () => {
+		container.remove();
+		await render(
+			<form>
+				<SegmentedControl
+					aria-label="Color theme"
+					defaultValue="system"
+					name="theme"
+					options={options}
+				/>
+			</form>,
+		);
+		await act(async () => input("dark").click());
+		await act(async () => form().reset());
+		expect(input("system").checked).toBe(true);
+		document.body.appendChild(container);
+		await act(async () => input("dark").click());
+		await act(async () => form().reset());
+		expect(
+			fieldset().style.getPropertyValue("--cline-ui-segmented-index"),
+		).toBe("0");
+		expect(input("system").checked).toBe(true);
+		expect(input("dark").checked).toBe(false);
+		expect(new FormData(form()).getAll("theme")).toEqual(["system"]);
+	});
+
 	it("follows a replaced external form and ignores unrelated resets", async () => {
 		const control = (
 			<SegmentedControl

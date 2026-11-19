@@ -98,8 +98,15 @@ export const SegmentedControl = forwardRef<
 
 		useEffect(() => {
 			// The external form may mount later or be replaced without a render.
-			const root = fieldsetRef.current?.getRootNode();
-			if (!root) return;
+			const fieldset = fieldsetRef.current;
+			if (!fieldset) return;
+			// Keep the initial root for detached/shadow forms and the document
+			// for external forms reached after a detached container is attached.
+			const resetRoots = new Set([
+				fieldset.getRootNode(),
+				fieldset.ownerDocument,
+			]);
+			const handledResets = new WeakSet<Event>();
 			let active = true;
 			let resetFrame: ReturnType<typeof setTimeout> | undefined;
 			const restoreAfterReset = (event: Event) => {
@@ -121,6 +128,9 @@ export const SegmentedControl = forwardRef<
 			const handleReset = (event: Event) => {
 				const ownerForm = fieldsetRef.current?.form;
 				if (!ownerForm || event.target !== ownerForm) return;
+				// Both listeners can receive the same reset after attachment.
+				if (handledResets.has(event)) return;
+				handledResets.add(event);
 				// A trusted reset checkpoints microtasks between listeners, so
 				// work queued here can run before onReset and the browser's
 				// defaultChecked restore. Finish that case on a later task.
@@ -139,10 +149,14 @@ export const SegmentedControl = forwardRef<
 					restoreAfterReset(event);
 				});
 			};
-			root.addEventListener("reset", handleReset, true);
+			for (const root of resetRoots) {
+				root.addEventListener("reset", handleReset, true);
+			}
 			return () => {
 				active = false;
-				root.removeEventListener("reset", handleReset, true);
+				for (const root of resetRoots) {
+					root.removeEventListener("reset", handleReset, true);
+				}
 				if (resetFrame !== undefined) clearTimeout(resetFrame);
 			};
 		}, []);
