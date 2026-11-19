@@ -2793,6 +2793,16 @@ export class AgentRuntime {
 					});
 				}
 				break;
+			// Per-token/per-chunk stream events arrive many times a second.
+			// Logging one line for each floods the host's log output and
+			// adds work to every streamed token, so they are not logged.
+			// Listeners and hooks below still receive them.
+			case "assistant-text-delta":
+			case "assistant-reasoning-delta":
+			case "assistant-media":
+			case "tool-call-delta":
+			case "tool-updated":
+				break;
 			default:
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
