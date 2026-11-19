@@ -99,5 +99,6 @@
 	"files": [
 		"dist",
 		"!dist/**/*.d.ts.map"
-	]
+	],
+	"license": "Apache-2.0"
 }
