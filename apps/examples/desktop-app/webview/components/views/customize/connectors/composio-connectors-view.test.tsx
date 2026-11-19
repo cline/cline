@@ -777,6 +777,16 @@ describe("Customize connector catalog", () => {
 			button("Connect")?.click();
 		});
 		expect(document.activeElement).toBe(opener);
+		// Chrome blurs the focused descendant before detaching its card. JSDOM
+		// silently removes it, which otherwise misses this focusout ordering.
+		const removeChild = Node.prototype.removeChild;
+		vi.spyOn(Node.prototype, "removeChild").mockImplementation(function <
+			T extends Node,
+		>(this: Node, child: T): T {
+			if (opener && child.contains(opener) && document.activeElement === opener)
+				opener.blur();
+			return removeChild.call(this, child) as T;
+		});
 		mocks.integrations = [
 			{
 				toolkit: "github",

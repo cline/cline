@@ -83,17 +83,29 @@ function useConnectorActions(model: ConnectorResults) {
 		}
 	}, []);
 	useEffect(() => {
-		// Removing a focused node does not emit focusin. Remember whether focus
-		// moved elsewhere before search removed the card or its whole section.
 		const trackFocus = () => {
 			const trigger = connectionTrigger.current;
 			if (trigger) trigger.focused = document.activeElement === trigger.primary;
 		};
+		const trackFocusOut = () => {
+			const trigger = connectionTrigger.current;
+			if (!trigger) return;
+			// Chrome blurs a focused node before detaching it. Wait for the DOM
+			// mutation so that removal preserves its focus, while an intentional
+			// blur of a surviving card still opts out of restoring focus later.
+			queueMicrotask(() => {
+				if (
+					connectionTrigger.current === trigger &&
+					trigger.primary?.isConnected
+				)
+					trackFocus();
+			});
+		};
 		document.addEventListener("focusin", trackFocus);
-		document.addEventListener("focusout", trackFocus);
+		document.addEventListener("focusout", trackFocusOut);
 		return () => {
 			document.removeEventListener("focusin", trackFocus);
-			document.removeEventListener("focusout", trackFocus);
+			document.removeEventListener("focusout", trackFocusOut);
 			restoreRemovedConnectionFocus();
 		};
 	}, [restoreRemovedConnectionFocus]);
