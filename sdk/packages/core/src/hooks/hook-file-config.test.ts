@@ -14,4 +14,19 @@ describe("hook file config", () => {
 			HookConfigFileName.TaskError,
 		);
 	});
+
+	it("recognizes hook files with uppercase and mixed-case extensions", () => {
+		expect(toHookConfigFileName("PreToolUse.SH")).toBe(
+			HookConfigFileName.PreToolUse,
+		);
+		expect(toHookConfigFileName("PostToolUse.Ts")).toBe(
+			HookConfigFileName.PostToolUse,
+		);
+		expect(toHookConfigFileName("TaskStart.PY")).toBe(
+			HookConfigFileName.TaskStart,
+		);
+		expect(toHookConfigFileName("TaskError.PS1")).toBe(
+			HookConfigFileName.TaskError,
+		);
+	});
 });
