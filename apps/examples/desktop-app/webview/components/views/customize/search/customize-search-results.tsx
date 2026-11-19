@@ -77,7 +77,8 @@ export function CustomizeSearchResults({
 					<h3 className="mb-5 font-medium text-foreground text-lg">
 						Marketplace
 					</h3>
-					{showMarketplace ? <MarketplaceResults model={marketplace} /> : null}
+					{/* Keep connector dialogs mounted when connecting removes the last result. */}
+					<MarketplaceResults model={marketplace} />
 				</section>
 			</div>
 		</ScrollArea>
