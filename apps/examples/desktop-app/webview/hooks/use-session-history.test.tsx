@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sessionKey } from "../lib/session-identity";
 import {
 	sessionActivityTimestamp,
+	type UseSessionHistoryOptions,
 	useSessionHistory,
 } from "./use-session-history";
 
@@ -67,8 +68,8 @@ let root: Root;
 let current: SessionHistoryHook;
 let pendingLists: PendingList[];
 
-function HookHarness() {
-	current = useSessionHistory({});
+function HookHarness(options: UseSessionHistoryOptions) {
+	current = useSessionHistory(options);
 	return null;
 }
 
@@ -395,6 +396,32 @@ describe("useSessionHistory session mapping", () => {
 });
 
 describe("useSessionHistory live status", () => {
+	it("keeps a session unread until a requested navigation actually activates it", async () => {
+		const onOpenSession = vi.fn();
+		await act(async () =>
+			root.render(<HookHarness onOpenSession={onOpenSession} />),
+		);
+		await flush();
+		const session = sessionRow("pending-open");
+		const id = sessionKey(session);
+		await act(async () => pendingLists[0].resolve([session]));
+		await act(async () => {
+			subscribers.get("chat_event")?.({ sessionId: session.sessionId });
+		});
+		expect(current.unreadSessionIds.has(id)).toBe(true);
+
+		await act(async () => current.openThread(id));
+		expect(onOpenSession).toHaveBeenCalledOnce();
+		expect(current.unreadSessionIds.has(id)).toBe(true);
+
+		await act(async () =>
+			root.render(
+				<HookHarness activeSessionId={id} onOpenSession={onOpenSession} />,
+			),
+		);
+		expect(current.unreadSessionIds.has(id)).toBe(false);
+	});
+
 	it.each([
 		["running", "running"],
 		["ended", "completed"],
