@@ -5,6 +5,13 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "meta/muse-ember",
+				name: "muse-ember",
+				description:
+					"Meta's smallest and most efficient model designed for complex reasoning execution and the work agents repeat all day",
+				tags: ["NEW"],
+			},
+			{
 				id: "anthropic/claude-sonnet-5.5",
 				name: "claude-sonnet-5.5",
 				description: "",
@@ -45,12 +52,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
-				id: "reflection/beam-free",
-				name: "Beam",
-				description: "",
-				tags: [],
-			},
-			{
 				id: "cline-free/nemotron-3.5-super-vl",
 				name: "cline-free/nemotron-3.5-super-vl",
 				description: "NVIDIA’s latest model with 120B and fast output",
@@ -62,61 +63,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				description: "",
 				tags: [],
 			},
-			{
-				id: "poolside/laguna-s-2.1-free",
-				name: "Laguna S 2.1",
-				description: "",
-				tags: [],
-			},
-			{
-				id: "cline-free/solar-mini4",
-				name: "Solar Mini 4",
-				description: "Compact 35-billion parameter mixture-of-experts",
-				tags: [],
-			},
 		],
 		clinePass: [
-			{
-				id: "cline-pass/kimi-k3.1-pro",
-				name: "cline-pass/kimi-k3.1-pro",
-				description:
-					"Frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows",
-				tags: [],
-			},
-			{
-				id: "cline-pass/minimax-m3.1-flash",
-				name: "cline-pass/minimax-m3.1-flash",
-				description: "Next-generation Flash model",
-				tags: [],
-			},
 			{
 				id: "cline-pass/deepseek-v4.1-flash-1017",
 				name: "cline-pass/deepseek-v4.1-flash-1017",
 				description: "",
-				tags: [],
-			},
-			{
-				id: "cline-pass/deepseek-v4.1-flash",
-				name: "cline-pass/deepseek-v4.1-flash",
-				description: "Smarter and more efficient, with 1M context window",
-				tags: [],
-			},
-			{
-				id: "cline-pass/mimo-v2.6-flash",
-				name: "cline-pass/mimo-v2.6-flash",
-				description: "",
-				tags: [],
-			},
-			{
-				id: "cline-pass/mimo-v2.6-pro",
-				name: "cline-pass/mimo-v2.6-pro",
-				description: "",
-				tags: [],
-			},
-			{
-				id: "cline-pass/glm-5.3",
-				name: "cline-pass/glm-5.3",
-				description: "Z-AI's new top open-weights model",
 				tags: [],
 			},
 			{
@@ -126,9 +78,22 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.8-max",
-				name: "cline-pass/qwen3.8-max",
-				description: "Qwen's New SOTA coding model",
+				id: "cline-pass/glm-5.3",
+				name: "cline-pass/glm-5.3",
+				description: "Z-AI's new top open-weights model",
+				tags: [],
+			},
+			{
+				id: "cline-pass/glm-5.3-flash",
+				name: "cline-pass/glm-5.3-flash",
+				description: "Latest natively multimodal model in the GLM-5 series",
+				tags: [],
+			},
+			{
+				id: "cline-pass/kimi-k3.1-pro",
+				name: "cline-pass/kimi-k3.1-pro",
+				description:
+					"Frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows",
 				tags: [],
 			},
 			{
@@ -145,27 +110,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/glm-5.3-flash",
-				name: "cline-pass/glm-5.3-flash",
-				description: "Latest natively multimodal model in the GLM-5 series",
+				id: "cline-pass/qwen3.8-max",
+				name: "cline-pass/qwen3.8-max",
+				description: "Qwen's New SOTA coding model",
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
-				id: "cline-pass/qwen3.7-max",
-				name: "cline-pass/qwen3.7-max",
-				description: "Flagship agent model with 1M context window",
-				tags: [],
-			},
-			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
+				id: "cline-pass/minimax-m3.1-flash",
+				name: "cline-pass/minimax-m3.1-flash",
+				description: "Next-generation Flash model",
 				tags: [],
 			},
 		],
