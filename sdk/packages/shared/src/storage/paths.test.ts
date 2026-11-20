@@ -18,10 +18,12 @@ import {
 	resolveAgentsConfigDirPath,
 	resolveChatWorkspacePath,
 	resolveClineDataDir,
+	resolveClineDir,
 	resolveConfiguredPluginModulePaths,
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
+	resolveDocumentsExtensionPath,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalRulesConfigPaths,
 	resolveGlobalSettingsPath,
@@ -39,6 +41,7 @@ import {
 
 type EnvSnapshot = {
 	CLINE_DIR: string | undefined;
+	CLINE_HOOKS_DIR: string | undefined;
 	CLINE_DATA_DIR: string | undefined;
 	CLINE_CONNECTOR_DATA_DIR: string | undefined;
 	CLINE_CONNECTOR_SETTINGS_PATH: string | undefined;
@@ -53,6 +56,7 @@ type EnvSnapshot = {
 function captureEnv(): EnvSnapshot {
 	return {
 		CLINE_DIR: process.env.CLINE_DIR,
+		CLINE_HOOKS_DIR: process.env.CLINE_HOOKS_DIR,
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 		CLINE_CONNECTOR_DATA_DIR: process.env.CLINE_CONNECTOR_DATA_DIR,
 		CLINE_CONNECTOR_SETTINGS_PATH: process.env.CLINE_CONNECTOR_SETTINGS_PATH,
@@ -71,6 +75,7 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_CONNECTOR_SETTINGS_PATH =
 		snapshot.CLINE_CONNECTOR_SETTINGS_PATH;
 	process.env.CLINE_DIR = snapshot.CLINE_DIR;
+	process.env.CLINE_HOOKS_DIR = snapshot.CLINE_HOOKS_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
@@ -214,6 +219,32 @@ describe("storage path resolution", () => {
 		);
 		expect(resolveHooksConfigSearchPaths()).not.toContain(
 			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
+		);
+	});
+
+	it("honors CLINE_HOOKS_DIR ahead of the default hook directories", () => {
+		snapshot = captureEnv();
+		const hooksDir = mkdtempSync(join(tmpdir(), "cline-hooks-dir-"));
+		process.env.CLINE_HOOKS_DIR = hooksDir;
+
+		const paths = resolveHooksConfigSearchPaths();
+		expect(paths[0]).toBe(hooksDir);
+		// The default locations still follow, so both an explicit override and
+		// the usual discovery work in one run (cline/cline#14766).
+		expect(paths).toEqual(
+			expect.arrayContaining([
+				join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
+			]),
+		);
+	});
+
+	it("ignores a blank CLINE_HOOKS_DIR", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_HOOKS_DIR = "   ";
+
+		expect(resolveHooksConfigSearchPaths()).not.toContain("   ");
+		expect(resolveHooksConfigSearchPaths()[0]).toBe(
+			resolveDocumentsExtensionPath("Hooks"),
 		);
 	});
 

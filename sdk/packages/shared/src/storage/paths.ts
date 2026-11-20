@@ -496,6 +496,9 @@ export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const hooks = [
+		// An explicit CLINE_HOOKS_DIR (set directly or via the CLI's --hooks-dir)
+		// opts in ahead of every default location (cline/cline#14766).
+		process.env.CLINE_HOOKS_DIR?.trim() || "",
 		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];
