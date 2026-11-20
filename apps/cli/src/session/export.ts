@@ -747,22 +747,26 @@ function renderGeneratedMediaHTML(media: {
 }
 
 function renderTextHTML(text: string): string {
-	// Simple markdown-like rendering
-	let html = escapeHtml(text);
-
-	// Code blocks
-	html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang, code) => {
-		return `<pre><code>${code.trim()}</code></pre>`;
-	});
-
-	// Inline code
-	html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-	// Bold
-	html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-
-	// Line breaks
-	html = html.replace(/\n/g, "<br>");
+	// Simple markdown-like rendering. Code blocks are split out first so the
+	// inline rules below never rewrite their contents.
+	const html = escapeHtml(text)
+		.split(/(```\w*\n[\s\S]*?```)/g)
+		.map((part, index) => {
+			if (index % 2 === 1) {
+				const code = part.replace(/^```\w*\n/, "").slice(0, -3);
+				return `<pre><code>${code.trim()}</code></pre>`;
+			}
+			return (
+				part
+					// Inline code
+					.replace(/`([^`]+)`/g, "<code>$1</code>")
+					// Bold
+					.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+					// Line breaks
+					.replace(/\n/g, "<br>")
+			);
+		})
+		.join("");
 
 	return `<div>${html}</div>`;
 }
