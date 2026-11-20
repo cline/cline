@@ -1,5 +1,6 @@
 import {
 	clearHubDiscovery,
+	createHubServerUrl,
 	ensureDetachedHubServer,
 	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
@@ -7,6 +8,9 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	requestHubDrain,
+	resolveDefaultHubHost,
+	resolveDefaultHubPathname,
+	resolveDefaultHubPort,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -97,6 +101,30 @@ function resolveCliHubOwnerContext() {
 	return resolveClineBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
+}
+
+function hubUrlForOptions(options: Partial<HubOptions>): string | undefined {
+	const port = options.port ?? resolveDefaultHubPort();
+	if (port === 0) {
+		return undefined;
+	}
+	const host = options.host ?? resolveDefaultHubHost();
+	const pathname = options.pathname ?? resolveDefaultHubPathname();
+	return createHubServerUrl(host, port, pathname);
+}
+
+async function probeConfiguredHub(
+	discovery: Awaited<ReturnType<typeof readHubDiscovery>>,
+	options: Partial<HubOptions>,
+) {
+	const url = discovery?.url ?? hubUrlForOptions(options);
+	if (!url) {
+		return undefined;
+	}
+	return await probeHubServer(url, {
+		...(discovery?.authToken ? { authToken: discovery.authToken } : {}),
+		signal: AbortSignal.timeout(HUB_PROBE_TIMEOUT_MS),
+	}).catch(() => undefined);
 }
 
 function parseWaitSeconds(value: string): number {
@@ -209,15 +237,11 @@ export function createHubCommand(
 	}
 
 	hub.command("status").action(
-		action(async () => {
+		action(async (cmdOptions: Partial<HubOptions>) => {
+			const opts = resolveOptions(cmdOptions);
 			const owner = resolveCliHubOwnerContext();
 			const discovery = await readHubDiscovery(owner.discoveryPath);
-			const health = discovery?.url
-				? await probeHubServer(discovery.url, {
-						authToken: discovery.authToken,
-						signal: AbortSignal.timeout(HUB_PROBE_TIMEOUT_MS),
-					})
-				: undefined;
+			const health = await probeConfiguredHub(discovery, opts);
 			const uptime = formatHubUptimeFromStartedAt(health?.startedAt);
 			io.writeln(
 				JSON.stringify({
@@ -388,6 +412,15 @@ export function createHubCommand(
 					} catch (error) {
 						await undrain();
 						throw error;
+					}
+				} else {
+					const health = await probeConfiguredHub(discovery, opts);
+					if (health?.url) {
+						io.writeErr(
+							`A hub is already running at ${health.url}, but no discovery record is available. Refusing to report an upgrade without replacing the running process.`,
+						);
+						fail();
+						return;
 					}
 				}
 				const { url } = await ensureDetachedHubServer(opts.cwd, {

@@ -2,23 +2,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockClearHubDiscovery,
+	mockCreateHubServerUrl,
 	mockEnsureDetachedHubServer,
 	mockEnsureLoginShellPath,
 	mockLocalHubHasNoActiveSessions,
 	mockProbeHubServer,
 	mockReadHubDiscovery,
 	mockRequestHubDrain,
+	mockResolveDefaultHubHost,
+	mockResolveDefaultHubPathname,
+	mockResolveDefaultHubPort,
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockStopLocalHubServerGracefully,
 } = vi.hoisted(() => ({
 	mockClearHubDiscovery: vi.fn(),
+	mockCreateHubServerUrl: vi.fn(
+		(host: string, port: number, pathname: string) =>
+			new URL(`ws://${host}:${port}${pathname}`).toString(),
+	),
 	mockEnsureDetachedHubServer: vi.fn(),
 	mockEnsureLoginShellPath: vi.fn(async () => undefined),
 	mockLocalHubHasNoActiveSessions: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockReadHubDiscovery: vi.fn(),
 	mockRequestHubDrain: vi.fn(),
+	mockResolveDefaultHubHost: vi.fn(() => "127.0.0.1"),
+	mockResolveDefaultHubPathname: vi.fn(() => "/hub"),
+	mockResolveDefaultHubPort: vi.fn(() => 25463),
 	mockResolveProductionHubOwnerContext: vi.fn(() => ({
 		ownerId: "hub-production",
 		discoveryPath: "/tmp/cline-data/locks/hub/production.json",
@@ -32,12 +43,16 @@ const {
 
 vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
+	createHubServerUrl: mockCreateHubServerUrl,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	ensureLoginShellPath: mockEnsureLoginShellPath,
 	localHubHasNoActiveSessions: mockLocalHubHasNoActiveSessions,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
 	requestHubDrain: mockRequestHubDrain,
+	resolveDefaultHubHost: mockResolveDefaultHubHost,
+	resolveDefaultHubPathname: mockResolveDefaultHubPathname,
+	resolveDefaultHubPort: mockResolveDefaultHubPort,
 	resolveProductionHubOwnerContext: mockResolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
@@ -136,6 +151,7 @@ describe("createHubCommand", () => {
 		"upgrade",
 	])("accepts daemon options before or after %s", async (subcommand) => {
 		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
 		mockEnsureDetachedHubServer.mockResolvedValue({
 			url: "ws://localhost:9090/custom",
 		});
@@ -433,6 +449,72 @@ describe("createHubCommand", () => {
 			upgraded: true,
 			url: "ws://127.0.0.1:25466/hub",
 		});
+	});
+
+	it("reports the live hub when discovery is missing", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 50174,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		const { cmd, output, exitCode } = createCommand();
+		await cmd.parseAsync(["status"], { from: "user" });
+
+		expect(exitCode()).toBe(0);
+		expect(mockProbeHubServer).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			running: true,
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 50174,
+		});
+	});
+
+	it("keeps a double-slash pathname on the configured hub origin", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+
+		const { cmd, exitCode } = createCommand();
+		await cmd.parseAsync(
+			[
+				"status",
+				"--host",
+				"localhost",
+				"--port",
+				"9090",
+				"--pathname",
+				"//custom",
+			],
+			{ from: "user" },
+		);
+
+		expect(exitCode()).toBe(0);
+		expect(mockProbeHubServer).toHaveBeenCalledWith(
+			"ws://localhost:9090//custom",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
+	});
+
+	it("refuses to report an upgrade when a live hub has no discovery record", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			pid: 50174,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		const { cmd, output, errors, exitCode } = createCommand();
+		await cmd.parseAsync(["upgrade", "--wait", "0"], { from: "user" });
+
+		expect(exitCode()).toBe(1);
+		expect(output).toEqual([]);
+		expect(errors[0]).toContain("no discovery record is available");
+		expect(mockStopLocalHubServerGracefully).not.toHaveBeenCalled();
+		expect(mockEnsureDetachedHubServer).not.toHaveBeenCalled();
 	});
 
 	it("prints the hub URL by default from ensure", async () => {
