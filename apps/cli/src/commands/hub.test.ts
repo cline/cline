@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockClearHubDiscovery,
+	mockCreateHubServerUrl,
 	mockEnsureDetachedHubServer,
 	mockEnsureLoginShellPath,
 	mockLocalHubHasNoActiveSessions,
@@ -16,6 +17,10 @@ const {
 	mockStopLocalHubServerGracefully,
 } = vi.hoisted(() => ({
 	mockClearHubDiscovery: vi.fn(),
+	mockCreateHubServerUrl: vi.fn(
+		(host: string, port: number, pathname: string) =>
+			new URL(`ws://${host}:${port}${pathname}`).toString(),
+	),
 	mockEnsureDetachedHubServer: vi.fn(),
 	mockEnsureLoginShellPath: vi.fn(async () => undefined),
 	mockLocalHubHasNoActiveSessions: vi.fn(),
@@ -38,6 +43,7 @@ const {
 
 vi.mock("@cline/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
+	createHubServerUrl: mockCreateHubServerUrl,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	ensureLoginShellPath: mockEnsureLoginShellPath,
 	localHubHasNoActiveSessions: mockLocalHubHasNoActiveSessions,
@@ -466,6 +472,31 @@ describe("createHubCommand", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			pid: 50174,
 		});
+	});
+
+	it("keeps a double-slash pathname on the configured hub origin", async () => {
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+
+		const { cmd, exitCode } = createCommand();
+		await cmd.parseAsync(
+			[
+				"status",
+				"--host",
+				"localhost",
+				"--port",
+				"9090",
+				"--pathname",
+				"//custom",
+			],
+			{ from: "user" },
+		);
+
+		expect(exitCode()).toBe(0);
+		expect(mockProbeHubServer).toHaveBeenCalledWith(
+			"ws://localhost:9090//custom",
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
 	});
 
 	it("refuses to report an upgrade when a live hub has no discovery record", async () => {

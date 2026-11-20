@@ -1,5 +1,6 @@
 import {
 	clearHubDiscovery,
+	createHubServerUrl,
 	ensureDetachedHubServer,
 	ensureLoginShellPath,
 	localHubHasNoActiveSessions,
@@ -109,10 +110,7 @@ function hubUrlForOptions(options: Partial<HubOptions>): string | undefined {
 	}
 	const host = options.host ?? resolveDefaultHubHost();
 	const pathname = options.pathname ?? resolveDefaultHubPathname();
-	return new URL(
-		pathname.startsWith("/") ? pathname : `/${pathname}`,
-		`ws://${host}:${port}`,
-	).toString();
+	return createHubServerUrl(host, port, pathname);
 }
 
 async function probeConfiguredHub(
