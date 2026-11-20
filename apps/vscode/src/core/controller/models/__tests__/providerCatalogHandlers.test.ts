@@ -367,6 +367,41 @@ describe("provider model catalog handlers", () => {
 		)
 	})
 
+	it("commitModelSelection carries the base model's cached metadata for an OpenRouter routing variant", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("openrouter")
+		const store = makeStore({ providerId, apiKey: "openrouter-key" })
+		const catalog = makeCatalog()
+		const baseModelInfo = { name: "Z.ai: GLM 5.3 Flash", contextWindow: 1_048_576, supportsPromptCache: false }
+		vi.mocked(catalog.peekModels).mockReturnValue({
+			ok: true,
+			providerId,
+			configFingerprint: computeConfigFingerprint(providerId, { providerId, apiKey: "openrouter-key" }),
+			models: new Map([["z-ai/glm-5.3-flash", baseModelInfo]]),
+			defaultModelId: "z-ai/glm-5.3-flash",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await commitModelSelection(controller, {
+			providerId: "openrouter",
+			mode: "act",
+			modelId: "z-ai/glm-5.3-flash:floor",
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(
+			providerId,
+			"act",
+			{
+				providerId,
+				modelId: "z-ai/glm-5.3-flash:floor",
+				overrides: undefined,
+			},
+			baseModelInfo,
+		)
+	})
+
 	it("commitModelSelection does not substitute a different cached model when the selected ID has no metadata", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("litellm")

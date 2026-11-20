@@ -1,3 +1,4 @@
+import { lookupCatalogModel } from "@/sdk/model-catalog/routing-variants"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Empty } from "@/shared/proto/cline/common"
 import { CommitModelSelectionRequest } from "@/shared/proto/cline/models"
@@ -21,7 +22,9 @@ export async function commitModelSelection(
 		? controller.stateManager.getApiConfiguration?.()
 		: undefined
 	const cachedModels = controller.getProviderCatalog().peekModels(providerId)
-	const baseModelInfoHint = cachedModels?.ok ? cachedModels.models.get(selection.modelId) : undefined
+	const baseModelInfoHint = cachedModels?.ok
+		? lookupCatalogModel(selection.modelId, (id) => cachedModels.models.get(id))
+		: undefined
 	if (baseModelInfoHint) {
 		controller.getProviderConfigStore().commitSelection(providerId, mode, selection, baseModelInfoHint)
 	} else {
