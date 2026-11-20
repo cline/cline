@@ -39,7 +39,11 @@ vi.mock("@cline/core", async () => {
 	};
 });
 
-import { listSessionAgents, readChildSessionMessages } from "./agents";
+import {
+	listChildSessionSummaries,
+	listSessionAgents,
+	readChildSessionMessages,
+} from "./agents";
 
 let dir: string;
 
@@ -294,5 +298,67 @@ describe("listSessionAgents last action", () => {
 			record({ sessionId: "root1__a", agentId: "a", status: "running" }),
 		);
 		expect(listSessionAgents(ROOT)[0]?.lastAction).toBeUndefined();
+	});
+});
+
+describe("listChildSessionSummaries", () => {
+	it("returns only metadata, ordered by start time", () => {
+		records.set(
+			"root1__teamtask__b__x1",
+			record({
+				sessionId: "root1__teamtask__b__x1",
+				agentId: "b",
+				status: "running",
+				// A transcript exists, but the metadata-only reader does not
+				// expose its transcript-derived fields (lastAction/hasMessages).
+				messagesPath: writeMessages("b.json", [
+					{ role: "assistant", content: "hidden" },
+				]),
+				startedAt: "2026-07-27T00:01:00.000Z",
+			}),
+		);
+		records.set(
+			"root1__a",
+			record({
+				sessionId: "root1__a",
+				agentId: "a",
+				startedAt: "2026-07-27T00:00:00.000Z",
+			}),
+		);
+
+		const summaries = listChildSessionSummaries(ROOT);
+		expect(summaries).toEqual([
+			{
+				sessionId: "root1__a",
+				agentId: "a",
+				kind: "subagent",
+				status: "completed",
+				startedAt: "2026-07-27T00:00:00.000Z",
+			},
+			{
+				sessionId: "root1__teamtask__b__x1",
+				agentId: "b",
+				kind: "teamtask",
+				status: "running",
+				startedAt: "2026-07-27T00:01:00.000Z",
+			},
+		]);
+		// Metadata only: no transcript-derived fields leak through.
+		for (const summary of summaries) {
+			expect(summary).not.toHaveProperty("lastAction");
+			expect(summary).not.toHaveProperty("hasMessages");
+		}
+	});
+
+	it("skips rows with no agent id", () => {
+		records.set(
+			"root1__a",
+			record({ sessionId: "root1__a", agentId: undefined }),
+		);
+		expect(listChildSessionSummaries(ROOT)).toEqual([]);
+	});
+
+	it("returns nothing for a blank session id", () => {
+		expect(listChildSessionSummaries("")).toEqual([]);
 	});
 });

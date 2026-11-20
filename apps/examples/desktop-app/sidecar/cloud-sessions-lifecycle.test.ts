@@ -44,6 +44,7 @@ function createContext(): { ctx: SidecarContext } {
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
+		teamChildByAgent: new Map(),
 	} as SidecarContext;
 	return { ctx };
 }

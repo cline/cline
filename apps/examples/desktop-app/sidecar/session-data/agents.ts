@@ -184,3 +184,52 @@ export function listSessionAgents(
 	}
 	return out;
 }
+
+export type ChildSessionSummary = {
+	sessionId: string;
+	agentId: string;
+	/** "subagent" for spawn_agent runs, "teamtask" for team-task runs. */
+	kind: "subagent" | "teamtask";
+	status: string;
+	startedAt: string;
+};
+
+/**
+ * Metadata for a root session's child sessions (subagent + team-task runs)
+ * without reading transcripts. Cheap enough to call on a resolver cache miss in
+ * the live event path; listSessionAgents remains for the roster, which needs
+ * the transcript-derived lastAction/hasMessages.
+ */
+export function listChildSessionSummaries(
+	rootSessionId: string,
+	limit = 200,
+): ChildSessionSummary[] {
+	const trimmedRootId = rootSessionId.trim();
+	if (!trimmedRootId) {
+		return [];
+	}
+	let store: SqliteSessionStore;
+	try {
+		store = new SqliteSessionStore();
+	} catch {
+		// No session database on this host; nothing to resolve.
+		return [];
+	}
+	const out: ChildSessionSummary[] = [];
+	for (const record of store.listChildren(trimmedRootId, limit)) {
+		const agentId = record.agentId?.trim();
+		if (!agentId) {
+			continue;
+		}
+		out.push({
+			sessionId: record.sessionId,
+			agentId,
+			kind: record.sessionId.includes(TEAM_TASK_MARKER)
+				? "teamtask"
+				: "subagent",
+			status: record.status,
+			startedAt: record.startedAt,
+		});
+	}
+	return out;
+}
