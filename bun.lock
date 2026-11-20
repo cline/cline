@@ -169,6 +169,7 @@
       "dependencies": {
         "@ai-sdk/gateway": "^4.0.110",
         "@ai-sdk/openai": "^4.0.91",
+        "@ai-sdk/react": "^4.0.139",
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
         "@cline/llms": "workspace:*",

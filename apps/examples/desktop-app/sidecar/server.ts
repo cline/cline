@@ -3,16 +3,22 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
 } from "./context";
-import { abandonComposioConnectsForOwner } from "./composio";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
+import {
+	derivePreviewToken,
+	PREVIEW_FILE_ROUTE,
+	previewPathFromUrl,
+	servePreviewFile,
+} from "./preview-files";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -21,6 +27,7 @@ import {
 	type SidecarContext,
 	type SidecarWebSocketClient,
 } from "./types";
+import { createVoiceManagerToken } from "./voice-manager";
 
 type SidecarServer = {
 	port: number;
@@ -53,8 +60,17 @@ const JSON_HEADERS = {
 const APPROVAL_TOKEN_QUERY_PARAM = "approval_token";
 
 function hasValidApprovalToken(url: URL, expectedToken: string): boolean {
-	const candidate = url.searchParams.get(APPROVAL_TOKEN_QUERY_PARAM);
-	if (!candidate) return false;
+	return hasValidToken(
+		url.searchParams.get(APPROVAL_TOKEN_QUERY_PARAM),
+		expectedToken,
+	);
+}
+
+function hasValidToken(
+	candidate: string | null | undefined,
+	expectedToken: string,
+): boolean {
+	if (!candidate || !expectedToken) return false;
 	const candidateBytes = Buffer.from(candidate);
 	const expectedBytes = Buffer.from(expectedToken);
 	return (
@@ -210,6 +226,7 @@ export function createFetchHandler(
 	onShutdown?: (reason?: string) => Promise<void>,
 	approvalToken = "",
 ) {
+	const previewToken = approvalToken ? derivePreviewToken(approvalToken) : "";
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
 
@@ -247,6 +264,21 @@ export function createFetchHandler(
 			return undefined;
 		}
 
+		if (url.pathname.startsWith(`${PREVIEW_FILE_ROUTE}/`)) {
+			// Frames can't send an Origin or custom header, so a token rides in
+			// the path (which also keeps a page's relative assets resolvable).
+			// The page can read that path, hence a preview-only token.
+			const target = previewPathFromUrl(url.pathname);
+			if (
+				req.method !== "GET" ||
+				!target ||
+				!hasValidToken(target.token, previewToken)
+			) {
+				return new Response("Forbidden", { status: 403 });
+			}
+			return servePreviewFile(target.filePath);
+		}
+
 		if (url.pathname === "/api/marketplace/catalog") {
 			try {
 				return createJsonResponse(req, await fetchMarketplaceCatalog());
@@ -259,6 +291,31 @@ export function createFetchHandler(
 							? error.message
 							: "Failed to fetch marketplace catalog",
 				});
+			}
+		}
+
+		if (url.pathname === "/voice-manager/setup" && req.method === "POST") {
+			if (
+				!isTrustedRequestOrigin(req) ||
+				!hasValidApprovalToken(url, approvalToken)
+			) {
+				return createJsonResponse(req, { error: "Forbidden" }, 403);
+			}
+			try {
+				const body = (await req.json().catch(() => ({}))) as {
+					sessionConfig?: Parameters<typeof createVoiceManagerToken>[0];
+				};
+				return createJsonResponse(
+					req,
+					await createVoiceManagerToken(body.sessionConfig),
+				);
+			} catch (error) {
+				captureDesktopError(ctx, "voice_manager.setup", error);
+				return createJsonResponse(
+					req,
+					{ error: error instanceof Error ? error.message : String(error) },
+					500,
+				);
 			}
 		}
 
