@@ -1,7 +1,7 @@
 ---
 title: "Local models"
 sidebarTitle: "Local models"
-description: "Run Cline with local models using Ollama, LM Studio or Atomic Chat."
+description: "Run Cline with local models using Ollama, LM Studio, Atomic Chat or llamay."
 ---
 
 Run Cline with local inference on your machine.
@@ -12,7 +12,7 @@ Using Cline Desktop with Ollama or LM Studio? Its [Local Models page](/usage/cli
 
 ## Quick Start
 
-1. Install a local runtime (**Ollama**, **LM Studio** or **Atomic Chat**)
+1. Install a local runtime (**Ollama**, **LM Studio**, **Atomic Chat** or **llamay**)
 2. Start the local server
 3. In Cline Settings, select the matching provider
 4. Select a local model
@@ -112,6 +112,29 @@ Using Cline Desktop with Ollama or LM Studio? Its [Local Models page](/usage/cli
     - Make sure Atomic Chat is running before sending prompts
     - If connection fails, verify `http://127.0.0.1:1337/v1/models`
     - If the model list is empty, load a model in Atomic Chat first
+  </Tab>
+
+  <Tab title="llamay">
+    ### 1) Install
+    - Download from [llamay.com/download](https://llamay.com/download/) (macOS, Windows, Linux)
+
+    ### 2) Start the server with a model
+    ```bash
+    llamay serve -m qwen2.5-coder:7b
+    ```
+    - A model that is not on the machine yet is downloaded first, including GGUF repositories on Hugging Face (`hf.co/<owner>/<repo>:<quant>`)
+    - llamay serves Ollama's API at `http://localhost:11435`, next to Ollama's 11434
+
+    ### 3) Configure Cline
+    1. Open Cline Settings
+    2. Select provider: **Ollama**
+    3. Base URL: `http://localhost:11435`
+    4. Select your model from the dropdown
+
+    ### 4) Troubleshooting
+    - Make sure `llamay serve` is running before sending prompts
+    - If connection fails, verify `http://localhost:11435/api/tags`
+    - `llamay models` lists the models on the machine
   </Tab>
 </Tabs>
 
