@@ -9,6 +9,7 @@ import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
+import { serializeFileEdits } from "./file-edit-queue";
 import {
 	detectLineEnding,
 	normalizeLineEndings,
@@ -234,35 +235,37 @@ export function createEditorExecutor(
 	): Promise<string> => {
 		const filePath = resolveFilePath(cwd, input.path, restrictToCwd);
 
-		if (input.insert_line != null) {
-			return insertInFile(
+		return serializeFileEdits([filePath], async () => {
+			if (input.insert_line != null) {
+				return insertInFile(
+					filePath,
+					input.insert_line, // One-based index
+					input.new_text,
+					encoding,
+				);
+			}
+
+			if (!(await fileExists(filePath))) {
+				return createFile(filePath, input.new_text, encoding);
+			}
+			if (input.old_text == null) {
+				// Models that fill optional params with null hit this repeatedly and
+				// tend to re-send the identical call; spell out the recovery so the
+				// next call differs.
+				throw new Error(
+					`${filePath} already exists, but \`old_text\` was ${
+						input.old_text === null ? "null" : "omitted"
+					}. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
+				);
+			}
+
+			return replaceInFile(
 				filePath,
-				input.insert_line, // One-based index
+				input.old_text,
 				input.new_text,
 				encoding,
+				maxDiffLines,
 			);
-		}
-
-		if (!(await fileExists(filePath))) {
-			return createFile(filePath, input.new_text, encoding);
-		}
-		if (input.old_text == null) {
-			// Models that fill optional params with null hit this repeatedly and
-			// tend to re-send the identical call; spell out the recovery so the
-			// next call differs.
-			throw new Error(
-				`${filePath} already exists, but \`old_text\` was ${
-					input.old_text === null ? "null" : "omitted"
-				}. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
-			);
-		}
-
-		return replaceInFile(
-			filePath,
-			input.old_text,
-			input.new_text,
-			encoding,
-			maxDiffLines,
-		);
+		});
 	};
 }
