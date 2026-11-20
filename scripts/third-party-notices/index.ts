@@ -24,6 +24,7 @@ export interface GenerateNoticesOptions {
 	inputLists?: Record<string, string>;
 	allowMissingInputLists?: boolean;
 	extraPackageDirs?: string[];
+	packageEntries?: NoticeEntry[];
 	extraEntries?: NoticeEntry[];
 	outFile: string;
 }
@@ -99,22 +100,23 @@ const TEMPLATE_IDS: Record<string, string> = {
 	"Apache-2.0": "Apache-2.0",
 	"BSD-2-Clause": "BSD-2-Clause",
 	"BSD-3-Clause": "BSD-3-Clause",
+	"MPL-2.0": "MPL-2.0",
+	Zlib: "Zlib",
 };
 
-// Packages that omit their license file still owe the license text and copyright notice.
-function templateText(
+// Components that omit their license file still owe the license text and copyright notice.
+export function fallbackLicenseTexts(
 	license: string,
-	pkg: Record<string, unknown>,
-): { file: string; content: string }[] {
+	copyrightHolder: string,
+): NoticeEntry["texts"] {
 	const ids = license
 		.replace(/[()]/g, "")
 		.split(/\s+(?:AND|OR)\s+/)
 		.map((id) => TEMPLATE_IDS[id])
 		.filter(Boolean);
-	const holder = authorOf(pkg) ?? `the ${pkg.name} authors`;
 	return [...new Set(ids)].map((id) => ({
-		file: `${id} (standard text; the package ships no license file)`,
-		content: standardLicenseText(id, holder),
+		file: `${id} (standard text; the component ships no license file)`,
+		content: standardLicenseText(id, copyrightHolder),
 	}));
 }
 
@@ -160,27 +162,43 @@ function isPackageFile(packageRoot: string, file: string): boolean {
 	);
 }
 
-export function readPackageEntry(packageDir: string): NoticeEntry {
-	const packageRoot = realpathSync(packageDir);
-	const pkg = JSON.parse(
-		readFileSync(join(packageRoot, "package.json"), "utf8"),
-	);
-	const license = licenseOf(pkg);
-	const referenced = /^SEE LICENSE IN (\S+)/i.exec(license)?.[1];
-	const files = readdirSync(packageRoot)
+// Reads a component's license files, plus one its metadata points to (npm "SEE LICENSE IN",
+// Cargo license-file), from inside its root directory.
+export function readLicenseTexts(
+	root: string,
+	referenced?: string,
+): NoticeEntry["texts"] {
+	const realRoot = realpathSync(root);
+	const files = readdirSync(realRoot)
 		.filter((f) => LICENSE_FILE.test(f) && !NON_TEXT_EXT.test(f))
 		.concat(referenced ? [referenced] : [])
-		.filter((f) => isPackageFile(packageRoot, f));
-	const texts = [...new Set(files)].sort().map((file) => ({
+		.filter((f) => isPackageFile(realRoot, f));
+	return [...new Set(files)].sort().map((file) => ({
 		file,
-		content: readFileSync(join(packageRoot, file), "utf8").trim(),
+		content: readFileSync(join(realRoot, file), "utf8").trim(),
 	}));
+}
+
+export function readPackageEntry(packageDir: string): NoticeEntry {
+	const pkg = JSON.parse(
+		readFileSync(join(packageDir, "package.json"), "utf8"),
+	);
+	const license = licenseOf(pkg);
+	const texts = readLicenseTexts(
+		packageDir,
+		/^SEE LICENSE IN (\S+)/i.exec(license)?.[1],
+	);
 	return {
 		name: pkg.name,
 		version: pkg.version,
 		license: license || detectLicense(texts),
 		repository: repositoryOf(pkg),
-		texts: texts.length ? texts : templateText(license, pkg),
+		texts: texts.length
+			? texts
+			: fallbackLicenseTexts(
+					license,
+					authorOf(pkg) ?? `the ${pkg.name} authors`,
+				),
 	};
 }
 
@@ -201,28 +219,36 @@ export function collectPackageEntries(
 	return [...dirs].map(readPackageEntry);
 }
 
-const OPEN_SOURCE_IDS = new Set([
-	"0BSD",
-	"Apache-2.0",
-	"BlueOak-1.0.0",
-	"BSD-2-Clause",
-	"BSD-3-Clause",
-	"CC-BY-4.0",
-	"CC0-1.0",
-	"ISC",
-	"MIT",
-	"MIT/X11",
-	"MPL-2.0",
-	"Python-2.0",
-	"Unlicense",
-	"WTFPL",
-	"Zlib",
-]);
+const OPEN_SOURCE_IDS = new Set(
+	[
+		"0BSD",
+		"Apache-2.0",
+		"BlueOak-1.0.0",
+		"BSD-2-Clause",
+		"BSD-3-Clause",
+		"CC-BY-4.0",
+		"CC0-1.0",
+		"ISC",
+		"MIT",
+		"MIT/X11",
+		"MIT-0",
+		"MPL-2.0",
+		"Python-2.0",
+		"Unicode-3.0",
+		"Unlicense",
+		"WTFPL",
+		"Zlib",
+	].map((id) => id.toLowerCase()),
+);
 
 function isOpenSource(license: string): boolean {
-	const ids = license.replace(/[()]/g, "").split(/\s+(?:AND|OR)\s+/);
+	// SPDX identifiers are case-insensitive ("apache-2.0" is Apache-2.0).
+	const ids = license
+		.toLowerCase()
+		.replace(/[()]/g, "")
+		.split(/\s+(?:and|or)\s+/);
 	// An OR expression is satisfied by any permissive choice; AND needs all of them.
-	return / OR /.test(license) && !/ AND /.test(license)
+	return / or /i.test(license) && !/ and /i.test(license)
 		? ids.some((id) => OPEN_SOURCE_IDS.has(id))
 		: ids.every((id) => OPEN_SOURCE_IDS.has(id));
 }
@@ -282,6 +308,7 @@ export function generateNotices(options: GenerateNoticesOptions): {
 	const packages = dedupe([
 		...collectPackageEntries(inputs, options.baseDir),
 		...(options.extraPackageDirs ?? []).map(readPackageEntry),
+		...(options.packageEntries ?? []),
 	]);
 	const entries = [...(options.extraEntries ?? []), ...packages];
 	mkdirSync(dirname(options.outFile), { recursive: true });

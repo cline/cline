@@ -1,6 +1,13 @@
 "use client";
 
-import { Bug, ExternalLink, Loader2, Rss, Sparkles } from "lucide-react";
+import {
+	Bug,
+	ExternalLink,
+	FileText,
+	Loader2,
+	Rss,
+	Sparkles,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -267,6 +274,32 @@ export function AboutContent({
 					>
 						<Bug className="size-3" />
 						Open GitHub issues
+					</Button>
+				</div>
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Third-party notices
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Licenses for the open source software included in Cline.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() =>
+							void desktopClient
+								.invoke("open_third_party_notices")
+								.catch((error: unknown) =>
+									console.error("Failed to open third-party notices", error),
+								)
+						}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<FileText className="size-3" />
+						View notices
 					</Button>
 				</div>
 				<div className="pt-6">

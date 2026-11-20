@@ -1,4 +1,5 @@
-import { cpSync, existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import {
@@ -6,6 +7,11 @@ import {
 	installOpenTuiNativeVariants,
 } from "../../../cli/script/compile-binary";
 import { telemetryDefineArgs } from "./telemetry-define-args";
+import {
+	inputListPath,
+	writeDesktopThirdPartyNotices,
+	writeInputList,
+} from "./third-party-notices";
 
 // The desktop app ships two runtime artifacts and no app-specific executable:
 //
@@ -26,7 +32,7 @@ export const DESKTOP_CLI_NAME = "cline-cli";
 export const DESKTOP_BACKEND_BUNDLE = `${BIN_DIR}/desktop-backend/index.js`;
 export const REMOTE_CLI_DIR = `${BIN_DIR}/remote-helpers`;
 
-const resolveTargetTriple = async (): Promise<string> => {
+export const resolveTargetTriple = async (): Promise<string> => {
 	const fromEnv = process.env.TAURI_ENV_TARGET_TRIPLE ?? process.env.TARGET;
 	if (fromEnv?.trim()) {
 		return fromEnv.trim();
@@ -68,11 +74,14 @@ const desktopCliOutfile = (targetTriple: string): string => {
 	return `${BIN_DIR}/${DESKTOP_CLI_NAME}-${targetTriple}${extension}`;
 };
 
+// Every compiled CLI copy (desktop, Linux remotes, both macOS slices) for the notices.
+const cliBundleInputs = new Set<string>();
+
 const compileDesktopCli = async (
 	targetTriple: string,
 	outfile = desktopCliOutfile(targetTriple),
 ): Promise<string> => {
-	await compileCliBinary({
+	const { bundleInputs } = await compileCliBinary({
 		bunTarget: resolveBunCompileTarget(targetTriple),
 		outfile: fileURLToPath(new URL(`../${outfile}`, import.meta.url)),
 		// A packaged app and an SSH session launch the CLI from directories the
@@ -87,6 +96,7 @@ const compileDesktopCli = async (
 		// flags, so main.rs passes it again when launching the backend.
 		execArgv: ["--use-system-ca"],
 	});
+	for (const input of bundleInputs) cliBundleInputs.add(input);
 	return outfile;
 };
 
@@ -103,7 +113,15 @@ const bundleDesktopBackend = async (): Promise<void> => {
 		recursive: true,
 	});
 	const defines = telemetryDefineArgs();
-	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
+	const metafile = inputListPath("backend").replace(/\.json$/, ".meta.json");
+	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE} --metafile=${metafile}`;
+	const { inputs } = JSON.parse(readFileSync(metafile, "utf8")) as {
+		inputs: Record<string, unknown>;
+	};
+	writeInputList(
+		"backend",
+		Object.keys(inputs).map((input) => resolve(APP_ROOT, input)),
+	);
 };
 
 // Each compiled CLI embeds a full Bun runtime (~100 MB), and both Linux copies
@@ -187,6 +205,13 @@ const main = async () => {
 		await compileDesktopCli(targetTriple);
 	}
 	await buildRemoteClis();
+	writeInputList("cli", cliBundleInputs);
+	// Tauri requires every bundled resource to exist, `tauri dev` included; the full
+	// build rewrites this once the webview is exported (bun.mts).
+	await writeDesktopThirdPartyNotices({
+		targetTriple,
+		allowMissingInputLists: true,
+	});
 };
 
 if (import.meta.main) {
