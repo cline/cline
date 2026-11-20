@@ -165,6 +165,9 @@ jobs:
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
+      - name: Test compiled CLI
+        run: bun -F @cline/cli test:binary
+
       - name: Verify build output
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -435,6 +438,10 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Test compiled CLI
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun -F @cline/cli test:binary
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
