@@ -76,7 +76,7 @@ describe("readOllamaTimeoutMs", () => {
 	it("defaults to 5 minutes so model cold loads don't hit a timeout error", () => {
 		// Ollama only sends response headers once the model is loaded, so the
 		// response-start budget must cover a cold load (cline/cline#12829).
-		expect(OLLAMA_DEFAULT_TIMEOUT_MS).toBe(300_000);
+		expect(OLLAMA_DEFAULT_TIMEOUT_MS).toBe(1_800_000);
 	});
 });
 
@@ -100,7 +100,7 @@ describe("withOllamaResponseTimeout", () => {
 		const wrapped = withOllamaResponseTimeout(hangingFetch, 1000);
 		const pending = wrapped("http://localhost:11434/api/chat");
 		const assertion = expect(pending).rejects.toThrow(
-			"Ollama request timed out after 1 seconds",
+			"Ollama request timed out waiting for response headers after 1 seconds",
 		);
 		await vi.advanceTimersByTimeAsync(1001);
 		await assertion;

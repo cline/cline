@@ -11,6 +11,10 @@ import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import { isOpenAIReasoningEraModelId } from "../model-facts";
+import {
+	readInferenceTimeoutMs,
+	withInferenceTimeout,
+} from "../streaming-fetch";
 import type { ProviderFactoryResult } from "./types";
 
 type FetchInput = Parameters<typeof fetch>[0];
@@ -232,7 +236,11 @@ export async function createOpenAICompatibleProviderModule(
 	// authoritative error and is surfaced to the user as-is. This keeps
 	// `llms` unopinionated about which providers do or don't need a key.
 	const apiKey = await resolveApiKey(config);
-	const fetch = createAzureApiVersionFetch(config);
+	const fetch = withInferenceTimeout(
+		ensureFetch(createAzureApiVersionFetch(config)),
+		readInferenceTimeoutMs(config.timeoutMs),
+		"OpenAI-compatible request",
+	);
 	const onResponseError = readResponseErrorHandler(config);
 	const providerFetch = onResponseError
 		? createResponseErrorFetch({
