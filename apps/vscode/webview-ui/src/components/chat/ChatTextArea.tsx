@@ -1,6 +1,6 @@
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
-import { StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { FileSearchRequest, FileSearchType, RelativePathsRequest, type SkillInfo } from "@shared/proto/cline/file"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
@@ -194,6 +194,8 @@ const ModelButtonContent = styled.div`
 	white-space: nowrap;
 `
 
+const NO_SKILLS: SkillInfo[] = []
+
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	(
 		{
@@ -241,6 +243,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [showSlashCommandsMenu, setShowSlashCommandsMenu] = useState(false)
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
+		const [loadedSkills, setSkills] = useState<SkillInfo[]>([])
+		// Workflows expand client-side before the prompt leaves, so the cloud agent
+		// gets their text. Skills are sent as typed for the skills tool, which a
+		// cloud session does not register, so they are not offered there.
+		const skills = cloudActOnly ? NO_SKILLS : loadedSkills
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
@@ -340,6 +347,54 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				document.removeEventListener("mousedown", handleClickOutsideSlashMenu)
 			}
 		}, [showSlashCommandsMenu])
+
+		// Skills aren't part of the extension state (only their explicit toggles are),
+		// so load them on mount (so a restored draft highlights) and again each time
+		// the slash menu opens, to pick up skills added, removed, or toggled since.
+		// Closing the menu loads nothing. A response from a superseded request (or
+		// one arriving after unmount) is dropped.
+		const loadSkills = useCallback(() => {
+			let cancelled = false
+			FileServiceClient.refreshSkills(EmptyRequest.create())
+				.then((response) => {
+					if (!cancelled) {
+						setSkills([...(response.localSkills || []), ...(response.globalSkills || [])])
+					}
+				})
+				.catch((error) => console.error("Failed to refresh skills:", error))
+			return () => {
+				cancelled = true
+			}
+		}, [])
+		useEffect(loadSkills, [loadSkills])
+		useEffect(() => (showSlashCommandsMenu ? loadSkills() : undefined), [showSlashCommandsMenu, loadSkills])
+
+		// Keep the highlighted row inside the list when the commands change while
+		// the menu is open, e.g. a skill refresh landing shorter than the cached list.
+		useEffect(() => {
+			if (!showSlashCommandsMenu) {
+				return
+			}
+			const count = getMatchingSlashCommands(
+				slashCommandsQuery,
+				localWorkflowToggles,
+				globalWorkflowToggles,
+				remoteWorkflowToggles,
+				remoteConfigSettings?.remoteGlobalWorkflows,
+				mcpServers,
+				skills,
+			).length
+			setSelectedSlashCommandsIndex((index) => (count === 0 ? 0 : Math.min(index, count - 1)))
+		}, [
+			showSlashCommandsMenu,
+			slashCommandsQuery,
+			localWorkflowToggles,
+			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
+			mcpServers,
+			skills,
+		])
 
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
@@ -503,6 +558,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
+								skills,
 							)
 
 							if (allCommands.length === 0) {
@@ -528,9 +584,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
+							skills,
 						)
-						if (commands.length > 0) {
-							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						// The list can shrink under an open menu (skill refresh, MCP server
+						// disconnect), so the highlighted row may no longer exist.
+						const command = commands[selectedSlashCommandsIndex]
+						if (command) {
+							handleSlashCommandsSelect(command)
 						}
 						return
 					}
@@ -691,6 +751,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
+				skills,
 			],
 		)
 
@@ -1003,6 +1064,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					globalWorkflowToggles,
 					remoteWorkflowToggles,
 					remoteConfigSettings?.remoteGlobalWorkflows,
+					mcpServers,
+					skills,
 				)
 
 				if (isValidCommand) {
@@ -1016,7 +1079,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings, mcpServers, skills])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1462,6 +1525,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
+								skills={skills}
 							/>
 						</div>
 					)}
