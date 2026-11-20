@@ -1096,6 +1096,63 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 	});
 });
 
+describe.runIf(
+	process.platform === "win32" &&
+		existsSync("C:\\Program Files\\Git\\bin\\bash.exe"),
+)("createShellExecutor with Git Bash on Windows", () => {
+	const shell = "C:\\Program Files\\Git\\bin\\bash.exe";
+	// Cold Git Bash starts on the 2-core Windows runner can take seconds.
+	const timeoutMs = 15_000;
+
+	it("runs commands beyond the ~8190 character limit of bash -c", async () => {
+		// Through `bash -c`, Git Bash silently cut this command after about
+		// 8190 characters, ran the remainder-less text and exited 0, so the
+		// tool reported success with empty output.
+		const executor = createShellExecutor({ shell, timeoutMs });
+		const output = await executor(
+			`x=${"A".repeat(40_000)}; echo \${#x}`,
+			process.cwd(),
+			ctx,
+		);
+		expect(output.trim()).toBe("40000");
+	});
+
+	it("runs a long heredoc completely", async () => {
+		const executor = createShellExecutor({ shell, timeoutMs });
+		const output = await executor(
+			`cat <<'EOF' | wc -c\n${"B".repeat(20_000)}\nEOF`,
+			process.cwd(),
+			ctx,
+		);
+		expect(output.trim()).toBe("20001");
+	});
+
+	it("reports the exit code of the command", async () => {
+		const executor = createShellExecutor({ shell, timeoutMs });
+		let error: unknown;
+		try {
+			await executor("echo before; exit 3", process.cwd(), ctx);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandExitError);
+		expect((error as CommandExitError).exitCode).toBe(3);
+		expect((error as CommandExitError).output).toContain("before");
+	});
+
+	it("leaves the command's own stdin at EOF", async () => {
+		const executor = createShellExecutor({ shell, timeoutMs });
+		const output = await executor("cat; echo after", process.cwd(), ctx);
+		expect(output.trim()).toBe("after");
+	});
+
+	it("preserves UTF-8 in the command", async () => {
+		const executor = createShellExecutor({ shell, timeoutMs });
+		const output = await executor("echo 中文 äöü", process.cwd(), ctx);
+		expect(output.trim()).toBe("中文 äöü");
+	});
+});
+
 describe("createShellExecutor with inherited stdio", () => {
 	// A backgrounded child (`cmd &`, nohup) inherits the stdio pipe
 	// write-ends, so the shell's 'close' event never fires after it exits.

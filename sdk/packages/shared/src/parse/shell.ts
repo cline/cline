@@ -335,9 +335,38 @@ function selectNestedExecutable(
 	return requested;
 }
 
+/**
+ * Bootstrap that a POSIX shell on Windows runs instead of the command itself.
+ *
+ * Git Bash (and other MSYS2/Cygwin shells) silently truncate a `-c` argument
+ * of more than about 8190 characters: the shell runs the cut-off text and
+ * exits 0, so the caller reports success for a command that never ran in
+ * full (an unterminated heredoc only produces a warning). The bootstrap
+ * reads the complete command from stdin first and then evaluates it, which
+ * removes the limit and leaves the command's own stdin at EOF, exactly as
+ * with `-c`. `read -d ""` reads up to EOF because a command cannot contain
+ * a NUL byte; its non-zero status at EOF is ignored, and the exit status of
+ * `eval` is the exit status of the command.
+ */
+export const POSIX_STDIN_BOOTSTRAP =
+	'IFS= read -r -d "" __cline_command; eval "$__cline_command"';
+
+export interface ShellInvocationOptions {
+	/**
+	 * Platform the shell runs on, e.g. "win32". Defaults to the current
+	 * process platform when available.
+	 */
+	platform?: string;
+}
+
+function currentPlatform(): string | undefined {
+	return typeof process === "undefined" ? undefined : process.platform;
+}
+
 export function getShellInvocation(
 	shell: string,
 	command: string,
+	options: ShellInvocationOptions = {},
 ): ShellInvocation {
 	switch (getShellKind(shell)) {
 		case "powershell": {
@@ -415,6 +444,13 @@ export function getShellInvocation(
 		case "wsl":
 			return { executable: shell, args: ["bash", "-c", command] };
 		case "posix":
+			if ((options.platform ?? currentPlatform()) === "win32") {
+				return {
+					executable: shell,
+					args: ["-c", POSIX_STDIN_BOOTSTRAP],
+					input: command,
+				};
+			}
 			return { executable: shell, args: ["-c", command] };
 	}
 }
@@ -429,6 +465,11 @@ export function getShellArgs(shell: string, command: string): string[] {
 		// that can write stdin should use getShellInvocation() for Unicode and
 		// commands beyond Windows' process command-line limit.
 		return ["-NoProfile", "-NonInteractive", "-Command", command];
+	}
+	// Same contract for POSIX shells: the Windows stdin bootstrap needs input,
+	// which this helper cannot pass, so keep the command in the arguments.
+	if (getShellKind(shell) === "posix") {
+		return ["-c", command];
 	}
 	return getShellInvocation(shell, command).args;
 }
