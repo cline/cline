@@ -72,7 +72,7 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - For simple data, use shared types in `proto/cline/common.proto` (`StringRequest`, `Empty`, `Int64Request`)
 - For complex data, define custom messages in the feature's `.proto` file
 - Naming: Services `PascalCaseService`, RPCs `camelCase`, Messages `PascalCase`
-- For streaming responses, use `stream` keyword (see `subscribeToAuthCallback` in `account.proto`)
+- For streaming responses, use `stream` keyword (see `subscribeToAuthStatusUpdate` in `account.proto`)
 
 **Run `bun run protos`** after any proto changes—generates types in:
 - `src/shared/proto/` - Shared type definitions
@@ -86,7 +86,7 @@ The extension and webview communicate via gRPC-like protocol over VS Code messag
 - Handler in `src/core/controller/<domain>/`
 - Call from webview via generated client: `UiServiceClient.scrollToSettings(StringRequest.create({ value: "browser" }))`
 
-**Example—the `explain-changes` feature touched:**
+**Example—the `explain-changes` feature touched these files. It was removed in #11278, so the names it added are gone; the files, except `explainChanges.ts`, still exist:**
 - `proto/cline/task.proto` - Added `ExplainChangesRequest` message and `explainChanges` RPC
 - `proto/cline/ui.proto` - Added `GENERATE_EXPLANATION = 29` to `ClineSay` enum
 - `src/shared/ExtensionMessage.ts` - Added `ClineSayGenerateExplanation` type
@@ -141,7 +141,7 @@ When a ChatRow displays a loading/in-progress state (spinner), you must handle w
    - `!isLast` — if this message is no longer the last message, something else happened after it (interrupted)
    - `lastModifiedMessage?.ask === "resume_task" || "resume_completed_task"` — task was just cancelled and is waiting to resume
 
-**Example from `generate_explanation`:**
+**Example from `generate_explanation` (removed in #11278; `SubagentStatusRow.tsx` applies both checks today):**
 ```tsx
 const wasCancelled =
     explanationInfo.status === "generating" &&
