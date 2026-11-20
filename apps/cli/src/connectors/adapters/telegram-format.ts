@@ -46,6 +46,21 @@ function trimTrailingSlashes(value: string): string {
 	return value.slice(0, end);
 }
 
+/**
+ * End offset of the chunk that starts at `start`, moved back by one when the
+ * limit would cut a surrogate pair (an emoji, for example) in half.
+ */
+function chunkEndOffset(text: string, start: number): number {
+	const end = Math.min(start + TELEGRAM_MESSAGE_LIMIT, text.length);
+	if (end < text.length && end - 1 > start) {
+		const code = text.charCodeAt(end - 1);
+		if (code >= 0xd800 && code <= 0xdbff) {
+			return end - 1;
+		}
+	}
+	return end;
+}
+
 function normalizeTelegramText(text: string): string {
 	return text.trim() ? text : " ";
 }
@@ -99,14 +114,11 @@ function chunkFormattedMessage(
 	}
 	const chunks: Array<{ text: string; entities: TelegramMessageEntity[] }> = [];
 	for (
-		let startOffset = 0;
+		let startOffset = 0, endOffset = 0;
 		startOffset < text.length;
-		startOffset += TELEGRAM_MESSAGE_LIMIT
+		startOffset = endOffset
 	) {
-		const endOffset = Math.min(
-			startOffset + TELEGRAM_MESSAGE_LIMIT,
-			text.length,
-		);
+		endOffset = chunkEndOffset(text, startOffset);
 		const chunkText = text.slice(startOffset, endOffset);
 		const chunkEntities = entities
 			.map((entity) => {
@@ -258,8 +270,9 @@ export async function postTelegramFormattedReply<
 function chunkTelegramRawText(text: string): string[] {
 	const body = normalizeTelegramText(text);
 	const chunks: string[] = [];
-	for (let index = 0; index < body.length; index += TELEGRAM_MESSAGE_LIMIT) {
-		chunks.push(body.slice(index, index + TELEGRAM_MESSAGE_LIMIT));
+	for (let index = 0, end = 0; index < body.length; index = end) {
+		end = chunkEndOffset(body, index);
+		chunks.push(body.slice(index, end));
 	}
 	return chunks.length > 0 ? chunks : [" "];
 }
