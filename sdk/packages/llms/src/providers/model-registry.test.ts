@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	getModelOverridesForProvider,
 	getModelsForProvider,
+	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	registerModel,
 	registerProvider,
 	resetRegistry,
@@ -85,6 +86,24 @@ describe("getModelsForProvider", () => {
 				id: "custom-claude",
 				name: "Custom Claude",
 			},
+		});
+	});
+
+	it("reflects registered models in MODEL_COLLECTIONS_BY_PROVIDER_ID", () => {
+		registerModel("openai-compatible", "custom-llm", {
+			id: "custom-llm",
+			name: "Custom LLM",
+			contextWindow: 262_144,
+		});
+
+		expect(
+			MODEL_COLLECTIONS_BY_PROVIDER_ID["openai-compatible"]?.models[
+				"custom-llm"
+			],
+		).toEqual({
+			id: "custom-llm",
+			name: "Custom LLM",
+			contextWindow: 262_144,
 		});
 	});
 });

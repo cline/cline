@@ -61,6 +61,12 @@ export async function compactInteractiveMessages(input: {
 	compactionState?: SessionCompactionState;
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
+	const providerConfig = resolveCompactionProviderConfig(
+		input.config,
+		input.providerSettingsManager,
+	);
+	const configuredWindow =
+		providerConfig.contextWindow ?? providerConfig.maxInputTokens;
 	const compactionModelInfo = modelInfo
 		? {
 				...modelInfo,
@@ -68,14 +74,13 @@ export async function compactInteractiveMessages(input: {
 			}
 		: {
 				id: input.config.modelId,
-				maxInputTokens: FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+				maxInputTokens:
+					configuredWindow ?? FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS,
+				contextWindow: configuredWindow,
 			};
 	const compact = createContextCompactionPrepareTurn(
 		{
-			providerConfig: resolveCompactionProviderConfig(
-				input.config,
-				input.providerSettingsManager,
-			),
+			providerConfig,
 			providerId: input.config.providerId,
 			modelId: input.config.modelId,
 			compaction: {
