@@ -9,6 +9,7 @@ import type {
 	InitializeResponse,
 	LoadSessionRequest,
 	LoadSessionResponse,
+	McpServer,
 	NewSessionRequest,
 	NewSessionResponse,
 	PromptRequest,
@@ -22,12 +23,14 @@ import type {
 	SetSessionModeRequest,
 	SetSessionModeResponse,
 	StopReason,
+	Usage,
 } from "@agentclientprotocol/sdk";
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
 import {
 	type AgentEvent,
 	type ClineCore,
 	Llms,
+	type McpServerRegistration,
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
@@ -67,6 +70,7 @@ import {
 	sendConfigOptionUpdate,
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
+	sendUsageUpdate,
 } from "./session-updates";
 
 const CHAT_MODEL_QUERY_OPTIONS = {
@@ -83,8 +87,18 @@ interface SessionState {
 	currentProviderId: string;
 	/** Current model id for the session. */
 	currentModelId: string;
+	/** Context window size for the active model, if known. */
+	currentContextWindow?: number;
 	/** When true, all tool calls are approved without asking the client. */
 	autoApproveTools: boolean;
+	/** Accumulated token usage for the in-flight prompt turn. */
+	turnUsage?: Usage;
+	/** Last observed context token usage for the session. */
+	lastUsedTokens?: number;
+	/** Cumulative cost observed within the current prompt turn. */
+	turnCost?: number;
+	/** Cumulative USD cost across all turns in this ACP session. */
+	cumulativeCost?: number;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -210,6 +224,10 @@ export class AcpAgent implements Agent {
 			currentMode: defaultMode,
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
+			currentContextWindow: resolveModelContextWindow(
+				providerModels,
+				defaultModelId,
+			),
 			autoApproveTools: this.defaultAutoApproveTools,
 		});
 
@@ -270,16 +288,21 @@ export class AcpAgent implements Agent {
 					providerId,
 					CHAT_MODEL_QUERY_OPTIONS,
 				);
+				const currentModelId = await resolveDefaultModelId(
+					providerId,
+					process.env.CLINE_MODEL,
+					providerModels,
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
 					mcpServers: params.mcpServers,
 					currentMode: "act",
 					currentProviderId: providerId,
-					currentModelId: await resolveDefaultModelId(
-						providerId,
-						process.env.CLINE_MODEL,
+					currentModelId,
+					currentContextWindow: resolveModelContextWindow(
 						providerModels,
+						currentModelId,
 					),
 					autoApproveTools: this.defaultAutoApproveTools,
 				};
@@ -331,14 +354,18 @@ export class AcpAgent implements Agent {
 			throw new Error(`unknown session: ${params.sessionId}`);
 		}
 
-		const promptText = extractTextFromContentBlocks(params.prompt);
-		if (!promptText) {
+		const { text: promptText, userImages } = extractPromptContent(
+			params.prompt,
+		);
+		if (!promptText && userImages.length === 0) {
 			return { stopReason: "end_turn" };
 		}
 
 		const abortController = new AbortController();
 		session.abortController = abortController;
 		session.fatalError = undefined;
+		session.turnUsage = undefined;
+		session.turnCost = 0;
 
 		// If cancel() was already called before prompt() started, bail early.
 		if (abortController.signal.aborted) {
@@ -375,6 +402,7 @@ export class AcpAgent implements Agent {
 			const result = await sessionManager.send({
 				sessionId: activeSessionId,
 				prompt: promptText,
+				...(userImages.length > 0 ? { userImages } : {}),
 			});
 
 			if (result) {
@@ -388,6 +416,9 @@ export class AcpAgent implements Agent {
 			updatedAt: new Date().toISOString(),
 		});
 
+		const usage = session.turnUsage;
+		session.turnUsage = undefined;
+
 		// A cancelled turn always reports `cancelled`: the ACP spec
 		// requires agents to convert abort failures into the cancelled stop reason
 		// so clients don't show cancellations as errors.
@@ -399,7 +430,7 @@ export class AcpAgent implements Agent {
 			}
 		}
 
-		return { stopReason };
+		return { stopReason, ...(usage ? { usage } : {}) };
 	}
 
 	async cancel(params: CancelNotification): Promise<void> {
@@ -449,6 +480,11 @@ export class AcpAgent implements Agent {
 				params.modelId,
 			);
 		}
+		await this.refreshModelContextWindow(
+			session,
+			params.sessionId,
+			params.modelId,
+		);
 		return {};
 	}
 
@@ -496,6 +532,12 @@ export class AcpAgent implements Agent {
 					session.currentModelId,
 					providerModels,
 				);
+				await this.refreshModelContextWindow(
+					session,
+					params.sessionId,
+					session.currentModelId,
+					providerModels,
+				);
 				break;
 			}
 
@@ -528,6 +570,7 @@ export class AcpAgent implements Agent {
 						value,
 					);
 				}
+				await this.refreshModelContextWindow(session, params.sessionId, value);
 				break;
 			}
 
@@ -611,6 +654,31 @@ export class AcpAgent implements Agent {
 
 	private get accountApiKey(): string {
 		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+	}
+
+	private async refreshModelContextWindow(
+		session: SessionState,
+		sessionId: string,
+		modelId: string,
+		providerModels?: Record<string, Llms.ModelInfo>,
+	): Promise<void> {
+		const models =
+			providerModels ??
+			(await Llms.getModelsForProvider(
+				session.currentProviderId,
+				CHAT_MODEL_QUERY_OPTIONS,
+			));
+		const nextContextWindow = resolveModelContextWindow(models, modelId);
+		if (nextContextWindow !== session.currentContextWindow) {
+			session.currentContextWindow = nextContextWindow;
+			if (nextContextWindow !== undefined) {
+				sendUsageUpdate(this.conn, sessionId, {
+					used: session.lastUsedTokens ?? 0,
+					size: nextContextWindow,
+					costAmount: session.cumulativeCost,
+				});
+			}
+		}
 	}
 
 	private async getOrganizationConfigOption(
@@ -739,7 +807,24 @@ export class AcpAgent implements Agent {
 							? event.error
 							: new Error(describeAgentError(event.error));
 				}
-				forwardAgentEvent(this.conn, acpSessionId, event);
+				if (event.type === "usage") {
+					session.turnUsage = accumulateTurnUsage(session.turnUsage, event);
+					session.lastUsedTokens =
+						(event.inputTokens ?? 0) +
+						(event.cacheReadTokens ?? 0) +
+						(event.cacheWriteTokens ?? 0);
+					const deltaCost = extractDeltaCost(session, event);
+					if (deltaCost !== undefined) {
+						session.cumulativeCost = (session.cumulativeCost ?? 0) + deltaCost;
+					}
+				}
+				forwardAgentEvent(
+					this.conn,
+					acpSessionId,
+					event,
+					session.currentContextWindow,
+					session.cumulativeCost,
+				);
 			},
 		);
 
@@ -773,6 +858,7 @@ export class AcpAgent implements Agent {
 			mode: session.currentMode,
 		});
 		const cliBuildInfo = getCliBuildInfo();
+		const mcpServers = toMcpServerRegistrations(session.mcpServers);
 
 		return {
 			providerId,
@@ -793,6 +879,7 @@ export class AcpAgent implements Agent {
 			enableSpawnAgent: true,
 			enableAgentTeams: false,
 			enableTools: true,
+			...(mcpServers.length > 0 ? { mcpServers } : {}),
 			cwd,
 			workspaceRoot,
 			extensionContext: {
@@ -891,11 +978,132 @@ async function buildAllConfigOptions(
 	});
 }
 
-function extractTextFromContentBlocks(blocks: ContentBlock[]): string {
-	return blocks
-		.filter((b): b is ContentBlock & { type: "text" } => b.type === "text")
-		.map((b) => b.text)
-		.join("\n");
+export function extractPromptContent(blocks: ContentBlock[]): {
+	text: string;
+	userImages: string[];
+} {
+	const textParts: string[] = [];
+	const userImages: string[] = [];
+	for (const block of blocks) {
+		if (block.type === "text") {
+			textParts.push(block.text);
+		} else if (block.type === "image" && block.data && block.mimeType) {
+			const dataUrl = block.data.startsWith("data:")
+				? block.data
+				: `data:${block.mimeType};base64,${block.data}`;
+			userImages.push(dataUrl);
+		}
+	}
+	return {
+		text: textParts.join("\n"),
+		userImages,
+	};
+}
+
+export function toMcpServerRegistrations(
+	servers?: McpServer[],
+): McpServerRegistration[] {
+	if (!servers || servers.length === 0) {
+		return [];
+	}
+	return servers.map((server) => {
+		if ("type" in server && server.type === "http") {
+			return {
+				name: server.name,
+				transport: {
+					type: "streamableHttp",
+					url: server.url,
+					headers: pairsToRecord(server.headers),
+				},
+			};
+		}
+		if ("type" in server && server.type === "sse") {
+			return {
+				name: server.name,
+				transport: {
+					type: "sse",
+					url: server.url,
+					headers: pairsToRecord(server.headers),
+				},
+			};
+		}
+		return {
+			name: server.name,
+			transport: {
+				type: "stdio",
+				command: server.command,
+				args: server.args,
+				env: pairsToRecord(server.env),
+			},
+		};
+	});
+}
+
+function pairsToRecord(
+	pairs?: Array<{ name: string; value: string }>,
+): Record<string, string> | undefined {
+	if (!pairs || pairs.length === 0) {
+		return undefined;
+	}
+	const record: Record<string, string> = {};
+	for (const { name, value } of pairs) {
+		record[name] = value;
+	}
+	return record;
+}
+
+function resolveModelContextWindow(
+	providerModels: Record<string, Llms.ModelInfo>,
+	modelId: string,
+): number | undefined {
+	const contextWindow = providerModels[modelId]?.contextWindow;
+	return typeof contextWindow === "number" && contextWindow > 0
+		? contextWindow
+		: undefined;
+}
+
+function extractDeltaCost(
+	session: SessionState,
+	event: AgentEvent & { type: "usage" },
+): number | undefined {
+	if (typeof event.cost === "number") {
+		session.turnCost = (session.turnCost ?? 0) + event.cost;
+		return event.cost;
+	}
+	if (typeof event.totalCost === "number") {
+		const prevTurnCost = session.turnCost ?? 0;
+		const delta = Math.max(0, event.totalCost - prevTurnCost);
+		session.turnCost = event.totalCost;
+		return delta;
+	}
+	return undefined;
+}
+
+function accumulateTurnUsage(
+	prev: Usage | undefined,
+	event: AgentEvent & { type: "usage" },
+): Usage {
+	const inputTokens = (prev?.inputTokens ?? 0) + (event.inputTokens ?? 0);
+	const outputTokens = (prev?.outputTokens ?? 0) + (event.outputTokens ?? 0);
+	const cachedReadTokens =
+		(prev?.cachedReadTokens ?? 0) + (event.cacheReadTokens ?? 0);
+	const cachedWriteTokens =
+		(prev?.cachedWriteTokens ?? 0) + (event.cacheWriteTokens ?? 0);
+	const thoughtTokens =
+		(prev?.thoughtTokens ?? 0) + (event.reasoningTokenCount ?? 0);
+	return {
+		inputTokens,
+		outputTokens,
+		...(cachedReadTokens > 0 ? { cachedReadTokens } : {}),
+		...(cachedWriteTokens > 0 ? { cachedWriteTokens } : {}),
+		...(thoughtTokens > 0 ? { thoughtTokens } : {}),
+		totalTokens:
+			inputTokens +
+			outputTokens +
+			cachedReadTokens +
+			cachedWriteTokens +
+			thoughtTokens,
+	};
 }
 
 function mapFinishReason(reason: string): StopReason {
