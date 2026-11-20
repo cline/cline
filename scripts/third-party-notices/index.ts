@@ -7,7 +7,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export interface NoticeEntry {
 	name: string;
@@ -116,23 +116,35 @@ function detectLicense(texts: { content: string }[]): string {
 	return LICENSE_SIGNATURES.find(([pattern]) => pattern.test(text))?.[1] ?? "";
 }
 
+// Package metadata and symlinks are untrusted: only read regular files that resolve inside
+// the package, so a dependency cannot pull build-machine files into the shipped notices.
+function isPackageFile(packageRoot: string, file: string): boolean {
+	const path = join(packageRoot, file);
+	if (!existsSync(path)) return false;
+	const rel = relative(packageRoot, realpathSync(path));
+	return (
+		rel !== "" &&
+		!rel.startsWith(`..${sep}`) &&
+		rel !== ".." &&
+		!isAbsolute(rel) &&
+		statSync(path).isFile()
+	);
+}
+
 export function readPackageEntry(packageDir: string): NoticeEntry {
+	const packageRoot = realpathSync(packageDir);
 	const pkg = JSON.parse(
-		readFileSync(join(packageDir, "package.json"), "utf8"),
+		readFileSync(join(packageRoot, "package.json"), "utf8"),
 	);
 	const license = licenseOf(pkg);
 	const referenced = /^SEE LICENSE IN (\S+)/i.exec(license)?.[1];
-	const files = readdirSync(packageDir)
+	const files = readdirSync(packageRoot)
 		.filter((f) => LICENSE_FILE.test(f) && !NON_TEXT_EXT.test(f))
-		.concat(
-			referenced && existsSync(join(packageDir, referenced))
-				? [referenced]
-				: [],
-		)
-		.filter((f) => statSync(join(packageDir, f)).isFile());
+		.concat(referenced ? [referenced] : [])
+		.filter((f) => isPackageFile(packageRoot, f));
 	const texts = [...new Set(files)].sort().map((file) => ({
 		file,
-		content: readFileSync(join(packageDir, file), "utf8").trim(),
+		content: readFileSync(join(packageRoot, file), "utf8").trim(),
 	}));
 	return {
 		name: pkg.name,
