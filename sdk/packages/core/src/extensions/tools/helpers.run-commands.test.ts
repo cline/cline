@@ -18,6 +18,26 @@ describe("normalizeRunCommandsInput", () => {
 		).toEqual([{ command: "git", args: ["status"] }]);
 	});
 
+	it("unwraps a commands array that the model sent as a JSON string", () => {
+		expect(normalizeRunCommandsInput({ commands: '["dir"]' })).toEqual(["dir"]);
+		expect(normalizeRunCommandsInput('["cd /tmp", "ls -la"]')).toEqual([
+			"cd /tmp",
+			"ls -la",
+		]);
+		expect(
+			normalizeRunCommandsInput({
+				commands: '[{"command":"git","args":["status"]}]',
+			}),
+		).toEqual([{ command: "git", args: ["status"] }]);
+	});
+
+	it("leaves shell text that only looks like a JSON array alone", () => {
+		expect(normalizeRunCommandsInput({ commands: '[int]"42" + 1' })).toEqual([
+			'[int]"42" + 1',
+		]);
+		expect(normalizeRunCommandsInput({ commands: "[1,2]" })).toEqual(["[1,2]"]);
+	});
+
 	it.each([
 		{ label: "an object with an empty commands list", input: { commands: [] } },
 		{ label: "a bare empty list", input: [] },
