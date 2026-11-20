@@ -907,6 +907,7 @@ export class NodeHubClient {
 			await this.connect();
 			this.reconnectAttempt = 0;
 		} catch {
+			if (this.closedByClient || !this.hasActiveSubscriptions()) return;
 			if (!isRecoverableLocalHubUrl(this.currentUrl)) {
 				this.reconnectAttempt += 1;
 				this.scheduleReconnect();
@@ -917,6 +918,7 @@ export class NodeHubClient {
 					workspaceRoot: this.options.workspaceRoot,
 					cwd: this.options.cwd,
 				});
+				if (this.closedByClient || !this.hasActiveSubscriptions()) return;
 				if (recoveredUrl) {
 					this.currentUrl = recoveredUrl;
 					await this.connect();
