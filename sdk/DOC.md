@@ -32,6 +32,15 @@ sessions, not an active session's commands. Built-in command precedence and
 rendering remain host responsibilities. Preserve the original arguments when
 dispatching.
 
+## Manual schedule runs
+
+`schedule.trigger` (including `wait: false`) and `HubScheduleService`'s
+`triggerScheduleNow` / `triggerScheduleNowDetached` methods allow a manual run
+while a schedule is disabled. The run leaves `enabled` unchanged; automatic
+runs remain paused. Deleted or invalid schedules cannot be triggered.
+Manual runs of one-time schedules retain the existing behavior of consuming
+the current scheduled occurrence rather than creating an additional occurrence.
+
 ## Model request retries and Langfuse
 
 AI SDK text requests allow three retries after the initial request (four total
