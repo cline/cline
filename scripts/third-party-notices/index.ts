@@ -1,0 +1,243 @@
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+
+export interface NoticeEntry {
+	name: string;
+	version: string;
+	license: string;
+	repository?: string;
+	texts: { file: string; content: string }[];
+}
+
+export interface GenerateNoticesOptions {
+	product: string;
+	inputs: string[];
+	baseDir: string;
+	extraPackageDirs?: string[];
+	extraEntries?: NoticeEntry[];
+	outFile: string;
+}
+
+const LICENSE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
+const NON_TEXT_EXT = /\.(js|cjs|mjs|ts|json|d\.ts|map|html)$/i;
+const RULE = "=".repeat(80);
+const THIN_RULE = "-".repeat(80);
+
+// The package root is the directory right after the last node_modules segment; nested
+// manifests (dist/esm/package.json, posthog-js/react/package.json) are not packages.
+function findPackageDir(file: string): string | undefined {
+	const marker = `${sep}node_modules${sep}`;
+	const at = file.lastIndexOf(marker);
+	if (at === -1) return undefined;
+	const segments = file.slice(at + marker.length).split(sep);
+	const depth = segments[0].startsWith("@") ? 2 : 1;
+	const dir = join(
+		file.slice(0, at + marker.length),
+		...segments.slice(0, depth),
+	);
+	return existsSync(join(dir, "package.json")) ? dir : undefined;
+}
+
+function licenseOf(pkg: Record<string, unknown>): string {
+	const { license, licenses } = pkg as {
+		license?: string | { type?: string };
+		licenses?: { type?: string }[] | { type?: string };
+	};
+	if (typeof license === "string") return license;
+	if (license?.type) return license.type;
+	const list = Array.isArray(licenses) ? licenses : licenses ? [licenses] : [];
+	const types = list.map((l) => l.type).filter(Boolean);
+	return types.length ? types.join(" OR ") : "";
+}
+
+function repositoryOf(pkg: Record<string, unknown>): string | undefined {
+	const repo = pkg.repository as string | { url?: string } | undefined;
+	const url = typeof repo === "string" ? repo : repo?.url;
+	return url?.replace(/^git\+/, "").replace(/\.git$/, "");
+}
+
+function authorOf(pkg: Record<string, unknown>): string | undefined {
+	const author = pkg.author as string | { name?: string } | undefined;
+	const name = typeof author === "string" ? author : author?.name;
+	return name?.replace(/\s*[<(].*$/, "").trim() || undefined;
+}
+
+const TEMPLATE_IDS: Record<string, string> = {
+	MIT: "MIT",
+	"MIT/X11": "MIT",
+	ISC: "ISC",
+	"Apache-2.0": "Apache-2.0",
+	"BSD-2-Clause": "BSD-2-Clause",
+	"BSD-3-Clause": "BSD-3-Clause",
+};
+
+// Packages that omit their license file still owe the license text and copyright notice.
+function templateText(
+	license: string,
+	pkg: Record<string, unknown>,
+): { file: string; content: string }[] {
+	const ids = license
+		.replace(/[()]/g, "")
+		.split(/\s+(?:AND|OR)\s+/)
+		.map((id) => TEMPLATE_IDS[id])
+		.filter(Boolean);
+	const copyright = `Copyright (c) ${authorOf(pkg) ?? `the ${pkg.name} authors`}`;
+	return [...new Set(ids)].map((id) => ({
+		file: `${id} (standard text; the package ships no license file)`,
+		content: readFileSync(
+			join(import.meta.dirname, "licenses", `${id}.txt`),
+			"utf8",
+		)
+			.replace("{{copyright}}", copyright)
+			.trim(),
+	}));
+}
+
+const LICENSE_SIGNATURES: [RegExp, string][] = [
+	[/Permission is hereby granted, free of charge/, "MIT"],
+	[/Permission to use, copy, modify, and\/or distribute this software/, "ISC"],
+	[
+		/free and unencumbered software released into the public domain/,
+		"Unlicense",
+	],
+	[/Apache License\s+Version 2\.0/, "Apache-2.0"],
+];
+
+function detectLicense(texts: { content: string }[]): string {
+	const text = texts.map((t) => t.content).join("\n");
+	return LICENSE_SIGNATURES.find(([pattern]) => pattern.test(text))?.[1] ?? "";
+}
+
+export function readPackageEntry(packageDir: string): NoticeEntry {
+	const pkg = JSON.parse(
+		readFileSync(join(packageDir, "package.json"), "utf8"),
+	);
+	const license = licenseOf(pkg);
+	const referenced = /^SEE LICENSE IN (\S+)/i.exec(license)?.[1];
+	const files = readdirSync(packageDir)
+		.filter((f) => LICENSE_FILE.test(f) && !NON_TEXT_EXT.test(f))
+		.concat(
+			referenced && existsSync(join(packageDir, referenced))
+				? [referenced]
+				: [],
+		)
+		.filter((f) => statSync(join(packageDir, f)).isFile());
+	const texts = [...new Set(files)].sort().map((file) => ({
+		file,
+		content: readFileSync(join(packageDir, file), "utf8").trim(),
+	}));
+	return {
+		name: pkg.name,
+		version: pkg.version,
+		license: license || detectLicense(texts),
+		repository: repositoryOf(pkg),
+		texts: texts.length ? texts : templateText(license, pkg),
+	};
+}
+
+export function collectPackageEntries(
+	inputs: string[],
+	baseDir: string,
+): NoticeEntry[] {
+	const dirs = new Set<string>();
+	for (const input of inputs) {
+		// Bundlers report virtual modules ("\0commonjsHelpers", "<runtime>") alongside real files.
+		if (input.startsWith("\0") || input.startsWith("<")) continue;
+		const path = input.split("?")[0];
+		const file = isAbsolute(path) ? path : resolve(baseDir, path);
+		if (!existsSync(file)) continue;
+		const dir = findPackageDir(realpathSync(file));
+		if (dir) dirs.add(dir);
+	}
+	return [...dirs].map(readPackageEntry);
+}
+
+const OPEN_SOURCE_IDS = new Set([
+	"0BSD",
+	"Apache-2.0",
+	"BlueOak-1.0.0",
+	"BSD-2-Clause",
+	"BSD-3-Clause",
+	"CC-BY-4.0",
+	"CC0-1.0",
+	"ISC",
+	"MIT",
+	"MIT/X11",
+	"MPL-2.0",
+	"Python-2.0",
+	"Unlicense",
+	"WTFPL",
+	"Zlib",
+]);
+
+function isOpenSource(license: string): boolean {
+	const ids = license.replace(/[()]/g, "").split(/\s+(?:AND|OR)\s+/);
+	// An OR expression is satisfied by any permissive choice; AND needs all of them.
+	return / OR /.test(license) && !/ AND /.test(license)
+		? ids.some((id) => OPEN_SOURCE_IDS.has(id))
+		: ids.every((id) => OPEN_SOURCE_IDS.has(id));
+}
+
+export function findProblems(entries: NoticeEntry[]): string[] {
+	return entries.flatMap((e) => {
+		const id = `${e.name}@${e.version}`;
+		if (e.texts.length === 0)
+			return [`${id}: no license text found (declared: "${e.license}")`];
+		if (!isOpenSource(e.license))
+			return [`${id}: license "${e.license}" needs review`];
+		return [];
+	});
+}
+
+export function renderNotices(product: string, entries: NoticeEntry[]): string {
+	const header = [
+		`THIRD-PARTY SOFTWARE NOTICES AND INFORMATION`,
+		``,
+		`${product} incorporates the third-party components listed below. Each`,
+		`component is licensed to you under the terms reproduced with it; those`,
+		`terms are not modified by the license that applies to ${product} itself.`,
+		``,
+	];
+	const sections = entries.map((e) => {
+		const lines = [
+			RULE,
+			`${e.name} ${e.version}`,
+			`License: ${e.license || "see license text below"}`,
+		];
+		if (e.repository) lines.push(`Source: ${e.repository}`);
+		lines.push(THIN_RULE);
+		for (const t of e.texts) lines.push("", t.content, "");
+		return lines.join("\n");
+	});
+	return `${[...header, ...sections].join("\n")}\n`;
+}
+
+function dedupe(entries: NoticeEntry[]): NoticeEntry[] {
+	const byId = new Map(entries.map((e) => [`${e.name}@${e.version}`, e]));
+	return [...byId.values()].sort(
+		(a, b) =>
+			a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
+	);
+}
+
+export function generateNotices(options: GenerateNoticesOptions): {
+	entries: NoticeEntry[];
+	problems: string[];
+} {
+	const entries = dedupe([
+		...collectPackageEntries(options.inputs, options.baseDir),
+		...(options.extraPackageDirs ?? []).map(readPackageEntry),
+		...(options.extraEntries ?? []),
+	]);
+	mkdirSync(dirname(options.outFile), { recursive: true });
+	writeFileSync(options.outFile, renderNotices(options.product, entries));
+	return { entries, problems: findProblems(entries) };
+}
