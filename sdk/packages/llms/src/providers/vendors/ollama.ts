@@ -25,6 +25,7 @@ import { wrapLanguageModel } from "ai";
 // drop the patch once an upstream release covers them.
 import { createOllama } from "ollama-ai-provider-v2";
 import { ensureFetch, resolveApiKey } from "../http";
+import { recoverTextToolCallsMiddleware } from "../middleware/recover-text-tool-calls";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
 import type { ProviderFactoryResult } from "./types";
 
@@ -147,13 +148,18 @@ export async function createOllamaProviderModule(
 	// each retry re-runs the whole request. `splitToolImagesMiddleware` is
 	// attached here, for the same reason as the OpenAI-compatible vendor:
 	// the downstream converter stringifies multimodal tool-result content,
-	// losing image bytes.
+	// losing image bytes. `recoverTextToolCallsMiddleware` handles models
+	// (e.g. Qwen 2.5 Coder) that write the tool call as JSON text instead of
+	// `message.tool_calls`.
 	return {
 		operations: {
 			language: (modelId) =>
 				wrapLanguageModel({
 					model: provider.chat(modelId),
-					middleware: splitToolImagesMiddleware,
+					middleware: [
+						recoverTextToolCallsMiddleware,
+						splitToolImagesMiddleware,
+					],
 				}),
 		},
 	};
