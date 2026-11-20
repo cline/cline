@@ -2,10 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NoticeEntry } from "./index";
 
-// bun-runtime/LICENSE.md is Bun's own notice at this tag; COPYING.LIB is JavaScriptCore's
-// LGPL-2.0 text from oven-sh/WebKit. Refresh both when the repo's Bun version changes.
-const VENDORED_BUN_VERSION = "1.4.2";
-
+// notices.json covers Bun and everything it links or embeds (see update-bun-runtime.ts);
+// COPYING.LIB is JavaScriptCore's LGPL-2.0 text from oven-sh/WebKit.
 function read(file: string): string {
 	return readFileSync(
 		join(import.meta.dirname, "bun-runtime", file),
@@ -15,21 +13,20 @@ function read(file: string): string {
 
 /** Notices for the Bun runtime that `bun build --compile` embeds in every executable. */
 export function bunRuntimeEntries(product: string): NoticeEntry[] {
-	if (Bun.version !== VENDORED_BUN_VERSION) {
+	const vendored = JSON.parse(read("notices.json")) as {
+		bunVersion: string;
+		entries: NoticeEntry[];
+	};
+	if (Bun.version !== vendored.bunVersion) {
 		throw new Error(
-			`[third-party-notices] building with Bun ${Bun.version}, but the vendored Bun notices are for ${VENDORED_BUN_VERSION}; update scripts/third-party-notices/bun-runtime/`,
+			`[third-party-notices] building with Bun ${Bun.version}, but the Bun runtime notices are for ${vendored.bunVersion}; run bun scripts/third-party-notices/update-bun-runtime.ts`,
 		);
 	}
+	const [bun, ...bundled] = vendored.entries;
 	const webkit = process.versions.webkit;
 	const webkitSource = `https://github.com/oven-sh/WebKit/tree/${webkit}`;
 	return [
-		{
-			name: "Bun",
-			version: Bun.version,
-			license: "MIT",
-			repository: `https://github.com/oven-sh/bun/tree/bun-v${Bun.version}`,
-			texts: [{ file: "LICENSE.md", content: read("LICENSE.md") }],
-		},
+		bun,
 		{
 			name: "JavaScriptCore (WebKit, as patched by Bun)",
 			version: webkit,
@@ -57,5 +54,6 @@ export function bunRuntimeEntries(product: string): NoticeEntry[] {
 				{ file: "COPYING.LIB", content: read("COPYING.LIB") },
 			],
 		},
+		...bundled,
 	];
 }

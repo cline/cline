@@ -48,8 +48,8 @@ function readInputList(
 	return [];
 }
 
-const LICENSE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
-const NON_TEXT_EXT = /\.(js|cjs|mjs|ts|json|d\.ts|map|html)$/i;
+export const LICENSE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
+export const NON_TEXT_EXT = /\.(js|cjs|mjs|ts|json|d\.ts|map|html)$/i;
 const RULE = "=".repeat(80);
 const THIN_RULE = "-".repeat(80);
 
@@ -111,16 +111,23 @@ function templateText(
 		.split(/\s+(?:AND|OR)\s+/)
 		.map((id) => TEMPLATE_IDS[id])
 		.filter(Boolean);
-	const copyright = `Copyright (c) ${authorOf(pkg) ?? `the ${pkg.name} authors`}`;
+	const holder = authorOf(pkg) ?? `the ${pkg.name} authors`;
 	return [...new Set(ids)].map((id) => ({
 		file: `${id} (standard text; the package ships no license file)`,
-		content: readFileSync(
-			join(import.meta.dirname, "licenses", `${id}.txt`),
-			"utf8",
-		)
-			.replace("{{copyright}}", copyright)
-			.trim(),
+		content: standardLicenseText(id, holder),
 	}));
+}
+
+export function standardLicenseText(
+	id: string,
+	copyrightHolder: string,
+): string {
+	return readFileSync(
+		join(import.meta.dirname, "licenses", `${id}.txt`),
+		"utf8",
+	)
+		.replace("{{copyright}}", `Copyright (c) ${copyrightHolder}`)
+		.trim();
 }
 
 const LICENSE_SIGNATURES: [RegExp, string][] = [
