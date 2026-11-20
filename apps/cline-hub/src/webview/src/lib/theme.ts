@@ -9,7 +9,13 @@ export function readStoredHubTheme(): HubTheme | null {
 
 export function readSystemHubTheme(): HubTheme {
 	const kind = document.body.dataset.vscodeThemeKind;
-	return kind === "vscode-dark" || kind === "vscode-high-contrast"
+	if (kind === "vscode-dark" || kind === "vscode-high-contrast") {
+		return "dark";
+	}
+	if (kind === "vscode-light" || kind === "vscode-high-contrast-light") {
+		return "light";
+	}
+	return window.matchMedia?.("(prefers-color-scheme: dark)").matches
 		? "dark"
 		: "light";
 }
@@ -27,4 +33,15 @@ export function syncHubTheme(): HubTheme {
 export function setStoredHubTheme(theme: HubTheme): HubTheme {
 	window.localStorage.setItem(HUB_THEME_STORAGE_KEY, theme);
 	return applyHubTheme(theme);
+}
+
+/** Follow browser color-scheme changes until the user saves a preference. */
+export function watchSystemHubTheme(): () => void {
+	const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+	if (!media) return () => {};
+	const handle = () => {
+		if (readStoredHubTheme() === null) syncHubTheme();
+	};
+	media.addEventListener("change", handle);
+	return () => media.removeEventListener("change", handle);
 }
