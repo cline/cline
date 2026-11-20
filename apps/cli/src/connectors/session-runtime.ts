@@ -417,20 +417,29 @@ export async function stopConnectorSessions(input: {
 		client.close();
 	}
 
-	const service = new CoreSessionService(new SqliteSessionStore());
-	const rows = await service.listSessions(5000);
-	const filtered = rows.filter((row) => {
-		if (row.parentSessionId?.trim()) {
-			return false;
-		}
-		return input.localMatcher(parseLocalRowMetadata(row));
-	});
-	await Promise.allSettled(
-		filtered.map(async (row) => {
-			await service.deleteSession(row.sessionId);
-		}),
-	);
-	return filtered.length;
+	const store = new SqliteSessionStore();
+	const service = new CoreSessionService(store);
+	try {
+		const rows = await service.listSessions(5000);
+		const filtered = rows.filter((row) => {
+			if (row.parentSessionId?.trim()) {
+				return false;
+			}
+			return input.localMatcher(parseLocalRowMetadata(row));
+		});
+		await Promise.allSettled(
+			filtered.map(async (row) => {
+				await service.deleteSession(row.sessionId);
+			}),
+		);
+		return filtered.length;
+	} finally {
+		// The local fallback opens SQLite (WAL + shm files). Leaving the handle
+		// open keeps the data dir locked for the life of the process, which on
+		// Windows makes the directory undeletable (EPERM) and leaks a handle in
+		// long-lived callers.
+		store.close();
+	}
 }
 
 export { readSessionMessageCount, readSessionReplyText };
