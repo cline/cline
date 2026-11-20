@@ -142,6 +142,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		fallbackName: "ai&",
 		signupUrl: "https://console.aiand.com/",
 	},
+	uberllm: {
+		fallbackName: "UberLLM",
+		signupUrl: "https://uberllm.dev/dashboard/keys",
+	},
 	"zai-coding-plan": {
 		fallbackName: "Z.AI Coding Plan",
 	},

@@ -4,7 +4,16 @@ import { convertApiConfigurationToProto, convertProtoToApiConfiguration } from "
 
 describe("api configuration provider conversion", () => {
 	it("round-trips SDK provider ids added after the legacy enum list", () => {
-		const providers: ApiProvider[] = ["poolside", "v0", "xiaomi", "tencent-tokenhub", "chutes", "aiand", "zai-coding-plan"]
+		const providers: ApiProvider[] = [
+			"poolside",
+			"v0",
+			"xiaomi",
+			"tencent-tokenhub",
+			"chutes",
+			"aiand",
+			"uberllm",
+			"zai-coding-plan",
+		]
 
 		for (const provider of providers) {
 			const proto = convertApiConfigurationToProto({

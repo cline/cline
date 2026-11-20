@@ -21,6 +21,7 @@ describe("isPrivateModelCatalogProvider", () => {
 		"hicap",
 		"litellm",
 		"poolside",
+		"uberllm",
 	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
 	});
@@ -708,6 +709,99 @@ describe("resolveProviderConfig", () => {
 				pricing: { input: 0, output: 0 },
 				status: "active",
 			}),
+		);
+	});
+
+	it("loads UberLLM chat models from the authenticated models endpoint", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					object: "list",
+					data: [
+						{
+							id: "anthropic/claude-sonnet-5.5",
+							object: "model",
+							created: 1_780_000_000,
+							owned_by: "anthropic",
+							display_name: "Claude Sonnet 5.5",
+							type: "chat",
+							context_length: 1_000_000,
+							max_output_tokens: 128_000,
+							input_modalities: ["text", "image", "file"],
+							pricing: {
+								input_usd: 1.42,
+								output_usd: 7.1,
+								cache_read_usd: 0.071,
+								unit: "1M tokens",
+							},
+						},
+						{
+							id: "deepseek/deepseek-v3.2",
+							object: "model",
+							type: "chat",
+							context_length: 163_840,
+							input_modalities: ["text"],
+						},
+						{
+							id: "black-forest-labs/flux-2-pro",
+							object: "model",
+							type: "image",
+							pricing: { usd: 0.03, unit: "image" },
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"uberllm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "uberllm",
+				modelId: "anthropic/claude-sonnet-5.5",
+				apiKey: "ull_test",
+				baseUrl: "https://api.uberllm.dev/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.uberllm.dev/v1/models?type=chat",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer ull_test",
+				}),
+			}),
+		);
+		expect(resolved?.knownModels?.["anthropic/claude-sonnet-5.5"]).toEqual(
+			expect.objectContaining({
+				name: "Claude Sonnet 5.5",
+				contextWindow: 1_000_000,
+				maxInputTokens: 1_000_000,
+				maxTokens: 128_000,
+				capabilities: expect.arrayContaining([
+					"streaming",
+					"tools",
+					"images",
+					"prompt-cache",
+				]),
+				pricing: { input: 1.42, output: 7.1, cacheRead: 0.071 },
+				releaseDate: "2026-05-28",
+				status: "active",
+			}),
+		);
+		const deepseek = resolved?.knownModels?.["deepseek/deepseek-v3.2"];
+		expect(deepseek?.contextWindow).toBe(163_840);
+		expect(deepseek?.capabilities).not.toContain("images");
+		expect(deepseek?.pricing).toBeUndefined();
+		// image/video/audio entries share the list but cannot run a chat session
+		expect(resolved?.knownModels).not.toHaveProperty(
+			"black-forest-labs/flux-2-pro",
 		);
 	});
 

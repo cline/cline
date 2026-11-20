@@ -35,6 +35,7 @@ Use this page for providers that follow the same setup pattern.
   - [SambaNova](#sambanova)
   - [SAP AI Core](#sap-ai-core)
   - [Together](#together)
+  - [UberLLM](#uberllm)
   - [Vercel AI Gateway](#vercel-ai-gateway)
   - [VS Code Language Model API](#vs-code-language-model-api)
   - [xAI (Grok)](#xai-grok)
@@ -339,6 +340,17 @@ Together provides hosted inference for many popular open models.
 1. Create/sign in to Together account.
 2. Generate an API key.
 3. In Cline, choose **Together** and paste the key.
+
+### UberLLM
+UberLLM is a marketplace for spare inference capacity. One OpenAI-compatible API key reaches chat models from many vendors; each request is routed to an available provider for the model. Credits are prepaid, and the model list shows each model's current market price.
+
+**Website:** [https://uberllm.dev](https://uberllm.dev)
+
+#### Basic Setup
+
+1. Create an account at [uberllm.dev](https://uberllm.dev/signup) and add credits.
+2. Create an API key on the [API keys page](https://uberllm.dev/dashboard/keys).
+3. In Cline, choose **UberLLM** and paste the key (CLI: `UBERLLM_API_KEY`). The model list loads from your account.
 
 ### Vercel AI Gateway
 Vercel AI Gateway gives one API for multiple upstream model providers.
