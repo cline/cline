@@ -417,7 +417,7 @@ export class Controller {
 			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
+				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
