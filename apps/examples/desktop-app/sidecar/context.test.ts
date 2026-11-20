@@ -244,6 +244,53 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("counts running sessions in remote environments in process context", async () => {
+		const {
+			createSidecarContext,
+			getEnvironmentContext,
+			initializeSessionManager,
+		} = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+
+		await initializeSessionManager(ctx);
+		const remoteEnvId = "ssh-remote-1";
+		const localBinding = ctx.runtimeBindings.get("local");
+		if (localBinding) {
+			ctx.runtimeBindings.set(remoteEnvId, {
+				...localBinding,
+				environmentId: remoteEnvId,
+				kind: "ssh",
+			});
+		}
+		ctx.activeEnvironmentId = remoteEnvId;
+
+		const remoteCtx = getEnvironmentContext(ctx, remoteEnvId);
+		remoteCtx.liveSessions.set("remote-running-session", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		await expect(handleCommand(ctx, "get_process_context")).resolves.toEqual(
+			expect.objectContaining({
+				environmentId: remoteEnvId,
+				runningSessionCount: 1,
+			}),
+		);
+		await expect(
+			handleCommand(ctx, "get_process_context", { environmentId: remoteEnvId }),
+		).resolves.toEqual(
+			expect.objectContaining({
+				environmentId: remoteEnvId,
+				runningSessionCount: 1,
+			}),
+		);
+	});
+
 	it("starts or reuses the shared Hub when a command needs a client", async () => {
 		const { createSidecarContext, ensureSharedHubClient } = await import(
 			"./context"
