@@ -122,17 +122,17 @@ This is useful when you already know what you want to automate and would rather 
 
 Cline Desktop can use web search to bring current information into a task, such as checking documentation, researching a topic, or comparing options.
 
-Web search is enabled by default for new sessions. You can manage it from **Settings** using the **Web Search** toggle.
+Web search is the `web_search` tool under **Customize → Installed → Tools**. Search for "web" to find it. The tool is on by default; you can disable it there.
 
 <Frame>
   <img
     src="/assets/desktop/desktop-web-search-settings.png"
-    alt="Cline Desktop settings showing the Web Search toggle enabled"
+    alt="Cline Desktop Customize Installed view with the Tools tab showing the web_search tool"
   />
 </Frame>
 
 <Note>
-Only providers with built-in web search honor this setting. Other providers ignore it. Changes to this setting apply to new sessions.
+Only providers with built-in web search support the `web_search` tool. Other providers ignore it. Changes apply to new sessions.
 </Note>
 
 Web search currently works without additional setup with:
@@ -140,8 +140,10 @@ Web search currently works without additional setup with:
 - Cline (usage billing)
 - ClinePass
 - OpenAI subscription
+- OpenAI
 - Anthropic
 - Google Gemini
+- Google Vertex AI, except Claude models
 
 Availability depends on whether the selected model supports built-in web search.
 
@@ -149,7 +151,7 @@ Availability depends on whether the selected model supports built-in web search.
 
 Voice input lets you speak your prompt instead of typing it. This is useful for longer instructions, talking through a problem, or quickly getting an idea into Cline.
 
-Voice input requires a compatible speech-to-text provider.
+Voice input requires a provider with streaming speech-to-text models, so text appears as you speak.
 
 To set it up:
 
@@ -162,12 +164,12 @@ To set it up:
     />
 </Frame>
 
-2. Choose a provider with a supported transcription model, such as ElevenLabs, and add your API key.
+2. Choose a provider that offers streaming speech-to-text models, such as ElevenLabs, and add your API key.
 
 <Frame>
     <img
        src="/assets/desktop/desktop-voice-provider.png"
-       alt="Cline Desktop API Providers settings showing a transcription provider being configured"
+       alt="Cline Desktop Model Providers settings showing ElevenLabs configured as a transcription provider"
     />
 </Frame>
 
@@ -185,12 +187,12 @@ To set it up:
 
 Use **Customize → Installed** to view and manage the capabilities available to Cline Desktop.
 
-The Installed view acts as an inventory for **tools, plugins, skills, rules, MCP servers, and hooks**. From here, you can inspect what is available, search within each category, and enable or disable supported capabilities.
+The Installed view acts as an inventory for **connectors, tools, plugins, skills, rules, MCP servers, and hooks**. From here, you can inspect what is available, search within each category, and enable or disable supported capabilities.
 
 <Frame>
   <img
     src="/assets/desktop/desktop-customize-installed.png"
-    alt="Cline Desktop Customize view showing tools, plugins, skills, rules, MCP servers, and hooks"
+    alt="Cline Desktop Customize view showing connectors, tools, plugins, skills, rules, MCP servers, and hooks"
   />
 </Frame>
 
