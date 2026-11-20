@@ -82,6 +82,10 @@ type BuiltinCompactionStrategyOptions = {
 	compaction: CoreCompactionConfig | undefined;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger: Pick<CoreSessionConfig, "logger">["logger"];
+	/** Live turn request context enabling in-place agentic summaries. */
+	systemPrompt?: string;
+	apiMessages?: CoreCompactionContext["messages"];
+	tools?: unknown[];
 };
 
 type BuiltinCompactionStrategyRunner = (
@@ -172,6 +176,9 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 		compaction,
 		estimateMessageTokens,
 		logger,
+		systemPrompt,
+		apiMessages,
+		tools,
 	}) =>
 		runAgenticCompaction({
 			context,
@@ -183,6 +190,9 @@ const BUILTIN_COMPACTION_STRATEGIES = {
 			),
 			estimateMessageTokens,
 			logger,
+			systemPrompt,
+			apiMessages,
+			tools,
 		}),
 } satisfies Record<CoreCompactionStrategy, BuiltinCompactionStrategyRunner>;
 
@@ -483,6 +493,12 @@ export function createContextCompactionPrepareTurn(
 			compaction: userCompaction,
 			estimateMessageTokens,
 			logger: config.logger,
+			// The live turn's own request context (system prompt, API-safe
+			// transcript, tool definitions) so a same-model summarizer can
+			// replay the cached prompt prefix instead of re-serializing it.
+			systemPrompt: context.systemPrompt,
+			apiMessages: context.apiMessages,
+			tools: context.tools,
 		};
 		let executedStrategy = telemetryStrategy;
 		let result: CoreCompactionResult | undefined;

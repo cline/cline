@@ -1,10 +1,19 @@
 import { createHandlerAsync } from "@cline/llms";
+import type { Message, ToolDefinition } from "@cline/shared";
 import type { ProviderConfig } from "../../types/provider-settings";
 
 export async function generateSummary(options: {
 	providerConfig: ProviderConfig;
 	systemPrompt: string;
-	request: string;
+	/** Serialized conversation to summarize; ignored when `messages` is set. */
+	request?: string;
+	/**
+	 * Prebuilt conversation to summarize verbatim instead of `request`. Used
+	 * by in-place summaries that replay the session transcript so a
+	 * same-model summarizer can reuse its cached prompt prefix.
+	 */
+	messages?: Message[];
+	tools?: ToolDefinition[];
 	maxOutputChars?: number;
 	signal?: AbortSignal;
 }) {
@@ -15,14 +24,19 @@ export async function generateSummary(options: {
 			: options.providerConfig,
 	);
 	options.signal?.throwIfAborted();
+	const payloadMessages =
+		options.messages ??
+		([{ role: "user", content: options.request ?? "" }] as Message[]);
 	let text = "";
 	let reasoningChars = 0;
 	let failed = false;
 	let usedTools = false;
 	let incompleteReason: string | undefined;
-	for await (const chunk of handler.createMessage(options.systemPrompt, [
-		{ role: "user", content: options.request },
-	])) {
+	for await (const chunk of handler.createMessage(
+		options.systemPrompt,
+		payloadMessages,
+		options.tools,
+	)) {
 		options.signal?.throwIfAborted();
 		if (chunk.type === "text") {
 			text += chunk.text;
