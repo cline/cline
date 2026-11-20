@@ -211,12 +211,12 @@ export const EditFileInputSchema = z
 				z.string().optional(),
 			)
 			.describe(
-				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; larger payloads should be split across multiple tool calls to avoid timeouts.`,
+				`Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Must be at most ${INPUT_ARG_CHAR_LIMIT} characters; longer values are rejected, so replace a large region as several smaller edits.`,
 			),
 		new_text: z
 			.string()
 			.describe(
-				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
+				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Must be at most ${INPUT_ARG_CHAR_LIMIT} characters; longer values are rejected. To write a larger file, create it with the first part, then append each further part with insert_line set to the file's line count + 1.`,
 			),
 		// See start_line above: coerced so a stringified line number still applies.
 		insert_line: z.coerce
