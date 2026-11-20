@@ -122,14 +122,6 @@ function getRequiredField(
 	return value;
 }
 
-function getFirstCronValue(values: readonly number[], label: string): number {
-	const value = values[0];
-	if (typeof value !== "number") {
-		throw new Error(`Invalid cron pattern: no values parsed for ${label}`);
-	}
-	return value;
-}
-
 export function parseCron(pattern: string): ParsedCron {
 	const fields = pattern.trim().split(/\s+/);
 	if (fields.length !== 5) {
@@ -248,29 +240,83 @@ function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
 	);
 }
 
+function cronCouldMatchUtcDate(cron: ParsedCron, timestampMs: number): boolean {
+	const date = new Date(timestampMs);
+	// An unrepresentable UTC date can still be a valid zoned date.
+	if (Number.isNaN(date.getTime())) return true;
+	return (
+		cron.months.includes(date.getUTCMonth() + 1) &&
+		cron.daysOfMonth.includes(date.getUTCDate()) &&
+		cron.daysOfWeek.includes(date.getUTCDay())
+	);
+}
+
 function getNextCronTimeByMinuteScan(
 	pattern: string,
 	after: number,
-	timezone: string,
+	timezone?: string,
 ): number {
 	const cron = parseCron(pattern);
-	const next = new Date(after);
-	next.setSeconds(0, 0);
-	let nextMs = next.getTime() + 60_000;
+	const currentMinute = new Date(after);
+	const seconds = currentMinute.getSeconds();
+	let nextMs =
+		after - seconds * 1000 - currentMinute.getMilliseconds() + 60_000;
+	const firstCandidateMs = nextMs;
+	const dayMs = 24 * 60 * 60_000;
 
 	const limit = new Date(after);
 	limit.setFullYear(limit.getFullYear() + 4);
 	const limitMs = limit.getTime();
 
 	while (nextMs <= limitMs) {
-		if (cronMatchesParts(cron, getZonedCronDateParts(nextMs, timezone))) {
+		if (timezone) {
+			const utcDayStart = Math.floor(nextMs / dayMs) * dayMs;
+			if (nextMs === firstCandidateMs || nextMs - utcDayStart < 60_000) {
+				// IANA and Intl offsets are within 24 hours, so a local date can
+				// only be the previous, current, or next UTC date.
+				const possibleDates = [
+					utcDayStart - dayMs,
+					utcDayStart,
+					utcDayStart + dayMs,
+				];
+				if (!possibleDates.some((date) => cronCouldMatchUtcDate(cron, date))) {
+					// Stay on the original minute grid, including historical seconds.
+					nextMs += Math.ceil((utcDayStart + dayMs - nextMs) / 60_000) * 60_000;
+					continue;
+				}
+			}
+		}
+		const parts = timezone
+			? getZonedCronDateParts(nextMs, timezone)
+			: getLocalCronDateParts(nextMs);
+		if (cronMatchesParts(cron, parts)) {
 			return nextMs;
+		}
+		if (
+			!timezone &&
+			(!cron.months.includes(parts.month) ||
+				!cron.daysOfMonth.includes(parts.dayOfMonth) ||
+				!cron.daysOfWeek.includes(parts.dayOfWeek))
+		) {
+			const current = new Date(nextMs);
+			const nextDay = new Date(
+				current.getFullYear(),
+				current.getMonth(),
+				current.getDate() + 1,
+			);
+			if (
+				nextDay.getTime() > nextMs &&
+				nextDay.getTimezoneOffset() === current.getTimezoneOffset()
+			) {
+				nextMs = nextDay.getTime();
+				continue;
+			}
 		}
 		nextMs += 60_000;
 	}
 
 	throw new Error(
-		`No cron occurrence found within 4 years for pattern "${pattern}" in timezone "${timezone}"`,
+		`No cron occurrence found within 4 years for pattern "${pattern}"${timezone ? ` in timezone "${timezone}"` : ""}`,
 	);
 }
 
@@ -282,92 +328,6 @@ export function getNextCronTime(
 	const normalizedTimezone = normalizeTimezone(timezone);
 	if (normalizedTimezone) {
 		validateTimezone(normalizedTimezone);
-		return getNextCronTimeByMinuteScan(pattern, after, normalizedTimezone);
 	}
-
-	const cron = parseCron(pattern);
-	let next = new Date(after);
-	next.setSeconds(0, 0);
-	next = new Date(next.getTime() + 60_000);
-
-	const limit = new Date(after);
-	limit.setFullYear(limit.getFullYear() + 4);
-
-	while (next <= limit) {
-		const { month, dayOfMonth, dayOfWeek, hour, minute } =
-			getLocalCronDateParts(next.getTime());
-
-		if (!cron.months.includes(month)) {
-			const targetMonth =
-				cron.months.find((value) => value > month) ??
-				getFirstCronValue(cron.months, "months");
-			const yearDelta = targetMonth <= month ? 1 : 0;
-			next = new Date(
-				next.getFullYear() + yearDelta,
-				targetMonth - 1,
-				1,
-				0,
-				0,
-				0,
-				0,
-			);
-			continue;
-		}
-
-		if (
-			!cron.daysOfMonth.includes(dayOfMonth) ||
-			!cron.daysOfWeek.includes(dayOfWeek)
-		) {
-			next = new Date(
-				next.getFullYear(),
-				next.getMonth(),
-				dayOfMonth + 1,
-				0,
-				0,
-				0,
-				0,
-			);
-			continue;
-		}
-
-		if (!cron.hours.includes(hour)) {
-			const targetHour =
-				cron.hours.find((value) => value > hour) ??
-				getFirstCronValue(cron.hours, "hours");
-			const dayDelta = targetHour <= hour ? 1 : 0;
-			next = new Date(
-				next.getFullYear(),
-				next.getMonth(),
-				next.getDate() + dayDelta,
-				targetHour,
-				0,
-				0,
-				0,
-			);
-			continue;
-		}
-
-		if (!cron.minutes.includes(minute)) {
-			const targetMinute =
-				cron.minutes.find((value) => value > minute) ??
-				getFirstCronValue(cron.minutes, "minutes");
-			const hourDelta = targetMinute <= minute ? 1 : 0;
-			next = new Date(
-				next.getFullYear(),
-				next.getMonth(),
-				next.getDate(),
-				next.getHours() + hourDelta,
-				targetMinute,
-				0,
-				0,
-			);
-			continue;
-		}
-
-		return next.getTime();
-	}
-
-	throw new Error(
-		`No cron occurrence found within 4 years for pattern "${pattern}"`,
-	);
+	return getNextCronTimeByMinuteScan(pattern, after, normalizedTimezone);
 }
