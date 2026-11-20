@@ -1075,6 +1075,33 @@ describe("createProviderConfigStore", () => {
 		expect(store.readSelection(providerId, "act")).toBeUndefined()
 	})
 
+	it("resolves an OpenRouter routing variant selection from the base model's catalog entry", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+		const baseModelInfo: ModelInfo = {
+			name: "Z.ai: GLM 5.3 Flash",
+			contextWindow: 1_048_576,
+			maxTokens: 131_072,
+			supportsPromptCache: false,
+		}
+		mocks.setGeneratedModels("openrouter", { "z-ai/glm-5.3-flash": baseModelInfo })
+
+		mocks.setApiConfiguration({ actModeOpenRouterModelId: "z-ai/glm-5.3-flash:floor" })
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			modelId: "z-ai/glm-5.3-flash:floor",
+			modelInfoSource: "catalog",
+			modelInfo: { contextWindow: 1_048_576 },
+		})
+
+		// Catalog variants are separate entries; an unlisted one stays fallback.
+		mocks.setApiConfiguration({ actModeOpenRouterModelId: "z-ai/glm-5.3-flash:free" })
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			modelId: "z-ai/glm-5.3-flash:free",
+			modelInfoSource: "fallback",
+		})
+	})
+
 	it("keeps Plan and Act selections independent and mirrors the latest selection to provider settings", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setApiConfiguration({ planActSeparateModelsSetting: true })

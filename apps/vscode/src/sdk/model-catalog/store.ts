@@ -31,6 +31,7 @@ import type {
 import { buildEffectiveProviderConfig } from "./effective-config"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { fromSdkApiFormat, nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-values"
+import { lookupCatalogModel } from "./routing-variants"
 import { toSdkProviderId } from "./sdk-provider-id"
 import { adaptSdkModelInfo } from "./shape-adapter"
 
@@ -447,7 +448,9 @@ function resolveSelection(selection: ModelSelection, baseModelInfoHint?: BaseMod
 	// win even when a private/dynamic provider reuses an id from the static SDK
 	// catalog. Persisted state is weaker by default; the private-catalog
 	// exception is applied below.
-	const catalogModelInfo = readBaseModelInfoForProvider(selection.providerId, selection.modelId)
+	const catalogModelInfo = lookupCatalogModel(selection.modelId, (id) =>
+		readBaseModelInfoForProvider(selection.providerId, id),
+	)
 	const liveCatalogHint = baseModelInfoHint?.source === "catalog" ? baseModelInfoHint.modelInfo : undefined
 	const stateModelInfoHint = baseModelInfoHint?.source === "state" ? baseModelInfoHint.modelInfo : undefined
 	const liveCatalogCandidate: BaseModelInfoCandidate | undefined = liveCatalogHint
