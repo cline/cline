@@ -1,7 +1,7 @@
 import { Logger } from "@/shared/services/Logger"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 
-export type SessionRebuildReason = "provider" | "mcpTools" | "terminalExecutionMode" | "checkpoints"
+export type SessionRebuildReason = "provider" | "modelConfiguration" | "mcpTools" | "terminalExecutionMode" | "checkpoints"
 
 export interface SdkSessionRebuildSchedulerOptions {
 	sessions: Pick<SdkSessionLifecycle, "getActiveSession">

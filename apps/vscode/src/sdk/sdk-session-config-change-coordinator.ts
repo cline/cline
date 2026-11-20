@@ -1,6 +1,8 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -35,6 +37,42 @@ interface RebuildDetails {
 
 export class SdkSessionConfigChangeCoordinator {
 	constructor(private readonly options: SdkSessionConfigChangeCoordinatorOptions) {}
+
+	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
+		const modeValue = this.options.stateManager.getGlobalSettingsKey("mode")
+		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+		const providerKey = mode === "plan" ? "planModeApiProvider" : "actModeApiProvider"
+		if (toLegacyApiProvider(previous[providerKey]) !== toLegacyApiProvider(next[providerKey])) {
+			return
+		}
+
+		const modelConfigKeys =
+			mode === "plan"
+				? [
+						"planModeApiModelId",
+						"planModeReasoningEffort",
+						"planModeThinkingBudgetTokens",
+						"geminiPlanModeThinkingLevel",
+						"planModeVerbosity",
+					] as const
+				: [
+						"actModeApiModelId",
+						"actModeReasoningEffort",
+						"actModeThinkingBudgetTokens",
+						"geminiActModeThinkingLevel",
+						"actModeVerbosity",
+					] as const
+		if (modelConfigKeys.every((key) => previous[key] === next[key])) {
+			return
+		}
+
+		this.requestRebuild({
+			reason: "modelConfiguration",
+			description: `${mode} mode model configuration changed`,
+			disposeReason: "modelConfigurationChange",
+			failureMessage: "Failed to reload model settings. The change may not apply until the next task.",
+		})
+	}
 
 	handleTerminalExecutionModeChanged(previous: VscodeTerminalExecutionMode, next: VscodeTerminalExecutionMode): void {
 		if (previous === next) {
