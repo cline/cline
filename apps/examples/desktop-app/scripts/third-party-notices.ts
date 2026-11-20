@@ -29,25 +29,42 @@ export function writeInputList(
 	writeFileSync(inputListPath(name), JSON.stringify([...new Set(inputs)]));
 }
 
+// Bundled modules named by one Turbopack source map. [project] is the turbopack root, which
+// next.config.mjs sets to the repo root; [turbopack] is its own runtime.
+export function webviewSourcePaths(
+	mapJson: string,
+	repoRoot: string,
+): string[] {
+	const parsed = JSON.parse(mapJson) as {
+		sources?: string[];
+		sections?: { map: { sources: string[] } }[];
+	};
+	const sources =
+		parsed.sources ?? parsed.sections?.flatMap((s) => s.map.sources) ?? [];
+	return sources.flatMap((source) => {
+		const match = /^turbopack:\/\/\/\[project\]\/(.+)$/.exec(source);
+		return match ? [join(repoRoot, match[1])] : [];
+	});
+}
+
 // Turbopack has no metafile, so the webview build emits source maps (next.config.mjs) and
 // this reads their sources, then deletes them so the app never ships them.
 export function recordWebviewInputs(): void {
-	const inputs: string[] = [];
-	for (const map of new Bun.Glob("**/*.map").scanSync({ cwd: WEBVIEW_OUT })) {
-		const path = join(WEBVIEW_OUT, map);
-		const parsed = JSON.parse(readFileSync(path, "utf8")) as {
-			sources?: string[];
-			sections?: { map: { sources: string[] } }[];
-		};
-		const sources =
-			parsed.sources ?? parsed.sections?.flatMap((s) => s.map.sources) ?? [];
-		for (const source of sources) {
-			// [project] is the turbopack root, which next.config.mjs sets to the repo root.
-			const match = /^turbopack:\/\/\/\[project\]\/(.+)$/.exec(source);
-			if (match) inputs.push(join(REPO_ROOT, match[1]));
-		}
-		rmSync(path);
+	const maps = [...new Bun.Glob("**/*.map").scanSync({ cwd: WEBVIEW_OUT })].map(
+		(map) => join(WEBVIEW_OUT, map),
+	);
+	const inputs = maps.flatMap((path) =>
+		webviewSourcePaths(readFileSync(path, "utf8"), REPO_ROOT),
+	);
+	// Fail before deleting the maps so the output can be inspected.
+	if (inputs.length === 0) {
+		throw new Error(
+			maps.length === 0
+				? `[third-party-notices] no source maps in ${WEBVIEW_OUT}; is productionBrowserSourceMaps enabled?`
+				: `[third-party-notices] none of the ${maps.length} source maps in ${WEBVIEW_OUT} name a turbopack:///[project]/ source; update webviewSourcePaths for the new format`,
+		);
 	}
+	for (const path of maps) rmSync(path);
 	for (const file of new Bun.Glob("**/*.{js,css}").scanSync({
 		cwd: WEBVIEW_OUT,
 	})) {
