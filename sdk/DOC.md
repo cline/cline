@@ -793,3 +793,11 @@ Native inline screenshots use validated browser-owned Blob URLs and show a fallb
 UX verification screenshots reuse canonical `GeneratedMedia` with `modality: "image"` and the supported raster media types. `source` supports inline `base64`, trusted host-resolved `url`, or stable `artifact` references. The screenshot's `id`, optional `name`, and `sizeBytes` are preserved. Hosts can pass screenshots directly to an existing generated-media/artifact renderer; there are no separate top-level `data` or `url` screenshot fields. Signed access URLs remain transient host state when using artifact references.
 
 UX screenshot renderers receive `presentation: "slide" | "thumbnail"`. Thumbnail rendering must be non-interactive, so hosts should keep retry controls in the main image and expanded view only. The shared generated-media renderer handles native image load failures, so expanded inline evidence also shows an unavailable state.
+
+## UTF-16 string truncation
+
+`@cline/shared` exports `sliceUtf16(text, start, end?)`, with `String.slice`
+offset semantics. Cuts move inward by one code unit if they would split a
+surrogate pair. Existing unpaired surrogates are not repaired, and grapheme
+clusters are not preserved. `truncateStr`, `truncateSplit`, and command-output
+truncation use this helper while retaining UTF-16 budgets and existing notices.
