@@ -83,8 +83,14 @@ export function parseAuthorizationInput(
 		};
 	}
 
-	if (value.includes("code=")) {
-		const params = new URLSearchParams(value);
+	const codeIndex = value.indexOf("code=");
+	if (codeIndex >= 0) {
+		const queryIndex = value.indexOf("?");
+		const query =
+			queryIndex >= 0 && queryIndex < codeIndex
+				? value.slice(queryIndex + 1)
+				: value;
+		const params = new URLSearchParams(query);
 		return {
 			code: params.get("code") ?? undefined,
 			state: params.get("state") ?? undefined,
