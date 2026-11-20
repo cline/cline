@@ -16,6 +16,8 @@ export function resolveStartupMode(
 		nonInteractive?: boolean;
 		/** The resolved tool auto-approval for this run. */
 		toolAutoApprove?: boolean;
+		/** The prompt is a `/team` command. */
+		teamPrompt?: boolean;
 	} = {},
 ): CliAgentMode {
 	if (args.modeExplicitlySet) {
@@ -24,11 +26,13 @@ export function resolveStartupMode(
 	const mode = settings.planActMode ?? args.mode;
 	// Nobody is at the keyboard to approve tools in a one-shot run, so it
 	// defaults to yolo. Turning auto-approval off (`--auto-approve false` or
-	// the persisted setting) keeps act mode and its approval prompts.
+	// the persisted setting) keeps act mode and its approval prompts. A
+	// `/team` prompt also keeps act mode, because yolo has no team tools.
 	if (
 		mode === "act" &&
 		options.nonInteractive === true &&
-		options.toolAutoApprove !== false
+		options.toolAutoApprove !== false &&
+		options.teamPrompt !== true
 	) {
 		return "yolo";
 	}

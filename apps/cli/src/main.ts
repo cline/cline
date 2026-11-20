@@ -898,6 +898,8 @@ export async function runCli(): Promise<void> {
 			!args.interactive &&
 			(!!args.prompt || (!process.stdin.isTTY && stdinHasPipedInput())),
 		toolAutoApprove: effectiveToolAutoApprove,
+		teamPrompt:
+			!!args.prompt && rewriteTeamPrompt(args.prompt).kind === "rewritten",
 	});
 	const effectiveCompactionMode = resolveStartupCompactionMode(
 		args,
