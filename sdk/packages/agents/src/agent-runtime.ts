@@ -603,8 +603,6 @@ export class AgentRuntime {
 		 */
 		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
-	/** One automatic overflow-recovery attempt per run. */
-	private overflowRecoveryAttempted = false;
 	/** Consecutive output-limit cut-offs recovered this run; see MAX_TOKENS_RECOVERY_LIMIT. */
 	private maxTokensRecoveryCount = 0;
 	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
@@ -816,7 +814,6 @@ export class AgentRuntime {
 		this.state.lastErrorReported = false;
 		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
-		this.overflowRecoveryAttempted = false;
 		this.state.lastRequestInputTokens = 0;
 		this.pendingHookContexts = [];
 		this.maxTokensRecoveryCount = 0;
@@ -1366,7 +1363,9 @@ export class AgentRuntime {
 	}
 
 	/**
-	 * Run a model turn, recovering once per run from each of two conditions:
+	 * Run a model turn, recovering once per rejected step from context overflow.
+	 * A successful step may refill context; its next overflow gets its own retry.
+	 * Max-token recovery retains its separate per-run guard. The conditions are:
 	 * a provider-rejected context-window overflow, and a response truncated
 	 * at the output-token limit on a turn with no tool calls. Both recoveries
 	 * force a compaction through `prepareTurn` and retry the request.
@@ -1387,7 +1386,6 @@ export class AgentRuntime {
 		if (!this.isRecoverableOverflowTurn(first)) {
 			return first;
 		}
-		this.overflowRecoveryAttempted = true;
 		const providerError = this.state.lastError;
 		if (!this.config.prepareTurn) {
 			throw new ContextWindowOverflowError(
@@ -1428,8 +1426,7 @@ export class AgentRuntime {
 	}): boolean {
 		if (
 			turn.finishReason !== "error" ||
-			this.state.lastErrorClass !== "context_window_exceeded" ||
-			this.overflowRecoveryAttempted
+			this.state.lastErrorClass !== "context_window_exceeded"
 		) {
 			return false;
 		}
