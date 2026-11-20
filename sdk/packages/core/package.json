@@ -98,7 +98,8 @@
 	},
 	"files": [
 		"dist",
-		"!dist/**/*.d.ts.map"
+		"!dist/**/*.d.ts.map",
+		"!dist/plugin-runtime-inputs.json"
 	],
 	"license": "Apache-2.0"
 }
