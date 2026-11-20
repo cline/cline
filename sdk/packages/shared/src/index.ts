@@ -100,6 +100,7 @@ export {
 	normalizePluginManifest,
 } from "./extensions/contribution-registry";
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export * from "./extensions/ui-slots";
 export {
 	FEATURE_FLAGS,
 	FeatureFlag,

@@ -193,6 +193,42 @@ describe("Hub plugin status", () => {
 			});
 			expect(reply.payload?.pluginIssues).toEqual([issue]);
 			expect(created[0]?.payload?.pluginIssues).toEqual([issue]);
+			expect(reply.payload).not.toHaveProperty("reattached");
+		} finally {
+			await transport.stop();
+		}
+	});
+
+	it("tells the creating client its restart joined a run in flight, so new plugins did not load", async () => {
+		const startSession = vi.fn(
+			async (input: StartSessionInput): Promise<StartSessionResult> => ({
+				sessionId: input.config.sessionId ?? "session-1",
+				manifest: {} as never,
+				manifestPath: "",
+				messagesPath: "",
+				reattached: true,
+			}),
+		);
+		const transport = createTransport(startSession);
+		try {
+			const reply = await transport.handleCommand({
+				version: "v1",
+				command: "session.create",
+				clientId: "client-1",
+				payload: {
+					workspaceRoot: root,
+					cwd: root,
+					sessionConfig: {
+						sessionId: "session-live",
+						providerId: "cline",
+						modelId: "test-model",
+						systemPrompt: "system",
+					},
+				},
+			});
+
+			expect(reply.ok).toBe(true);
+			expect(reply.payload?.reattached).toBe(true);
 		} finally {
 			await transport.stop();
 		}

@@ -5,6 +5,7 @@
 @import "@cline/ui/theme/index.css";
 @import "@cline/ui/components.css";
 @import "@cline/ui/components/agent-chat.css";
+@import "../components/views/chat/suggestion-tray/suggestion-tray.css";
 /* Unlayered on purpose: its chat-polish rules must beat Streamdown's layered
  * Tailwind utilities (from the @source below) without !important. */
 @import "@cline/ui/components/markdown.css";

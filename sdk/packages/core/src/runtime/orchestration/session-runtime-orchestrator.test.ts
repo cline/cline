@@ -284,6 +284,7 @@ describe("SessionRuntime construction", () => {
 			providers: [],
 			automationEventTypes: [],
 			mcpServers: [],
+			uiSlots: [],
 		});
 	});
 });

@@ -2,7 +2,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readPersistedMessagesFile } from "./runtime-host-support";
+import {
+	RuntimeHostEventBus,
+	readPersistedMessagesFile,
+} from "./runtime-host-support";
 
 const tempDirs: string[] = [];
 
@@ -57,5 +60,42 @@ describe("readPersistedMessagesFile", () => {
 				text: '<user_input mode="plan"><mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\ninspect repo</user_input>',
 			},
 		]);
+	});
+});
+
+describe("RuntimeHostEventBus", () => {
+	const status = {
+		type: "status",
+		payload: { sessionId: "s1", status: "idle" },
+	} as const;
+
+	it("keeps delivering to later listeners when one throws", () => {
+		const reported: Array<[unknown, string]> = [];
+		const bus = new RuntimeHostEventBus((error, event) => {
+			reported.push([error, event.type]);
+		});
+		const received: string[] = [];
+		bus.subscribe(() => {
+			throw new Error("listener failed");
+		});
+		bus.subscribe((event) => received.push(event.type));
+
+		expect(() => bus.emit(status)).not.toThrow();
+		expect(received).toEqual(["status"]);
+		expect(reported).toEqual([[expect.any(Error), "status"]]);
+	});
+
+	it("does not throw when the error reporter throws too", () => {
+		const bus = new RuntimeHostEventBus(() => {
+			throw new Error("reporter failed");
+		});
+		const received: string[] = [];
+		bus.subscribe(() => {
+			throw new Error("listener failed");
+		});
+		bus.subscribe((event) => received.push(event.type));
+
+		expect(() => bus.emit(status)).not.toThrow();
+		expect(received).toEqual(["status"]);
 	});
 });

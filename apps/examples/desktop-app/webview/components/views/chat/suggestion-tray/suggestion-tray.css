@@ -1,0 +1,20 @@
+@keyframes suggestion-tray-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.suggestion-tray-in {
+	animation: suggestion-tray-in 240ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.suggestion-tray-in {
+		animation: none;
+	}
+}
