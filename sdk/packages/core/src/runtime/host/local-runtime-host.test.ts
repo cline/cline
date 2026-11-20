@@ -597,6 +597,281 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	describe("resuming a session from disk", () => {
+		const deadPid = 999_999_999;
+		const resumeFromDisk = async (
+			status: "running" | "completed" | "failed",
+			pid: number,
+			{
+				rowPid = pid,
+				readMessagesFirst = false,
+				claimFirst = false,
+				adoptError,
+			}: {
+				rowPid?: number;
+				readMessagesFirst?: boolean;
+				claimFirst?: boolean;
+				adoptError?: Error;
+			} = {},
+		) => {
+			const sessionId = "sess-resume-from-disk";
+			const sessionService = new FileSessionService(
+				join(isolatedHomeDir, "sessions"),
+			);
+			const { manifestPath } =
+				await sessionService.createRootSessionWithArtifacts({
+					sessionId,
+					source: SessionSource.CLI,
+					pid,
+					status,
+					interactive: true,
+					provider: "mock-provider",
+					model: "mock-model",
+					cwd: isolatedHomeDir,
+					workspaceRoot: isolatedHomeDir,
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					prompt: "hello",
+				});
+			if (rowPid !== pid) {
+				await sessionService.updateSessionStatus(
+					sessionId,
+					status,
+					null,
+					rowPid,
+				);
+			}
+			const updateSessionStatus = vi.spyOn(
+				sessionService,
+				"updateSessionStatus",
+			);
+			const adoptOrphanedSession = vi.spyOn(
+				sessionService,
+				"adoptOrphanedSession",
+			);
+			if (adoptError) {
+				adoptOrphanedSession.mockRejectedValue(adoptError);
+			}
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService,
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				} as never,
+				createAgent: () => agent as never,
+			});
+			const emittedStatuses: string[] = [];
+			manager.subscribe((event) => {
+				if (event.type === "status") {
+					emittedStatuses.push(event.payload.status);
+				}
+			});
+
+			if (claimFirst) {
+				await manager.claimSessionForResume(sessionId);
+			}
+			if (readMessagesFirst) {
+				await manager.readSessionMessages(sessionId);
+			}
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					interactive: true,
+					initialMessages: [{ role: "user", content: "hello" }],
+				}),
+			);
+
+			const readRow = async () =>
+				(await sessionService.listSessions(10)).find(
+					(row) => row.sessionId === sessionId,
+				);
+			const readManifest = () =>
+				JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest;
+			return {
+				sessionId,
+				manager,
+				sessionService,
+				updateSessionStatus,
+				adoptOrphanedSession,
+				emittedStatuses,
+				readRow,
+				readManifest,
+			};
+		};
+
+		it.each([
+			["a terminal manifest", "completed", deadPid],
+			["a failed manifest", "failed", deadPid],
+			["the same pid", "running", process.pid],
+			["an old pid that is still alive", "running", process.ppid],
+		] as const)("writes nothing when resuming %s", async (_case, status, pid) => {
+			const resumed = await resumeFromDisk(status, pid);
+
+			expect(resumed.updateSessionStatus).not.toHaveBeenCalled();
+			expect(resumed.emittedStatuses).toEqual([status]);
+			await expect(resumed.readRow()).resolves.toMatchObject({ status, pid });
+		});
+
+		it("still starts when adopting a dead row fails to write", async () => {
+			const resumed = await resumeFromDisk("running", deadPid, {
+				adoptError: new Error("database is locked"),
+			});
+
+			// The pre-read claim and the post-registration adoption both try
+			// and both fail loudly; the session still comes up.
+			expect(resumed.adoptOrphanedSession).toHaveBeenCalledTimes(2);
+			await expect(
+				resumed.manager.getSession(resumed.sessionId),
+			).resolves.toMatchObject({ status: "running" });
+		});
+
+		it("never marks the row failed when it is claimed before the transcript read", async () => {
+			const resumed = await resumeFromDisk("running", deadPid, {
+				claimFirst: true,
+				readMessagesFirst: true,
+			});
+
+			// The claim rebinds the row to this pid before the message read
+			// reaches the reconciler, so no transient failure is written and
+			// the manifest ends up in line with the row.
+			expect(resumed.updateSessionStatus).not.toHaveBeenCalled();
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+		});
+
+		it("claims nothing for a live row and survives a missing service method", async () => {
+			const resumed = await resumeFromDisk("running", process.ppid, {
+				claimFirst: true,
+			});
+
+			// Live owner: the claim is a no-op, the row keeps its owner.
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "running",
+				pid: process.ppid,
+			});
+		});
+
+		it("takes the row from a live owner when it runs a turn", async () => {
+			const resumed = await resumeFromDisk("running", process.ppid);
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(resumed.updateSessionStatus).toHaveBeenCalledWith(
+				resumed.sessionId,
+				"running",
+				null,
+				process.pid,
+			);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				pid: process.pid,
+			});
+		});
+
+		it("parks a dead running row as idle on this pid until a turn starts", async () => {
+			const resumed = await resumeFromDisk("running", deadPid);
+
+			expect(resumed.emittedStatuses).toEqual(["idle"]);
+			await expect(
+				resumed.sessionService.reconcileDeadSessions(),
+			).resolves.toBe(0);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(
+				resumed.updateSessionStatus.mock.calls.map(([, status, , pid]) => [
+					status,
+					pid,
+				]),
+			).toEqual([
+				["running", process.pid],
+				["idle", process.pid],
+			]);
+		});
+
+		it.each([
+			["only the row has a dead pid", process.ppid, { rowPid: deadPid }],
+			[
+				"reading its messages already marked it failed",
+				deadPid,
+				{ readMessagesFirst: true },
+			],
+			[
+				"only the row has a dead pid and reading its messages marked it failed",
+				process.ppid,
+				{ rowPid: deadPid, readMessagesFirst: true },
+			],
+		] as const)("parks the row as idle on this pid when %s", async (_case, pid, options) => {
+			const resumed = await resumeFromDisk("running", pid, options);
+
+			await expect(
+				resumed.sessionService.reconcileDeadSessions(),
+			).resolves.toBe(0);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+			expect(resumed.readManifest()).toMatchObject({
+				status: "idle",
+				pid: process.pid,
+			});
+		});
+
+		it("moves a resumed completed session to this pid when its next turn starts", async () => {
+			const resumed = await resumeFromDisk("completed", deadPid);
+
+			await resumed.manager.runTurn({
+				sessionId: resumed.sessionId,
+				prompt: "continue",
+			});
+
+			expect(resumed.updateSessionStatus).toHaveBeenCalledWith(
+				resumed.sessionId,
+				"running",
+				null,
+				process.pid,
+			);
+			await expect(resumed.readRow()).resolves.toMatchObject({
+				pid: process.pid,
+			});
+		});
+	});
+
 	it("forwards rootOnly to the session backend when listing sessions", async () => {
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -1251,18 +1526,21 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"pending",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
@@ -1763,6 +2041,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
@@ -2107,7 +2386,12 @@ describe("LocalRuntimeHost", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 		expect(continueFn).not.toHaveBeenCalled();
 		expect(persistSessionMessages).toHaveBeenCalledTimes(1);
-		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
+		expect(updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"completed",
+			0,
+			process.pid,
+		);
 		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
 		expect(shutdown).toHaveBeenCalledTimes(1);
 	});
@@ -2392,7 +2676,12 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		expect(started.result?.finishReason).toBe("completed");
-		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
+		expect(updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"completed",
+			0,
+			process.pid,
+		);
 		// `SessionRuntime.shutdown(reason?, timeoutMs?)` forwards the
 		// reason string into the `session_shutdown` hook payload, so
 		// host-level hook-file handlers can route on it (e.g.
@@ -4456,24 +4745,28 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			4,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(events).not.toContainEqual(
 			expect.objectContaining({
@@ -4802,6 +5095,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 	});
 
@@ -5301,12 +5595,14 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"running",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenNthCalledWith(
 			2,
 			sessionId,
 			"idle",
 			null,
+			process.pid,
 		);
 		expect(updateSessionStatus).toHaveBeenCalledTimes(2);
 		const persistedMetadata = updateSession.mock.calls[0]?.[0]
@@ -6099,6 +6395,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 		expect(agentShutdown).toHaveBeenCalledTimes(1);
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
@@ -6228,6 +6525,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"failed",
 			1,
+			process.pid,
 		);
 	});
 
@@ -7728,6 +8026,7 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			"completed",
 			0,
+			process.pid,
 		);
 	});
 

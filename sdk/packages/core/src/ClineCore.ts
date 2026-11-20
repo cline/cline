@@ -562,6 +562,17 @@ export class ClineCore {
 			? this.host.readLiveSessionMessages(sessionId)
 			: this.host.readSessionMessages(sessionId);
 
+	/**
+	 * Claims a session row for a resume that is about to happen, so a stale
+	 * dead-pid row is rebound to the resuming pid instead of being reconciled
+	 * to failed while the transcript is being read. No-op on hosts without a
+	 * local persistence row.
+	 */
+	claimSessionForResume: (sessionId: string) => Promise<boolean> = (sessionId) =>
+		this.host.claimSessionForResume
+			? this.host.claimSessionForResume(sessionId)
+			: Promise.resolve(false);
+
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		const normalizedStart = input.start
 			? normalizeClineCoreStartInput(input.start, {

@@ -46,14 +46,43 @@ export class UnifiedSessionPersistenceService {
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
 	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
+	/**
+	 * Rows whose owning pid has been seen dead for less than this long are
+	 * left alone by the reconciler: a window reload or extension-host restart
+	 * replaces the pid within seconds of startup, no matter how long the
+	 * session sat idle before dying, and marking the row failed in between
+	 * makes the resumed session flicker through a terminal state (and fire
+	 * the shutdown hook) before adoption can rebind it. The first-sight time
+	 * is persisted in the row metadata so fast restarts keep the same clock;
+	 * a one-shot delayed re-check marks genuinely dead rows once the grace
+	 * has elapsed. Pass `staleMarkGraceMs: 0` in the constructor options to
+	 * disable (tests).
+	 */
+	private static readonly STALE_MARK_GRACE_MS = 90_000;
+	/**
+	 * Metadata key holding the epoch ms when the reconciler first observed
+	 * the row's owning pid dead. Deliberately ignores updatedAt/startedAt —
+	 * an idle session's last write can be arbitrarily old even though its
+	 * owner just died. Persisted (not in-memory) so a host restart does not
+	 * reset the window and repeatedly fast-restarting hosts still converge.
+	 */
+	private static readonly STALE_FIRST_SEEN_KEY = "stale_first_seen_at";
+	private readonly staleMarkGraceMs: number;
+	private staleRecheckTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		private readonly adapter: SessionPersistenceAdapter,
 		options: {
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 			logger?: BasicLogger;
+			staleMarkGraceMs?: number;
 		} = {},
 	) {
+		this.staleMarkGraceMs = Math.max(
+			0,
+			options.staleMarkGraceMs ??
+				UnifiedSessionPersistenceService.STALE_MARK_GRACE_MS,
+		);
 		this.manifestStore = new SessionManifestStore(
 			adapter,
 			options.messagesArtifactUploader,
@@ -187,6 +216,7 @@ export class UnifiedSessionPersistenceService {
 		sessionId: string,
 		status: SessionStatus,
 		exitCode?: number | null,
+		pid?: number,
 	): Promise<{ updated: boolean; endedAt?: string }> {
 		let endedAt: string | undefined;
 		const result = await withOccRetry(
@@ -202,6 +232,7 @@ export class UnifiedSessionPersistenceService {
 						: typeof exitCode === "number"
 							? exitCode
 							: null,
+					pid: isNonTerminalSessionStatus(status) ? pid : undefined,
 					expectedStatusLock: row.statusLock,
 				});
 			},
@@ -217,6 +248,75 @@ export class UnifiedSessionPersistenceService {
 			return { updated: true, endedAt };
 		}
 		return { updated: false };
+	}
+
+	async adoptOrphanedSession(
+		sessionId: string,
+		pid: number,
+	): Promise<{ updated: boolean }> {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+			const row = await this.adapter.getSession(sessionId);
+			if (!row || !this.isOrphaned(row)) return { updated: false };
+			const changed = await this.adapter.updateSession({
+				sessionId,
+				status: "idle",
+				endedAt: null,
+				exitCode: null,
+				pid,
+				metadata: this.withoutStaleTerminalMarkers(row.metadata),
+				expectedStatusLock: row.statusLock,
+			});
+			if (!changed.updated) continue;
+			await this.clearStaleTerminalMarkerManifest(sessionId);
+			return { updated: true };
+		}
+		return { updated: false };
+	}
+
+	/**
+	 * Strips the reconciler's failure markers from a metadata object. Once a
+	 * session is adopted under a live pid the `terminal_marker_*` keys are
+	 * stale: they would linger in history views and leak into future resume
+	 * manifests. Returns the input unchanged when nothing was removed.
+	 */
+	private withoutStaleTerminalMarkers(
+		metadata: Record<string, unknown> | null | undefined,
+	): Record<string, unknown> | null | undefined {
+		if (!metadata) return metadata;
+		const cleaned: Record<string, unknown> = {};
+		let removed = false;
+		for (const [key, value] of Object.entries(metadata)) {
+			if (key.startsWith("terminal_marker")) {
+				removed = true;
+				continue;
+			}
+			cleaned[key] = value;
+		}
+		return removed ? cleaned : metadata;
+	}
+
+	/**
+	 * The reconciler writes its failure markers into the manifest file as
+	 * well as the DB row; adoption must clear both or the stale failure
+	 * survives the next resume through the manifest metadata. Best effort —
+	 * the DB row is already clean by the time this runs.
+	 */
+	private async clearStaleTerminalMarkerManifest(
+		sessionId: string,
+	): Promise<void> {
+		try {
+			const { path: manifestPath, manifest } =
+				this.manifestStore.readManifestFile(sessionId);
+			if (!manifest?.metadata) return;
+			const cleaned = this.withoutStaleTerminalMarkers(manifest.metadata);
+			if (cleaned === manifest.metadata) return;
+			this.manifestStore.writeSessionManifest(manifestPath, {
+				...manifest,
+				metadata: cleaned ?? undefined,
+			});
+		} catch {
+			// Manifest cleanup is best effort; the DB row already has no markers.
+		}
 	}
 
 	async updateSession(input: {
@@ -442,6 +542,18 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
+	private isOrphaned(row: SessionRow): boolean {
+		if (isNonTerminalSessionStatus(row.status)) {
+			return !this.isPidAlive(row.pid);
+		}
+		return (
+			row.status === "failed" &&
+			row.metadata?.terminal_marker ===
+				UnifiedSessionPersistenceService.STALE_REASON &&
+			row.metadata.terminal_marker_at === row.endedAt
+		);
+	}
+
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
@@ -449,6 +561,7 @@ export class UnifiedSessionPersistenceService {
 			isNonTerminalSessionStatus(row.status) === false ||
 			this.isPidAlive(row.pid)
 		) {
+			await this.clearStaleFirstSeen(row.sessionId);
 			return row;
 		}
 
@@ -458,10 +571,46 @@ export class UnifiedSessionPersistenceService {
 		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const latest = await this.adapter.getSession(row.sessionId);
 			if (!latest) return undefined;
-			if (isNonTerminalSessionStatus(latest.status) === false) return latest;
+			if (
+				isNonTerminalSessionStatus(latest.status) === false ||
+				this.isPidAlive(latest.pid)
+			) {
+				await this.clearStaleFirstSeen(latest.sessionId);
+				return latest;
+			}
 
+			// Grace window keyed on the persisted first-sight stamp: when we
+			// first see this pid dead we record the time in the row metadata
+			// so every later process (after a reload/restart) keeps the same
+			// clock, then skip the mark until the window has elapsed. The
+			// clock deliberately ignores updatedAt/startedAt — an idle
+			// session's last write can be arbitrarily old even though its
+			// owner just died.
+			if (this.staleMarkGraceMs > 0) {
+				const nowMs = Date.now();
+				const stamped = Number(
+					latest.metadata?.[
+						UnifiedSessionPersistenceService.STALE_FIRST_SEEN_KEY
+					],
+				);
+				const hasStamp =
+					Number.isFinite(stamped) && stamped > 0 && stamped <= nowMs;
+				const firstSightMs = hasStamp ? stamped : nowMs;
+				if (nowMs - firstSightMs < this.staleMarkGraceMs) {
+					if (!hasStamp) {
+						await this.persistStaleFirstSeen(latest, firstSightMs);
+					}
+					this.scheduleStaleRecheck(
+						this.staleMarkGraceMs - (nowMs - firstSightMs),
+					);
+					return latest;
+				}
+			}
+
+			const rowMetadata = { ...(latest.metadata ?? {}) };
+			delete rowMetadata[UnifiedSessionPersistenceService.STALE_FIRST_SEEN_KEY];
 			const nextMetadata = {
-				...(latest.metadata ?? {}),
+				...rowMetadata,
 				terminal_marker: reason,
 				terminal_marker_at: detectedAt,
 				terminal_marker_pid: latest.pid,
@@ -511,6 +660,86 @@ export class UnifiedSessionPersistenceService {
 			};
 		}
 		return await this.adapter.getSession(row.sessionId);
+	}
+
+	/**
+	 * Best-effort single-attempt write of the first-sight stamp. If it loses
+	 * a race (or fails) the row simply falls back to a fresh window on the
+	 * next pass — this never blocks reconciliation.
+	 */
+	private async persistStaleFirstSeen(
+		row: SessionRow,
+		stampMs: number,
+	): Promise<void> {
+		try {
+			await this.adapter.updateSession({
+				sessionId: row.sessionId,
+				metadata: {
+					...(row.metadata ?? {}),
+					[UnifiedSessionPersistenceService.STALE_FIRST_SEEN_KEY]: stampMs,
+				},
+				expectedStatusLock: row.statusLock,
+			});
+		} catch {
+			// Bookkeeping only; the in-flight window still holds the row.
+		}
+	}
+
+	/**
+	 * Drop the persisted first-sight stamp once the row is no longer an
+	 * orphan (adopted under a live pid or terminated). Without this, a later
+	 * death of the new owning pid would find a stale stamp and be marked
+	 * immediately, skipping its own grace window.
+	 */
+	private async clearStaleFirstSeen(sessionId: string): Promise<void> {
+		try {
+			const current = await this.adapter.getSession(sessionId);
+			if (!current) return;
+			if (
+				isNonTerminalSessionStatus(current.status) &&
+				this.isPidAlive(current.pid) === false
+			) {
+				return; // Still dead — the grace logic owns this row now.
+			}
+			const meta = current.metadata ?? {};
+			if (
+				meta[UnifiedSessionPersistenceService.STALE_FIRST_SEEN_KEY] ===
+				undefined
+			) {
+				return;
+			}
+			const nextMeta = { ...meta };
+			delete nextMeta[UnifiedSessionPersistenceService.STALE_FIRST_SEEN_KEY];
+			await this.adapter.updateSession({
+				sessionId,
+				metadata: nextMeta,
+				expectedStatusLock: current.statusLock,
+			});
+		} catch {
+			// Best effort; a missed clear just costs one extra grace window.
+		}
+	}
+
+	/**
+	 * One-shot, unref'd re-run of the reconciliation so rows skipped during
+	 * the grace window still get marked without depending on another trigger
+	 * (history refresh, next startup). If the process exits first, the next
+	 * backend init or listSessions reconciles again.
+	 */
+	private scheduleStaleRecheck(delayMs: number): void {
+		if (this.staleRecheckTimer !== undefined) {
+			return;
+		}
+		this.staleRecheckTimer = setTimeout(
+			() => {
+				this.staleRecheckTimer = undefined;
+				void this.reconcileDeadSessions().catch(() => {
+					// Best effort: the next listSessions or backend init retries.
+				});
+			},
+			Math.max(50, delayMs),
+		);
+		this.staleRecheckTimer.unref?.();
 	}
 
 	async listSessions(

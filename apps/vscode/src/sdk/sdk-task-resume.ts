@@ -10,6 +10,7 @@
 
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { Logger } from "@/shared/services/Logger"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { historyItemToSessionMetadata, type SdkTaskHistory } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
@@ -55,6 +56,15 @@ export async function prepareTaskResumeStartInput(
 	const tempManager = await deps.createTempSessionHost()
 	let persistedInitialMessages: unknown[] | undefined
 	try {
+		// Claim the row before the transcript read below: that read goes
+		// through listSessions(), which reconciles a dead-pid row to failed.
+		// Claiming first rebinds it to the live pid so the resume shows no
+		// transient failure. Best effort — never block the resume on it.
+		try {
+			await tempManager.claimForResume?.(taskId)
+		} catch (error) {
+			Logger.warn(`[SdkController] Failed to claim session ${taskId} for resume:`, error)
+		}
 		persistedInitialMessages = await deps.loadInitialMessages(tempManager, taskId)
 	} finally {
 		await tempManager.dispose("readMessages")
