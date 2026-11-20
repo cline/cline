@@ -1103,10 +1103,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// (catalog/state base or user overrides). Pure fallback fabrications
 		// must not reach the runtime; the SDK's own resolution handles those.
 		const isPureFallbackModel = committedRuntimeModel?.modelInfoSource === "fallback" && !committedRuntimeModel.overrides
-		if (committedRuntimeModel && !isPureFallbackModel && !knownModels?.[modelId]) {
+		if (committedRuntimeModel && !isPureFallbackModel) {
+			const sdkModel = toSdkModelInfo(committedRuntimeModel)
 			knownModels = {
 				...(knownModels ?? {}),
-				[modelId]: toSdkModelInfo(committedRuntimeModel),
+				[modelId]: knownModels?.[modelId] ? { ...knownModels[modelId], ...sdkModel } : sdkModel,
 			}
 		}
 	} catch (error) {

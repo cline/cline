@@ -1253,6 +1253,27 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("applies user overrides like supportsVision=false even when model is already in knownModels catalog", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "anthropic",
+			actModeApiModelId: "claude-sonnet-4-6",
+			apiKey: "anthropic-key",
+		} as any)
+		createProviderConfigStore().commitSelection(parseProviderId("anthropic"), "act", {
+			providerId: parseProviderId("anthropic"),
+			modelId: "claude-sonnet-4-6",
+			overrides: {
+				supportsVision: false,
+			},
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["claude-sonnet-4-6"]
+
+		expect(knownModel).toBeDefined()
+		expect(knownModel.capabilities).not.toContain("images")
+	})
+
 	it("defaults tool-calling on for dynamic-list models without preserved SDK capabilities", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openrouter",

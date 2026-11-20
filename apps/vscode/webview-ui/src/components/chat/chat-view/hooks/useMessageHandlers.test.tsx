@@ -53,6 +53,16 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		turnState: mockTurnState,
 		cloudSessionsEnabled: true,
 		cloudTaskTarget: mockCloudTaskTarget,
+		mode: "act",
+	}),
+}))
+
+let mockSelectedModelInfo: { supportsImages?: boolean } = { supportsImages: true }
+vi.mock("@/hooks/useNormalizedApiConfiguration", () => ({
+	useNormalizedApiConfiguration: () => ({
+		selectedProvider: "openai-compatible",
+		selectedModelId: "test-model",
+		selectedModelInfo: mockSelectedModelInfo,
 	}),
 }))
 
@@ -125,6 +135,7 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
 		mockCloudTaskTarget = undefined
+		mockSelectedModelInfo = { supportsImages: true }
 	})
 
 	it("sends a cloud request when Cloud is selected even without a repository, never a local task", async () => {
@@ -1294,5 +1305,65 @@ describe("useMessageHandlers — send routing", () => {
 		expect(newTask).toHaveBeenCalledTimes(1)
 		expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ text: "should be sent", images: [], files: [] }))
 		expect(askResponse).not.toHaveBeenCalled()
+	})
+
+	describe("image handling when model does not support images", () => {
+		it("strips images when sending a new task if model does not support images", async () => {
+			mockTurnState = { phase: "idle", seq: 1 }
+			mockSelectedModelInfo = { supportsImages: false }
+			const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+			await act(async () => {
+				await result.current.handleSendMessage("explain this code", ["data:image/png;base64,abc"], [])
+			})
+
+			expect(newTask).toHaveBeenCalledTimes(1)
+			expect(newTask).toHaveBeenCalledWith(
+				expect.objectContaining({
+					text: "explain this code",
+					images: [],
+					files: [],
+				}),
+			)
+			expect(trackIntent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					action: "prompt_submitted",
+					hasImages: false,
+				}),
+			)
+		})
+
+		it("does not send a message when only images are provided and model does not support images", async () => {
+			mockTurnState = { phase: "idle", seq: 1 }
+			mockSelectedModelInfo = { supportsImages: false }
+			const { result } = renderHook(() => useMessageHandlers([], makeChatState([])))
+
+			await act(async () => {
+				await result.current.handleSendMessage("", ["data:image/png;base64,abc"], [])
+			})
+
+			expect(newTask).not.toHaveBeenCalled()
+			expect(askResponse).not.toHaveBeenCalled()
+		})
+
+		it("strips images from follow-up askResponse when model does not support images", async () => {
+			mockTurnState = { phase: "completed", seq: 7 }
+			mockSelectedModelInfo = { supportsImages: false }
+			const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+			await act(async () => {
+				await result.current.handleSendMessage("followup question", ["data:image/png;base64,abc"], [])
+			})
+
+			expect(newTask).not.toHaveBeenCalled()
+			expect(askResponse).toHaveBeenCalledTimes(1)
+			expect(askResponse).toHaveBeenCalledWith(
+				expect.objectContaining({
+					responseType: "messageResponse",
+					text: "followup question",
+					images: [],
+				}),
+			)
+		})
 	})
 })
