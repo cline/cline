@@ -43,6 +43,41 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 }
 
 describe("SessionHistorySearchService", () => {
+	it("excludes sessions before the bounded ranked candidate scan", async () => {
+		const excluded = Array.from({ length: 201 }, (_, index) =>
+			session({
+				sessionId: `excluded-${index}`,
+				metadata: { title: "Needle" },
+			}),
+		);
+		const service = new SessionHistorySearchService(
+			{
+				listSessions: async () => [
+					...excluded,
+					session({ sessionId: "ordinary" }),
+				],
+				readSessionMessages: async () => [{ role: "user", content: "Needle" }],
+			},
+			{ dbPath: ":memory:" },
+		);
+		try {
+			await service.refreshNow();
+			const request = {
+				query: "Needle",
+				limit: 1,
+				excludeSessionIds: excluded.map((row) => row.sessionId),
+			};
+			expect(service.search(request).map((hit) => hit.sessionId)).toEqual([
+				"ordinary",
+			]);
+			expect(
+				service.search({ query: "Needle", limit: 1 })[0]?.sessionId,
+			).toMatch(/^excluded-/);
+		} finally {
+			await service.dispose();
+		}
+	});
+
 	it("indexes session turns and returns ranked snippets", async () => {
 		const dir = await mkdtemp(join(tmpdir(), "cline-session-search-"));
 		tempDirs.push(dir);

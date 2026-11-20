@@ -1,3 +1,61 @@
+## Side-conversation context and history
+
+Import `captureSideReference`, `createSideHistoryTool`, and
+`SIDE_SCOPE_INSTRUCTIONS` from `@cline/core` to compose a side conversation with
+an existing core instance:
+
+```ts
+const parent = await core.get(parentSessionId);
+if (!parent) throw new Error("Parent conversation unavailable");
+const compactionState = await core.readSessionCompactionState(parentSessionId);
+const reference = captureSideReference({
+  messages: await core.readMessages(parentSessionId),
+  compactionState,
+  activeParentTurn: parent.status === "running" || parent.status === "pending",
+  parentTitle: "Main conversation",
+});
+const historyTool = createSideHistoryTool({ manager: core, parentSessionId });
+```
+
+Use the reference as an initial message and opt into `historyTool` through the
+existing extra-tools configuration. `SIDE_SCOPE_INSTRUCTIONS` provides the
+reference-only prompt rules. Configure tool permissions separately; prompt
+instructions do not enforce them. These helpers neither create a session nor
+change the default tool catalog.
+
+The initial reference reuses the parent's existing compacted working context
+and later messages. Without a valid compaction state, it uses the supplied
+history. It does not generate a new summary or impose an additional snapshot-size
+cap. Before rendering the starting reference, the normal message builder
+applies its existing content limits to redacted messages. Tool-protocol repair
+is disabled for this reference pass so pending calls remain pending.
+A supplied `visibleContext` must satisfy `SideVisibleContextSchema` from
+`@cline/shared` (or `@cline/shared/browser`), including its 4 KiB per-excerpt
+and 24 KiB total limits. Hosts capture this optional supplement at creation
+time; there is no continuous synchronization.
+
+Compaction can summarize or remove the starting reference. Use
+`read_parent_history` to retrieve parent context afterward.
+
+`read_parent_history` supports `recent`, `search`, and `read`, using the parent
+bound when the tool is created. Results include saved-history limitations and
+separately read parent status. Stale read references are rejected. Neither
+history reads nor the starting reference replay parent tool calls or copy
+parent usage into the side conversation.
+
+Search accepts literal text and its JSON-escaped representation in structured
+results. Returned offsets refer to the rendered text used by `read`.
+
+Text attachments and tool failure status remain available in references;
+binary media, provider reasoning, and parent cache handles are omitted.
+`read` offsets use UTF-16 code units and cannot split a surrogate pair. Follow
+the returned `nextOffset` to paginate without splitting a character.
+
+Hosts remain responsible for current model/settings selection, session
+creation, retention, discovery visibility, and UI. Desktop is the first client
+using these shared helpers; other clients do not gain a side-chat command or
+UI automatically.
+
 ## Plugin slash commands
 
 Use `core.pluginCommands` on an existing `ClineCore` (local or hub-backed), or

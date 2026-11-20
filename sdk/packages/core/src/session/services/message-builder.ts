@@ -186,11 +186,16 @@ export class MessageBuilder {
 		this.committedOutdatedRewrites.clear();
 	}
 
-	buildForApi(messages: Message[]): Message[] {
+	buildForApi(
+		messages: Message[],
+		{ repairToolResults = true }: { repairToolResults?: boolean } = {},
+	): Message[] {
 		this.recoveryNoticeBytes = 0;
 		this.reindex(messages);
 		this.commitOutdatedRewrites(messages);
-		const repairedMessages = this.addMissingToolResults(messages);
+		const repairedMessages = repairToolResults
+			? this.addMissingToolResults(messages)
+			: messages;
 
 		const prepared = repairedMessages.map((message) => {
 			if (!Array.isArray(message.content)) {
