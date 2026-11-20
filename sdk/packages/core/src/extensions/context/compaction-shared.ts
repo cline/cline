@@ -123,10 +123,21 @@ export function flattenToolResultContent(
 				case "image":
 					return `[image:${block.mediaType}]`;
 				default:
-					return "";
+					return truncateText(
+						stringifyToolResultBlock(block),
+						TOOL_RESULT_CHAR_LIMIT,
+					);
 			}
 		})
 		.join("\n");
+}
+
+function stringifyToolResultBlock(block: unknown): string {
+	try {
+		return JSON.stringify(block) ?? String(block);
+	} catch {
+		return String(block);
+	}
 }
 
 export function truncateToolResultContentForCompaction(
