@@ -419,7 +419,7 @@ async function releaseSDK(version: string): Promise<number> {
 	}
 
 	// Step 2: Update versions
-	// version.ts handles: version bump -> lockfile regeneration -> generate:models -> format -> build
+	// version.ts handles: version bump -> lockfile update -> generate:models -> format -> build
 	header("Step 2/5: Updating package versions and lockfile");
 	await run(["bun", "scripts/version.ts", version], { cwd: sdkRoot });
 
