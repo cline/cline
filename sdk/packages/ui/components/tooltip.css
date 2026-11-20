@@ -1,0 +1,79 @@
+@layer components {
+	.cline-ui-tooltip__content {
+		box-sizing: border-box;
+		position: relative;
+		z-index: 10000;
+		width: max-content;
+		max-width: min(20rem, var(--radix-tooltip-content-available-width));
+		padding: var(--spacing, 0.25rem) calc(var(--spacing, 0.25rem) * 2);
+		border: 1px solid var(--neutral-a3);
+		border-radius: var(--radius-sm);
+		background: var(--neutral-12);
+		color: var(--neutral-1);
+		font-family: var(--font-sans);
+		font-size: var(--text-xs);
+		font-weight: var(--font-weight-normal);
+		line-height: 1.5;
+		overflow-wrap: anywhere;
+		box-shadow:
+			0 4px 6px -1px rgb(0 0 0 / 10%),
+			0 2px 4px -1px rgb(0 0 0 / 6%);
+		transform-origin: var(--radix-tooltip-content-transform-origin);
+	}
+
+	.cline-ui-tooltip__content[data-state="delayed-open"],
+	.cline-ui-tooltip__content[data-state="instant-open"] {
+		animation: cline-ui-tooltip-enter 80ms ease-out both;
+	}
+
+	.cline-ui-tooltip__content[data-state="closed"] {
+		animation: cline-ui-tooltip-exit 80ms ease-in both;
+	}
+
+	.cline-ui-tooltip__arrow {
+		fill: var(--neutral-12);
+		stroke: var(--neutral-12);
+		stroke-width: 1px;
+		stroke-linejoin: round;
+		overflow: visible;
+	}
+
+	.cline-ui-tooltip__arrow-outline {
+		fill: none;
+		stroke: var(--neutral-a3);
+	}
+}
+
+@keyframes cline-ui-tooltip-enter {
+	from {
+		opacity: 0;
+		transform: scale(0.94);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes cline-ui-tooltip-exit {
+	from {
+		opacity: 1;
+		transform: scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: scale(0.94);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-tooltip__content[data-state] {
+		animation: none;
+	}
+}
+
+@media (forced-colors: active) {
+	.cline-ui-tooltip__content {
+		outline: 1px solid CanvasText;
+	}
+}

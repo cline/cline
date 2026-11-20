@@ -57,17 +57,25 @@ function composeChild(
 	children: ReactNode,
 	disabled: boolean | undefined,
 	type: ButtonControlProps["type"],
+	describedBy: ButtonControlProps["aria-describedby"],
 ) {
 	if (!isValidElement<ButtonHTMLAttributes<HTMLButtonElement>>(children)) {
 		return children;
 	}
 
 	const nativeButton = children.type === "button";
-	if (!nativeButton && !disabled) return children;
+	if (!nativeButton && !disabled && !describedBy) return children;
 
-	// Slot gives child props precedence. Apply the disabled contract directly
-	// to the child before it merges attributes and composes event handlers.
+	// Slot gives child props precedence. Preserve descriptions from both layers
+	// and apply the disabled contract before it composes event handlers.
 	return cloneElement(children, {
+		...(describedBy
+			? {
+					"aria-describedby": [children.props["aria-describedby"], describedBy]
+						.filter(Boolean)
+						.join(" "),
+				}
+			: {}),
 		...(nativeButton
 			? {
 					type: children.props.type ?? type,
@@ -103,7 +111,9 @@ export const ButtonControl = forwardRef<HTMLButtonElement, ButtonControlProps>(
 				type={asChild ? type : (type ?? "button")}
 				{...(asChild && disabled ? disabledCompositionProps(props) : {})}
 			>
-				{asChild ? composeChild(children, disabled, type) : children}
+				{asChild
+					? composeChild(children, disabled, type, props["aria-describedby"])
+					: children}
 			</Comp>
 		);
 	},
