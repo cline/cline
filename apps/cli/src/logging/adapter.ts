@@ -127,6 +127,20 @@ function createWritableDestination(
 ): DestinationStream | undefined {
 	try {
 		mkdirSync(dirname(destinationPath), { recursive: true });
+		// Windows: fs.openSync on a directory SUCCEEDS (POSIX throws EISDIR),
+		// so a directory path would pass the writability probe below and
+		// sonic-boom would then throw EISDIR on every write and hang the
+		// process during the shutdown flush. Detect directories explicitly
+		// and treat them as unwritable so the fallback destination is used.
+		let isDirectory = false;
+		try {
+			isDirectory = statSync(destinationPath).isDirectory();
+		} catch {
+			// ENOENT: the file does not exist yet — the openSync probe below creates it.
+		}
+		if (isDirectory) {
+			throw new Error(`Log destination is a directory: ${destinationPath}`);
+		}
 		const fd = openSync(destinationPath, "a");
 		closeSync(fd);
 		const dest = pino.destination({
