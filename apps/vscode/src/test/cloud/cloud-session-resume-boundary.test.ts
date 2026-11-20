@@ -118,8 +118,8 @@ describe("resuming a suspended cloud sandbox through the real Hub", () => {
 			resetMessageTranslator: vi.fn(() => renders.push("new epoch")),
 			setTurnPhase: vi.fn(),
 			postStateToWebview: vi.fn(async () => {
-				const text = task?.messageStateHandler.getClineMessages().at(-1)?.text
-				if (text !== undefined) renders.push(`post: ${text}`)
+				const say = task?.messageStateHandler.getClineMessages().at(-1)?.say
+				if (say !== undefined) renders.push(`post: ${say}`)
 			}),
 			showChatView: vi.fn(async () => renders.push("chat view shown")),
 			invalidateHistoryCache: vi.fn(),
@@ -140,7 +140,7 @@ describe("resuming a suspended cloud sandbox through the real Hub", () => {
 
 		await coordinator.openCloudTask(record.id)
 		// The transcript starts a new epoch after the notice, so the webview replaces the notice.
-		const noticePosted = renders.indexOf("post: Resuming the cloud sandbox…")
+		const noticePosted = renders.indexOf("post: cloud_provisioning")
 		expect(noticePosted).toBeGreaterThan(-1)
 		// The chat view is brought forward while the notice is showing, before the conversation replaces it.
 		expect(renders.indexOf("chat view shown")).toBeGreaterThan(noticePosted)

@@ -29,6 +29,8 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 			advanced_disable_decide: false,
 			// Autocapture should respect telemetry settings
 			autocapture: false,
+			// PostHog is only used for feature flag evaluation: drop every event
+			before_send: () => null,
 		})
 		setIsActive(true)
 	}, [isSelfHostedOrUnknown])
@@ -37,21 +39,6 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 		if (!isActive || !distinctId || !version) {
 			return
 		}
-
-		posthog.set_config({
-			before_send: (payload) => {
-				// Only filter out events if telemetry is disabled, but allow feature flag requests
-				if (!isTelemetryEnabled && payload?.event !== "$feature_flag_called") {
-					return null
-				}
-
-				if (payload?.properties) {
-					payload.properties.extension_version = version
-					payload.properties.distinct_id = distinctId
-				}
-				return payload
-			},
-		})
 
 		const optedIn = posthog.has_opted_in_capturing()
 		const optedOut = posthog.has_opted_out_capturing()

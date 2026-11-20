@@ -27,6 +27,21 @@ describe("materializeGeneratedMedia", () => {
 		expect(readFileSync(saved.path, "utf8")).toBe("generated-image");
 	});
 
+	it("reuses the file when the same media is materialized again", () => {
+		const media = {
+			id: "generated-repeat",
+			modality: "image" as const,
+			mediaType: "image/png",
+			source: { type: "base64" as const, data: "aW1hZ2U=" },
+		};
+
+		const first = materializeGeneratedMedia(media);
+		const second = materializeGeneratedMedia({ ...media, id: "other" });
+
+		expect(first?.path).toBeDefined();
+		expect(second?.path).toBe(first?.path);
+	});
+
 	it("cleans up materialized media directories", () => {
 		const saved = materializeGeneratedMedia({
 			id: "generated-cleanup",

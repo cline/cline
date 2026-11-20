@@ -1,5 +1,5 @@
 import { Switch } from "@cline/ui";
-import { Download, Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { useAccount } from "@/contexts/account-context";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -29,12 +30,14 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
 	runProviderOAuthLogin,
 } from "@/lib/provider-connection";
+import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
@@ -66,7 +69,11 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { DebugContent } from "./debug-view";
+import { HubPanel } from "./hub-panel";
 import { ImportContent } from "./import-view";
+import { KeybindingsContent } from "./keybindings-view";
+import { LocalModelsContent } from "./local-models-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
@@ -114,6 +121,7 @@ export function SettingsView({
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const activeNav = section;
+	const { refreshAccount } = useAccount();
 	const [marketplaceInitialFilter, setMarketplaceInitialFilter] =
 		useState<MarketplaceTypeFilter | null>(null);
 	const [providers, setProviders] = useState<Provider[]>(
@@ -136,6 +144,9 @@ export function SettingsView({
 	>(null);
 	const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
 		null,
+	);
+	const [inUseProviderId] = useState(() =>
+		normalizeProviderId(readModelSelectionStorageFromWindow().lastProvider),
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
 	// Bumped by every optimistic provider mutation and catalog load. An
@@ -343,6 +354,10 @@ export function SettingsView({
 
 	const updateProvider = useCallback(
 		(id: string, updates: ProviderSettingsUpdate) => {
+			const clineKeyChanged =
+				(id === "cline" || id === "cline-pass") &&
+				Boolean(updates.apiKey) &&
+				updates.apiKey !== providers.find((p) => p.id === id)?.apiKey;
 			// Saving settings creates the provider's persisted entry, which is
 			// what "connected" means for keyless providers — reflect it locally.
 			catalogGenerationRef.current++;
@@ -367,9 +382,16 @@ export function SettingsView({
 				apiKey: updates.apiKey,
 				baseUrl: updates.baseUrl,
 				configValues: updates.configValues,
+			}).then((saved) => {
+				// A new Cline key may belong to a different account than the
+				// stored identity; fetchMe writes the key's own account back
+				// (mirrors onboarding's save-then-verify).
+				if (saved && clineKeyChanged) {
+					void refreshAccount();
+				}
 			});
 		},
-		[persistProviderSettings, setProvidersWithCache],
+		[persistProviderSettings, providers, refreshAccount, setProvidersWithCache],
 	);
 
 	const loadProviderModels = useCallback(
@@ -426,9 +448,13 @@ export function SettingsView({
 	);
 
 	// The detail panel is always open: with no explicit selection, default to
-	// the first connected provider (the one in use), then the first provider.
+	// the provider the chat uses, then the first connected one, then the first.
 	const effectiveSelectedProviderId =
 		selectedProviderId ??
+		providers.find(
+			(provider) =>
+				provider.id === inUseProviderId && isProviderConnected(provider),
+		)?.id ??
 		providers.find(isProviderConnected)?.id ??
 		providers[0]?.id ??
 		null;
@@ -608,10 +634,14 @@ export function SettingsView({
 				{providerContent}
 				{addProviderDialog}
 			</>
+		) : activeNav === "Local Models" ? (
+			<LocalModelsContent />
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
 				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
+		) : activeNav === "Keybindings" ? (
+			<KeybindingsContent />
 		) : activeNav === "Customize" ? (
 			<CustomizeView
 				onOpenModelProviders={() => onNavigateSection("Providers")}
@@ -635,7 +665,9 @@ export function SettingsView({
 		) : activeNav === "About" ? (
 			<AboutContent onOpenConnectors={() => onNavigateSection("Customize")} />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent onExportDiagnostics={onExportDiagnostics} />
+			<GeneralSettingsContent />
+		) : activeNav === "Debug" ? (
+			<DebugContent onExportDiagnostics={onExportDiagnostics} />
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -665,11 +697,7 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
 ];
 
-function GeneralSettingsContent({
-	onExportDiagnostics,
-}: {
-	onExportDiagnostics: () => void;
-}) {
+function GeneralSettingsContent() {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -1021,27 +1049,7 @@ function GeneralSettingsContent({
 						Replay
 					</Button>
 				</div>
-				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
-							Diagnostics
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Export app info, recent logs, and the metadata of sessions you
-							choose as a file you can attach when reporting a problem.
-						</p>
-					</div>
-					<Button
-						className="w-24 shrink-0"
-						onClick={onExportDiagnostics}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Download className="size-3" />
-						Export…
-					</Button>
-				</div>
+				<HubPanel />
 			</section>
 		</PageFrame>
 	);

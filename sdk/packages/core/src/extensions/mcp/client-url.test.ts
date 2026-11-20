@@ -16,8 +16,12 @@ function makeSseError(code: number | undefined, message: string): SseError {
 }
 
 const clientState = vi.hoisted(() => ({
+	constructorOptions: undefined as unknown,
 	connectOptions: undefined as unknown,
 	listToolsOptions: undefined as unknown,
+	listedTools: [] as unknown[],
+	readResourceRequest: undefined as unknown,
+	readResourceOptions: undefined as unknown,
 	callToolOptions: undefined as unknown,
 	callToolError: undefined as unknown,
 	connectError: undefined as unknown,
@@ -26,6 +30,10 @@ const clientState = vi.hoisted(() => ({
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
+		constructor(_info: unknown, options?: unknown) {
+			clientState.constructorOptions = options;
+		}
+
 		async connect(_transport: unknown, options: unknown): Promise<void> {
 			clientState.connectOptions = options;
 			if (clientState.connectError) {
@@ -39,7 +47,13 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 
 		async listTools(_params: unknown, options: unknown) {
 			clientState.listToolsOptions = options;
-			return { tools: [] };
+			return { tools: clientState.listedTools };
+		}
+
+		async readResource(request: unknown, options: unknown) {
+			clientState.readResourceRequest = request;
+			clientState.readResourceOptions = options;
+			return { contents: [] };
 		}
 
 		async callTool(
@@ -255,6 +269,80 @@ describe("SDK URL MCP client timeout", () => {
 
 		await expect(client.connect()).rejects.toThrow(/timed out after 12s/);
 		expect(clientState.closeCount).toBe(1);
+	});
+});
+
+describe("SDK URL MCP client app support", () => {
+	beforeEach(() => {
+		clientState.constructorOptions = undefined;
+		clientState.listedTools = [];
+		clientState.readResourceRequest = undefined;
+		clientState.readResourceOptions = undefined;
+		clientState.connectError = undefined;
+	});
+
+	const registration = {
+		name: "remote",
+		transport: {
+			type: "streamableHttp" as const,
+			url: "https://mcp.example.test",
+		},
+		timeoutSeconds: 12,
+	};
+
+	it("advertises the MCP Apps extension only when enabled", async () => {
+		await (await createDefaultMcpServerClientFactory()(registration)).connect();
+		expect(clientState.constructorOptions).toBeUndefined();
+
+		await (
+			await createDefaultMcpServerClientFactory({ mcpApps: true })(registration)
+		).connect();
+		expect(clientState.constructorOptions).toEqual({
+			capabilities: {
+				extensions: {
+					"io.modelcontextprotocol/ui": {
+						mimeTypes: ["text/html;profile=mcp-app"],
+					},
+				},
+			},
+		});
+	});
+
+	it("keeps tool _meta and reads resources with the request timeout", async () => {
+		clientState.listedTools = [
+			{
+				name: "show_weather",
+				inputSchema: { type: "object" },
+				_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+			},
+		];
+		const client = await createDefaultMcpServerClientFactory()(registration);
+		const controller = new AbortController();
+
+		expect(await client.listTools()).toEqual([
+			{
+				name: "show_weather",
+				description: undefined,
+				inputSchema: { type: "object" },
+				_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+			},
+		]);
+		await client.readResource?.({
+			uri: "ui://weather/view.html",
+			context: {
+				agentId: "test-agent",
+				iteration: 1,
+				signal: controller.signal,
+			},
+		});
+
+		expect(clientState.readResourceRequest).toEqual({
+			uri: "ui://weather/view.html",
+		});
+		expect(clientState.readResourceOptions).toEqual({
+			timeout: 12_000,
+			signal: controller.signal,
+		});
 	});
 });
 

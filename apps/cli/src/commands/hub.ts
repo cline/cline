@@ -41,6 +41,8 @@ interface HubEnsureCommandOptions extends Partial<HubOptions> {
 }
 
 const HUB_DISCOVERY_PATH_ENV = "CLINE_HUB_DISCOVERY_PATH";
+// A frozen Hub accepts the connection but never answers its health check.
+const HUB_PROBE_TIMEOUT_MS = 3_000;
 
 function addHubOptions(command: Command, defaultCwd?: string): Command {
 	return command
@@ -213,6 +215,7 @@ export function createHubCommand(
 			const health = discovery?.url
 				? await probeHubServer(discovery.url, {
 						authToken: discovery.authToken,
+						signal: AbortSignal.timeout(HUB_PROBE_TIMEOUT_MS),
 					})
 				: undefined;
 			const uptime = formatHubUptimeFromStartedAt(health?.startedAt);

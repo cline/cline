@@ -28,25 +28,26 @@ export async function projectSessionEvent(
 		case "agent_event":
 			await projectAgentEvent(ctx, event);
 			return;
-		case "hook":
+		case "hook": {
+			const payload = {
+				toolName: event.payload.toolName,
+				agent: {
+					agentId: event.payload.agentId,
+					conversationId: event.payload.conversationId,
+					parentAgentId: event.payload.parentAgentId,
+				},
+			};
 			if (event.payload.hookEventName === "tool_call") {
 				ctx.publish(
-					ctx.buildEvent(
-						"tool.started",
-						{ toolName: event.payload.toolName },
-						event.payload.sessionId,
-					),
+					ctx.buildEvent("tool.started", payload, event.payload.sessionId),
 				);
 			} else if (event.payload.hookEventName === "tool_result") {
 				ctx.publish(
-					ctx.buildEvent(
-						"tool.finished",
-						{ toolName: event.payload.toolName },
-						event.payload.sessionId,
-					),
+					ctx.buildEvent("tool.finished", payload, event.payload.sessionId),
 				);
 			}
 			return;
+		}
 		case "team_progress": {
 			const projection: TeamProgressProjectionEvent = {
 				type: "team_progress_projection",
@@ -135,9 +136,27 @@ async function projectAgentEvent(
 	event: Extract<CoreSessionEvent, { type: "agent_event" }>,
 ): Promise<void> {
 	const { sessionId, event: agentEvent } = event.payload;
+	const agent = {
+		kind:
+			event.payload.teamRole === "teammate"
+				? "teammate"
+				: agentEvent.parentAgentId
+					? "subagent"
+					: "lead",
+		agentId: agentEvent.agentId,
+		conversationId: agentEvent.conversationId,
+		parentAgentId: agentEvent.parentAgentId,
+		teamAgentId: event.payload.teamAgentId,
+		teamRole: event.payload.teamRole,
+	};
+	const buildAgentEvent: HubTransportContext["buildEvent"] = (
+		name,
+		payload,
+		targetSessionId,
+	) => ctx.buildEvent(name, { ...payload, agent }, targetSessionId);
 	if (agentEvent.type === "iteration_start") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"iteration.started",
 				{ iteration: agentEvent.iteration },
 				sessionId,
@@ -147,7 +166,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "iteration_end") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"iteration.finished",
 				{
 					iteration: agentEvent.iteration,
@@ -166,14 +185,18 @@ async function projectAgentEvent(
 			agentEvent.text.length > 0
 		) {
 			ctx.publish(
-				ctx.buildEvent("assistant.delta", { text: agentEvent.text }, sessionId),
+				buildAgentEvent(
+					"assistant.delta",
+					{ text: agentEvent.text },
+					sessionId,
+				),
 			);
 			return;
 		}
 		if (agentEvent.contentType === "reasoning") {
 			if (agentEvent.redacted && !agentEvent.reasoning) {
 				ctx.publish(
-					ctx.buildEvent(
+					buildAgentEvent(
 						"reasoning.delta",
 						{ text: "", redacted: true },
 						sessionId,
@@ -186,7 +209,7 @@ async function projectAgentEvent(
 				agentEvent.reasoning.length > 0
 			) {
 				ctx.publish(
-					ctx.buildEvent(
+					buildAgentEvent(
 						"reasoning.delta",
 						{
 							text: agentEvent.reasoning,
@@ -200,7 +223,7 @@ async function projectAgentEvent(
 		}
 		if (agentEvent.contentType === "tool") {
 			ctx.publish(
-				ctx.buildEvent(
+				buildAgentEvent(
 					"tool.started",
 					{
 						toolCallId: agentEvent.toolCallId,
@@ -218,7 +241,7 @@ async function projectAgentEvent(
 		agentEvent.contentType === "tool"
 	) {
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"tool.updated",
 				{
 					toolCallId: agentEvent.toolCallId,
@@ -234,7 +257,7 @@ async function projectAgentEvent(
 		switch (agentEvent.contentType) {
 			case "text":
 				ctx.publish(
-					ctx.buildEvent(
+					buildAgentEvent(
 						"assistant.finished",
 						{ text: agentEvent.text },
 						sessionId,
@@ -244,7 +267,7 @@ async function projectAgentEvent(
 			case "media":
 				if (agentEvent.media) {
 					ctx.publish(
-						ctx.buildEvent(
+						buildAgentEvent(
 							"assistant.media",
 							{ media: agentEvent.media },
 							sessionId,
@@ -254,7 +277,7 @@ async function projectAgentEvent(
 				break;
 			case "reasoning":
 				ctx.publish(
-					ctx.buildEvent(
+					buildAgentEvent(
 						"reasoning.finished",
 						{ reasoning: agentEvent.reasoning },
 						sessionId,
@@ -263,7 +286,7 @@ async function projectAgentEvent(
 				break;
 			case "tool":
 				ctx.publish(
-					ctx.buildEvent(
+					buildAgentEvent(
 						"tool.finished",
 						{
 							toolCallId: agentEvent.toolCallId,
@@ -280,7 +303,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "notice") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"session.notice",
 				{
 					sessionId,
@@ -291,19 +314,6 @@ async function projectAgentEvent(
 						: {}),
 					...(agentEvent.reason ? { reason: agentEvent.reason } : {}),
 					...(agentEvent.metadata ? { metadata: agentEvent.metadata } : {}),
-					agent: {
-						kind:
-							event.payload.teamRole === "teammate"
-								? "teammate"
-								: agentEvent.parentAgentId
-									? "subagent"
-									: "lead",
-						agentId: agentEvent.agentId,
-						conversationId: agentEvent.conversationId,
-						parentAgentId: agentEvent.parentAgentId,
-						teamAgentId: event.payload.teamAgentId,
-						teamRole: event.payload.teamRole,
-					},
 				},
 				sessionId,
 			),
@@ -318,7 +328,7 @@ async function projectAgentEvent(
 			usageSummary = undefined;
 		}
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"usage.updated",
 				{
 					sessionId,
@@ -339,19 +349,6 @@ async function projectAgentEvent(
 					},
 					usage: usageSummary?.usage,
 					aggregateUsage: usageSummary?.aggregateUsage,
-					agent: {
-						kind:
-							event.payload.teamRole === "teammate"
-								? "teammate"
-								: agentEvent.parentAgentId
-									? "subagent"
-									: "lead",
-						agentId: agentEvent.agentId,
-						conversationId: agentEvent.conversationId,
-						parentAgentId: agentEvent.parentAgentId,
-						teamAgentId: event.payload.teamAgentId,
-						teamRole: event.payload.teamRole,
-					},
 				},
 				sessionId,
 			),
@@ -360,7 +357,7 @@ async function projectAgentEvent(
 	}
 	if (agentEvent.type === "done") {
 		ctx.publish(
-			ctx.buildEvent(
+			buildAgentEvent(
 				"agent.done",
 				{
 					reason: agentEvent.reason,

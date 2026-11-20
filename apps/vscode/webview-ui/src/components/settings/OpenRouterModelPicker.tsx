@@ -1,7 +1,7 @@
 import { openAiModelInfoSafeDefaults, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { isClaudeOpusAdaptiveThinkingModel } from "@shared/utils/reasoning-support"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
@@ -16,6 +16,7 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
 import { filterOpenRouterModelIds, getModeSpecificFields } from "./utils/providerUtils"
+import { type ReasoningEffortSelection, reasoningEffortPatch } from "./utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Star icon for favorites
@@ -47,7 +48,7 @@ interface OpenRouterModelPickerProps {
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode, showProviderRouting }) => {
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
-	const { commitSelection, write } = useProviderConfig("openrouter")
+	const { commitSelection, config, write, reasoningEffort } = useProviderConfig("openrouter")
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
@@ -220,10 +221,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}, [selectedIndex])
 
 	const showAdaptiveThinkingEffort = useMemo(() => isClaudeOpusAdaptiveThinkingModel(selectedModelId), [selectedModelId])
-	const adaptiveThinkingDefaultEffort = useMemo(
-		() => resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none",
-		[modeFields.reasoningEffort, modeFields.thinkingBudgetTokens],
-	)
 	// Reasoning support comes from the SDK catalog (models.dev), not model-id
 	// heuristics: any reasoning-capable model gets the effort selector. Prefer
 	// the live catalog entry over the committed legacy snapshot — the snapshot
@@ -234,10 +231,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showReasoningEffort =
 		showAdaptiveThinkingEffort ||
 		(openRouterModels[selectedModelId] ?? modeFields.openRouterModelInfo)?.supportsReasoning === true
-	const handleReasoningEffortChange = (effort: string) => {
-		void write({
-			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-		}).catch((err) => console.error("Failed to update OpenRouter reasoning effort:", err))
+	const handleReasoningEffortChange = (effort: ReasoningEffortSelection) => {
+		void write(reasoningEffortPatch(effort)).catch((err) =>
+			console.error("Failed to update OpenRouter reasoning effort:", err),
+		)
 	}
 
 	return (
@@ -335,7 +332,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					{showReasoningEffort && (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "none"}
 							description={
 								showAdaptiveThinkingEffort
 									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
@@ -343,6 +339,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 							}
 							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
 							onEffortChange={handleReasoningEffortChange}
+							value={reasoningEffort}
 						/>
 					)}
 

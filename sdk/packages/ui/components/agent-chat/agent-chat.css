@@ -1,3 +1,5 @@
+@import "../button.css";
+
 @layer components {
 	.cline-chat-conversation {
 		position: relative;

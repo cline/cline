@@ -111,8 +111,10 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onActiveSessionChange?: () => void;
 }) {
 	let sessionManager: CliCore | undefined;
+	let sessionManagerPromise: Promise<CliCore> | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
 	let unsubscribePendingPrompts = () => {};
@@ -134,6 +136,7 @@ export function createInteractiveSessionRuntime(input: {
 	const clearActiveSession = (): void => {
 		activeSessionId = "";
 		setActiveCliSession(undefined);
+		input.onActiveSessionChange?.();
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
@@ -141,6 +144,7 @@ export function createInteractiveSessionRuntime(input: {
 			manifest: started.manifest,
 		});
 		activeSessionId = started.sessionId;
+		input.onActiveSessionChange?.();
 		for (const message of formatPluginIssueWarnings(started.pluginIssues)) {
 			input.onAgentEvent({
 				type: "notice",
@@ -151,10 +155,7 @@ export function createInteractiveSessionRuntime(input: {
 		}
 	};
 
-	const ensureSessionManager = async (): Promise<CliCore> => {
-		if (sessionManager) {
-			return sessionManager;
-		}
+	const createSessionManager = async (): Promise<CliCore> => {
 		const manager = await createCliCore({
 			// Interactive startup must never wait for a detached hub daemon to boot.
 			// `auto` uses an already-compatible hub when one is immediately available,
@@ -203,6 +204,20 @@ export function createInteractiveSessionRuntime(input: {
 			onPendingPromptSubmitted: input.onPendingPromptSubmitted,
 		});
 		return manager;
+	};
+
+	const ensureSessionManager = (): Promise<CliCore> => {
+		if (sessionManager) return Promise.resolve(sessionManager);
+		if (shutdownRequested)
+			return Promise.reject(
+				new Error("interactive runtime shutdown requested"),
+			);
+		if (!sessionManagerPromise) {
+			sessionManagerPromise = createSessionManager().finally(() => {
+				sessionManagerPromise = undefined;
+			});
+		}
+		return sessionManagerPromise;
 	};
 
 	const buildSessionConfig = (): Config => {
@@ -885,6 +900,7 @@ export function createInteractiveSessionRuntime(input: {
 			shutdownRequested = true;
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
+				await sessionManagerPromise?.catch(() => {});
 				await startupPromise?.catch(() => {});
 				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
@@ -899,7 +915,11 @@ export function createInteractiveSessionRuntime(input: {
 				await stopCurrentSession();
 			} finally {
 				if (sessionManager) {
-					await sessionManager.dispose("cli_interactive_shutdown");
+					try {
+						await sessionManager.dispose("cli_interactive_shutdown");
+					} finally {
+						sessionManager = undefined;
+					}
 				}
 			}
 			return exitSummary;
@@ -908,6 +928,8 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	return {
+		getPluginCommandsApi: async () =>
+			(await ensureSessionManager()).pluginCommands,
 		ensureReady,
 		listCoreSettings,
 		toggleCoreSettings,

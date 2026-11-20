@@ -3,7 +3,10 @@ import {
 	normalizeBuiltinModelOperationModalities,
 } from "../providers/model-operations";
 import { GENERATED_PROVIDER_MODELS } from "./catalog.generated";
-import { sortModelsByReleaseDate } from "./catalog-live";
+import {
+	sortModelsByReleaseDate,
+	withInterleavedReasoningOverlay,
+} from "./catalog-live";
 import {
 	resolveCatalogModelOperation,
 	resolveCatalogModelOperationModes,
@@ -37,12 +40,12 @@ function normalizeGeneratedModels(
 				family: model.family,
 				capabilities: model.capabilities,
 			});
-			const normalized = {
+			const normalized = withInterleavedReasoningOverlay(providerId, modelId, {
 				...model,
 				operation,
 				...(operationModes ? { operationModes } : {}),
 				...(modalities ? { modalities } : {}),
-			};
+			});
 			return builtinProviderSupportsModelOperation({
 				providerId,
 				modelId,

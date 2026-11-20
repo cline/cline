@@ -165,6 +165,29 @@ describe("checkpoint workspace comparison", () => {
 		});
 	});
 
+	it("reads checkpoint content for nested paths containing spaces", async () => {
+		mkdirSync(join(dir, "nested dir"));
+		writeFileSync(join(dir, "nested dir", "a file.txt"), "before\n", "utf8");
+		git(dir, ["add", "."]);
+		git(dir, ["commit", "-m", "nested"]);
+		const ref = git(dir, ["rev-parse", "HEAD"]);
+		writeFileSync(join(dir, "nested dir", "a file.txt"), "after\n", "utf8");
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "commit",
+		});
+
+		expect(diffs).toHaveLength(1);
+		expect(diffs[0]).toMatchObject({
+			filePath: join(dir, "nested dir", "a file.txt"),
+			leftContent: "before\n",
+			rightContent: "after\n",
+		});
+	});
+
 	it("selects the nearest checkpoint at or before the requested run", async () => {
 		const session = {
 			sessionId: "session-1",

@@ -423,7 +423,7 @@
 
 .cline-mermaid__error {
 	padding: 0.75rem;
-	color: var(--destructive);
+	color: var(--error-text);
 	font-size: var(--text-xs);
 }
 

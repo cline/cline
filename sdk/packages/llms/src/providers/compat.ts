@@ -73,6 +73,11 @@ function toGatewayModelDefinition(
 			...(model.metadata?.apiProtocol
 				? { apiProtocol: model.metadata.apiProtocol }
 				: {}),
+			...(model.metadata?.interleavedReasoningField
+				? {
+						interleavedReasoningField: model.metadata.interleavedReasoningField,
+					}
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
@@ -408,11 +413,13 @@ function buildGatewayRequest(
 		reasoning:
 			config.thinking !== undefined ||
 			config.reasoningEffort ||
-			config.thinkingBudgetTokens !== undefined
+			config.thinkingBudgetTokens !== undefined ||
+			config.preferThinkingOff
 				? {
 						enabled: config.thinking,
 						effort: config.reasoningEffort,
 						budgetTokens: config.thinkingBudgetTokens,
+						...(config.preferThinkingOff ? { preferOff: true } : {}),
 					}
 				: undefined,
 		signal,

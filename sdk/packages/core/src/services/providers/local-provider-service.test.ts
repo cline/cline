@@ -300,7 +300,7 @@ describe("models registry parsing", () => {
 		expect(model).not.toHaveProperty("temperature");
 	});
 
-	it("seeds tool calling when capabilities are synthesized purely from boolean flags", async () => {
+	it("seeds tool calling and reasoning when capabilities are synthesized purely from boolean flags", async () => {
 		const parsed = parseModelsFile({
 			version: 1,
 			providers: {
@@ -335,6 +335,16 @@ describe("models registry parsing", () => {
 							operation: "image-generation",
 							capabilities: ["images"],
 						},
+						// Only a vision flag (what a settings UI's Supports Images
+						// tick writes) must not read as a reasoning denial.
+						"vision-only": {
+							supportsVision: true,
+						},
+						// An explicit denial survives the seeding.
+						"no-reasoning": {
+							supportsVision: true,
+							supportsReasoning: false,
+						},
 					},
 				},
 			},
@@ -355,9 +365,17 @@ describe("models registry parsing", () => {
 		);
 		expect(models.bare).not.toHaveProperty("capabilities");
 		expect(models["partial-list"]?.capabilities).toEqual(
-			expect.arrayContaining(["prompt-cache", "tools"]),
+			expect.arrayContaining(["prompt-cache", "reasoning", "tools"]),
 		);
 		expect(models["image-gen"]?.capabilities).not.toContain("tools");
+		expect(models["image-gen"]?.capabilities).not.toContain("reasoning");
+		expect(models["vision-only"]?.capabilities).toEqual(
+			expect.arrayContaining(["images", "reasoning", "tools"]),
+		);
+		expect(models["no-reasoning"]?.capabilities).toEqual(
+			expect.arrayContaining(["images", "tools"]),
+		);
+		expect(models["no-reasoning"]?.capabilities).not.toContain("reasoning");
 	});
 
 	it("keeps generated tool support when stale OpenCode Go metadata shadows a catalog model", async () => {
@@ -1090,10 +1108,12 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		// models.dev, the recommended-models feed via the live catalog, and
 		// the recommended-models feed again for the featured-tier overlay
 		// (separately cached; both caches are cold here).
+		const generatedId = Object.keys(
+			LlmsModels.getGeneratedModelsForProvider("cline-pass"),
+		).find((id) => id.startsWith("cline-pass/"));
 		expect(fetchMock).toHaveBeenCalledTimes(3);
-		expect(models.map((model) => model.id)).toContain(
-			"cline-pass/mimo-v2.5-pro",
-		);
+		expect(generatedId).toBeDefined();
+		expect(models.map((model) => model.id)).toContain(generatedId);
 		expect(models.map((model) => model.id)).not.toContain(
 			"vendor/live-openrouter-model",
 		);
@@ -2010,7 +2030,7 @@ describe("models.json model overlays", () => {
 				id: "cline",
 				baseUrl: "https://api.cline.bot/api/v1",
 				defaultModelId:
-					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+					LlmsModels.GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 					CLINE_DEFAULT_MODEL_ID,
 			});
 

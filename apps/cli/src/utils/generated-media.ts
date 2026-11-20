@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +12,11 @@ export interface MaterializedGeneratedMedia {
 }
 
 const materializedMediaDirectories = new Set<string>();
+// Transcripts are re-hydrated on every cloud snapshot; reuse files already written.
+const materializedMediaByContent = new Map<
+	string,
+	MaterializedGeneratedMedia
+>();
 let exitCleanupRegistered = false;
 
 /** Remove temporary files created for terminal display. */
@@ -19,6 +25,7 @@ export function cleanupMaterializedGeneratedMedia(): void {
 		rmSync(directory, { recursive: true, force: true });
 	}
 	materializedMediaDirectories.clear();
+	materializedMediaByContent.clear();
 }
 
 function trackMaterializedMediaDirectory(directory: string): void {
@@ -55,6 +62,14 @@ export function materializeGeneratedMedia(
 		return undefined;
 	}
 
+	const key = createHash("sha256")
+		.update(mediaType)
+		.update("\0")
+		.update(media.source.data)
+		.digest("hex");
+	const existing = materializedMediaByContent.get(key);
+	if (existing) return existing;
+
 	let directory: string | undefined;
 	try {
 		const bytes = Buffer.from(media.source.data, "base64");
@@ -66,12 +81,14 @@ export function materializeGeneratedMedia(
 		const path = join(directory, `generated.${extension}`);
 		writeFileSync(path, bytes, { mode: 0o600 });
 		trackMaterializedMediaDirectory(directory);
-		return {
+		const saved = {
 			path,
 			mediaType,
 			modality: media.modality,
 			byteLength: bytes.byteLength,
 		};
+		materializedMediaByContent.set(key, saved);
+		return saved;
 	} catch {
 		if (directory !== undefined) {
 			rmSync(directory, { recursive: true, force: true });

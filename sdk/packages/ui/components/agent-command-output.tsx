@@ -29,13 +29,13 @@ export function AgentCommandOutput({
 
 	return (
 		<div className="mt-2 space-y-1">
-			<div className="text-[11px] uppercase tracking-wide text-cline-ui-muted-foreground/80">
+			<div className="text-cline-ui-xxs uppercase tracking-wide text-cline-ui-muted-foreground/80">
 				Output
 			</div>
 			<div
 				aria-label="Command output"
 				aria-live="off"
-				className={`max-h-64 overflow-auto rounded-md border border-cline-ui-border/70 bg-black/90 p-3 font-cline-ui-mono text-cline-ui-xs leading-relaxed text-zinc-100${classNames?.viewport ? ` ${classNames.viewport}` : ""}`}
+				className={`max-h-64 overflow-auto rounded-md border border-cline-ui-border/70 bg-black/90 p-3 font-cline-ui-mono text-cline-ui-xs leading-relaxed text-zinc-100 ${classNames?.viewport ? ` ${classNames.viewport}` : ""}`}
 				onScroll={(event) => {
 					const container = event.currentTarget;
 					shouldAutoScrollRef.current =
@@ -48,12 +48,12 @@ export function AgentCommandOutput({
 				role="log"
 				tabIndex={tabIndex}
 			>
-				<pre className="whitespace-pre-wrap break-words">
+				<pre className="whitespace-pre-wrap wrap-break-word">
 					{children}
 					{isRunning ? (
 						<span
 							aria-hidden="true"
-							className={`ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-zinc-100${classNames?.cursor ? ` ${classNames.cursor}` : ""}`}
+							className={`ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-zinc-100 ${classNames?.cursor ? ` ${classNames.cursor}` : ""}`}
 						/>
 					) : null}
 				</pre>

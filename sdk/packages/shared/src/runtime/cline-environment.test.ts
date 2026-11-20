@@ -5,6 +5,7 @@ import {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppUrl,
 	resolveClineEnvironment,
 } from "./cline-environment";
 
@@ -116,6 +117,32 @@ describe("getClineEnvironmentConfig", () => {
 		vi.stubGlobal("process", undefined);
 
 		expect(getClineEnvironmentConfig()).toBe(CLINE_ENVIRONMENTS.production);
+	});
+});
+
+describe("resolveClineAppUrl", () => {
+	const app = "https://app.cline.bot";
+
+	it("resolves a path and its query string on the app", () => {
+		expect(resolveClineAppUrl("/dashboard/account?tab=privacy", app)).toBe(
+			"https://app.cline.bot/dashboard/account?tab=privacy",
+		);
+	});
+
+	it("returns undefined for a missing path or app URL", () => {
+		expect(resolveClineAppUrl(undefined, app)).toBeUndefined();
+		expect(resolveClineAppUrl("", app)).toBeUndefined();
+		expect(resolveClineAppUrl("/dashboard", undefined)).toBeUndefined();
+		expect(resolveClineAppUrl("/dashboard", "not a url")).toBeUndefined();
+	});
+
+	it.each([
+		"https://evil.example/dashboard",
+		"//evil.example/dashboard",
+		"javascript:alert(1)",
+		"http://app.cline.bot/dashboard",
+	])("rejects %s, which leaves the app's origin", (path) => {
+		expect(resolveClineAppUrl(path, app)).toBeUndefined();
 	});
 });
 

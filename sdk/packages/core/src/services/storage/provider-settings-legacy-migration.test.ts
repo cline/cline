@@ -380,9 +380,21 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.getProviderSettings("openai")?.apiKey).toBe(
 			"already-migrated",
 		);
-		const anthropicDefault =
+		// The migration prefers the provider's declared default, but only when
+		// that id actually exists in the generated catalog; otherwise it falls
+		// back to the first catalog model. The declared default can legitimately
+		// lead the catalog (a newly announced model is set as the default before
+		// the generated catalog is regenerated), so mirror that resolution here
+		// instead of assuming the declared default is always present.
+		const anthropicModels =
+			LlmsModels.getGeneratedModelsForProvider("anthropic");
+		const anthropicDeclaredDefault =
 			LlmsModels.getProviderCollectionSync("anthropic")?.provider
 				.defaultModelId;
+		const anthropicDefault =
+			anthropicDeclaredDefault && anthropicModels[anthropicDeclaredDefault]
+				? anthropicDeclaredDefault
+				: Object.keys(anthropicModels)[0];
 		expect(anthropicDefault).toBeDefined();
 		expect(manager.getProviderSettings("anthropic")).toEqual({
 			provider: "anthropic",

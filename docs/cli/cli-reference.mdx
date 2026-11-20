@@ -24,13 +24,13 @@ Usage: cline [options] [command] [prompt]
 Cline CLI - AI coding assistant in your terminal
 
 Arguments:
-  prompt                        Your prompt. Default to start in act mode with auto-approve enabled.
+  prompt                        Your prompt. Runs in yolo mode by default; pass --auto-approve false (or --act/--plan) to opt out.
 
 Options:
   -V, --version                 Output the version number
   -p, --plan                    Run in plan mode
   --json                        Output messages as JSON instead of styled text
-  --auto-approve <boolean>      Set tool auto-approval for all tools (default: true)
+  --auto-approve <boolean>      Set tool auto-approval for all tools (default: true). With a prompt, false runs in act mode instead of yolo.
   -c, --cwd <path>              Working directory
   --thinking <level>            Set reasoning effort: none|low|medium|high|xhigh. Bare --thinking uses medium; omitted uses the level last chosen with /model, or the provider default.
   --compaction <mode>           Context compaction mode: agentic|basic|off (default: agentic)
@@ -77,7 +77,7 @@ Commands:
 | `-V, --version` | Output the version number |
 | `-p, --plan` | Run in plan mode |
 | `--json` | Output messages as JSON instead of styled text |
-| `--auto-approve <boolean>` | Set tool auto-approval for all tools (default: `true`; in [ACP mode](/usage/acp#auto-approving-tools) the default is `false`) |
+| `--auto-approve <boolean>` | Set tool auto-approval for all tools (default: `true`; with a prompt, `false` runs in act mode instead of yolo; in [ACP mode](/usage/acp#auto-approving-tools) the default is `false`) |
 | `-t, --timeout <seconds>` | Optional timeout in seconds (default: `0` for no timeout) |
 | `-m, --model <model-id>` | Model to use for the session with the selected provider |
 | `-v, --verbose` | Show verbose output |

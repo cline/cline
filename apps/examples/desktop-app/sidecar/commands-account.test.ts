@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HubCloudSessionClient } from "@cline/core/cloud";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import type { SidecarContext } from "./types";
@@ -11,7 +12,6 @@ const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
-const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
 const runProviderOAuthLoginMock = vi.hoisted(() => vi.fn());
 let testDataDir: string;
 
@@ -20,8 +20,9 @@ vi.mock("./oauth-login", () => ({
 	cancelProviderOAuthLogin: vi.fn(),
 }));
 
-vi.mock("./legacy-provider-credentials", () => ({
-	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+vi.mock("./context", async () => ({
+	...(await vi.importActual<typeof import("./context")>("./context")),
+	ensureSharedHubClient: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -39,7 +40,7 @@ vi.mock("@cline/core", async () => {
 			getProviderSettings = getProviderSettingsMock;
 			saveProviderSettings = persistProviderSettingsMock;
 		},
-		saveLocalProviderSettings: saveProviderSettingsMock,
+		createHubProvidersApi: () => ({ saveSettings: saveProviderSettingsMock }),
 		RuntimeOAuthTokenManager: class {
 			resolveProviderApiKey = resolveProviderApiKeyMock;
 		},
@@ -70,6 +71,10 @@ async function runClineAccountCommand(ctx: SidecarContext) {
 }
 
 beforeEach(() => {
+	vi.spyOn(
+		HubCloudSessionClient.prototype,
+		"refreshOrganization",
+	).mockResolvedValue(undefined);
 	// Account context is persisted across launches; never hydrate the developer's
 	// signed-in identity when a test expects an anonymous device identity.
 	testDataDir = mkdtempSync(join(tmpdir(), "commands-account-test-"));
@@ -81,7 +86,6 @@ beforeEach(() => {
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
-	clearLegacyProviderCredentialsMock.mockReset();
 	runProviderOAuthLoginMock
 		.mockReset()
 		.mockResolvedValue({ accessToken: "token" });
@@ -143,7 +147,11 @@ describe("provider settings cloud session lifecycle", () => {
 				...update,
 				auth: { accessToken: "token", accountId: "acct-1" },
 			});
-			return { providerId: "cline", enabled: true };
+			return {
+				providerId: "cline",
+				enabled: true,
+				clineCredentialsChanged: false,
+			};
 		});
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
@@ -161,6 +169,8 @@ describe("provider settings cloud session lifecycle", () => {
 		{ enabled: false },
 	])("resets the cloud manager when credentials change: %j", async (update) => {
 		const { ctx } = createContext();
+		const send = vi.fn();
+		ctx.wsClients.add({ send });
 		const dispose = vi.fn().mockResolvedValue(undefined);
 		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
 			SidecarContext["cloudSessionManager"]
@@ -181,19 +191,27 @@ describe("provider settings cloud session lifecycle", () => {
 							},
 						},
 			);
-			return { providerId: "cline", enabled: update.enabled !== false };
+			return {
+				providerId: "cline",
+				enabled: update.enabled !== false,
+				clineCredentialsChanged: true,
+			};
 		});
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline",
 			...update,
 		});
+		expect(
+			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
+		).toEqual(["cloud_sessions_changed"]);
 		expect(ctx.cloudSessionManager).toBeNull();
 		expect(dispose).toHaveBeenCalledOnce();
 	});
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.unstubAllEnvs();
 	rmSync(testDataDir, { recursive: true, force: true });
 });
@@ -322,6 +340,48 @@ describe("cline_account command auth states", () => {
  * against a stale account (or the device).
  */
 describe("cline_account keeps feature-flag identity in sync", () => {
+	it.each([
+		"Hub unavailable",
+		"organization request failed",
+		"cloud disabled",
+	])("keeps a successful account switch and desktop cleanup when %s", async (failure) => {
+		vi.stubEnv(
+			"CLINE_CODE_CLOUD_AGENTS",
+			failure === "cloud disabled" ? "0" : "1",
+		);
+		const { getCloudSessionManager } = await import("./cloud-sessions");
+		const { ctx } = createContext();
+		const viewer = getCloudSessionManager(ctx);
+		const dispose = vi.spyOn(viewer, "dispose");
+		const send = vi.fn();
+		ctx.wsClients.add({ send } as never);
+		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
+		getProviderSettingsMock.mockReturnValue({});
+		const result = { switched: true };
+		executeClineAccountActionMock.mockResolvedValue(result);
+		vi.mocked(
+			HubCloudSessionClient.prototype.refreshOrganization,
+		).mockRejectedValue(new Error(failure));
+		await expect(runOperation(ctx, "switchAccount")).resolves.toBe(result);
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(ctx.cloudSessionManager).not.toBe(viewer);
+		expect(
+			send.mock.calls.map(([message]) => JSON.parse(message).event.name),
+		).toContain("cloud_sessions_changed");
+		if (failure === "cloud disabled")
+			expect(
+				HubCloudSessionClient.prototype.refreshOrganization,
+			).not.toHaveBeenCalled();
+		else {
+			expect(
+				HubCloudSessionClient.prototype.refreshOrganization,
+			).toHaveBeenCalledOnce();
+			expect(send).toHaveBeenCalledBefore(
+				vi.mocked(HubCloudSessionClient.prototype.refreshOrganization),
+			);
+		}
+	});
+
 	async function currentFlagsUserId(): Promise<string | undefined> {
 		const { getDesktopFeatureFlagsContext } = await import("./feature-flags");
 		return getDesktopFeatureFlagsContext().userId ?? undefined;
@@ -413,6 +473,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	});
 
 	it("leaves the signed-in identity intact across an organization switch", async () => {
+		vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
 		const { ctx } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
@@ -426,6 +487,9 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		});
 
 		await runOperation(ctx, "switchAccount");
+		expect(
+			HubCloudSessionClient.prototype.refreshOrganization,
+		).toHaveBeenCalledOnce();
 
 		expect(await currentFlagsUserId()).toBe("acct-1");
 	});
@@ -523,40 +587,28 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		);
 	});
 
-	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+	it("forwards Cline Pass sign-out to the hub and updates the cloud view", async () => {
 		const { ctx } = createContext();
 		const dispose = vi.fn().mockResolvedValue(undefined);
 		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
 			SidecarContext["cloudSessionManager"]
 		>;
-		getProviderSettingsMock.mockReturnValue({
-			auth: { accessToken: "token", accountId: "acct-1" },
+		getProviderSettingsMock.mockReturnValue(undefined);
+		saveProviderSettingsMock.mockResolvedValue({
+			providerId: "cline-pass",
+			enabled: false,
+			settingsPath: "/tmp/settings.json",
+			clineCredentialsChanged: true,
 		});
-		saveProviderSettingsMock.mockImplementation(
-			(_manager: unknown, request: { providerId: string }) => {
-				if (request.providerId === "cline") {
-					getProviderSettingsMock.mockReturnValue(undefined);
-				}
-				return {
-					providerId: request.providerId,
-					enabled: false,
-					settingsPath: "/tmp/settings.json",
-				};
-			},
-		);
 		const { handleCommand } = await import("./commands");
 		await handleCommand(ctx, "save_provider_settings", {
 			provider: "cline-pass",
 			enabled: false,
 		});
-
-		// Cline Pass stores its credentials under "cline", so both entries go,
-		// and the legacy secrets are cleared for the storage provider.
-		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+		expect(saveProviderSettingsMock).toHaveBeenCalledOnce();
+		expect(saveProviderSettingsMock).toHaveBeenCalledWith(
 			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
-			{ providerId: "cline", enabled: false },
-		]);
-		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
+		);
 		expect(dispose).toHaveBeenCalledOnce();
 		expect(ctx.cloudSessionManager).toBeNull();
 	});

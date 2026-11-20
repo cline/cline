@@ -38,7 +38,7 @@ const BASE_URL = "https://openrouter.ai/api/v1";
 /** Env var the gateway reads for the API key when one is not passed in the
  * session config. */
 const API_KEY_ENV = "OPENROUTER_API_KEY";
-const DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
+const DEFAULT_MODEL_ID = Llms.CLINE_DEFAULT_MODEL_ID;
 
 // ---------------------------------------------------------------------------
 // Model catalog
@@ -49,9 +49,9 @@ const DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6";
 // ---------------------------------------------------------------------------
 
 const MODELS: Record<string, Llms.ModelInfo> = {
-	"anthropic/claude-sonnet-4.6": {
-		id: "anthropic/claude-sonnet-4.6",
-		name: "Claude Sonnet 4.6",
+	[DEFAULT_MODEL_ID]: {
+		id: DEFAULT_MODEL_ID,
+		name: "Claude Sonnet 5.5",
 		contextWindow: 200_000,
 		maxTokens: 8_192,
 		capabilities: ["tools", "streaming", "prompt-cache", "reasoning", "images"],

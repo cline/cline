@@ -51,8 +51,11 @@ describe("adoptDesktopCliRuntime", () => {
 		};
 		const chdir = vi.fn();
 		const setLauncher = vi.fn();
+		const setPluginLauncher = vi.fn();
 
-		expect(adoptDesktopCliRuntime({ env, chdir, setLauncher })).toEqual({
+		expect(
+			adoptDesktopCliRuntime({ env, chdir, setLauncher, setPluginLauncher }),
+		).toEqual({
 			cliPath: "/Applications/Cline.app/Contents/MacOS/cline-cli",
 		});
 
@@ -62,6 +65,10 @@ describe("adoptDesktopCliRuntime", () => {
 			"/Applications/Cline.app/Contents/MacOS/cline-cli",
 		);
 		expect(chdir).toHaveBeenCalledWith("/Users/dev/project");
+		expect(setPluginLauncher).toHaveBeenCalledWith({
+			command: env.CLINE_DESKTOP_CLI_PATH,
+			argsPrefix: ["--plugin-sandbox"],
+		});
 		expect(setLauncher).toHaveBeenCalledWith({
 			command: "/Applications/Cline.app/Contents/MacOS/cline-cli",
 		});
@@ -70,11 +77,20 @@ describe("adoptDesktopCliRuntime", () => {
 	it("keeps the default Hub launcher when no bundled CLI is provided", () => {
 		const chdir = vi.fn();
 		const setLauncher = vi.fn();
+		const setPluginLauncher = vi.fn();
 
-		expect(adoptDesktopCliRuntime({ env: {}, chdir, setLauncher })).toEqual({
+		expect(
+			adoptDesktopCliRuntime({
+				env: {},
+				chdir,
+				setLauncher,
+				setPluginLauncher,
+			}),
+		).toEqual({
 			cliPath: undefined,
 		});
 		expect(chdir).not.toHaveBeenCalled();
 		expect(setLauncher).not.toHaveBeenCalled();
+		expect(setPluginLauncher).not.toHaveBeenCalled();
 	});
 });

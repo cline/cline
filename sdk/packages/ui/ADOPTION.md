@@ -13,7 +13,7 @@ styles or adopting desktop product structure.
 
 The theme provides:
 
-- Cline-owned Slate, Violet, Ruby, Green, Amber, and Sky solid/alpha palettes
+- Cline-owned Slate, Iris, Vermilion, Emerald, Amber, and Sky solid/alpha palettes
 - Light and dark semantic colors
 - Standard shadcn token names
 - Typography families, sizes, weights, line heights, and letter spacing
@@ -161,14 +161,14 @@ intentionally wants to move to a newer release:
 bun update @cline/ui
 ```
 
-For deliberate previews, UI releases can publish an unstable `next` npm tag:
+`@cline/ui` is released with the SDK packages and shares their version. For
+deliberate previews, install an unstable `nightly` build:
 
 ```bash
-bun add --exact @cline/ui@next
+bun add --exact @cline/ui@nightly
 ```
 
-Do not use `next` for production applications. UI versions move independently
-from the runtime SDK packages.
+Do not use `nightly` for production applications.
 
 ## Option 1: complete Tailwind v4 theme
 
@@ -220,6 +220,11 @@ package-namespaced Tailwind mappings, so generic host utilities such as
 `bg-background`, `text-foreground`, and `rounded-lg` retain their host-defined
 meaning outside the wrapper.
 
+`Dialog` and `AlertDialog` portal to `document.body` by default. For scoped themes,
+pass `portalContainer` an element inside `.cline-ui-theme`, outside ancestors
+that clip overflow or constrain fixed positioning. Use a callback ref stored
+in state to pass the mounted element.
+
 Do not import `theme.css` for this scoped setup. That entry point deliberately
 registers the complete, generic Cline utility vocabulary and is intended only
 for applications that want Cline to own those utility names globally.
@@ -258,6 +263,90 @@ For native controls that should follow the selected theme:
 .dark {
   color-scheme: dark;
 }
+```
+
+## Buttons
+
+Import `Button` and `IconButton` from `@cline/ui` after loading the theme and
+`@cline/ui/components.css`. Use `primary` for main actions, `secondary` for
+supporting actions, and `ghost` for low-emphasis actions. Existing `fill` and
+`surface` variants remain aliases for `primary` and `secondary`.
+
+Both controls support `accent`, `neutral`, and `destructive` tones and
+`xs`, `sm`, `md`, and `lg` sizes. `Button` defaults to primary/accent/md;
+`IconButton` defaults to ghost/neutral/sm.
+
+Both controls use the same height and corner radius for each size:
+
+| Size | Height with `--spacing: 0.25rem` | Corner radius |
+| --- | --- | --- |
+| `xs` | `1.75rem` | `--radius-md` |
+| `sm` | `2rem` | `--radius-md` |
+| `md` | `2.25rem` | `--radius-lg` |
+| `lg` | `2.5rem` | `--radius-lg` |
+
+Heights use 7, 8, 9, and 10 spacing units respectively. Icon buttons use the
+same dimension for width, keeping them square.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+import { Plus, X } from "lucide-react";
+
+<Button leadingIcon={Plus}>New session</Button>
+<Button tone="neutral" variant="secondary">More options</Button>
+<IconButton icon={X} aria-label="Close" />
+```
+
+Pass SVG components through `leadingIcon`, `trailingIcon`, or `icon`; the button
+handles sizing, spacing, and decorative accessibility. Custom icons must forward
+SVG props, including `className`. `IconButton` requires an accessible label.
+Existing icon children remain supported.
+
+Use `iconTone="muted"` to give managed icons a quieter color while leaving the
+label unchanged; the default `"inherit"` follows the button's text color.
+Prefer inherited color on solid buttons where the foreground supplies contrast.
+
+Set `loading` to replace the leading icon (or the `IconButton` icon) with a
+spinner and expose `aria-busy`. `Button` keeps its label unless `loadingLabel`
+is supplied. `loadingIcon` accepts an alternative SVG component, such as
+`RefreshCw`; the control owns rotation and respects reduced motion.
+Loading does not disable activation: set `disabled={loading}` for an action
+that must wait, or leave it enabled when clicking should cancel the operation.
+The host owns async work, errors, and the loading state.
+
+```tsx
+<Button loading={saving} loadingLabel="Saving…" disabled={saving}>
+  Save
+</Button>
+<Button loading={refreshing} loadingLabel="Cancel refresh"
+  onClick={refreshing ? cancelRefresh : refresh}>
+  Refresh
+</Button>
+```
+
+Buttons default to `type="button"`; use `type="submit"` for forms. With `asChild`,
+the child's native type behavior is preserved, so set `type="button"` explicitly
+when needed. Custom composed children must forward props, refs, and children;
+place Radix slot triggers outside the control.
+
+When a `Button` label or icon changes (for example, from “Save” to a loading
+spinner and “Saving…”), its width transitions over 180 ms. Fixed and full-width
+buttons retain their sizing. Reduced-motion preferences disable the transition.
+The host continues to own loading state, labels, and disabled behavior.
+
+Use `className` to override component styles and `pressScale={false}` to disable
+press feedback. See the button stories for more examples.
+
+## Badges
+
+`Badge` renders a span by default. Choose a neutral, accent, info, success,
+warning, or error tone; a soft or ghost variant; and an `sm`, `xs`, or `xxs` size.
+Use `interactive` for a native button with disabled behavior and a button ref.
+`BadgeProps` describes the span; `InteractiveBadgeProps` describes the button.
+
+```tsx
+<Badge tone="success">Connected</Badge>
+<Badge interactive tone="error" onClick={retry}>Retry</Badge>
 ```
 
 ## Switch
@@ -300,13 +389,25 @@ Uncontrolled switches follow native form reset behavior; controlled switches
 must be reset by their owner. Disabled switches, including those in disabled
 fieldsets, are excluded from form submission.
 
-The switch scales with the root font size and reserves a minimum 24px hit area
-on each axis by default.
+Use `pending={saving}` for a temporary lock that retains the current checked or
+unchecked appearance and sets `aria-busy`. Pending still disables the native
+input, including within a disabled fieldset, so it cannot toggle and is omitted
+from form submission. Explicit `disabled` takes precedence over pending's visual
+treatment; reserve it for unavailable controls instead of repeating the saving
+condition in both props.
 
-Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
-`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
-remain white. The switch supports light/dark themes, system colors in
-forced-colors mode, and reduced motion.
+```tsx
+<Switch checked={enabled} pending={saving} disabled={!canEdit}
+  onCheckedChange={setEnabled} aria-label="Enable schedule" />
+```
+
+The default `size="md"` preserves the original switch dimensions. Use
+`size="sm"` for a compact switch. Both sizes scale with the root font size and
+reserve a minimum 24px hit area on each axis.
+
+The default `tone="accent"` uses the shared accent colors. Use `tone="neutral"`
+for a checked track that is dark in light mode and light in dark mode. Both tones
+support keyboard focus, forced colors, and reduced motion.
 
 When migrating from the desktop's Radix wrapper, update button refs to
 `HTMLInputElement` and read the native `checked` property in tests instead of
@@ -519,6 +620,9 @@ semantics:
   --focus-ring: var(--accent-8);
 }
 ```
+
+See [Theme usage](./README.md#theme-usage) for palette generation and choosing
+readable text and fill roles.
 
 Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to
@@ -831,3 +935,170 @@ jumps and reader-position tracking. A collapsed tool group can keep the same
 row ID as its expanded form. The host chooses which rows anchor turns and
 which messages appear in its outline; transport and session state remain in
 the app. Key the provider by session ID when switching transcripts.
+
+## Shared page components
+
+Import these components from `@cline/ui` with theme tokens and
+`@cline/ui/components.css`. React 18.3 or 19 is required.
+`Dialog` and `AlertDialog` also require a compatible React DOM version.
+Hosts own data, navigation, persistence, loading state, and action callbacks.
+See Storybook for examples and visual variants.
+
+Optional regions are omitted for nullish values, booleans, empty strings, and
+arrays or fragments containing only those values. Zero and whitespace remain
+content. If a child component might return null, conditionally pass the slot
+itself to omit its surrounding region.
+
+### Section heading
+
+`SectionHeading` accepts `title`, `description`, `count`, and `actions`. Choose
+`headingLevel` (2–6, default 2) independently of `size` (`sm`, `md`, `base`, `lg`,
+`xl`, or `2xl`; default `lg`). Keep interactive content in `actions`.
+
+### Empty state
+
+`EmptyState` displays a description, optional title, and optional neutral
+secondary buttons through `action` and `secondaryAction`. Each action supplies
+`label`, `onClick`, and optional `disabled`. `align` is `left` (default) or `center`.
+It adds no live-region role; the host decides whether to announce its content.
+
+Use `media` for an illustration above the message. Decorative media should have
+`aria-hidden` or an empty image `alt`; meaningful media needs accessible text.
+`size="md"` preserves the compact spacing; `size="lg"` adds space around the
+illustration, message, and actions. `surface="muted"` preserves the existing card
+background; `surface="transparent"` removes that fill while keeping the dashed
+border. Alignment, size, and surface can be chosen independently.
+
+```tsx
+<EmptyState
+  align="center"
+  size="lg"
+  surface="transparent"
+  media={<CalendarIllustration aria-hidden="true" />}
+  title="No schedules yet"
+  description="Create a schedule to run work automatically."
+  action={{ label: "Create schedule", onClick: createSchedule }}
+/>
+```
+
+### Detail list
+
+Compose `DetailListItem` directly inside `DetailList`. Rows have a required
+`title` and optional `description`, `trailingText`, `actions`, `count`, and
+`leadingIcon` (an SVG component that forwards props). Rows adapt to narrow containers.
+
+For a clickable row, use `primaryAction={{ onClick: openDetails, label: "Open details" }}`.
+Its native button covers the row; `actions` remain independent. The label defaults
+to the title. `primaryAction.disabled` disables only the row action. Keep title and
+description display-only, with interactive controls in `actions`.
+
+For aligned entity rows, pass `columns` and keyed item `values`:
+
+```tsx
+<DetailList titleLabel="Workspace" columns={[
+  { key: "owner", label: "Owner" },
+  { key: "updated", label: "Updated", width: "7rem" },
+]}>
+  <DetailListItem title="Website" values={{ owner: "Design", updated: "Today" }} />
+</DetailList>
+```
+
+Column keys must be unique. Widths accept numeric pixels, `px`, `rem`, or `fr`
+(default `1fr`); `actionsWidth` accepts pixels or `rem` (default `4rem`). Missing
+values show an em dash; zero remains visible. `trailingText` becomes supplemental
+content below the description. Omit `columns` for ordinary details. Use a table
+instead when users need header/cell relationships, table navigation, or sorting;
+these components have description-list semantics.
+
+### ItemCard
+
+`ItemCard` presents a title with optional `icon`, `description`, `badges`, `count`,
+`actions`, `footer`, and `children`. Use shared Buttons and Badges in trailing slots.
+
+```tsx
+<ItemCard title={item.name} description={item.description}
+  primaryAction={{ onClick: openDetails, label: `View ${item.name}` }}
+  actions={<Button size="xs" tone="neutral" variant="secondary" onClick={edit}>Edit</Button>} />
+```
+
+`primaryAction` renders a native button covering the card. Controls in `actions`,
+`footer`, and `children` remain independent; custom interactive regions can use
+`data-item-card-interactive`. Keep title, icon, description, and badges display-only.
+`primaryAction.disabled` disables the primary button; `selected` is visual only.
+Pass `primaryAction.ref` to access the native `HTMLButtonElement`, for example to
+restore focus after closing a details view. The component's ordinary `ref` still
+targets the outer `HTMLDivElement`; neither ref requires querying internal slots.
+
+### Banner
+
+`Banner` accepts `title`, `description` (or children as its fallback), `icon`, and
+`actions`. Tones are `neutral`, `info` (default), `success`, `warning`, and `error`;
+sizes are `sm` and `md` (default). Decorative icons need `aria-hidden`.
+
+Actions supply a stable `id`, `label`, and native button props such as `onClick`.
+The banner owns button size and tone; `destructive: true` opts into destructive colors.
+Use `onDismiss` to show its dismiss button and `dismissLabel` to customize the
+accessible name. The host removes the banner. Errors default to `role="alert"`;
+other tones default to `role="status"`. Override `role` for static content.
+
+### Dialog
+
+`Dialog` is controlled by `open` and `onOpenChange`; `title` supplies its accessible
+name. It supports `description`, scrollable children, and a host-owned `footer`.
+Footer buttons do not dismiss it automatically. Sizes are `sm` (32rem),
+`md` (40rem, default), and `lg` (48rem), bounded by the viewport.
+
+Escape, outside click, and the close button request dismissal. The content receives
+initial focus; focus returns to the opener if it remains mounted. Use
+`onOpenAutoFocus`/`onCloseAutoFocus` with `preventDefault()` to override this.
+`showCloseButton={false}` hides only the button. Use `dismissible={false}` to
+block Escape and outside interactions and disable the close button. Host-owned
+footer actions can still change `open`, so disable those independently while
+work is pending. Pass `portalContainer` for scoped themes.
+
+The default `bodyLayout="scroll"` scrolls the body between the fixed header and
+footer. Use `bodyLayout="contained"` when a child list or editor owns scrolling:
+the body fills the available space and clips overflow, allowing its children to
+shrink. Give the dialog a bounded height and arrange its child scroll region
+with `min-height: 0` and `overflow: auto`. The contained body adds no tab stop;
+the host must make its scrolling child keyboard accessible. `bodyClassName`
+remains available for content-specific spacing. Neither layout changes dialog
+width, titles, or footer actions.
+
+### Alert dialog
+
+`AlertDialog` is controlled by `open` and `onOpenChange`, with required `title`,
+`description`, `confirmLabel`, and `onConfirm`. Cancel receives initial focus
+unless disabled, when the dialog content receives focus. Focus returns to the
+opener if it remains mounted. Outside clicks do not dismiss it; Escape and
+actions request closure through `onOpenChange`.
+
+Set `closeOnConfirm={false}` to keep the dialog open after confirmation, then
+close it by changing `open` when the host's work finishes. Existing
+`event.preventDefault()` handling in `onConfirm` or `onCancel` remains supported;
+promises are not awaited. `confirmLoading` shows a spinner, sets `aria-busy`, and
+disables confirmation. It does not disable Cancel or block Escape: use
+`cancelDisabled` and `dismissible={false}` for those policies. Explicit Cancel
+and Confirm actions remain available when `dismissible` is false, so a mandatory
+choice can still offer two alternatives. `confirmDisabled` can independently
+block confirmation before work begins.
+
+```tsx
+<AlertDialog
+  open={open}
+  onOpenChange={setOpen}
+  title="Save details?"
+  description="Your changes will replace the saved details."
+  confirmLabel={saving ? "Saving…" : "Save"}
+  onConfirm={saveDetails}
+  closeOnConfirm={false}
+  confirmLoading={saving}
+  cancelDisabled={saving}
+  dismissible={!saving}
+/>
+```
+
+The host owns saving state, errors, retries, and completion. `confirmTone` accepts
+Button tones and defaults to `neutral`; `cancelLabel` defaults to “Cancel”. Pass
+`portalContainer` for scoped themes. Existing consumers retain immediate
+confirmation closure and Escape dismissal by default.

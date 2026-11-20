@@ -134,7 +134,13 @@ describe("Hub app-server upgrades", () => {
 		await transport.start();
 		try {
 			const seen: HubEventEnvelope[] = [];
-			transport.subscribe("observer", (event) => seen.push(event));
+			transport.subscribe("observer", (event) => {
+				if (event.event === "cloud.event") {
+					expect(event.sequence).toBeUndefined();
+					return;
+				}
+				seen.push(event);
+			});
 			await transport.handleCommand({
 				version: "v1",
 				command: "session.create",
@@ -224,15 +230,17 @@ describe("Hub app-server upgrades", () => {
 			expect(drainReply.payload?.draining).toBe(true);
 			expect(transport.isDraining()).toBe(true);
 
-			const refused = await transport.handleCommand({
-				version: "v1",
-				command: "session.create",
-				clientId: "creator",
-				payload: {},
-			});
-			expect(refused.ok).toBe(false);
-			expect(refused.error?.code).toBe("hub_draining");
-			expect(refused.error?.details?.retryable).toBe(true);
+			for (const command of ["session.create", "session.resume"] as const) {
+				const refused = await transport.handleCommand({
+					version: "v1",
+					command,
+					clientId: "creator",
+					payload: {},
+				});
+				expect(refused.ok).toBe(false);
+				expect(refused.error?.code).toBe("hub_draining");
+				expect(refused.error?.details?.retryable).toBe(true);
+			}
 
 			// Reads still work while draining.
 			const status = await transport.handleCommand({

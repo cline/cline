@@ -210,7 +210,10 @@ export class VscodeTerminalManager {
 		Logger.log(`[TerminalManager] Terminal ${vscodeTerminalInfo.id} busy state before: ${vscodeTerminalInfo.busy}`)
 
 		try {
-			vscodeTerminalInfo.terminal.show()
+			// Reveal the terminal but keep keyboard focus where it is: focusing the
+			// terminal mid-command would send the user's in-progress chat input to
+			// the shell.
+			vscodeTerminalInfo.terminal.show(true)
 		} catch (error) {
 			vscodeTerminalInfo.busy = false
 			throw error
@@ -379,7 +382,8 @@ export class VscodeTerminalManager {
 					})
 					// Showing the reused terminal gives VS Code a chance to initialize shell integration.
 					// runCommand() below waits up to shellIntegrationTimeout for executeCommand before falling back.
-					availableTerminal.terminal.show()
+					// preserveFocus keeps the user's keyboard focus (e.g. the chat input) where it was.
+					availableTerminal.terminal.show(true)
 
 					let cwdChangeResult: CwdChangeResult | undefined
 					try {

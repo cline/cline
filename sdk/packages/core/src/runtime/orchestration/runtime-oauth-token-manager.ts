@@ -50,6 +50,10 @@ export type RuntimeOAuthResolution = {
 export class RuntimeOAuthTokenManager {
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly telemetry?: ITelemetryService;
+	private readonly onCredentialsRefreshed?: (
+		previous: ProviderSettings,
+		next: ProviderSettings,
+	) => void;
 	private readonly refreshInFlight = new Map<
 		ManagedOAuthProviderId,
 		Promise<RuntimeOAuthResolution | null>
@@ -58,10 +62,15 @@ export class RuntimeOAuthTokenManager {
 	constructor(options?: {
 		providerSettingsManager?: ProviderSettingsManager;
 		telemetry?: ITelemetryService;
+		onCredentialsRefreshed?: (
+			previous: ProviderSettings,
+			next: ProviderSettings,
+		) => void;
 	}) {
 		this.providerSettingsManager =
 			options?.providerSettingsManager ?? new ProviderSettingsManager();
 		this.telemetry = options?.telemetry;
+		this.onCredentialsRefreshed = options?.onCredentialsRefreshed;
 	}
 
 	public async resolveProviderApiKey(input: {
@@ -191,6 +200,7 @@ export class RuntimeOAuthTokenManager {
 				setLastUsed: false,
 				tokenSource: "oauth",
 			});
+			this.onCredentialsRefreshed?.(settings, nextSettings);
 		} else {
 			sdkDebug(`oauth.resolve providerId=${providerId} outcome=not_refreshed`);
 		}

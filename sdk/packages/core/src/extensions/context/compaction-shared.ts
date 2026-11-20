@@ -90,6 +90,22 @@ export function truncateText(text: string, limit: number): string {
 	return `${text.slice(0, limit)}\n...[truncated ${text.length - limit} chars]`;
 }
 
+export function resolveProviderMaxInputTokens(
+	providerConfig: ProviderConfig,
+): number | undefined {
+	const modelInfoLimit = resolveEffectiveMaxInputTokens({
+		maxInputTokens:
+			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
+		contextWindow: providerConfig.modelInfo?.contextWindow,
+	});
+	if (modelInfoLimit !== undefined) return modelInfoLimit;
+	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
+	return resolveEffectiveMaxInputTokens({
+		maxInputTokens: knownModelInfo?.maxInputTokens,
+		contextWindow: knownModelInfo?.contextWindow,
+	});
+}
+
 export function flattenToolResultContent(
 	content: ToolResultContent["content"],
 ): string {
@@ -734,6 +750,12 @@ function resolveSummaryMaxOutputTokens(config: ProviderConfig): number {
 	return DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS;
 }
 
+/**
+ * The summary request would rather not spend its output budget on thinking,
+ * so it asks for thinking off where the model is known to allow that. The
+ * session's own reasoning settings otherwise stand, including an explicit
+ * disable the user chose.
+ */
 export function resolveSummarizerConfig(options: {
 	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
@@ -744,13 +766,13 @@ export function resolveSummarizerConfig(options: {
 			const { maxOutputTokens: _maxOutputTokens, ...rest } = config;
 			return {
 				...rest,
-				thinking: false,
+				preferThinkingOff: true,
 			};
 		}
 		return {
 			...config,
 			maxOutputTokens: resolveSummaryMaxOutputTokens(config),
-			thinking: false,
+			preferThinkingOff: true,
 		};
 	};
 	if (!summarizer) {

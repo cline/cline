@@ -52,7 +52,7 @@ function dismissPendingInteraction(pending: PendingRuntimeToolInteraction) {
 		pending.resolve(deniedToolResult());
 		return;
 	}
-	pending.resolve("[User dismissed the question]");
+	pending.resolve("");
 }
 
 export function useRuntimeDialogBridge(input: {
@@ -130,9 +130,7 @@ export function useRuntimeDialogBridge(input: {
 			if (!pending || pending.id !== id || pending.kind !== "ask_question") {
 				return;
 			}
-			pending.resolve(
-				answer === null ? "[User dismissed the question]" : answer,
-			);
+			pending.resolve(answer ?? "");
 			const hasNext = finishActive(id);
 			if (!hasNext) {
 				refocusTextarea();

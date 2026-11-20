@@ -145,3 +145,43 @@ describe("GeneratedMediaContent", () => {
 		expect(revokeObjectURL).toHaveBeenCalledWith("blob:cline-generated-media");
 	});
 });
+it("shows a styled fallback for native image load errors", async () => {
+	await render(
+		<GeneratedMediaContent
+			media={media("image", "image/png")}
+			classNames={{ unavailable: "image-unavailable" }}
+		/>,
+	);
+	const image = container.querySelector("img")!;
+	await act(async () => image.dispatchEvent(new Event("error")));
+	expect(container.querySelector("img")).toBeNull();
+	expect(
+		container.querySelector('[data-testid="generated-media-unavailable"]')
+			?.className,
+	).toBe("image-unavailable");
+	expect(container.textContent).toContain(
+		"Generated image could not be rendered.",
+	);
+});
+it("recovers from a failed image when replacement media arrives and releases the old URL", async () => {
+	createObjectURL
+		.mockReturnValueOnce("blob:broken-image")
+		.mockReturnValueOnce("blob:replacement-image");
+	await render(<GeneratedMediaContent media={media("image", "image/png")} />);
+	await act(async () =>
+		container.querySelector("img")!.dispatchEvent(new Event("error")),
+	);
+	expect(container.querySelector("img")).toBeNull();
+	await render(
+		<GeneratedMediaContent
+			media={{
+				...media("image", "image/png"),
+				source: { type: "base64", data: "cmVwbGFjZW1lbnQ=" },
+			}}
+		/>,
+	);
+	expect(container.querySelector("img")?.getAttribute("src")).toBe(
+		"blob:replacement-image",
+	);
+	expect(revokeObjectURL).toHaveBeenCalledWith("blob:broken-image");
+});

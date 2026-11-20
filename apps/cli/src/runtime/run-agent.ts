@@ -223,15 +223,19 @@ export async function runAgent(
 	let abortRequested = false;
 	let timedOut = false;
 	let activeSessionId: string | undefined;
+	let clearRunTimeout = () => {};
 
-	const abortAll = () => {
-		if (abortRequested) return false;
-		abortRequested = true;
+	const sendAbort = () => {
 		if (activeSessionId) {
 			sessionManager
 				.abort(activeSessionId, new Error("Run-agent runtime abort requested"))
 				.catch(() => {});
 		}
+	};
+	const abortAll = () => {
+		if (abortRequested) return false;
+		abortRequested = true;
+		sendAbort();
 		return true;
 	};
 	setActiveRuntimeAbort(abortAll);
@@ -282,6 +286,31 @@ export async function runAgent(
 		} = await buildUserInputMessage(prompt, userInstructionService, {
 			mode: config.mode,
 		});
+		// The local backend runs the first turn inside start(), so the session
+		// id and the timeout must be in place before it is called. Otherwise
+		// neither --timeout nor Ctrl+C could stop that turn.
+		activeSessionId = plannedSessionId;
+		const timeoutMs =
+			typeof config.timeoutSeconds === "number" &&
+			Number.isFinite(config.timeoutSeconds) &&
+			config.timeoutSeconds > 0
+				? config.timeoutSeconds * 1000
+				: undefined;
+		let abortRetryId: ReturnType<typeof setInterval> | undefined;
+		const timeoutId = timeoutMs
+			? setTimeout(() => {
+					timedOut = true;
+					abortAll();
+					// The session may not be registered yet if the limit elapses
+					// during startup, so keep asking until the run settles.
+					abortRetryId = setInterval(sendAbort, 1000);
+				}, timeoutMs)
+			: undefined;
+		clearRunTimeout = () => {
+			if (timeoutId) clearTimeout(timeoutId);
+			if (abortRetryId) clearInterval(abortRetryId);
+		};
+
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -315,23 +344,6 @@ export async function runAgent(
 		setActiveCliSession({
 			manifest: started.manifest,
 		});
-
-		// Schedule timeout abort if configured.
-		const timeoutMs =
-			typeof config.timeoutSeconds === "number" &&
-			Number.isFinite(config.timeoutSeconds) &&
-			config.timeoutSeconds > 0
-				? config.timeoutSeconds * 1000
-				: undefined;
-		const timeoutId = timeoutMs
-			? setTimeout(() => {
-					timedOut = true;
-					abortAll();
-				}, timeoutMs)
-			: undefined;
-		const clearRunTimeout = () => {
-			if (timeoutId) clearTimeout(timeoutId);
-		};
 
 		// When start() already ran the first turn (non-interactive with prompt),
 		// the session is finalized before start() returns. Use that result
@@ -422,11 +434,16 @@ export async function runAgent(
 		);
 		process.exitCode = 0;
 	} catch (err) {
-		const message = formatCliErrorMessage(err, { modelId: config.modelId });
-		logCliError(config.logger, "CLI task run failed", { error: err });
-		writeErr(message);
+		if (timedOut) {
+			writeErr(`run timed out after ${config.timeoutSeconds}s`);
+		} else {
+			const message = formatCliErrorMessage(err, { modelId: config.modelId });
+			logCliError(config.logger, "CLI task run failed", { error: err });
+			writeErr(message);
+		}
 		process.exitCode = 1;
 	} finally {
+		clearRunTimeout();
 		await cleanupRuntime();
 	}
 }

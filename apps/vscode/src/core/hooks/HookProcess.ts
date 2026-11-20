@@ -200,7 +200,9 @@ export class HookProcess extends EventEmitter {
 						// never read its input is diagnosable from the error alone.
 						let inputFailure: string | undefined
 						const withInputFailure = (message: string) =>
-							inputFailure ? `${message} The hook stopped reading its input before it was fully delivered (${inputFailure}).` : message
+							inputFailure
+								? `${message} The hook stopped reading its input before it was fully delivered (${inputFailure}).`
+								: message
 
 						// Set up timeout
 						this.timeoutHandle = setTimeout(() => {
@@ -263,7 +265,11 @@ export class HookProcess extends EventEmitter {
 							if (code === 0) {
 								resolve()
 							} else {
-								reject(new Error(withInputFailure(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`)))
+								reject(
+									new Error(
+										withInputFailure(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`),
+									),
+								)
 							}
 						})
 

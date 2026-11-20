@@ -254,6 +254,40 @@ describe("provider model catalog handlers", () => {
 		expect(store.write).toHaveBeenCalledWith(providerId, { headers: {} })
 	})
 
+	it("readProviderConfig exposes the saved reasoning effort", async () => {
+		const { readProviderConfig } = await import("../readProviderConfig")
+		const store = makeStore({ providerId: parseProviderId("openai"), reasoningEffort: "none" })
+		const controller = makeController(store, makeCatalog())
+
+		const response = await readProviderConfig(controller, { value: "openai" })
+
+		expect(response.reasoningEffort).toBe("none")
+	})
+
+	it("readProviderConfig leaves the reasoning effort unset when nothing is saved", async () => {
+		const { readProviderConfig } = await import("../readProviderConfig")
+		const store = makeStore({ providerId: parseProviderId("openai") })
+		const controller = makeController(store, makeCatalog())
+
+		const response = await readProviderConfig(controller, { value: "openai" })
+
+		expect(response.reasoningEffort).toBeUndefined()
+	})
+
+	it("writeProviderConfig clears the saved reasoning setting", async () => {
+		const { writeProviderConfig } = await import("../writeProviderConfig")
+		const providerId = parseProviderId("openai")
+		const store = makeStore({ providerId })
+		const controller = makeController(store, makeCatalog())
+
+		await writeProviderConfig(controller, {
+			providerId: "openai",
+			patch: { headers: {}, clearReasoning: true, reasoning: { enabled: true, effort: "high" } },
+		})
+
+		expect(store.write).toHaveBeenCalledWith(providerId, { reasoning: null })
+	})
+
 	it("commitModelSelection validates mode and commits model settings", async () => {
 		const { commitModelSelection } = await import("../commitModelSelection")
 		const providerId = parseProviderId("deepseek")

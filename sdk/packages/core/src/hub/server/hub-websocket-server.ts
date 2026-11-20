@@ -498,6 +498,7 @@ export async function startHubWebSocketServer(
 		if ((req.url ?? "/") === "/health") {
 			const body = JSON.stringify({
 				ok: true,
+				hubId,
 				protocolVersion: versionPayload.protocolVersion,
 				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
 				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
@@ -717,7 +718,7 @@ export async function startHubWebSocketServer(
 						});
 					});
 					const detach = adapter.attach(wrapWsSocket(websocket), {
-						allowRegisteredWorkspace: isTokenAuthorized,
+						tokenAuthenticated: isTokenAuthorized,
 					});
 					cleanup.add(detach);
 					websocket.once("close", () => {

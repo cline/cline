@@ -230,6 +230,8 @@ export class RuntimeEventAdapter {
 				return this.translateAssistantMessage(event.message);
 			case "tool-started":
 				return this.translateToolStarted(event);
+			case "tool-call-delta":
+				return [];
 			case "tool-updated":
 				return [
 					{

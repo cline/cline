@@ -105,3 +105,24 @@ export function getClineEnvironmentConfig(
 
 	return applyConfigOverrides(config, readProcessEnv());
 }
+
+/**
+ * Resolves a web app path, such as a server-provided
+ * `ClineAccountUser.dataPrivacyPath`, against the Cline web app. Returns
+ * undefined when either input is missing or the result would leave the app's
+ * origin, so a bad path never becomes a link to somewhere else.
+ */
+export function resolveClineAppUrl(
+	path: string | undefined,
+	appBaseUrl: string | undefined,
+): string | undefined {
+	if (!path || !appBaseUrl) {
+		return undefined;
+	}
+	try {
+		const url = new URL(path, appBaseUrl);
+		return url.origin === new URL(appBaseUrl).origin ? url.href : undefined;
+	} catch {
+		return undefined;
+	}
+}

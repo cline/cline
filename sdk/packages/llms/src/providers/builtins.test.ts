@@ -64,21 +64,20 @@ describe("cline builtin spec defaults.baseUrl", () => {
 });
 
 describe("cline builtin models", () => {
-	it("defaults to the first recommended model, falling back to the canonical id", () => {
+	it("defaults to the first free model, falling back to the canonical id", () => {
 		expect(findClineSpec().defaultModelId).toBe(
-			GENERATED_CLINE_RECOMMENDED_MODELS.recommended?.[0]?.id ??
+			GENERATED_CLINE_RECOMMENDED_MODELS.free?.[0]?.id ??
 				CLINE_DEFAULT_MODEL_ID,
 		);
 	});
 
-	// The generated list currently starts with the fallback id, so the check
-	// above cannot tell the two branches apart; drive each one explicitly.
+	// Drive each branch explicitly with a mocked generated list.
 	async function clineDefaultWithRecommended(
-		recommended: { id: string }[],
+		free: { id: string }[],
 	): Promise<string | undefined> {
 		vi.resetModules();
 		vi.doMock("../catalog/cline-recommended.generated", () => ({
-			GENERATED_CLINE_RECOMMENDED_MODELS: { recommended },
+			GENERATED_CLINE_RECOMMENDED_MODELS: { recommended: [], free },
 		}));
 		try {
 			const { BUILTIN_SPECS: specs } = await import("./builtins");
@@ -89,13 +88,13 @@ describe("cline builtin models", () => {
 		}
 	}
 
-	it("tracks the first recommended model when it differs from the fallback", async () => {
+	it("tracks the first free model when it differs from the fallback", async () => {
 		await expect(
-			clineDefaultWithRecommended([{ id: "vendor/recommended-first" }]),
-		).resolves.toBe("vendor/recommended-first");
+			clineDefaultWithRecommended([{ id: "vendor/free-first" }]),
+		).resolves.toBe("vendor/free-first");
 	});
 
-	it("falls back to the canonical id when the recommended list is empty", async () => {
+	it("falls back to the canonical id when the free list is empty", async () => {
 		await expect(clineDefaultWithRecommended([])).resolves.toBe(
 			CLINE_DEFAULT_MODEL_ID,
 		);

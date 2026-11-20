@@ -9,6 +9,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const PROVIDER_ID = "zai"
@@ -43,7 +44,7 @@ interface ZAiProviderProps {
  */
 export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(PROVIDER_ID)
 	const {
 		models,
 		defaultModelId,
@@ -134,10 +135,11 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-								}).catch((err) => console.error("Failed to update Z AI reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update Z AI reasoning effort:", err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 

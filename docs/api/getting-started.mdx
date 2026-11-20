@@ -37,6 +37,7 @@ Replace `YOUR_API_KEY` with the key you just created:
 curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
+  -H "X-Response-Format: openai" \
   -d '{
     "model": "anthropic/claude-sonnet-4-6",
     "messages": [

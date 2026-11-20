@@ -8,14 +8,14 @@ For CLI command reference and usage, see [DOC.md](./DOC.md) and [README.md](./RE
 
 Install these before starting:
 
-1. [Bun](https://bun.sh) (v1.0.0+) - Package manager, runtime, and bundler
+1. [Bun](https://bun.sh) - Package manager, runtime, and bundler. Use the `packageManager` version from the [root `package.json`](../../package.json).
 2. [Zig](https://ziglang.org/download/) - Required by OpenTUI's native core. The `@opentui/core` package includes a Zig-compiled native binary that builds from source on install. Without Zig, `bun install` will fail for OpenTUI packages.
 3. Node.js 22+ - Required for some build tooling and test infrastructure
 
 Verify your setup:
 
 ```bash
-bun --version    # should be >= 1.0.0
+bun --version    # must match the root package.json pin
 zig version      # any recent stable release
 node --version   # should be >= 22
 ```

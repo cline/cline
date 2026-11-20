@@ -1,8 +1,8 @@
 name: cli-publish
 
+# Manual dispatch only, nightly included. Every publish waits for approval on
+# the PublishNPM environment, so a cron run would just sit waiting every day.
 on:
-  schedule:
-    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       publish_target:
@@ -48,6 +48,11 @@ jobs:
       github.event.inputs.publish_target == 'main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
+    # npm trusted publishing for every CLI package requires this environment,
+    # so a publish only happens after a PublishNPM reviewer approves the run.
+    # The environment's deployment-branch policy (main only) is the enforced
+    # branch gate; the `if` above is advisory.
+    environment: PublishNPM
     runs-on: ubuntu-latest
 
     steps:
@@ -305,13 +310,13 @@ jobs:
     if: |
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'schedule' ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.publish_target == 'nightly'
-        )
-      )
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.publish_target == 'nightly'
+    # npm trusted publishing for every CLI package requires this environment,
+    # so a publish only happens after a PublishNPM reviewer approves the run.
+    # The environment's deployment-branch policy (main only) is the enforced
+    # branch gate; the `if` above is advisory.
+    environment: PublishNPM
     runs-on: ubuntu-latest
 
     steps:
@@ -323,7 +328,7 @@ jobs:
       - name: Check for recent commits
         id: check_commits
         env:
-          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
+          FORCE_PUBLISH: ${{ github.event.inputs.force_nightly_publish == 'true' }}
         run: |
           if [ "$FORCE_PUBLISH" = "true" ]; then
             echo "force_nightly_publish enabled, proceeding with publish"

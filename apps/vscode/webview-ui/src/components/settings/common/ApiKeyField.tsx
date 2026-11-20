@@ -8,6 +8,8 @@ import { useDebounceEffect } from "@/utils/useDebounceEffect"
 interface ApiKeyFieldProps {
 	initialValue: string
 	onChange: (value: string) => void
+	onFocus?: () => void
+	onBlur?: () => void
 	providerName: string
 	signupUrl?: string
 	placeholder?: string
@@ -21,6 +23,8 @@ interface ApiKeyFieldProps {
 export const ApiKeyField = ({
 	initialValue,
 	onChange,
+	onFocus,
+	onBlur,
 	providerName,
 	signupUrl,
 	placeholder = "Enter API Key...",
@@ -66,9 +70,11 @@ export const ApiKeyField = ({
 			<VSCodeTextField
 				onBlur={() => {
 					isFocusedRef.current = false
+					onBlur?.()
 				}}
 				onFocus={() => {
 					isFocusedRef.current = true
+					onFocus?.()
 				}}
 				onInput={(e) => {
 					hasPendingUserEditRef.current = true

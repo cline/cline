@@ -6,10 +6,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the LMStudioProvider component
@@ -129,6 +131,16 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 			})
 	}, [endpoint])
 
+	// Re-fetch once the key is saved, so the list isn't stale from the old key.
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "LM Studio",
+		write: async (patch) => {
+			await write(patch)
+			void requestLmStudioModels()
+		},
+	})
+
 	useEffect(() => {
 		requestLmStudioModels()
 	}, [requestLmStudioModels])
@@ -158,6 +170,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	return (
 		<div className="flex flex-col gap-2">
+			<ApiKeyField
+				helpText="Only needed if LM Studio's server has 'Require Authentication' enabled. Stored locally."
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
+				placeholder="Enter LM Studio API Key..."
+				providerName="LM Studio"
+			/>
+
 			<BaseUrlField
 				initialValue={config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl}
 				label="Use custom base URL"
