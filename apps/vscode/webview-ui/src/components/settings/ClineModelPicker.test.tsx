@@ -198,6 +198,77 @@ describe("ClineModelPicker", () => {
 		expect(onChange).toHaveBeenCalledWith("cline-cloud/deepseek-v4.1-flash")
 	})
 
+	it("says so when the cloud offers no ClineFree models, instead of showing a blank tab", async () => {
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [{ id: "cline-next", name: "Cline Next", description: "", tags: [] }],
+			free: [{ id: "cline-free/local-only", name: "Local Only", description: "", tags: [] }],
+			clinePass: [],
+			clineCloud: [],
+		})
+		render(
+			<ClineModelPicker
+				cloudSelection={{ modelId: "cline-next", onChange: vi.fn(), includeClinePass: false }}
+				currentMode="act"
+			/>,
+		)
+		await screen.findByText("Cline Next")
+
+		fireEvent.click(screen.getByText("ClineFree"))
+
+		expect(screen.getByText("No free models are listed for cloud tasks right now.")).toBeInTheDocument()
+		// The local Free list is not the cloud's.
+		expect(screen.queryByText("Local Only")).not.toBeInTheDocument()
+	})
+
+	it("leaves the local free models out of the cloud search, since a cloud task cannot run them", async () => {
+		mocks.makeUnaryRequest.mockResolvedValueOnce({
+			recommended: [{ id: "cline-next", name: "Cline Next", description: "", tags: [] }],
+			free: [
+				{ id: "cline-free/solar-mini4", name: "Solar Mini 4", description: "", tags: [] },
+				{ id: "cline-free/shared", name: "Shared", description: "", tags: [] },
+			],
+			clinePass: [],
+			clineCloud: [{ id: "cline-free/shared", name: "Shared", description: "", tags: [] }],
+		})
+		vi.mocked(useProviderModels).mockReturnValue({
+			models: {
+				"cline-next": { name: "Cline Next", supportsPromptCache: true },
+				"cline-free/solar-mini4": { name: "Solar Mini 4", supportsPromptCache: true },
+				"cline-free/shared": { name: "Shared", supportsPromptCache: true },
+			},
+			defaultModelId: "cline-next",
+			isLoading: false,
+			isStale: false,
+			error: undefined,
+			refresh: vi.fn(),
+			fingerprint: "fingerprint",
+		})
+		render(
+			<ClineModelPicker
+				cloudSelection={{ modelId: "cline-next", onChange: vi.fn(), includeClinePass: false }}
+				currentMode="act"
+			/>,
+		)
+		await screen.findByText("Cline Next")
+
+		const search = screen.getByRole("combobox") as HTMLInputElement
+		fireEvent.focus(search)
+		let typed = ""
+		Object.defineProperty(search, "value", {
+			configurable: true,
+			get: () => typed,
+			set: (value: string) => {
+				typed = value
+			},
+		})
+		fireEvent.input(search, { target: { value: "cline-free" } })
+
+		// The cloud's own ClineFree list keeps its ids searchable.
+		const options = (await screen.findAllByRole("option")).map((option) => option.textContent ?? "")
+		expect(options.some((text) => text.includes("cline-free/shared"))).toBe(true)
+		expect(options.some((text) => text.includes("cline-free/solar-mini4"))).toBe(false)
+	})
+
 	it("renders RPC-provided display names on featured cards, falling back to ids", async () => {
 		// Names arrive display-ready: the extension host resolves them against
 		// the model catalog in fetchClineRecommendedModels.

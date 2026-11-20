@@ -139,6 +139,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	const [clineFreeModels, setClineFreeModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clinePassModels, setClinePassModels] = useState<FeaturedModelCardEntry[]>([])
 	const [clineCloudModels, setClineCloudModels] = useState<FeaturedModelCardEntry[]>([])
+	const [featuredModelsLoaded, setFeaturedModelsLoaded] = useState(false)
 	const freeClineModelIds = useMemo(() => {
 		const freeModelIds =
 			clineFreeModels.length > 0 ? clineFreeModels.map((model) => model.id) : FREE_MODELS_FALLBACK.map((model) => model.id)
@@ -201,6 +202,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 					.map((model) => toFeaturedModelCardEntry(model, "FREE", "Free in the cloud with limited usage"))
 					.filter((model): model is FeaturedModelCardEntry => model !== null),
 			)
+			setFeaturedModelsLoaded(true)
 			return true
 		} catch (error) {
 			console.error("Failed to refresh Cline recommended models:", error)
@@ -377,13 +379,16 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 	// The local Cline catalog has no ClinePass or ClineFree ids; the cloud offers
 	// those through the featured lists, so search covers them too. Model info
 	// still comes from the catalog alone (catalogModelIds), as the lists carry none.
+	// The local catalog's free models are left out: the cloud doesn't serve them,
+	// so a cloud task would silently run another model.
 	const modelIds = useMemo(() => {
 		if (!isCloud) {
 			return catalogModelIds
 		}
 		const featuredIds = featuredTabs.flatMap((tab) => tab.models.map((model) => model.id))
-		return [...new Set([...catalogModelIds, ...featuredIds])].sort((a, b) => a.localeCompare(b))
-	}, [catalogModelIds, isCloud, featuredTabs])
+		const cloudCatalogIds = catalogModelIds.filter((id) => !freeClineModelIdSet.has(normalizeModelId(id)))
+		return [...new Set([...cloudCatalogIds, ...featuredIds])].sort((a, b) => a.localeCompare(b))
+	}, [catalogModelIds, isCloud, featuredTabs, freeClineModelIdSet])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -508,6 +513,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({
 				{/* Model Cards */}
 				<div style={{ marginBottom: "6px" }}>
 					{visibleTab.id === "clinePass" && cloudSelection?.clinePassNotice}
+					{visibleTab.id === "clineCloud" && featuredModelsLoaded && visibleTab.models.length === 0 && (
+						<p className="text-xs m-0 py-1 text-(--vscode-descriptionForeground)">
+							No free models are listed for cloud tasks right now.
+						</p>
+					)}
 					{visibleTab.models.map((model) => (
 						<FeaturedModelCard
 							description={model.description}
