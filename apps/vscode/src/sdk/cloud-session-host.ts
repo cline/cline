@@ -324,7 +324,12 @@ export class CloudSessionHost implements SdkSessionHost {
 			if (!isMissingSessionError(error, sessionId)) throw error
 			const initialMessages = await this.host.readSessionMessages(sessionId)
 			if (initialMessages.length === 0) throw new Error("This cloud session's saved conversation is unavailable.")
-			const config = this.sandboxSessionConfig(await restoreConfig(), sessionId)
+			const saved = await this.host.getSession(sessionId)
+			const fallbackConfig = await restoreConfig()
+			const config = this.sandboxSessionConfig(
+				{ ...fallbackConfig, cwd: saved?.cwd ?? saved?.workspaceRoot ?? fallbackConfig.cwd },
+				sessionId,
+			)
 			try {
 				await this.host.startSession({ config, initialMessages, interactive: true, toolPolicies: AUTO_APPROVE_ALL })
 			} catch (restoreError) {
