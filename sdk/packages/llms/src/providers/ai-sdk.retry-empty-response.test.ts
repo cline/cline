@@ -441,6 +441,51 @@ describe("anthropic wire format", () => {
 		expect(finishEvents(events)).toHaveLength(1);
 	});
 
+	it("keeps the signature of a streamed thinking block", async () => {
+		const { events } = await run([
+			sse([
+				messageStart,
+				{
+					type: "content_block_start",
+					index: 0,
+					content_block: { type: "thinking", thinking: "" },
+				},
+				{
+					type: "content_block_delta",
+					index: 0,
+					delta: { type: "thinking_delta", thinking: "plan" },
+				},
+				{
+					type: "content_block_delta",
+					index: 0,
+					delta: { type: "signature_delta", signature: "sig_abc" },
+				},
+				{ type: "content_block_stop", index: 0 },
+				{
+					type: "content_block_start",
+					index: 1,
+					content_block: { type: "text", text: "" },
+				},
+				{
+					type: "content_block_delta",
+					index: 1,
+					delta: { type: "text_delta", text: "done" },
+				},
+				{ type: "content_block_stop", index: 1 },
+				messageDelta("end_turn"),
+				messageStop,
+			]),
+		]);
+
+		const reasoning = events.filter((e) => e.type === "reasoning-delta");
+		expect(reasoning.map((e) => e.text).join("")).toBe("plan");
+		expect(
+			reasoning.some(
+				(e) => (e.metadata as { signature?: string })?.signature === "sig_abc",
+			),
+		).toBe(true);
+	});
+
 	it("does not retry a tool-call-only turn", async () => {
 		const { fetchMock, events } = await run([toolUseSse], [READ_FILES_TOOL]);
 
