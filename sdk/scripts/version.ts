@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -107,9 +107,9 @@ console.log(
 );
 
 if (!values.dry) {
-	const lockPath = join(root, "bun.lock");
-	await rm(lockPath, { force: true });
-	console.log("Removed stale bun.lock if present");
+	// Refreshes the workspace versions `bun pm pack` reads from bun.lock.
+	// Don't delete the lockfile first: that re-resolves every third-party
+	// dependency, so the release would ship versions CI never tested.
 	await runCommandOrThrow(["bun", "install", "--lockfile-only"], root);
 	await runCommandOrThrow(
 		["bun", "-F", "@cline/llms", "generate:models"],
