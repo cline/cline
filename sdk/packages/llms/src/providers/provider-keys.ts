@@ -99,6 +99,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "crusoe",
 	},
 	{
+		modelsDevKey: "openuncensored",
+		generatedProviderId: "openuncensored",
+		runtimeProviderId: "openuncensored",
+	},
+	{
 		modelsDevKey: "huggingface",
 		generatedProviderId: "huggingface",
 		runtimeProviderId: "huggingface",
