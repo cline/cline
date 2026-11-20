@@ -21,6 +21,7 @@ import {
 	compileCliBinary,
 	installOpenTuiNativeVariants,
 } from "./compile-binary";
+import { writeCliThirdPartyNotices } from "./third-party-notices";
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
@@ -176,7 +177,12 @@ for (const item of targets) {
 	const outfile = join(outDir, binaryName);
 
 	try {
-		await compileCliBinary({ bunTarget, outfile });
+		const { bundleInputs } = await compileCliBinary({ bunTarget, outfile });
+		writeCliThirdPartyNotices({
+			product: "Cline CLI",
+			bundleInputs,
+			outFile: join(cliDir, `dist/${dirName}/THIRD_PARTY_NOTICES.txt`),
+		});
 	} catch (error) {
 		console.error(`Build failed for ${dirName}:`, error);
 		process.exit(1);

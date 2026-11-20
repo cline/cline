@@ -239,6 +239,22 @@ if (!dryRun) {
 	await verifyPublishedDependencies(hostSdkDependencies);
 }
 
+// Every platform binary embeds third-party code and the Bun runtime; never publish one without its notices.
+for (const name of Object.keys(binaries)) {
+	const notices = join(
+		cliDir,
+		"dist",
+		name.replace("@cline/", ""),
+		"THIRD_PARTY_NOTICES.txt",
+	);
+	if (!existsSync(notices)) {
+		console.error(
+			`${name} has no THIRD_PARTY_NOTICES.txt; rebuild it with script/build.ts before publishing.`,
+		);
+		process.exit(1);
+	}
+}
+
 // Step 1: Publish platform-specific packages (in parallel)
 console.log("\nPublishing platform packages...");
 const platformTasks = Object.keys(binaries)

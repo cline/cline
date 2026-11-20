@@ -1,10 +1,11 @@
 /// <reference types="vitest/config" />
 
-import { mkdirSync, writeFileSync } from "node:fs"
+import { writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
 import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
+import { recordBundleInputs } from "../../../scripts/third-party-notices/vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -22,19 +23,6 @@ const writePortToFile = (): Plugin => {
 					console.warn("[writePortToFile] Could not determine server port")
 				}
 			})
-		},
-	}
-}
-
-// The extension's production build reads this to list the webview's third-party code in its notices.
-const writeBundleInputs = (): Plugin => {
-	return {
-		name: "write-bundle-inputs",
-		apply: "build",
-		generateBundle() {
-			const outFile = resolve(__dirname, "../dist/.third-party/webview-inputs.json")
-			mkdirSync(resolve(outFile, ".."), { recursive: true })
-			writeFileSync(outFile, JSON.stringify([...this.getModuleIds()]))
 		},
 	}
 }
@@ -60,7 +48,13 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	plugins: [react(), tailwindcss(), writePortToFile(), writeBundleInputs()],
+	plugins: [
+		react(),
+		tailwindcss(),
+		writePortToFile(),
+		// The extension build lists the webview's third-party code in its notices from this file.
+		recordBundleInputs(resolve(__dirname, "../dist/.third-party/webview-inputs.json")),
+	],
 	test: {
 		environment: "jsdom",
 		globals: true,
