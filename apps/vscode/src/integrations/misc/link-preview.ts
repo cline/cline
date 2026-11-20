@@ -1,6 +1,6 @@
 import axios from "axios"
 import ogs from "open-graph-scraper"
-import { fetch, getAxiosSettings } from "@/shared/net"
+import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 
 export interface OpenGraphData {
@@ -21,15 +21,17 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 	try {
 		const options = {
 			url: url,
-			timeout: 5000,
-			headers: {
-				"user-agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
-			},
+			// open-graph-scraper takes seconds here, not milliseconds.
+			timeout: 5,
 			onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
 			fetchOptions: {
-				redirect: "follow", // Follow redirects
-			} as any,
-			fetch, // Use configured fetch with proxy support
+				redirect: "follow" as const, // Follow redirects
+				// ogs 6.x has no top-level `headers` (or `fetch`) option: it always
+				// uses its bundled undici fetch and only forwards `fetchOptions`.
+				headers: {
+					"user-agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
+				},
+			},
 		}
 
 		const { result } = await ogs(options)
@@ -40,13 +42,11 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 		// Handle image URLs
 		let imageUrl = data.ogImage?.[0]?.url || data.twitterImage?.[0]?.url
 
-		// If the image URL is relative, make it absolute
-		if (imageUrl && (imageUrl.startsWith("/") || imageUrl.startsWith("./"))) {
+		// A relative image belongs to the page (or its post-redirect) URL, not to
+		// the host root, so `./card.png` on /blog/post/ keeps its path.
+		if (imageUrl) {
 			try {
-				// Extract the base URL and make the relative URL absolute
-				const urlObj = new URL(url)
-				const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`
-				imageUrl = new URL(imageUrl, baseUrl).href
+				imageUrl = new URL(imageUrl, data.requestUrl || url).href
 			} catch (error) {
 				Logger.error(`Error converting relative URL to absolute: ${imageUrl}`, error)
 			}
