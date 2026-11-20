@@ -1977,6 +1977,49 @@ describe("sdk-gateway", () => {
 		expect(events).toContainEqual(generatedImageEvent("image/png", "aGVsbG8="));
 	});
 
+	it.each([
+		"openrouter/auto",
+		"openrouter/auto-code",
+	])("does not request image output for the %s router", async (modelId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "routed text" },
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "test",
+					models: [
+						{
+							id: modelId,
+							name: "Auto Router",
+							modalities: {
+								input: ["text", "image"],
+								output: ["text", "image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId,
+				messages: baseMessages,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: { openrouter?: Record<string, unknown> };
+		};
+		expect(call.providerOptions?.openrouter?.modalities).toBeUndefined();
+	});
+
 	it("allows mixed image models to return text without an image", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

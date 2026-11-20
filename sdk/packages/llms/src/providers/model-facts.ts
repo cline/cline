@@ -483,3 +483,12 @@ export function modelReasoningDefaultsOn(options: {
 		isOllamaQwen3ModelIdFallback(options.request)
 	);
 }
+
+/**
+ * OpenRouter's Auto Router ids (`openrouter/auto`, `openrouter/auto-code`).
+ * Their catalog modalities are the union of every routable model, not what a
+ * given request produces, so they must not drive request-level output options.
+ */
+export function isOpenRouterAutoRouterModel(model: { id: string }): boolean {
+	return /^openrouter\/auto(?:-|$)/.test(normalizeRoutingValue(model.id) ?? "");
+}
