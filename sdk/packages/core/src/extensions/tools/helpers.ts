@@ -153,11 +153,28 @@ export function normalizeRunCommandsInput(
 	return commands;
 }
 
+// Models sometimes serialize the documented array instead of sending it.
+function expandStringifiedCommandList(command: string): string[] {
+	const text = command.trim();
+	if (!text.startsWith("[") || !text.endsWith("]")) return [command];
+	try {
+		const parsed: unknown = JSON.parse(text);
+		const isList =
+			Array.isArray(parsed) &&
+			parsed.length > 0 &&
+			parsed.every((entry) => typeof entry === "string" && entry !== "");
+		if (isList) return parsed;
+	} catch {
+		// Not JSON: keep the text as the single command it was.
+	}
+	return [command];
+}
+
 function collectRunCommands(
 	validate: z.infer<typeof RunCommandsInputUnionSchema>,
 ): Array<string | StructuredCommandInput> {
 	if (typeof validate === "string") {
-		return [validate];
+		return expandStringifiedCommandList(validate);
 	}
 
 	if (Array.isArray(validate)) {
@@ -167,7 +184,7 @@ function collectRunCommands(
 	if ("commands" in validate) {
 		return Array.isArray(validate.commands)
 			? validate.commands
-			: [validate.commands];
+			: expandStringifiedCommandList(validate.commands);
 	}
 
 	if ("command" in validate) {

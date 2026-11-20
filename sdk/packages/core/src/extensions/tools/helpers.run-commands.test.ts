@@ -18,6 +18,21 @@ describe("normalizeRunCommandsInput", () => {
 		).toEqual([{ command: "git", args: ["status"] }]);
 	});
 
+	it("expands a command list that arrived as a JSON string", () => {
+		// Models sometimes serialize the documented array instead of sending it:
+		// a commands value of the text ["dir"] runs that literal text as one
+		// command, which every shell rejects as a syntax error.
+		expect(normalizeRunCommandsInput({ commands: '["dir"]' })).toEqual(["dir"]);
+		expect(normalizeRunCommandsInput('["ls","pwd"]')).toEqual(["ls", "pwd"]);
+	});
+
+	it("keeps a bracketed shell command that is not a command list", () => {
+		expect(
+			normalizeRunCommandsInput({ commands: "[ -f package.json ]" }),
+		).toEqual(["[ -f package.json ]"]);
+		expect(normalizeRunCommandsInput({ commands: "[]" })).toEqual(["[]"]);
+	});
+
 	it.each([
 		{ label: "an object with an empty commands list", input: { commands: [] } },
 		{ label: "a bare empty list", input: [] },
