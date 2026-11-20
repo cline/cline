@@ -9,7 +9,6 @@
 //   - `cline auth --help`
 // ---------------------------------------------------------------------------
 
-import { test } from "@microsoft/tui-test";
 import {
 	CLINE_BIN,
 	EXIT_CODE_FAIL,
@@ -19,6 +18,7 @@ import {
 import { clineEnv } from "../helpers/env.js";
 import { waitForAuthScreen } from "../helpers/page-objects/auth.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
+import { test } from "../helpers/test.js";
 
 test.describe("cline auth (interactive screen)", () => {
 	test.use({
@@ -33,8 +33,8 @@ test.describe("cline auth (interactive screen)", () => {
 
 	test("can navigate options with keyUp / keyDown", async ({ terminal }) => {
 		await waitForAuthScreen(terminal);
-		terminal.keyDown();
-		terminal.keyUp();
+		await terminal.press("Down");
+		await terminal.press("Up");
 		await expectVisible(terminal, "Sign in with Cline");
 	});
 });
