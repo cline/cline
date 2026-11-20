@@ -247,6 +247,33 @@ function isAllowedRedirectTarget(rawTarget: string): boolean {
 	);
 }
 
+/**
+ * Interpreters that execute an arbitrary inline program supplied on the
+ * command line (`python -c`, `bash -c`, `node -e`, ...). The program's
+ * effect — opening files for writing, deleting, spawning further commands —
+ * cannot be known without running it, and the quote/heredoc masking above
+ * deliberately hides that inner text from the blacklist scan. Plan mode's
+ * contract is read-only investigation, so these are treated as
+ * file-modifying (fail-closed), closing the `python -c "open(..., 'w')"` and
+ * quoted `bash -c "..."` gap this file's header notes. Read-only uses that
+ * pass no inline code (`python script.py`, `node --version`,
+ * `perl -Ilib script.pl`, `bun run test`) are unaffected.
+ *
+ * Returns the matcher for a single argv token that introduces inline code
+ * for `name`, or undefined when `name` is not such an interpreter. `deno`
+ * takes its code through an `eval` subcommand rather than a flag and is
+ * handled at the call site.
+ */
+function inlineCodeFlagFor(name: string): RegExp | undefined {
+	if (/^python[\d.]*$/.test(name)) return /^-c$/;
+	if (/^(?:sh|bash|zsh|dash|ksh|ash)$/.test(name)) return /^-c$/;
+	if (/^(?:node|bun)$/.test(name)) return /^(?:-e|--eval)$/;
+	if (name === "ruby") return /^-[A-Za-z]*e$/; // -e, -ne, -pe
+	if (name === "perl") return /^-[A-Za-z]*[eE]$/; // -e, -E, -ne, -pe
+	if (name === "php") return /^-[rR]$/;
+	return undefined;
+}
+
 /** Basename, lowercased, quotes and a trailing .exe stripped. */
 function normalizeCommandName(word: string): string {
 	const base = word.replace(/["']/g, "").split(/[/\\]/).pop() ?? word;
@@ -328,6 +355,23 @@ function checkTokens(tokens: string[]): string | undefined {
 
 	const name = normalizeCommandName(tokens[index]);
 	const args = tokens.slice(index + 1);
+
+	// An interpreter running an inline program (`python -c`, `bash -c`,
+	// `node -e`, `deno eval`, ...) can mutate the workspace through code the
+	// masking above cannot inspect; treat it as file-modifying (fail-closed).
+	const inlineCodeFlag = inlineCodeFlagFor(name);
+	if (inlineCodeFlag) {
+		const flag = args.find((arg) => inlineCodeFlag.test(arg));
+		if (flag) {
+			return `\`${name} ${flag}\` (inline code execution)`;
+		}
+	}
+	if (
+		name === "deno" &&
+		args.find((arg) => !arg.startsWith("-"))?.toLowerCase() === "eval"
+	) {
+		return "`deno eval` (inline code execution)";
+	}
 
 	// `| tee /tmp/log` is the documented way to capture output; only file
 	// arguments outside tmp are a mutation.
