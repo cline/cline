@@ -181,6 +181,7 @@ export interface SdkCloudSessionCoordinatorOptions {
 	isSignedIn: () => boolean
 	isEnabled: () => boolean
 	resetMessageTranslator: () => void
+	getTurnPhase: () => TurnPhase
 	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
 	clearTurnOutcome: () => void
@@ -233,6 +234,7 @@ export class SdkCloudSessionCoordinator {
 	private pollTimer: NodeJS.Timeout | undefined
 	private disposed = false
 	private scopeGeneration = 0
+	private scopeAbort = new AbortController()
 	private startGeneration = 0
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
@@ -608,6 +610,8 @@ export class SdkCloudSessionCoordinator {
 			return this.listPromise
 		}
 		const generation = this.scopeGeneration
+		const signal = this.scopeAbort.signal
+		const listedRecords = new Map([...this.entries].map(([id, entry]) => [id, entry.record]))
 		let listPromise!: Promise<void>
 		listPromise = (async () => {
 			try {
@@ -621,17 +625,54 @@ export class SdkCloudSessionCoordinator {
 					seen.add(record.id)
 					this.upsertRecord(record)
 				}
-				// A record that left the account's list was deleted elsewhere (for
-				// example from the dashboard). Close its connection rather than keep
-				// it in History; the task on screen keeps its host so that opening it
-				// can explain the deletion (see explainConnectFailure).
-				for (const [id, entry] of this.entries) {
-					if (seen.has(id) || this.isHostInUse(entry)) continue
-					this.entries.delete(id)
-					this.statusResolutionAttempts.delete(id)
-					void entry.host?.dispose("deleted").catch(() => undefined)
-				}
 				this.pruneRememberedStatuses(seen)
+				// Keep the displayed conversation, but confirm deletion before closing its connection.
+				const missing = [...this.entries].filter(([id]) => !seen.has(id))
+				await Promise.all(
+					missing.map(async ([id, entry]) => {
+						if (this.isHostInUse(entry)) {
+							const record = entry.record
+							if (record !== listedRecords.get(id)) return
+							try {
+								await this.trackScopeOperation(() => this.options.cloudSessions.getStatus(id, signal))
+								return
+							} catch (error) {
+								if (!(error instanceof CloudSessionError) || error.code !== "session_not_found") return
+							}
+							if (
+								this.disposed ||
+								generation !== this.scopeGeneration ||
+								this.entries.get(id) !== entry ||
+								entry.record !== record
+							)
+								return
+						}
+						const host = entry.host
+						const connection = entry.connection
+						entry.host = undefined
+						entry.connection = undefined
+						this.entries.delete(id)
+						this.statusResolutionAttempts.delete(id)
+						this.forgetStatus(id)
+						if (connection) void this.trackScopeOperation(() => connection).catch(() => undefined)
+						if (host) {
+							const active = this.options.sessions.getActiveSession()
+							if (
+								active?.sdkHost === host &&
+								this.options.getTask()?.taskId === id &&
+								["streaming", "awaiting_approval", "awaiting_followup"].includes(this.options.getTurnPhase())
+							) {
+								this.options.setTurnPhase("idle")
+							}
+							const retirement = Promise.allSettled([
+								this.options.sessions.endActiveSessionIfHost(host, "deleted"),
+								host.dispose("deleted"),
+							])
+							void this.trackScopeOperation(() => retirement)
+						}
+					}),
+				)
+				if (this.disposed || generation !== this.scopeGeneration) return
 				this.listFetchedAt = Date.now()
 			} catch (error) {
 				// Reset invalidates both successful responses and failed requests.
@@ -688,6 +729,8 @@ export class SdkCloudSessionCoordinator {
 		// A provisioning start belongs to the old account. Stop its readiness poll
 		// so the drain below waits for its DELETE, not for the sandbox to boot.
 		this.cancelPendingStart()
+		this.scopeAbort.abort()
+		this.scopeAbort = new AbortController()
 		this.scopeGeneration++
 		this.statusResolutionAttempts.clear()
 		this.cancelAbandonedStartsRecheck()
@@ -1630,6 +1673,7 @@ export class SdkCloudSessionCoordinator {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		this.scopeAbort.abort()
 		this.cancelAbandonedStartsRecheck()
 		if (this.pollTimer) {
 			clearInterval(this.pollTimer)

@@ -1,4 +1,5 @@
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
+import { isCloudSessionId } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnPhase } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
@@ -115,6 +116,11 @@ export class SdkFollowupCoordinator {
 			}
 
 			if (task) {
+				if (isCloudSessionId(task.taskId)) {
+					this.options.onResumeFailed()
+					await this.options.postStateToWebview()
+					throw new Error("This cloud session is no longer running. Start a new cloud task to continue.")
+				}
 				Logger.log(`[SdkController] askResponse: Resuming task ${task.taskId} before follow-up`)
 				await this.tryResumeSessionFromTask(task, prompt, images, files)
 				return

@@ -165,6 +165,7 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		isSignedIn: () => true,
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
+		getTurnPhase: () => "idle",
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => {}),

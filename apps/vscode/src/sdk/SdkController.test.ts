@@ -440,7 +440,7 @@ describe("SDK remote-config coordination", () => {
 				text: new ClineError({ message, code: CLOUD_CREATION_UNCONFIRMED_ERROR_CODE }).serialize(),
 			}
 			const { controller, errorTask } = controllerShowingCloudStartError(ask)
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(errorTask.handleWebviewAskResponse("yesButtonClicked")).rejects.toThrow(message)
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.followups.askResponse).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledWith(
@@ -498,7 +498,7 @@ describe("SDK remote-config coordination", () => {
 			await errorTask.handleWebviewAskResponse("yesButtonClicked")
 			controller.initTask.mockClear()
 
-			await errorTask.handleWebviewAskResponse("yesButtonClicked")
+			await expect(errorTask.handleWebviewAskResponse("yesButtonClicked")).rejects.toThrow("no longer running")
 
 			expect(controller.initTask).not.toHaveBeenCalled()
 			expect(controller.messages.appendAndEmit).toHaveBeenCalledOnce()

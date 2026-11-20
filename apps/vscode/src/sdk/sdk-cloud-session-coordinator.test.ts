@@ -103,7 +103,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 				enableAgentTeams: false,
 			})),
 		},
-		sessions: {},
+		sessions: { getActiveSession: () => undefined, endActiveSessionIfHost: vi.fn(async () => undefined) },
 		messages: { appendAndEmit: vi.fn(), finalizeMessagesForSave: vi.fn((messages) => messages) },
 		getMinter: () => new MessageIdMinter(),
 		getTask: () => task,
@@ -120,6 +120,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		isSignedIn: () => true,
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
+		getTurnPhase: () => "idle",
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => undefined),
@@ -1030,20 +1031,64 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
-	it("keeps the displayed task's host when its record leaves the list, so opening it can explain why", async () => {
+	it.each([
+		{ status: "ready", phase: "completed" },
+		{ status: "unavailable", phase: "completed" },
+		{ status: "deleted", phase: "completed" },
+		{ status: "deleted", phase: "streaming" },
+	] as const)("checks a displayed session missing from the list: $status, $phase", async ({ status, phase }) => {
 		const dispose = vi.fn(async () => undefined)
-		const { coordinator, cloudSessions, options } = makeCoordinator()
+		const host = {
+			status: "completed",
+			readMessages: async () => [{ role: "user", content: "prior context" }],
+			getAccumulatedUsage: vi.fn(async () => undefined),
+			dispose,
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect").mockResolvedValue(host)
+		let active: { sdkHost: CloudSessionHost; isRunning: boolean } | undefined = { sdkHost: host, isRunning: false }
+		const endActiveSessionIfHost = vi.fn(async () => {
+			active = undefined
+		})
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			getTurnPhase: () => phase,
+			sessions: {
+				attachExistingSession: vi.fn(async () => undefined),
+				getActiveSession: () => active,
+				endActiveSessionIfHost,
+			} as never,
+		})
 		cloudSessions.listSessions.mockResolvedValue([record])
-		await coordinator.listHistoryRecords()
-		const entries = (coordinator as unknown as { entries: Map<string, { host?: unknown }> }).entries
-		entries.get(record.id)!.host = { status: "running", dispose }
-		options.setTask(createTaskProxy(record.id, vi.fn(), vi.fn()))
+		await coordinator.openCloudTask(record.id)
+		const displayed = options.getTask()!
+		const messages = structuredClone(displayed.messageStateHandler.getClineMessages())
+		vi.mocked(options.setTurnPhase).mockClear()
 		cloudSessions.listSessions.mockResolvedValue([])
+		if (status !== "ready") {
+			cloudSessions.getStatus.mockRejectedValue(
+				new CloudSessionError(status === "deleted" ? "session_not_found" : "request_failed", "synthetic failure"),
+			)
+		}
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
 
-		await (coordinator as unknown as { refreshList: (force: boolean) => Promise<void> }).refreshList(true)
+		const rows = await coordinator.listHistoryRecords()
 
-		expect(entries.has(record.id)).toBe(true)
-		expect(dispose).not.toHaveBeenCalled()
+		expect(cloudSessions.getStatus).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+		expect(options.getTask()).toBe(displayed)
+		expect(displayed.messageStateHandler.getClineMessages()).toEqual(messages)
+		if (status === "deleted") {
+			expect(rows).toEqual([])
+			expect(dispose).toHaveBeenCalledOnce()
+			expect(endActiveSessionIfHost).toHaveBeenCalledWith(host, "deleted")
+			expect(active).toBeUndefined()
+			if (phase === "streaming") expect(options.setTurnPhase).toHaveBeenCalledWith("idle")
+			else expect(options.setTurnPhase).not.toHaveBeenCalled()
+			await coordinator.listHistoryRecords()
+			expect(host.getAccumulatedUsage).not.toHaveBeenCalled()
+			expect(cloudSessions.getStatus).toHaveBeenCalledOnce()
+		} else {
+			expect(rows).toHaveLength(1)
+			expect(dispose).not.toHaveBeenCalled()
+		}
 		await coordinator.dispose()
 	})
 

@@ -720,6 +720,7 @@ export class Controller {
 			isSignedIn: () => !!this.authService.getInfo().user?.uid,
 			isEnabled: () => isCloudSessionsFeatureEnabled(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
+			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			clearTurnOutcome: () => this.messageTranslatorState.clearTurnOutcome(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -1727,17 +1728,18 @@ export class Controller {
 				anchor?.type === "ask" && anchor.ask === "api_req_failed" ? ClineError.parse(anchor.text) : undefined
 			const guidance =
 				anchoredError?._error.code === CLOUD_CREATION_UNCONFIRMED_ERROR_CODE ? anchoredError.message : undefined
+			const message =
+				guidance ??
+				(provisioning
+					? "The cloud sandbox is still starting. Send your message again once it is running."
+					: "This cloud session is no longer running. Start a new cloud task to continue.")
 			this.messages.appendAndEmit(
 				[
 					{
 						ts: Math.max(Date.now(), (anchorTs ?? 0) + 1),
 						type: "say",
 						say: "error",
-						text:
-							guidance ??
-							(provisioning
-								? "The cloud sandbox is still starting. Send your message again once it is running."
-								: "This cloud session is no longer running. Start a new cloud task to continue."),
+						text: message,
 						partial: false,
 					},
 				],
@@ -1746,7 +1748,7 @@ export class Controller {
 			if (guidance) this.turnStateTracker.set("error", anchorTs)
 			else this.turnStateTracker.set("error")
 			await this.postStateToWebview()
-			return
+			throw new Error(message)
 		}
 
 		const turnStateBefore = this.turnStateTracker.get()

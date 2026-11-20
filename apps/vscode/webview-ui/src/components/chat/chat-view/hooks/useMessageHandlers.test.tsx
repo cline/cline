@@ -1,4 +1,4 @@
-import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE, type CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -47,12 +47,14 @@ vi.mock("@shared/proto/cline/common", () => ({
 // useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
 let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
+let mockCurrentCloudTask: CurrentCloudTaskInfo | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
 		backgroundCommandRunning: false,
 		turnState: mockTurnState,
 		cloudSessionsEnabled: true,
 		cloudTaskTarget: mockCloudTaskTarget,
+		currentCloudTask: mockCurrentCloudTask,
 	}),
 }))
 
@@ -125,6 +127,7 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
 		mockCloudTaskTarget = undefined
+		mockCurrentCloudTask = undefined
 	})
 
 	it("sends a cloud request when Cloud is selected even without a repository, never a local task", async () => {
@@ -325,6 +328,7 @@ describe("useMessageHandlers — send routing", () => {
 
 	it("restores pending follow-up UI state when askResponse fails", async () => {
 		mockTurnState = { phase: "completed", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-current", status: "unknown" }
 		const error = new Error("transport down")
 		const setInputValue = vi.fn()
 		const setActiveQuote = vi.fn()
@@ -926,6 +930,46 @@ describe("useMessageHandlers — send routing", () => {
 			await sendPromise
 		})
 		expect(result.current.chatState.inputValue).toBe("follow up")
+	})
+
+	it.each([false, true])("ignores stale cloud-send rollback after edits or navigation (navigate=%s)", async (navigate) => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-current", status: "unknown" }
+		let rejectResponse!: (error: Error) => void
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectResponse = reject
+				}),
+		)
+		const { result, rerender } = renderHook(
+			({ messages }) => {
+				const chatState = useChatState(messages)
+				return { chatState, handlers: useMessageHandlers(messages, chatState) }
+			},
+			{ initialProps: { messages: completedConversation } },
+		)
+		act(() => result.current.chatState.setInputValue("submitted draft"))
+		let sending!: Promise<void>
+		await act(async () => {
+			sending = result.current.handlers.handleSendMessage("submitted draft", [], [])
+			await Promise.resolve()
+		})
+		if (navigate) {
+			mockCurrentCloudTask = { sessionId: "ses-other", status: "provisioning" }
+			rerender({ messages: [{ ts: 3, type: "say", say: "task", text: "other task" }] })
+		}
+		act(() => {
+			result.current.chatState.setInputValue("newer draft")
+			result.current.chatState.setSelectedFiles(["newer.md"])
+		})
+		await act(async () => {
+			rejectResponse(new Error("no longer running"))
+			await expect(sending).rejects.toThrow("no longer running")
+		})
+		expect(result.current.chatState.inputValue).toBe("newer draft")
+		expect(result.current.chatState.selectedFiles).toEqual(["newer.md"])
+		expect(result.current.chatState.sendingDisabled).toBe(navigate)
 	})
 
 	it("preserves edits made while a recovery response succeeds", async () => {
