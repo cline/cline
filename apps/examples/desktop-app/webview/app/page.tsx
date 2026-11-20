@@ -276,6 +276,14 @@ const ChangesPanel = dynamic(
 	{ loading: workspacePanelLoading, ssr: false },
 );
 
+const BrowserPanel = dynamic(
+	() =>
+		import("@/components/views/chat/browser-panel").then(
+			(module) => module.BrowserPanel,
+		),
+	{ loading: workspacePanelLoading, ssr: false },
+);
+
 function makeThreadId(): string {
 	return `thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -1618,15 +1626,23 @@ function ChatThreadPane({
 		setWorkInSelection(next);
 		writeWorkInToWindow(next);
 	}, []);
-	// The Changes pane and the Files + Git panel share the right-hand column.
+	// The Changes pane, the Files + Git panel and the browser share the
+	// right-hand column.
 	const [workspacePanel, setWorkspacePanel] = useState<
-		"changes" | "files" | null
+		"changes" | "files" | "browser" | null
 	>(null);
 	const [changesScope, setChangesScope] = useState<ChangesScope>("session");
 	const [changesPath, setChangesPath] = useState<string | null>(null);
 	const toggleFilesPanel = useCallback(
 		() =>
 			setWorkspacePanel((current) => (current === "files" ? null : "files")),
+		[],
+	);
+	const toggleBrowserPanel = useCallback(
+		() =>
+			setWorkspacePanel((current) =>
+				current === "browser" ? null : "browser",
+			),
 		[],
 	);
 	const toggleChangesPanel = useCallback(() => {
@@ -3345,6 +3361,7 @@ function ChatThreadPane({
 	const canBrowseFiles = mayBrowseFiles;
 	const filesPanelVisible = canBrowseFiles && workspacePanel === "files";
 	const changesPanelVisible = canBrowseFiles && workspacePanel === "changes";
+	const browserPanelVisible = !isWelcomeState && workspacePanel === "browser";
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
@@ -3353,7 +3370,7 @@ function ChatThreadPane({
 				className={
 					isWelcomeState
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: filesPanelVisible || changesPanelVisible
+						: filesPanelVisible || changesPanelVisible || browserPanelVisible
 							? // The panel is placed explicitly in column 2 spanning both
 								// rows, so the transcript and composer auto-flow into column 1.
 								"grid h-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
@@ -3403,6 +3420,8 @@ function ChatThreadPane({
 								}
 								terminalOpen={terminalEnabled && terminal?.open}
 								terminalShortcut={terminal?.shortcut}
+								onToggleBrowser={toggleBrowserPanel}
+								browserOpen={browserPanelVisible}
 							/>
 						</div>
 					</WindowTitleBarContent>
@@ -3543,6 +3562,9 @@ function ChatThreadPane({
 						onClose={toggleFilesPanel}
 						workspaceRoot={resolvedWorkspaceRoot}
 					/>
+				) : null}
+				{browserPanelVisible ? (
+					<BrowserPanel onClose={toggleBrowserPanel} />
 				) : null}
 			</AttachmentDropZone>
 			{terminalEnabled && terminal?.open ? (
