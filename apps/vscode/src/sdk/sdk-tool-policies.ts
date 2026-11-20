@@ -1,3 +1,4 @@
+import { defaultMcpToolNameTransform } from "@cline/core"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { McpHub } from "@/services/mcp/McpHub"
 
@@ -30,7 +31,12 @@ export function buildToolPolicies(
 	if (mcpHub) {
 		for (const server of mcpHub.getServers()) {
 			for (const tool of server.tools ?? []) {
-				const sdkName = `${server.name}__${tool.name}`
+				// Key by the name `createMcpTools` registers the tool under: the
+				// default transform rewrites names with characters outside
+				// [a-zA-Z0-9_-] or longer than the provider limit. A key that does
+				// not match leaves the tool without a policy, and the SDK
+				// auto-approves tools without a policy.
+				const sdkName = defaultMcpToolNameTransform({ serverName: server.name, toolName: tool.name })
 				policies[sdkName] = { autoApprove: false }
 			}
 		}
@@ -85,7 +91,7 @@ function isBrowserTool(toolName: string): boolean {
 	return toolName === "fetch_web_content" || toolName === "web_fetch" || toolName === "web_search"
 }
 
-/** MCP tools are registered by `createMcpTools` under `serverName__toolName`. */
+/** MCP tools are registered by `createMcpTools` under `serverName__toolName` (see `defaultMcpToolNameTransform`). */
 function isMcpToolName(toolName: string): boolean {
 	const separatorIndex = toolName.indexOf("__")
 	return separatorIndex > 0 && separatorIndex + 2 < toolName.length
