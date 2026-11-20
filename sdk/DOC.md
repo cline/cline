@@ -491,6 +491,14 @@ attempts before entering the management queue, and token persistence checks the
 abort signal and original endpoint under the settings lock. Pending OAuth work
 participates in drain/replacement checks; shutdown aborts it and waits for cleanup.
 
+### Anthropic base URLs
+
+The Anthropic transport honors `metadata.routing.baseUrlDefaultPath` for base
+URLs with no path beyond `/`. The builtin Anthropic provider sets it to `/v1`,
+so CLI, Desktop, and VS Code resolve an origin-only proxy URL consistently.
+Explicit paths such as `/v1` or `/proxy/v1` are preserved. Other
+Anthropic-compatible providers retain their configured URLs unless they opt in.
+
 ### Provider authentication metadata for host UIs
 
 `@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
