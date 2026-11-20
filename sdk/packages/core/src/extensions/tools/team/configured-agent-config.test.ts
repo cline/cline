@@ -1,5 +1,11 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseConfiguredAgentConfig } from "./configured-agent-config";
+import {
+	loadConfiguredAgentConfigs,
+	parseConfiguredAgentConfig,
+} from "./configured-agent-config";
 
 describe("configured agent config parser", () => {
 	it("parses YAML frontmatter and system prompt body", () => {
@@ -51,6 +57,37 @@ Prompt body
 More prompt`);
 
 		expect(config.systemPrompt).toBe("Prompt body\n---\nMore prompt");
+	});
+
+	// Regression test for https://github.com/cline/cline/issues/15556: agent configs are
+	// commonly saved as Markdown (YAML frontmatter plus a prompt body), and the scan used to
+	// drop anything whose extension was not .yml/.yaml before the file was ever opened.
+	it("loads agent configs saved with a .md extension", () => {
+		const directory = mkdtempSync(join(tmpdir(), "cline-agent-config-"));
+		try {
+			writeFileSync(
+				join(directory, "probe.md"),
+				`---
+name: probe
+description: Probe agent.
+---
+You are a probe.`,
+			);
+
+			const { configs, errors } = loadConfiguredAgentConfigs({
+				searchPaths: [directory],
+			});
+
+			expect(errors).toEqual([]);
+			expect(configs).toHaveLength(1);
+			expect(configs[0]).toMatchObject({
+				name: "probe",
+				description: "Probe agent.",
+				systemPrompt: "You are a probe.",
+			});
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	it.each([
