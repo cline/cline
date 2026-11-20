@@ -73,6 +73,7 @@ describe("providerSettingsRegistry", () => {
 			["mistral", "Mistral", "https://console.mistral.ai/api-keys"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["nousResearch", "NousResearch", undefined],
+			["openai-native", "OpenAI", "https://platform.openai.com/api-keys"],
 			["poolside", "Poolside", undefined],
 			["sambanova", "SambaNova", "https://docs.sambanova.ai/cloud/docs/get-started/overview"],
 			["tencent-tokenhub", "Tencent TokenHub", "https://cloud.tencent.com/document/product/1823/130050"],
