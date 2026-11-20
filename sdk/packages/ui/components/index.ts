@@ -45,6 +45,7 @@ export {
 	AgentComposerTextarea,
 	type AgentComposerTextareaProps,
 	type AgentComposerVariant,
+	agentComposerTokenClassName,
 } from "./agent-composer.js";
 export {
 	AgentContextUsage,
@@ -93,17 +94,31 @@ export {
 	type AgentSessionRowProps,
 } from "./agent-session-row.js";
 export {
+	AgentUxVerification,
+	type AgentUxVerificationProps,
+	type UxScreenshotPresentation,
+	type UxScreenshotRenderer,
+} from "./agent-ux-verification.js";
+export {
 	AgentWelcomeHero,
 	type AgentWelcomeHeroLayout,
 	type AgentWelcomeHeroProps,
 } from "./agent-welcome-hero.js";
+export { AlertDialog, type AlertDialogProps } from "./alert-dialog.js";
 export {
 	AttachmentDropZone,
 	type AttachmentDropZoneProps,
 } from "./attachment-drop-zone.js";
-export { Badge, type BadgeProps } from "./badge.js";
+export { Badge, type BadgeProps, type InteractiveBadgeProps } from "./badge.js";
+export {
+	Banner,
+	type BannerAction,
+	type BannerProps,
+	type BannerTone,
+} from "./banner.js";
 export {
 	Button,
+	type ButtonIcon,
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonTone,
@@ -114,17 +129,49 @@ export {
 	iconButtonVariants,
 } from "./button.js";
 export {
+	Carousel,
+	type CarouselApi,
+	CarouselContent,
+	CarouselItem,
+	CarouselNext,
+	CarouselPrevious,
+} from "./carousel.js";
+export {
+	DetailList,
+	type DetailListColumn,
+	type DetailListColumnWidth,
+	type DetailListProps,
+} from "./detail-list.js";
+export {
+	DetailListItem,
+	type DetailListItemPrimaryAction,
+	type DetailListItemProps,
+} from "./detail-list-item.js";
+export { Dialog, type DialogProps } from "./dialog.js";
+export {
+	EmptyState,
+	type EmptyStateAction,
+	type EmptyStateProps,
+} from "./empty-state.js";
+export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
 export { GitHubIcon } from "./github-icon.js";
 export {
+	ItemCard,
+	type ItemCardPrimaryAction,
+	type ItemCardProps,
+} from "./item-card.js";
+export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
 	type SearchComboboxSection,
 } from "./search-combobox.js";
+export { SectionHeading, type SectionHeadingProps } from "./section-heading.js";
 export {
 	SessionStatus,
 	type SessionStatusProps,

@@ -14,7 +14,6 @@ import type { CloudTaskTargetView, CurrentCloudTaskInfo } from "./cloud/cloud-se
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -41,7 +40,6 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -157,6 +155,10 @@ export interface ExtensionState {
 	currentCloudTask?: CurrentCloudTaskInfo
 	/** Cline model the displayed cloud task runs on, else the one a new cloud task would use. */
 	cloudModelId?: string
+	/** Cline model a new cloud task would run on; Settings edits this one. */
+	nextCloudModelId?: string
+	/** Whether the account has ClinePass for cloud tasks; unset until checked, or when the check failed. */
+	clinePassSubscribed?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }
 
@@ -277,6 +279,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "cloud_provisioning" // cloud sandbox start/resume progress
 
 export interface ClineSayTool {
 	tool:
@@ -402,6 +405,16 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+}
+
+/**
+ * JSON payload of a say:"cloud_provisioning" message. The row is updated in
+ * place (same ts) as the sandbox advances through its phases.
+ */
+export interface ClineCloudProvisioningInfo {
+	phase: "starting" | "cloning_repo" | "agent_starting" | "resuming"
+	repo?: string
+	branch?: string
 }
 
 export interface ClineSubagentUsageInfo {

@@ -276,6 +276,15 @@ describe("AuthService", () => {
 			expect(info.user?.displayName).toBe("Test User")
 		})
 
+		it("forwards the privacy settings path from /users/me", () => {
+			const authInfo = createTestAuthInfo()
+			authInfo.userInfo.dataPrivacyPath = "/dashboard/account?tab=privacy"
+			testAccess(authService)._clineAuthInfo = authInfo
+			testAccess(authService)._authenticated = true
+
+			expect(authService.getInfo().user?.dataPrivacyPath).toBe("/dashboard/account?tab=privacy")
+		})
+
 		it("returns unauthenticated state when _authenticated is false even with auth info", () => {
 			const authInfo = createTestAuthInfo()
 			testAccess(authService)._clineAuthInfo = authInfo

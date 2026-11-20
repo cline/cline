@@ -13,6 +13,7 @@ export interface ClineRecommendedModelsData {
 	recommended: ClineRecommendedModelData[]
 	free: ClineRecommendedModelData[]
 	clinePass?: ClineRecommendedModelData[]
+	clineCloud?: ClineRecommendedModelData[]
 }
 
 const RECOMMENDED_MODELS_CACHE_TTL_MS = 60 * 60 * 1000

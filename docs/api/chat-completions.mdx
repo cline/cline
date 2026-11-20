@@ -20,6 +20,7 @@ POST https://api.cline.bot/api/v1/chat/completions
 | `Content-Type` | Yes | `application/json` |
 | `HTTP-Referer` | No | Your application URL (for usage tracking) |
 | `X-Title` | No | Your application name (for usage logs) |
+| `X-Response-Format` | No | Set to `openai` to receive the standard OpenAI response shape for non-streaming requests. See [Non-Streaming Response](#non-streaming-response). |
 
 ## Request Body
 
@@ -118,7 +119,7 @@ The final chunk includes token usage and cost:
 
 ## Non-Streaming Response
 
-When `stream: false`, the response is a single JSON object:
+When `stream: false` and the request includes the `X-Response-Format: openai` header, the response is a single JSON object in the standard OpenAI Chat Completions shape:
 
 ```json
 {
@@ -140,6 +141,24 @@ When `stream: false`, the response is a single JSON object:
   }
 }
 ```
+
+<Note>
+  Without the `X-Response-Format: openai` header, non-streaming responses use the legacy format, which nests the completion object under `data` and adds a `success` flag:
+
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "gen-abc123",
+      "model": "anthropic/claude-sonnet-4-6",
+      "choices": [ ... ],
+      "usage": { ... }
+    }
+  }
+  ```
+
+  OpenAI-compatible clients and proxies expect `choices` at the top level, so send the header when using them. Streaming responses are unaffected and always use the standard OpenAI format.
+</Note>
 
 ## Tool Calling
 

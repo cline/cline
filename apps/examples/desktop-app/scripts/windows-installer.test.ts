@@ -28,8 +28,8 @@ const lockfile = path.resolve(import.meta.dir, "../../../../bun.lock");
 // of the locked @tauri-apps/cli), and desktop-test.yml downloads that same
 // archive by hand. Pin both ends here so a Tauri CLI bump, or an edit to the
 // workflow's download, fails this suite until the pair is re-checked together.
-const TAURI_CLI_VERSION = "2.11.4";
-const NSIS_VERSION = "v3.11";
+const TAURI_CLI_VERSION = "2.12.3";
+const NSIS_VERSION = "v3.13";
 const children: ChildProcess[] = [];
 let root: string;
 let fixture: string;

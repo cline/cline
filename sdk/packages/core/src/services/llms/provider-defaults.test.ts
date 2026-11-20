@@ -1,3 +1,4 @@
+import { getGeneratedModelsForProvider } from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
@@ -467,9 +468,14 @@ describe("resolveProviderConfig", () => {
 			url: "https://models.test/api.json",
 		});
 
+		const [generatedId, generatedModel] =
+			Object.entries(getGeneratedModelsForProvider("cline-pass")).find(([id]) =>
+				id.startsWith("cline-pass/"),
+			) ?? [];
 		expect(fetchMock).toHaveBeenCalledTimes(2);
-		expect(resolved?.knownModels?.["cline-pass/mimo-v2.5-pro"]?.name).toBe(
-			"MiMo-V2.5-Pro",
+		expect(generatedId).toBeDefined();
+		expect(resolved?.knownModels?.[generatedId ?? ""]?.name).toBe(
+			generatedModel?.name,
 		);
 		expect(
 			resolved?.knownModels?.["vendor/live-openrouter-model"],
@@ -768,6 +774,66 @@ describe("resolveProviderConfig", () => {
 			"private-proxy-model",
 		]);
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
+	});
+
+	it("does not treat LiteLLM legacy max_tokens as maxInputTokens when max_output_tokens is present", async () => {
+		const fetchMock = vi.fn().mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							model_name: "output-only-model",
+							litellm_params: { model: "custom/output-only" },
+							model_info: {
+								max_output_tokens: 8_192,
+								max_tokens: 8_192,
+							},
+						},
+						{
+							model_name: "legacy-tokens-model",
+							litellm_params: { model: "custom/legacy-tokens" },
+							model_info: {
+								max_tokens: 128_000,
+							},
+						},
+						{
+							model_name: "huggingface-null-limits",
+							litellm_params: { model: "custom/huggingface-null" },
+							model_info: {
+								max_tokens: 32_768,
+								max_input_tokens: null,
+								max_output_tokens: null,
+							},
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"litellm",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "litellm",
+				modelId: "",
+				apiKey: "litellm-key",
+				baseUrl: "http://localhost:4000/v1/",
+			},
+		);
+
+		const outputOnly = resolved?.knownModels?.["custom/output-only"];
+		expect(outputOnly?.maxTokens).toBe(8_192);
+		expect(outputOnly?.maxInputTokens).toBeUndefined();
+
+		const legacyTokens = resolved?.knownModels?.["custom/legacy-tokens"];
+		expect(legacyTokens?.maxTokens).toBe(128_000);
+		expect(legacyTokens?.maxInputTokens).toBe(128_000);
+
+		const huggingfaceNull = resolved?.knownModels?.["custom/huggingface-null"];
+		expect(huggingfaceNull?.maxTokens).toBe(32_768);
+		expect(huggingfaceNull?.maxInputTokens).toBe(32_768);
 	});
 
 	it("returns an empty authoritative LiteLLM model list without auth", async () => {

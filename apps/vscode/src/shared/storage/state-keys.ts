@@ -97,6 +97,8 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Last Local/Cloud choice (and repository) picked on the home screen for new tasks
 	cloudTaskTarget: { default: undefined as CloudTaskTargetSelection | undefined },
+	// Cline model picked in Settings for new cloud tasks
+	cloudModelId: { default: undefined as string | undefined },
 	// Last agent status confirmed over a live connection, per cloud session id
 	cloudSessionStatuses: { default: {} as RememberedCloudStatuses },
 	// Path to worktree that should auto-open Cline sidebar when launched

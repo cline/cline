@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import {
@@ -95,6 +95,13 @@ const bundleDesktopBackend = async (): Promise<void> => {
 	// from Finder/the Dock has no OTEL_* env at runtime, so without this the
 	// backend silently ships with telemetry disabled. Verify with
 	// `BUN_BE_BUN=1 cline-cli run <bundle> --telemetry-selfcheck`.
+	// The script runner does not mount the CLI's bunfs. Ship the same runtime
+	// artifact beside the backend, just as npm and VS Code hosts do.
+	const runtime = `${APP_ROOT}/${BIN_DIR}/desktop-backend/plugin-runtime`;
+	rmSync(runtime, { recursive: true, force: true });
+	cpSync(`${REPO_ROOT}/sdk/packages/core/dist/plugin-runtime`, runtime, {
+		recursive: true,
+	});
 	const defines = telemetryDefineArgs();
 	await $`bun build ./sidecar/index.ts --target bun --minify ${defines} --outfile ${DESKTOP_BACKEND_BUNDLE}`;
 };
@@ -141,53 +148,6 @@ const buildUniversalMacCli = async (): Promise<void> => {
 	await $`lipo -info ${outfile}`;
 };
 
-// Plugin installs drop their @cline/* dependencies because the host provides
-// them, and the plugin worker resolves those from node_modules beside its
-// bootstrap. Nothing like that exists next to the compiled CLI, so ship
-// self-contained builds there. Splitting keeps one shared copy of the SDK,
-// placed in core so every chunk sits inside a `"type": "module"` package.
-const bundlePluginSdkPackages = async (): Promise<void> => {
-	const outdir = `${BIN_DIR}/extensions/node_modules/@cline`;
-	const packagesRoot = "../../../sdk/packages";
-	const packages = await Promise.all(
-		["sdk", "core", "agents", "llms", "shared"].map(async (name) => {
-			const root = `${packagesRoot}/${name}`;
-			const manifest = (await Bun.file(`${root}/package.json`).json()) as {
-				exports: Record<string, { import: string }>;
-			};
-			// Type-only exports (e.g. @cline/shared/types) have no JS to ship.
-			const exports = Object.fromEntries(
-				Object.entries(manifest.exports)
-					.map(([path, entry]) => [path, entry.import] as const)
-					.filter(([, file]) => existsSync(`${root}/${file}`)),
-			);
-			return { root, name, exports };
-		}),
-	);
-	await $`rm -rf ${outdir}`;
-	const result = await Bun.build({
-		entrypoints: packages.flatMap(({ root, exports }) =>
-			Object.values(exports).map((file) => `${root}/${file}`),
-		),
-		root: packagesRoot,
-		outdir,
-		naming: { chunk: "core/dist/[name]-[hash].[ext]" },
-		target: "node",
-		format: "esm",
-		splitting: true,
-		minify: true,
-	});
-	if (!result.success) {
-		throw new AggregateError(result.logs, "plugin SDK bundle failed");
-	}
-	for (const { name, exports } of packages) {
-		await Bun.write(
-			`${outdir}/${name}/package.json`,
-			JSON.stringify({ name: `@cline/${name}`, type: "module", exports }),
-		);
-	}
-};
-
 const hasOpenTuiNativeVariant = (os: string, arch: string): boolean =>
 	existsSync(`${REPO_ROOT}/node_modules/.bun`) &&
 	[
@@ -203,10 +163,7 @@ const main = async () => {
 	await $`bun run build:sdk`.cwd(REPO_ROOT);
 	process.chdir(APP_ROOT);
 	const targetTriple = await resolveTargetTriple();
-	await $`mkdir -p ${BIN_DIR}/desktop-backend ${REMOTE_CLI_DIR} ${BIN_DIR}/extensions`;
-	// Plugin workers load this bootstrap from disk in the backend and Hub.
-	await $`cp ../../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js ${BIN_DIR}/extensions/plugin-sandbox-bootstrap.js`;
-	await bundlePluginSdkPackages();
+	await $`mkdir -p ${BIN_DIR}/desktop-backend ${REMOTE_CLI_DIR}`;
 	// Every build cross-compiles the Linux SSH copies (and macOS builds both
 	// architectures), which needs the target platforms' OpenTUI native
 	// packages in addition to the host's.

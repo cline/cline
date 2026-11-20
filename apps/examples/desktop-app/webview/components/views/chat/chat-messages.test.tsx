@@ -258,6 +258,12 @@ describe("ChatMessages tool disclosures", () => {
 		};
 		await renderMessages([tool], { status: "completed" });
 		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], {
+			status: "starting",
+			isHistoryPreview: true,
+		});
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
 		await renderMessages([tool], { status: "running" });
 		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
 		await renderMessages(
@@ -2342,6 +2348,27 @@ describe("ChatMessages thinking indicator", () => {
 		).toBe(true);
 	});
 
+	it("keeps archived messages readable without a transcript startup indicator", async () => {
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "assistant-1",
+					sessionId: "session-1",
+					role: "assistant",
+					content: "Previous answer",
+					createdAt: 2,
+				},
+			],
+			{ status: "starting", isHistoryPreview: true },
+		);
+		expect(container.textContent).toContain("Previous answer");
+		expect(container.textContent).not.toContain("Thinking...");
+		expect(
+			container.querySelector('button[aria-label="Copy assistant message"]'),
+		).not.toBeNull();
+	});
+
 	it("keeps showing while running until the first assistant output arrives", async () => {
 		await renderMessages([userMessage], { status: "running" });
 		expect(container.textContent).toContain("Thinking...");
@@ -2631,5 +2658,62 @@ describe("ChatMessages credential failures", () => {
 		]);
 		await act(async () => buttons[0]?.click());
 		expect(onFixCredentials).toHaveBeenCalledWith("models");
+	});
+});
+
+describe("ChatMessages last turn receipt", () => {
+	const message = (
+		id: string,
+		role: "user" | "assistant",
+		content: string,
+	): ChatMessage => ({
+		id,
+		sessionId: "session-1",
+		role,
+		content,
+		createdAt: Date.now(),
+	});
+	const transcript = [
+		message("u1", "user", "first ask"),
+		message("a1", "assistant", "first answer"),
+		message("u2", "user", "second ask"),
+		message("a2", "assistant", "second answer"),
+	];
+	const lastTurnChanges = {
+		files: [
+			{ path: "docs/b.md", status: "A" as const, additions: 5, deletions: 0 },
+		],
+		omitted: 0,
+	};
+	const receipts = () =>
+		container.querySelectorAll('[data-testid="turn-receipt"]');
+
+	it("closes the finished last turn with a receipt that opens its changes", async () => {
+		const onReviewLastTurn = vi.fn();
+		await renderMessages(transcript, { lastTurnChanges, onReviewLastTurn });
+		expect(receipts()).toHaveLength(1);
+		const text = container.textContent ?? "";
+		expect(text.indexOf("second answer")).toBeLessThan(
+			text.indexOf("Changed 1 file"),
+		);
+		await act(async () => {
+			receipts()[0]?.querySelector<HTMLButtonElement>("button")?.click();
+		});
+		expect(onReviewLastTurn).toHaveBeenCalledWith();
+		await act(async () => {
+			receipts()[0]
+				?.querySelector<HTMLButtonElement>('[title="docs/b.md"]')
+				?.click();
+		});
+		expect(onReviewLastTurn).toHaveBeenCalledWith("docs/b.md");
+	});
+
+	it("hides while a turn runs", async () => {
+		await renderMessages(transcript, {
+			lastTurnChanges,
+			onReviewLastTurn: vi.fn(),
+			status: "running",
+		});
+		expect(receipts()).toHaveLength(0);
 	});
 });

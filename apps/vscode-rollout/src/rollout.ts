@@ -19,7 +19,6 @@ import {
 const POSTHOG_HOST = "https://data.cline.bot";
 const POSTHOG_API_KEY = process.env.TELEMETRY_SERVICE_API_KEY;
 const FETCH_TIMEOUT_MS = 10_000;
-const FEATURE_FLAG_CALLED_EVENT = "$feature_flag_called";
 
 /**
  * Mirror the distinct-id derivation in apps/vscode
@@ -124,21 +123,10 @@ function getRolloutFlagResponse(response: unknown): unknown {
 }
 
 async function reportFeatureFlagCalled(
-	distinctId: string,
-	flagResponse: unknown,
+	_distinctId: string,
+	_flagResponse: unknown,
 ): Promise<void> {
-	if (!POSTHOG_API_KEY) {
-		return;
-	}
-	await postJson(`${POSTHOG_HOST}/capture/`, {
-		api_key: POSTHOG_API_KEY,
-		event: FEATURE_FLAG_CALLED_EVENT,
-		distinct_id: distinctId,
-		properties: {
-			$feature_flag: ROLLOUT_FLAG,
-			$feature_flag_response: flagResponse,
-		},
-	});
+	// PostHog is only used for feature flag evaluation; no events are sent.
 }
 
 /**
@@ -172,14 +160,12 @@ export const LOADER_DECISION_EVENT = "extension.rollout.loader_decision";
 
 /**
  * Report the loader's bundle decision (and whether it was a crash fallback).
- * Feature-flag evaluation is always allowed (matching the extension's
- * FeatureFlagsService), but event capture respects the user's telemetry
- * opt-out and VS Code's global telemetry setting.
+ * Currently a no-op: PostHog is only used for feature flag evaluation.
  */
 export async function reportLoaderDecision(
-	context: vscode.ExtensionContext,
-	bundle: Bundle,
-	options: {
+	_context: vscode.ExtensionContext,
+	_bundle: Bundle,
+	_options: {
 		fallback: boolean;
 		/** Bundle the loader originally decided on; differs from `bundle` on fallback. */
 		attemptedBundle?: Bundle;
@@ -191,33 +177,4 @@ export async function reportLoaderDecision(
 		/** Whether an env var or user setting forced this bundle. */
 		override?: "env" | "setting";
 	},
-): Promise<void> {
-	if (!POSTHOG_API_KEY) {
-		return;
-	}
-	const telemetrySetting = await readSharedGlobalStateKey("telemetrySetting");
-	if (telemetrySetting === "disabled" || !vscode.env.isTelemetryEnabled) {
-		return;
-	}
-	const distinctId = await getDistinctId();
-	await postJson(`${POSTHOG_HOST}/capture/`, {
-		api_key: POSTHOG_API_KEY,
-		event: LOADER_DECISION_EVENT,
-		distinct_id: distinctId,
-		properties: {
-			bundle,
-			attempted_bundle: options.attemptedBundle ?? bundle,
-			fallback: options.fallback,
-			double_failure: options.doubleFailure,
-			error_message: options.errorMessage,
-			// Launch-cadence distribution: how long promotions take to reach real
-			// windows tells us how fast the rollout percentage can safely be dialed.
-			ms_since_last_activation: options.msSinceLastActivation,
-			override: options.override,
-			loader_version: context.extension.packageJSON?.version,
-			// Separates nightly traffic from the (future) stable combined VSIX.
-			extension_name: context.extension.packageJSON?.name,
-			vscode_version: vscode.version,
-		},
-	});
-}
+): Promise<void> {}

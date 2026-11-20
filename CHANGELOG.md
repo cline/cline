@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.1.26]
+
+### Added
+
+- Cloud tasks: Settings > API Configuration has a Local | Cloud toggle when cloud sessions are on. Cloud picks the Cline model new cloud tasks run on, saved separately from your local models. Clicking the model label in a cloud session's composer opens it there.
+- Starting or resuming a cloud sandbox shows a progress card with the repo, branch and steps (start sandbox, clone repository, start agent). It collapses once the agent starts.
+
+### Changed
+
+- Cloud sessions hide the Plan/Act toggle and the auto-approve bar instead of showing them disabled.
+- With no model chosen, the Cline provider uses Claude Sonnet 5.5 again, which is back at the top of Cline's recommended list.
+- Model requests retry at most 3 times instead of 5.
+- Kimi K3 now gets `max` reasoning for Extra High and Max, instead of an `xhigh` setting it rejects.
+- Refreshed the model catalog. Adds the CommandCode, Reflection, Liquid Inference and Munito AI providers and drops CrofAI, iFlow and Llama. The Cline free list adds Reflection Beam, Nemotron 3.5 Lightning and Laguna S 2.1 and drops Mimo V2.6 Flash and Muse Spark 1.3 Contributor. ClinePass now defaults to Kimi K3.1 Pro and adds MiniMax M3.1 Flash and DeepSeek V4.1 Flash 1017. Default models change for most other providers, mostly to Kimi K3.1 Pro, MiniMax M3.1 Flash or DeepSeek V4.1 Flash 1017. If you use a provider without pinning a model, expect a different default.
+
+### Fixed
+
+- GPT-6 models (such as `gpt-6-sol` and `gpt-6.1-sol`) work on OpenAI and Azure OpenAI-compatible endpoints, and SAP AI Core no longer rejects requests with "Unsupported parameter: 'max_tokens'". Both now get `max_completion_tokens`.
+- Gemini API keys (the `gemini` provider) no longer send native Google Search. Free-tier keys failed every turn with a 429 quota error on Gemini 3+, and on Gemini 2.x every Cline tool was dropped.
+- Toggling Plan/Act while a task is starting no longer drops your first prompt, and the session no longer keeps running with the other mode's tools.
+- Disabled rules stay disabled.
+- Starting a command no longer moves keyboard focus into the terminal, so text you're typing in the chat no longer lands in the shell.
+- Cancelling a task or opening another one while Cline is asking a question no longer lets your next message get taken as the answer to the old question.
+- A turn whose connection drops after the model has streamed only reasoning is now retried instead of ending the task.
+- Auto-compaction no longer runs for models with an unknown context limit, and it no longer runs again every few tool calls after the first compaction.
+- `ask_question`: the model keeps going after you pick an option, and empty answers are rejected.
+- `run_commands` with an empty command list now returns an error instead of a silent success. On PowerShell, the tool tells the model how quote escaping works and to confirm recursive deletes first.
+- Task header badges wrap instead of hiding the close button, the GitHub connection check no longer flashes a loading indicator, and the Local/Cloud toggle's padding is fixed.
+
 ## [4.1.25]
 
 ### Added

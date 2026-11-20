@@ -117,6 +117,7 @@ function showUpdateReadyToast(version: string) {
 		description:
 			"The new version has been downloaded. Restart now, or later from the update button next to the Cline logo.",
 		duration: Number.POSITIVE_INFINITY,
+		className: "flex-col items-start gap-3 space-x-0",
 		action: (
 			<ToastAction
 				altText="Restart now"

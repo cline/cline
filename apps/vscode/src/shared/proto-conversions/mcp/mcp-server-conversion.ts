@@ -1,10 +1,10 @@
 import {
+	McpServerStatus,
 	McpPrompt as ProtoMcpPrompt,
 	McpPromptArgument as ProtoMcpPromptArgument,
 	McpResource as ProtoMcpResource,
 	McpResourceTemplate as ProtoMcpResourceTemplate,
 	McpServer as ProtoMcpServer,
-	McpServerStatus,
 	McpTool as ProtoMcpTool,
 } from "@shared/proto/cline/mcp"
 import { McpOAuthAuthStatus, McpPrompt, McpPromptArgument, McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
@@ -57,6 +57,7 @@ function convertTool(tool: McpTool): ProtoMcpTool {
 		description: tool.description,
 		inputSchema: inputSchemaString,
 		autoApprove: tool.autoApprove,
+		annotations: tool.annotations,
 	}
 }
 
@@ -156,6 +157,10 @@ function convertProtoTool(protoTool: ProtoMcpTool): McpTool {
 				: protoTool.inputSchema
 			: undefined,
 		autoApprove: protoTool.autoApprove,
+		// A server may send an empty title; the webview treats that as none.
+		annotations: protoTool.annotations
+			? { ...protoTool.annotations, title: protoTool.annotations.title || undefined }
+			: undefined,
 	}
 }
 

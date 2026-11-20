@@ -264,10 +264,10 @@ describe("resolveBedrockModelId", () => {
 			}),
 		).toBe("us.anthropic.claude-sonnet-4-6");
 		expect(
-			resolveBedrockModelId("anthropic.claude-sonnet-4-5-20250929-v1:0", {
+			resolveBedrockModelId("anthropic.claude-haiku-4-5-20251001-v1:0", {
 				region: "eu-central-1",
 			}),
-		).toBe("eu.anthropic.claude-sonnet-4-5-20250929-v1:0");
+		).toBe("eu.anthropic.claude-haiku-4-5-20251001-v1:0");
 		expect(
 			resolveBedrockModelId("anthropic.claude-sonnet-5", {
 				region: "us-east-1",

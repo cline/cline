@@ -14,6 +14,7 @@ import {
 	ClineCore,
 	createTool,
 	type ITelemetryService,
+	Llms,
 	stripUtf8Bom,
 } from "@cline/core";
 import YAML from "yaml";
@@ -101,7 +102,7 @@ const envOr = (key: string, fallback: string): string =>
 const DEFAULT_PROVIDER_ID = envOr("CLINE_SUBAGENT_PROVIDER_ID", "cline");
 const DEFAULT_MODEL_ID = envOr(
 	"CLINE_SUBAGENT_MODEL_ID",
-	"anthropic/claude-sonnet-4.6",
+	Llms.CLINE_DEFAULT_MODEL_ID,
 );
 type SubagentBackendMode = "auto" | "hub" | "local";
 

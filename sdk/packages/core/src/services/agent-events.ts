@@ -238,6 +238,7 @@ export function handleAgentEvent(
 			success,
 			modelId: config.modelId,
 			provider: config.providerId,
+			mode: config.mode ?? "act",
 			...agentIdentity,
 		});
 		if (!success && (toolName === "editor" || toolName === "apply_patch")) {

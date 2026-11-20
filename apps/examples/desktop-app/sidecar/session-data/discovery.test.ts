@@ -1,4 +1,6 @@
+import { cloudSessionToDiscoveryRecord } from "@cline/core/cloud";
 import { describe, expect, it, vi } from "vitest";
+
 vi.mock("@cline/core", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@cline/core")>()),
 	SqliteSessionStore: class {
@@ -12,8 +14,43 @@ vi.mock("../paths", () => ({
 	readSessionManifest: () => undefined,
 }));
 vi.mock("./messages", () => ({ readPersistedChatMessages: () => [] }));
-import { discoverChatSessions } from "./discovery";
+
+import { discoverChatSessions, mergeDiscoveredSessionLists } from "./discovery";
+
 describe("desktop session discovery", () => {
+	it.each([
+		undefined,
+		"2026-07-20T11:00:00Z",
+	])("keeps cloud metadata updates out of activity ordering (%s)", (lastActivityAt) => {
+		const cloud = {
+			...cloudSessionToDiscoveryRecord({
+				id: "ses-idle",
+				status: "ready",
+				sandboxUrl: "",
+				repoContext: {},
+				metadata: { modelId: "model" },
+				createdAt: "2026-07-20T10:00:00Z",
+				lastActivityAt,
+				updatedAt: "2026-07-20T16:00:00Z",
+			}),
+			endedAt: "2026-07-20T16:00:00Z",
+		};
+		const local = {
+			sessionId: "local-recent",
+			startedAt: "2026-07-20T14:00:00Z",
+			endedAt: "2026-07-20T15:00:00Z",
+		};
+		expect(mergeDiscoveredSessionLists([local], [cloud], 1)).toMatchObject([
+			{ sessionId: "local-recent" },
+		]);
+		expect(
+			mergeDiscoveredSessionLists(
+				[local],
+				[{ ...cloud, lastActivityAt: "2026-07-20T16:00:00Z" }],
+				1,
+			),
+		).toMatchObject([{ sessionId: "ses-idle" }]);
+	});
 	it.each([
 		"idle",
 		"running",
@@ -85,6 +122,7 @@ describe("desktop session discovery", () => {
 
 // These are the same prompt derivation rules used by restore and fork.
 import { derivePromptFromMessages } from "./common";
+
 describe("restored session prompts", () => {
 	it.each([
 		"recovery_notice",

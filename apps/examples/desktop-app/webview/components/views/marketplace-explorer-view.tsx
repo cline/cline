@@ -246,7 +246,7 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"install_marketplace_entry",
 				{ entry },
-				{ timeoutMs: INSTALL_TIMEOUT_MS },
+				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, { status: "installed", message: result.message });
 			setInstalledKeys((prev) => new Set(prev).add(key));
@@ -272,7 +272,7 @@ function useMarketplaceDirectory(): MarketplaceDirectory {
 			const result = await desktopClient.invoke<MarketplaceInstallResult>(
 				"uninstall_marketplace_entry",
 				{ entry },
-				{ timeoutMs: INSTALL_TIMEOUT_MS },
+				{ timeoutMs: entry.type === "mcp" ? null : INSTALL_TIMEOUT_MS },
 			);
 			setEntryState(entry, { status: "uninstalled", message: result.message });
 			setInstalledKeys((prev) => {

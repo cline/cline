@@ -170,9 +170,68 @@ describe("AgentComposer", () => {
 		const [stop, send] = container.querySelectorAll("button");
 		expect(body?.className).toBe("px-4 py-3 pb-2 pt-4");
 		expect(field?.classList.contains("items-end")).toBe(true);
-		expect(textarea?.classList.contains("self-start")).toBe(true);
+		expect(textarea?.parentElement?.classList.contains("self-start")).toBe(
+			true,
+		);
 		expect(actions?.classList.contains("self-end")).toBe(false);
 		expect(stop.classList.contains("rounded-cline-ui-md")).toBe(true);
 		expect(send.classList.contains("rounded-full")).toBe(true);
+	});
+
+	it("draws highlighted ranges behind the textarea without remounting it", async () => {
+		const textarea = createRef<HTMLTextAreaElement>();
+		const render = (value: string, highlighted: boolean) =>
+			root.render(
+				<AgentComposerTextarea
+					ref={textarea}
+					value={value}
+					onChange={() => {}}
+					highlights={
+						highlighted
+							? [
+									{ start: 2, end: 10 },
+									{ start: 15, end: 20 },
+								]
+							: undefined
+					}
+				/>,
+			);
+		await act(async () => render("  /compact", false));
+		const original = textarea.current;
+		expect(container.querySelector("[aria-hidden]")).toBeNull();
+
+		await act(async () => render("  /compact see @a.ts now", true));
+		const backdrop = container.querySelector("[aria-hidden]");
+		expect(backdrop?.textContent).toBe("  /compact see @a.ts");
+		expect(
+			[...(backdrop?.querySelectorAll("span") ?? [])].map(
+				(span) => span.textContent,
+			),
+		).toEqual(["/compact", "@a.ts"]);
+		expect(textarea.current).toBe(original);
+	});
+
+	it("selects a whole token for Backspace at its end and Delete at its start", async () => {
+		const textarea = createRef<HTMLTextAreaElement>();
+		await act(async () =>
+			root.render(
+				<AgentComposerTextarea
+					ref={textarea}
+					value="see @a.ts now"
+					onChange={() => {}}
+					highlights={[{ start: 4, end: 9 }]}
+				/>,
+			),
+		);
+		const input = textarea.current as HTMLTextAreaElement;
+		const press = (key: string, caret: number) => {
+			input.setSelectionRange(caret, caret);
+			input.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+			return [input.selectionStart, input.selectionEnd];
+		};
+		expect(press("Backspace", 9)).toEqual([4, 9]);
+		expect(press("Delete", 4)).toEqual([4, 9]);
+		expect(press("Backspace", 10)).toEqual([10, 10]);
+		expect(press("Backspace", 7)).toEqual([7, 7]);
 	});
 });

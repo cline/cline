@@ -40,6 +40,52 @@ function jwtFor(subject: string, nonce: string): string {
 }
 
 describe("CloudSessionApi", () => {
+	it("resolves an artifact through authenticated REST with encoded session and artifact IDs", async () => {
+		const download = {
+			url: "https://storage.example/frame.png?signature=test",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const fetch = vi.fn(async () =>
+			jsonResponse({ success: true, data: download }),
+		);
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch,
+		});
+		expect(await api.getArtifactDownloadUrl("ses/outer", "frame + 1")).toEqual(
+			download,
+		);
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			"https://api.example/api/v1/session/ses%2Fouter/artifacts/download-url?name=frame%20%2B%201",
+			expect.objectContaining({
+				headers: expect.objectContaining({ Authorization: "Bearer token" }),
+			}),
+		);
+		fetch.mockResolvedValueOnce(jsonResponse({ error: "Forbidden" }, 403));
+		await expect(
+			api.getArtifactDownloadUrl("ses-other", "frame"),
+		).rejects.toMatchObject({ status: 403 });
+	});
+	it("validates artifact URLs returned by the API", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch: async () =>
+				jsonResponse({
+					data: {
+						url: "http://storage.example/image.png",
+						expiresAt: "2030-01-01T00:00:00Z",
+					},
+				}),
+		});
+		await expect(
+			api.getArtifactDownloadUrl("ses-outer", "frame"),
+		).rejects.toThrow();
+	});
+
 	it.each([
 		undefined,
 		"standard",

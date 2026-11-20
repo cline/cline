@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { Agent } from "@cline/sdk";
+import { Agent, Llms } from "@cline/sdk";
 
 const PORT = Number(process.env.PORT || 3456);
 
@@ -1051,7 +1051,7 @@ const AGENT_ROLES = [
 function createAgentConfig() {
 	return {
 		providerId: "cline",
-		modelId: "anthropic/claude-sonnet-4.6",
+		modelId: Llms.CLINE_DEFAULT_MODEL_ID,
 		apiKey: process.env.CLINE_API_KEY,
 		maxIterations: 1,
 	};

@@ -1,0 +1,266 @@
+---
+title: "Local Models in Cline Desktop"
+sidebarTitle: "Local Models"
+description: "Set up Ollama or LM Studio, download, load, and switch between local models, check their memory use, and manage disk space from Cline Desktop."
+---
+
+The **Local Models** page in Cline Desktop's settings runs models on your own computer through [Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai). It helps you install and start either one, checks your hardware, recommends models that work well with Cline, and downloads, loads, and unloads them for you. When you pick a model, Cline sets up the matching provider and switches your chat to it.
+
+## Open the Local Models page
+
+Click **Settings** at the bottom of the sidebar, then select **Provider → Local**. Clicking **Provider** opens the page for the provider your chat uses right now, marked **In use**.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-local-models-overview.png"
+    alt="Cline Desktop Provider settings with Local selected, showing the machine summary, LM Studio selected and running, a loaded model, and recommended models"
+  />
+</Frame>
+
+The page shows:
+
+- **Your machine**: your processor, memory, and GPU, plus how large a model can run fully on the GPU.
+- **Run models with**: whether Cline manages models through Ollama or LM Studio, and whether each one is running.
+- **Setup**: if the runtime you picked isn't installed or running, the page walks you through setting it up.
+- **Loaded in memory**: models that are using memory right now, and how much.
+- **Recommended models**: models picked for agentic coding with Cline, each labeled with how well it fits your machine. The best fit gets a **Recommended for you** badge.
+- **Downloaded models**: every model on your disk, how much space each takes, and how much space is left.
+
+## Choose Ollama or LM Studio
+
+Under **Run models with**, pick the app that runs your models. Each card shows whether that app is running, not running, or not installed. The rest of the page then manages that app's models.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-choose-runtime.png"
+    alt="Run models with, showing Ollama and LM Studio both running, with LM Studio selected"
+  />
+</Frame>
+
+- **Ollama** is lightweight and open source, and runs quietly in the background.
+- **LM Studio** is a desktop app with its own model browser and chat. On Apple Silicon Macs it can run MLX models, which are often faster.
+
+If you already use one of them, the page picks it for you. Cline remembers your choice. You can switch at any time, and models you downloaded with the other app stay on your disk.
+
+## Set up Ollama
+
+You don't need to set up Ollama before opening the page. It tells you what's missing.
+
+If Ollama isn't installed, the page shows how to install it on your system: a download button on macOS and Windows, or the install command on Linux.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-ollama-not-installed.png"
+    alt="Ollama isn't installed, with steps to install Ollama, open it, and come back"
+  />
+</Frame>
+
+Once Ollama is installed, the page notices on its own within a few seconds. You don't need to restart Cline.
+
+If Ollama is installed but not running, click **Start Ollama**. Cline launches it in the background, and it keeps running after you close Cline.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-ollama-not-running.png"
+    alt="Ollama is installed but not running, with a Start Ollama button"
+  />
+</Frame>
+
+Cline connects to Ollama at `http://localhost:11434` by default. If your Ollama server runs somewhere else, change the **Base URL** under **Settings → Provider → BYOK → Ollama**. Cline can only start Ollama on your own computer, so for a remote server the page asks you to check that the server is running.
+
+## Set up LM Studio
+
+If LM Studio isn't installed, the page links to the LM Studio download. If you don't want the desktop app, you can copy the command that installs just LM Studio's background service instead.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-lmstudio-not-installed.png"
+    alt="LM Studio isn't installed, with a Download LM Studio button, the command to install only the background service, and steps to open LM Studio once and come back"
+  />
+</Frame>
+
+Open LM Studio once after installing it. After that, if LM Studio is installed but not running, click **Start LM Studio** and Cline starts its local server for you.
+
+Cline connects to LM Studio at `http://localhost:1234` by default. If your LM Studio server uses another address, change the **Base URL** under **Settings → Provider → BYOK → LM Studio**. If you turned on authentication for the LM Studio server, add the API token there too.
+
+## Download a model
+
+Click **Download** on a model. A progress bar shows how much has downloaded.
+
+The download keeps going if you leave settings or start a session. Reopen the Local Models page to see its progress again. With Ollama, click **Cancel** to stop it. LM Studio doesn't let other apps cancel its downloads, so stop an LM Studio download from the LM Studio app.
+
+If a model is bigger than the free space on your disk, its **Download** button is turned off and the page shows how much space is free.
+
+## Use a model with Cline
+
+Click **Use with Cline** on a downloaded model. Cline will:
+
+1. Switch the chat to the **Ollama** or **LM Studio** provider and the model you picked. New sessions use it too.
+2. Save the model's recommended context window to that provider's settings.
+3. Load the model into memory, so your first message doesn't wait for it to load.
+
+The model then shows an **In use** badge. You can switch back to another provider or model from the pickers below the message box at any time.
+
+## Check memory use from the chat
+
+When the chat uses an Ollama or LM Studio model, a memory chip appears next to the **Thinking** picker below the message box. It shows how much memory the model is using, or **Not loaded** if it isn't in memory. The dot is green when the model is loaded and red when Cline can't reach Ollama or LM Studio.
+
+Click the chip to see more and act on it:
+
+- **Unload and free memory** when you're done with the model.
+- **Load now** to load the model before you send a message.
+- **Start Ollama** or **Start LM Studio** if it isn't running.
+- Unload any other models that are using memory.
+- **Local model settings** opens the Local Models page.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-composer-local-model.png"
+    alt="The memory chip below the message box, open to show qwen3:0.6b loaded and using 4.4 GB of 16.8 GB, with Unload and free memory and Local model settings buttons"
+  />
+</Frame>
+
+## Load and unload models
+
+A model has to be loaded into memory before it can respond. Click **Load** to load it ahead of time, and **Unload** to free up the memory when you're done.
+
+Loaded models are listed under **Loaded in memory** at the top of the page, with how much of your computer's memory they're using.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-loaded-in-memory.png"
+    alt="Loaded in memory section showing qwen3:0.6b loaded with a 32K context, with a memory bar, 4.4 GB of 16.8 GB memory, and an Unload button"
+  />
+</Frame>
+
+Each loaded model shows:
+
+- Where it's running: fully on the GPU, on the CPU, or split between them. A model split between GPU and CPU responds more slowly. Ollama only.
+- How much memory it's using.
+- The context window it was loaded with.
+- How long it stays loaded. Ollama only.
+
+Models you load from Cline stay in memory until you unload them. If Ollama loads a model on its own, for example when you send a message to a model that wasn't loaded, it unloads that model after a few minutes without requests. You can change that timeout with Ollama's `OLLAMA_KEEP_ALIVE` environment variable.
+
+LM Studio works the same way, with two differences when it loads a model on its own: it uses the context length set for that model in LM Studio instead of the one Cline recommends, and it unloads the model after an hour without requests. Click **Load** or **Use with Cline** to load it with Cline's context window instead.
+
+<Tip>
+Local models use a lot of memory. Unload a model when you finish working with it to free that memory for other apps.
+</Tip>
+
+## View a model's settings
+
+Click **Details** on a downloaded model to see how Ollama runs it. The settings are read-only for now.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-model-details.png"
+    alt="Details for qwen3:0.6b showing its architecture, parameters, quantization, capabilities, the context window and keep-alive Cline uses, and sampling settings"
+  />
+</Frame>
+
+The details include:
+
+- **Model**: architecture, parameter count, quantization, size on disk, the longest context it supports, and what it can do, such as tool use, thinking, or vision.
+- **How Cline runs it**: the context window Cline requests, how long the model stays loaded, whether thinking is used, and how long Cline waits for a response to start.
+- **Sampling**: temperature, top P, top K, and the other settings that shape responses. Each one says whether the model sets it or Ollama's default applies.
+- **Advanced**: the model's prompt template, system prompt, Modelfile, and license.
+
+To change a model's settings, build your own version of it from a [Modelfile](https://github.com/ollama/ollama/blob/main/docs/modelfile.md) with `ollama create`. It then appears under **Downloaded models**.
+
+For an LM Studio model, the details show the model facts and how Cline runs it, plus a **Load settings** section with the context length, flash attention, batch size, and other settings LM Studio loaded it with. Load the model to see them.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-lmstudio-model-details.png"
+    alt="Details for qwen/qwen3-0.6b in LM Studio showing its architecture, parameters, quantization, capabilities, how Cline runs it, and load settings such as context length, flash attention, and parallel requests"
+  />
+</Frame>
+
+To change an LM Studio model's sampling or load defaults, open **My Models** in LM Studio.
+
+## Free up disk space
+
+**Downloaded models** lists every model on your disk, largest first. A bar shows how much of your disk the models take, how much other files take, and how much is free.
+
+<Frame>
+  <img
+    src="/assets/local-models/desktop-downloaded-models.png"
+    alt="Downloaded models section with a storage bar showing models 104.2 GB, other files 22.7 GB, and 144.8 GB free, and a list of models with Details and Delete buttons"
+  />
+</Frame>
+
+Click **Delete** on a model, then confirm, to remove it from your disk. The confirmation shows how much space you'll get back. If the model is loaded, Cline unloads it first. You can download it again at any time.
+
+With LM Studio, Cline can delete models downloaded from the LM Studio Hub, which includes every model you download from this page, when LM Studio runs on this computer. Remove other models, such as ones you added from Hugging Face or models with more than one downloaded variant, from LM Studio's **My Models**.
+
+## Which models are recommended
+
+Each recommended model comes with the context window Cline uses for it.
+
+| Model | Download | Memory needed | Context window | Good for |
+| --- | --- | --- | --- | --- |
+| Qwen3.8 27B | 18 GB | ~23 GB | 64K | The best all-round local model for agentic coding |
+| Laguna XS 2.1 | 20 GB | ~24 GB | 64K | Long coding sessions; fast for its size |
+| Qwen3.6 35B A3B | 24 GB | ~26 GB | 64K | Speed over depth |
+| Devstral Small 2 | 15 GB | ~21 GB | 32K | Exploring codebases and multi-file edits |
+| gpt-oss 20B | 14 GB | ~16 GB | 64K | 16-24 GB machines |
+| Qwen3-Coder-Next | 52 GB | ~56 GB | 64K | Machines with 64 GB or more |
+| Qwen3 8B | 5.2 GB | ~10 GB | 32K | 8-16 GB machines and simple edits |
+
+Memory needed is an estimate of the model plus its context window. Smaller models respond faster but handle complex, multi-step tasks less reliably.
+
+Cline compares each model's memory needs against your hardware:
+
+| Label | Meaning |
+| --- | --- |
+| **Runs well on this machine** | The model fits entirely in GPU memory. |
+| **Will run slowly on this machine** | The model only fits by running partly or fully on the CPU. |
+| **Too large for this machine** | The model doesn't fit in memory. |
+
+The **Recommended for you** badge goes to the first model in the list that runs well on your machine. If none do, it goes to the best model that fits, preferring faster mixture-of-experts models.
+
+Cline detects GPU memory like this:
+
+- **Apple Silicon Macs** share memory between the CPU and GPU. Cline counts about three quarters of total memory as available to the GPU.
+- **NVIDIA GPUs** are detected through `nvidia-smi`, which comes with the NVIDIA driver.
+- **Other GPUs** aren't detected yet, so Cline treats the machine as CPU-only and its labels may be more cautious than necessary. You can still download and use any model.
+
+Ollama and LM Studio name the same models differently. With LM Studio selected, the page downloads these from the [LM Studio Hub](https://lmstudio.ai/models):
+
+| Model | Ollama tag | LM Studio name |
+| --- | --- | --- |
+| Qwen3.8 27B | `qwen3.8:27b` | `qwen/qwen3.8-27b` |
+| Laguna XS 2.1 | `laguna-xs-2.1` | `poolside/laguna-xs-2.1` |
+| Qwen3.6 35B A3B | `qwen3.6:35b-a3b` | `qwen/qwen3.6-35b-a3b` |
+| Devstral Small 2 | `devstral-small-2:24b` | `mistralai/devstral-small-2-2512` |
+| gpt-oss 20B | `gpt-oss:20b` | `openai/gpt-oss-20b` |
+| Qwen3-Coder-Next | `qwen3-coder-next` | `qwen/qwen3-coder-next` |
+| Qwen3 8B | `qwen3:8b` | `qwen/qwen3-8b` |
+
+## Troubleshooting
+
+**"Ollama isn't installed" after installing it**
+- Make sure the installer finished, then wait a few seconds or click the refresh icon.
+- Cline looks for Ollama on your `PATH` and in the usual install locations. If you installed it somewhere else, start it yourself with `ollama serve`.
+
+**"Start Ollama" doesn't start it**
+- Open the Ollama app yourself, or run `ollama serve` in a terminal, and watch for errors.
+- If Ollama runs on another machine or port, check the **Base URL** under **Settings → Provider → BYOK → Ollama**.
+
+**"Start LM Studio" doesn't start it**
+- Open the LM Studio app once, then try again. Cline starts LM Studio with its `lms` command, which LM Studio sets up the first time it runs.
+- You can also start the server yourself with `lms server start`, or from the **Developer** tab in LM Studio.
+- If LM Studio runs on another machine or port, check the **Base URL** under **Settings → Provider → BYOK → LM Studio**.
+
+**A model fails to load**
+- An out-of-memory error means the model and its context window don't fit. Unload other models, close memory-heavy apps, or pick a smaller model.
+
+**Responses are slow or time out**
+- Check where the model is loaded. If it runs partly or fully on the CPU, a smaller model will respond much faster.
+- On CPU-only machines, the first message of a session can take minutes while the model reads Cline's instructions. Later messages in the same session are faster.
+
+## Related
+
+1. [Cline Desktop](/usage/cline-desktop)
+2. [Local models overview](/running-models-locally/overview)

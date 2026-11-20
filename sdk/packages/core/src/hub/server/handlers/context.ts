@@ -13,6 +13,7 @@ import type {
 import { createSessionId } from "@cline/shared";
 import type {
 	CommandExecutionRuntimeService,
+	McpAppsRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -44,6 +45,11 @@ export type PendingCapabilityRequest = {
 	targetClientId: string;
 	capabilityName: string;
 	onProgress?: (payload: Record<string, unknown>) => void;
+	/**
+	 * Set while the owner is disconnected and the request has not reached it
+	 * yet; delivered once when the owner subscribes again.
+	 */
+	undeliveredEvent?: HubEventEnvelope;
 	resolve: (result: {
 		ok: boolean;
 		payload?: Record<string, unknown>;
@@ -61,6 +67,12 @@ export interface HubTransportContext {
 	readonly sessionState: Map<string, HubSessionState>;
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
+	/**
+	 * Clients that explicitly detached from a session while staying connected.
+	 * Capability requests aimed at them fail fast instead of waiting; attaching
+	 * again clears the entry.
+	 */
+	readonly detachedClientsBySession?: Map<string, Set<string>>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
 	/**
 	 * Count of RPC-driven turns (`run.start` / session input commands)
@@ -82,7 +94,8 @@ export interface HubTransportContext {
 			CommandExecutionRuntimeService &
 				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
-				SessionConnectionRuntimeService
+				SessionConnectionRuntimeService &
+				McpAppsRuntimeService
 		>;
 	/**
 	 * While draining, new mutating work (session.create, run.*) is refused
@@ -219,6 +232,7 @@ export function ensureSessionState(
 	role: SessionParticipant["role"],
 	options: { interactive?: boolean } = {},
 ): HubSessionState {
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
 		if (options.interactive !== undefined) {
@@ -261,6 +275,7 @@ export function ensureSessionParticipant(
 	role: SessionParticipant["role"],
 	options: { interactive?: boolean } = {},
 ): HubSessionState {
+	ctx.detachedClientsBySession?.get(sessionId)?.delete(clientId);
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
 		if (options.interactive !== undefined) {

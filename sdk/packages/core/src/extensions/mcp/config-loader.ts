@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { isDeepStrictEqual } from "node:util";
 import type { BasicLogger } from "@cline/shared";
 import {
 	isMcpTimeoutConfigured,
@@ -26,6 +27,7 @@ import type {
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,
+	McpServerTransportConfig,
 } from "./types";
 
 const stringRecordSchema = z.record(z.string(), z.string());
@@ -238,6 +240,9 @@ export interface UpdateMcpServerOAuthStateOptions
 	 * configured client. `null` asserts that dynamic registration is still in use.
 	 */
 	expectedOAuthClient?: McpServerOAuthClientConfig | null;
+	/** Reject late OAuth writes after cancellation or an endpoint change. */
+	signal?: AbortSignal;
+	expectedTransport?: McpServerTransportConfig;
 }
 
 export interface RegisterMcpServersFromSettingsOptions {
@@ -858,10 +863,22 @@ function buildOAuthStateMutator(
 	options: UpdateMcpServerOAuthStateOptions,
 ): McpSettingsMutator<McpServerOAuthState> {
 	return (settings) => {
+		options.signal?.throwIfAborted();
 		const servers = settings.mcpServers as Record<string, unknown>;
 		const server = getOwnServerRecord(servers, serverName);
 		if (!server) {
 			throw new Error(`Unknown MCP server: ${serverName}`);
+		}
+		if (
+			options.expectedTransport &&
+			!isDeepStrictEqual(
+				parseMcpServerRegistration(serverName, server).transport,
+				options.expectedTransport,
+			)
+		) {
+			throw new Error(
+				`MCP server "${serverName}" transport changed during authorization.`,
+			);
 		}
 		if (options.expectedOAuthClient !== undefined) {
 			const parsedClient = oauthClientSchema.safeParse(server.oauthClient);

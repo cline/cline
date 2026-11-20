@@ -262,6 +262,12 @@ export {
 	noopBasicLogger,
 } from "./logging/logger";
 export * from "./mcp";
+export type {
+	McpServerConfigInput,
+	McpServerConfigView,
+	McpServerInspection,
+	McpServersResponse,
+} from "./mcp-management";
 export { getErrorCode, getErrorMessage } from "./parse/error";
 export {
 	normalizeJsonLikeStringsForSchema,
@@ -322,7 +328,10 @@ export {
 	resolveProviderApiKeyOptional,
 	resolveProviderLocalCli,
 } from "./provider-auth";
-export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export {
+	ANTHROPIC_DEFAULT_MODEL_ID,
+	CLINE_DEFAULT_MODEL_ID,
+} from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
@@ -407,6 +416,7 @@ export type {
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
 	ProviderSettingsActionRequest,
+	ProviderSettingsObjectPatch,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
@@ -448,6 +458,7 @@ export {
 	CLINE_ENVIRONMENTS,
 	DEFAULT_CLINE_ENVIRONMENT,
 	getClineEnvironmentConfig,
+	resolveClineAppUrl,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
 export type {
@@ -534,3 +545,4 @@ export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";
+export * from "./ux-verifier";

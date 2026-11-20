@@ -228,12 +228,12 @@ describe("provider-ids", () => {
 		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
 			id: "zai-coding-plan",
 			baseUrl: "https://api.z.ai/api/coding/paas/v4",
-			defaultModelId: "glm-5.2",
+			defaultModelId: "glm-5.3",
 			client: "openai-compatible",
 		});
 
 		const models = await getModelsForProvider("zai-coding-plan");
-		expect(Object.hasOwn(models, "glm-5.2")).toBe(true);
+		expect(Object.hasOwn(models, "glm-5.3")).toBe(true);
 	});
 
 	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {

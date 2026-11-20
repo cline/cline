@@ -32,7 +32,7 @@ export function addRootOptions(cmd: Command): Command {
 			.option("--json", "Output messages as JSON instead of styled text")
 			.option(
 				"--auto-approve <boolean>",
-				"Set tool auto-approval for all tools (default: true)",
+				"Set tool auto-approval for all tools (default: true). With a prompt, false runs in act mode instead of yolo.",
 				normalizeAutoApproveValue,
 			)
 			.option("-c, --cwd <path>", "Working directory")
@@ -117,7 +117,7 @@ export function createProgram(): Command {
 		.enablePositionalOptions()
 		.argument(
 			"[prompt]",
-			"Your prompt. Default to start in act mode with auto-approve enabled.",
+			"Your prompt. Runs in yolo mode by default; pass --auto-approve false (or --act/--plan) to opt out.",
 		);
 
 	addRootOptions(program);

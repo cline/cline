@@ -122,6 +122,7 @@ export class AgentEventBridge {
 
 	async handleTeamEvent(
 		rootSessionId: string,
+		config: CoreSessionConfig,
 		event: TeamEvent,
 	): Promise<void> {
 		const session = this.deps.getSession(rootSessionId);
@@ -130,7 +131,10 @@ export class AgentEventBridge {
 			if (event.type === "agent_event") {
 				const ctx: AgentEventContext = {
 					sessionId: rootSessionId,
-					config: session.config,
+					// The config the team was started with, not the live session's:
+					// a teammate's tool can finish after the session was rebuilt
+					// under the same id, e.g. on a switch from plan to act.
+					config,
 					liveSession: session,
 					usageBySession: this.deps.usageBySession,
 					aggregateUsageBySession: this.deps.aggregateUsageBySession,

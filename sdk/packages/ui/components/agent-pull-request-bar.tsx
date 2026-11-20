@@ -92,18 +92,18 @@ const checkLabels = {
 	skipped: "CI skipped",
 };
 const statusColors = {
-	merged: "text-purple-400",
-	failure: "text-red-400",
-	warning: "text-yellow-500",
+	merged: "text-cline-ui-accent-foreground",
+	failure: "text-cline-ui-error-text",
+	warning: "text-cline-ui-warning-text",
 	neutral: "text-cline-ui-muted-foreground",
-	success: "text-green-500",
+	success: "text-cline-ui-success-text",
 };
 const checkColors = {
 	unavailable: "bg-cline-ui-muted-foreground",
 	none: "bg-cline-ui-muted-foreground",
-	pending: "bg-yellow-500",
-	success: "bg-green-500",
-	failure: "bg-red-500",
+	pending: "bg-cline-ui-warning-solid",
+	success: "bg-cline-ui-success-solid",
+	failure: "bg-cline-ui-error-solid",
 	skipped: "bg-cline-ui-muted-foreground",
 };
 export function AgentPullRequestBar({
@@ -221,7 +221,7 @@ export function AgentPullRequestBar({
 			data-native-navigation={onNavigate ? true : undefined}
 		>
 			{error && (
-				<div className="cline-ui-pr-bar__error mb-1 flex items-start gap-2 text-cline-ui-muted-foreground">
+				<div className="cline-ui-pr-bar__error mb-1 flex items-start gap-2 text-cline-ui-error-text">
 					<output className="min-w-0 flex-1">{error}</output>
 					{onDismissError && (
 						<button
@@ -296,10 +296,10 @@ export function AgentPullRequestBar({
 													})}
 											title={`${pr.additions} additions, ${pr.deletions} deletions`}
 										>
-											<span className="cline-ui-pr-bar__tone--success text-green-500">
+											<span className="cline-ui-pr-bar__tone--success text-cline-ui-success-text">
 												+{pr.additions.toLocaleString()}
 											</span>{" "}
-											<span className="cline-ui-pr-bar__tone--failure text-red-400">
+											<span className="cline-ui-pr-bar__tone--failure text-cline-ui-error-text">
 												−{pr.deletions.toLocaleString()}
 											</span>
 										</span>

@@ -1,10 +1,10 @@
 import * as readline from "node:readline";
-import { Agent, createTool } from "@cline/sdk";
+import { Agent, createTool, Llms } from "@cline/sdk";
 import { z } from "zod";
 
 const agent = new Agent({
 	providerId: "cline",
-	modelId: "anthropic/claude-sonnet-4.6",
+	modelId: Llms.CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY,
 	systemPrompt: "You are a helpful assistant in a terminal chat. Be concise.",
 	maxIterations: 10,
