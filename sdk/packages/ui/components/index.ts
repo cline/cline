@@ -154,6 +154,13 @@ export {
 	type EmptyStateProps,
 } from "./empty-state.js";
 export {
+	FileBrowser,
+	FileBrowserContent,
+	type FileBrowserContentProps,
+	type FileBrowserFile,
+	type FileBrowserProps,
+} from "./file-browser.js";
+export {
 	type GeneratedMediaClassNames,
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
