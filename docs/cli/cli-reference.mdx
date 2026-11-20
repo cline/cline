@@ -29,6 +29,7 @@ Arguments:
 Options:
   -V, --version                 Output the version number
   -p, --plan                    Run in plan mode
+  -y, --yolo                    Auto-approve a limited tool set for unsupervised runs (benchmarks, CI). DANGEROUS: use only in sandboxed environments.
   --json                        Output messages as JSON instead of styled text
   --auto-approve <boolean>      Set tool auto-approval for all tools (default: true). With a prompt, false runs in act mode instead of yolo.
   -c, --cwd <path>              Working directory
@@ -76,6 +77,7 @@ Commands:
 |--------|-------------|
 | `-V, --version` | Output the version number |
 | `-p, --plan` | Run in plan mode |
+| `-y, --yolo` | Auto-approve a limited tool set for unsupervised runs and turn off `spawn_agent` and team tools. Prompt runs use yolo mode by default; pass `--act` or `--auto-approve false` to opt out |
 | `--json` | Output messages as JSON instead of styled text |
 | `--auto-approve <boolean>` | Set tool auto-approval for all tools (default: `true`; with a prompt, `false` runs in act mode instead of yolo; in [ACP mode](/usage/acp#auto-approving-tools) the default is `false`) |
 | `-t, --timeout <seconds>` | Optional timeout in seconds (default: `0` for no timeout) |
