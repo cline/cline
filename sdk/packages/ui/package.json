@@ -135,7 +135,9 @@
 		"components/alert-dialog.tsx",
 		"components/dialog-focus.ts",
 		"components/dialog.css",
-		"components/dialog.tsx"
+		"components/dialog.tsx",
+		"components/pagination.tsx",
+		"components/pagination.css"
 	],
 	"sideEffects": [
 		"./components.css",

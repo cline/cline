@@ -166,6 +166,11 @@ export {
 } from "./item-card.js";
 export { Kbd, KbdGroup, type KbdGroupProps, type KbdProps } from "./kbd.js";
 export {
+	Pagination,
+	type PaginationProps,
+	type PaginationSize,
+} from "./pagination.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
