@@ -280,8 +280,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			if (existingSeries) {
 				existingSeries.delete(attrKey)
 				if (existingSeries.size === 0) {
+					// The gauge stays registered: its callback already observes nothing for an
+					// empty series, and an observable gauge's callback cannot be unregistered
+					// here, so re-creating it on the next value would stack a second callback.
 					this.gaugeValues.delete(name)
-					this.gauges.delete(name)
 				}
 			}
 			return

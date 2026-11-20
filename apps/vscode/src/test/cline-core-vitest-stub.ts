@@ -253,6 +253,8 @@ export interface TelemetryMetadata {
 	is_dev?: string
 	core_spawn_ordinal?: number
 	core_spawn_reason?: CoreSpawnReason
+	core_prev_exit_code?: number
+	core_prev_uptime_s?: number
 }
 
 export interface ITelemetryService {
