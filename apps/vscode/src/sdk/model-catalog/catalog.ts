@@ -1,4 +1,10 @@
-import { listLocalProviders, type ModelCatalogConfig, resolveClineDefaultModelId, resolveProviderConfig } from "@cline/core"
+import {
+	isPrivateModelCatalogProvider,
+	listLocalProviders,
+	type ModelCatalogConfig,
+	resolveClineDefaultModelId,
+	resolveProviderConfig,
+} from "@cline/core"
 import { type ProviderConfig, resolveProviderUsageCostDisplay } from "@cline/llms"
 import { type ProviderListItem } from "@cline/shared"
 import { getProviderSettingsManager } from "../provider-migration"
@@ -204,9 +210,15 @@ async function resolveSdkModels(
 	now: () => number,
 ): Promise<ProviderModelsRecord> {
 	const sdkProviderId = toSdkProviderId(providerId)
+	const isPrivateCatalog = isPrivateModelCatalogProvider(sdkProviderId)
+	const hasCredentials = Boolean(config.apiKey || config.auth?.accessToken)
 	const resolved = await resolveProviderConfig(
 		sdkProviderId,
-		DEFAULT_MODEL_CATALOG_CONFIG,
+		{
+			...DEFAULT_MODEL_CATALOG_CONFIG,
+			loadLatestOnInit: !isPrivateCatalog,
+			failOnError: isPrivateCatalog && hasCredentials,
+		},
 		toSdkProviderConfig(config, selection),
 	)
 	const sdkModels = resolved?.knownModels ?? {}

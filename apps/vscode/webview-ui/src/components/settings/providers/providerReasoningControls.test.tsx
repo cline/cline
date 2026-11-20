@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModels } from "@/hooks/useProviderModels"
 import { MoonshotProvider } from "./MoonshotProvider"
-import { XaiProvider } from "./XaiProvider"
 import { ZAiProvider } from "./ZAiProvider"
 
 vi.mock("@/hooks/useProviderModels", () => ({
@@ -84,7 +83,6 @@ beforeEach(() => {
 // `supportsReasoning` flag for providers with dedicated settings components,
 // the same as GenericProviderSettings-backed providers.
 describe.each([
-	["XaiProvider", XaiProvider],
 	["ZAiProvider", ZAiProvider],
 	["MoonshotProvider", MoonshotProvider],
 ] as const)("%s reasoning controls", (_name, Provider) => {

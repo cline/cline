@@ -1,0 +1,62 @@
+@layer components {
+	.cline-ui-detail-list {
+		--cline-ui-detail-list-padding: 0.75rem;
+		--cline-ui-detail-list-gap: 0.75rem;
+		container: cline-ui-detail-list / inline-size;
+		box-sizing: border-box;
+		width: 100%;
+		min-width: 0;
+		margin: 0;
+		padding: 0 var(--cline-ui-detail-list-padding);
+		box-shadow: 0 0 0 1px var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--card);
+		color: var(--foreground);
+		font-family: var(--font-sans);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		letter-spacing: var(--text-sm--letter-spacing);
+		white-space: normal;
+	}
+	.cline-ui-detail-list__header {
+		display: grid;
+		grid-template-columns: var(--cline-ui-detail-list-columns);
+		align-items: center;
+		gap: var(--cline-ui-detail-list-gap);
+		margin-inline: calc(-1 * var(--cline-ui-detail-list-padding));
+		padding: 0.625rem var(--cline-ui-detail-list-padding);
+		box-shadow: 0 1px 0 var(--border);
+		border-radius: inherit;
+		border-end-start-radius: 0;
+		border-end-end-radius: 0;
+		background: var(--surface-3);
+		font-size: var(--text-xs);
+		font-weight: var(--font-weight-medium);
+		line-height: var(--text-xs--line-height);
+	}
+	.cline-ui-detail-list__header > :is(dt, dd) {
+		min-width: 0;
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+	@container cline-ui-detail-list (width <= 48rem) {
+		.cline-ui-detail-list__header {
+			display: none;
+		}
+	}
+
+	.cline-ui-detail-list
+		> .cline-ui-detail-list-item:not([hidden])
+		~ .cline-ui-detail-list-item:not([hidden]) {
+		box-shadow: 0 -1px 0 0 var(--border);
+	}
+	@media (forced-colors: active) {
+		.cline-ui-detail-list {
+			outline: 1px solid CanvasText;
+		}
+	}
+}
+
+.cline-ui-detail-list[hidden]:not([hidden="until-found"]) {
+	display: none;
+}
