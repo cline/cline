@@ -1163,8 +1163,8 @@ describe("models-dev-catalog", () => {
 
 	it("regenerates image models with supported endpoint routing", () => {
 		expect(
-			getGeneratedModelsForProvider("openai-native")["gpt-image-1.5"]
-				?.modalities?.output,
+			getGeneratedModelsForProvider("openai-native")["gpt-image-2"]?.modalities
+				?.output,
 		).toEqual(["image"]);
 		expect(
 			getGeneratedModelsForProvider("xai")["grok-imagine-image"]?.modalities,

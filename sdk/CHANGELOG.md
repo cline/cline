@@ -1,5 +1,29 @@
 # Cline SDK Changelog
 
+## 0.2.1
+
+- All six packages now ship an Apache-2.0 `LICENSE` file
+- The `cline` provider's default model is now the first model on the Cline free list instead of Claude Sonnet 5.5, so an account with no credits can complete its first turn. `@cline/llms` exports `ANTHROPIC_DEFAULT_MODEL_ID`, and the `anthropic` provider's default moves from Claude Sonnet 5 to Claude Sonnet 5.5
+- `read_files` results are no longer cut a second time to the 8k tool-result cap on the way to the provider. They are capped at 50k characters, which fits what the tool itself returns
+- For models that require `reasoning_content` on every assistant message (Reflection Beam), a placeholder is sent for messages that lost their reasoning to compaction or a model switch, so later turns no longer fail with a 400
+- A reasoning disable now reaches custom models that have saved overrides. Summary requests resolve their reasoning-off preference against model metadata, so models the catalog doesn't describe are no longer sent a `reasoning_effort: "none"` they may reject
+- The native OpenAI adapter snaps the requested reasoning level to the efforts the model advertises, so `max` is no longer sent verbatim to GPT-5.x and o-series models
+- For LiteLLM models that report `max_output_tokens` without `max_input_tokens`, the legacy `max_tokens` field is no longer used as the input budget. Before, compaction started near the output limit
+- Manual compaction can be cancelled and no partial summary is saved. Cancellations are counted in `cline.compaction.cancelled.total`
+- New opt-in `publish_artifacts` tool with a cloud publisher and fetcher. Artifact ids default to the source filename, and `CloudSessionApi` and `HubCloudSessionClient` can resolve an artifact's download URL without resuming the sandbox
+- New `ux_verifier` tool that delegates visual checks to subagents, and an opt-in `report_ux_verification` tool for the results. Behind the `cloud-computer-use` flag, the cloud session prompt explains how to drive and screenshot the app
+- The hub can commit approved files to a new branch, push it and start a cloud task from that snapshot (`inspectHandoffGit`, `previewHandoffGit`, `publishCloudHandoff`). Cloud `create` accepts an `initialMessage`
+- New `session.resume` hub command recreates a saved session's runtime from its id, and the cloud controller uses it to restore tasks without downloading and re-uploading the history. Older hubs fall back to the previous path
+- `session.messages` can reply in bounded chunks when the caller opts in, with `history.cancel` for abandoned reads. Existing callers keep full-array replies
+- New `mcp.*` and `providers.*` hub commands with `createHubMcpApi` and `createHubProvidersApi`. MCP tool annotations are carried through the SDK clients and the tool cache, and `task.tool_used` reports the session `mode`
+- The hub rejects a cloud operation whose caller account doesn't match its own, and `setHubDaemonLauncher` accepts environment overrides for the daemon process
+- A rejected Cline refresh token is no longer re-sent on every cloud poll
+- Hub cloud requests no longer duplicate the API prefix when the saved Cline URL ends in `/api/v1`
+- `deleteSession` keeps the session's event and approval handlers when the hub delete fails
+- Removed the `CLINE_CAPTURE_PROVIDER_REQUEST`, `CLINE_CAPTURE_WIRE`, `CLINE_CAPTURE_DIR`, `CLINE_CAPTURE_CLEANUP` and `CLINE_CAPTURE_MAX_PREVIEW_BYTES` debug capture, which wrote full provider request bodies to disk
+- `@cline/ui` adds `SectionHeading`, `Banner`, `ItemCard`, `DetailList`, `EmptyState`, `Dialog`, `AlertDialog`, `Carousel` and `AgentUxVerification`, updates `Button`, `Badge` and `Switch`, and refreshes the color and typography tokens. It now depends on `embla-carousel-react`, `@radix-ui/react-dialog` and `@radix-ui/react-alert-dialog`
+- Refreshed the model catalog (6,457 → 7,613 models). Adds 94 providers that models.dev now lists, including BytePlus ModelArk, Huawei Cloud MAAS, Hostinger Router, Modular, Phala, Tenstorrent and Wally, and drops Lilac and Tempr Gateway. Adds Claude Fable 5.2, and drops Claude Sonnet 4.5 and the deprecated GPT Image 1.5, GPT Image 1 Mini and ChatGPT Image Latest. The Cline recommended list now leads with Muse Ember. The Cline free list drops Reflection Beam, Laguna S 2.1 and `cline-free/solar-mini4`, which makes Nemotron 3.5 Super VL the `cline` default. ClinePass drops DeepSeek V4.1 Flash, MiMo V2.6 Flash, MiMo V2.6 Pro, Qwen3.7 Plus, Qwen3.7 Max and MiniMax M3. Default models change for many providers, including Gemini and Vertex (Gemini 4 Neon)
+
 ## 0.2.0
 
 - Starting a session that already has a run in progress now reattaches to the live session instead of replacing its runtime. Before, the original run kept going but couldn't be reached, and its transcript writes landed on a stale snapshot. A start that includes a prompt while a run is in progress is rejected
