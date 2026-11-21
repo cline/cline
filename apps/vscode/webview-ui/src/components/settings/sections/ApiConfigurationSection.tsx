@@ -1,12 +1,13 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useClinePassPromo } from "@/hooks/useClinePassPromo"
+import { useWindowReturn } from "@/hooks/useWindowReturn"
 import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { TargetButton } from "../../cloud/TaskTargetPanel"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
@@ -142,6 +143,12 @@ const LocalModelSettings = ({
 	)
 }
 
+function refreshClinePassSubscription(force: boolean): void {
+	CloudServiceClient.refreshClinePassSubscription(BooleanRequest.create({ value: force })).catch((error) =>
+		console.error("Failed to refresh ClinePass subscription:", error),
+	)
+}
+
 const CloudModelSettings = () => {
 	const { nextCloudModelId, cloudModelId, currentCloudTask, clinePassSubscribed } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
@@ -149,14 +156,28 @@ const CloudModelSettings = () => {
 	const includeClinePass = isClinePassEnabled && !activeOrganization
 	const runningModelId = currentCloudTask ? cloudModelId : undefined
 
-	// The user may have followed the Subscribe link and come back; re-ask for the plan.
+	// Re-ask for the plan when the pane opens and whenever the user comes back
+	// to the webview, since the Subscribe link sends them to the browser. A
+	// return after that click forces the check past the recent-answer window.
+	const subscribeClickedRef = useRef(false)
 	useEffect(() => {
 		if (includeClinePass) {
-			CloudServiceClient.refreshClinePassSubscription(EmptyRequest.create({})).catch((error) =>
-				console.error("Failed to refresh ClinePass subscription:", error),
-			)
+			refreshClinePassSubscription(false)
 		}
 	}, [includeClinePass])
+	useWindowReturn(
+		includeClinePass
+			? () => {
+					const force = subscribeClickedRef.current
+					subscribeClickedRef.current = false
+					refreshClinePassSubscription(force)
+				}
+			: undefined,
+	)
+	const onSubscribe = useCallback(() => {
+		subscribeClickedRef.current = true
+		openSubscribePage()
+	}, [openSubscribePage])
 
 	return (
 		<>
@@ -181,7 +202,7 @@ const CloudModelSettings = () => {
 								a low-cost monthly plan for the latest open-weights models.{" "}
 								<button
 									className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
-									onClick={openSubscribePage}
+									onClick={onSubscribe}
 									type="button">
 									Subscribe
 								</button>
