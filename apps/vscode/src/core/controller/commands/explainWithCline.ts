@@ -5,6 +5,7 @@ import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
+import { sendContextMenuPrompt } from "./sendContextMenuPrompt"
 
 export async function explainWithCline(
 	controller: Controller,
@@ -30,7 +31,7 @@ export async function explainWithCline(
 		prompt += notebookContext
 	}
 
-	await controller.initTask(prompt)
+	await sendContextMenuPrompt(controller, prompt)
 	telemetryService.captureButtonClick("codeAction_explainCode", controller.task?.ulid)
 
 	return {}
