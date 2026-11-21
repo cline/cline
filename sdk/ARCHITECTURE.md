@@ -1338,6 +1338,12 @@ and teammates. The parent’s `subagent_<name>` delegation call still follows th
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
 
+Generic `spawn_agent` validates its input before constructing a child runtime or
+invoking lifecycle observers. Invalid input is reported through the normal tool
+error path, so the parent can recover. Host lifecycle callbacks await backend
+observers; the spawn executor contains their failures as best-effort callbacks
+rather than leaving detached promise rejections.
+
 ### UX verification presentation boundary
 
 The reusable `@cline/ui` UX verification carousel consumes a report contract owned by `@cline/shared`. It handles report validation, screenshot presentation, native inline image load failures and navigation. It does not depend on a verification tool, subagent executor, transcript grouping, persistence changes or a particular host. Web, Desktop and IDE consumers can supply image renderers and expanded-image callbacks.
