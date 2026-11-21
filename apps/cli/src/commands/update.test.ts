@@ -132,6 +132,34 @@ describe("getInstallationInfo", () => {
 		});
 	});
 
+	it("detects npx installs from the macOS npm cache layout", () => {
+		const wrapperPath = createTempFile(
+			".npm/_npx/123456/node_modules/cline/bin/cline",
+		);
+		process.env.CLINE_WRAPPER_PATH = wrapperPath;
+		process.argv = ["bun", "/$bunfs/root/cline", "update", "--verbose"];
+
+		expect(getInstallationInfo("1.2.3")).toEqual({
+			packageManager: PackageManager.NPX,
+			packageName: "cline",
+		});
+	});
+
+	it("detects npx installs from the Windows npm-cache layout", () => {
+		// Windows npx caches live at %LocalAppData%\npm-cache\_npx\..., which
+		// does not contain the "/npm/_npx" substring matched on macOS/Linux.
+		const wrapperPath = createTempFile(
+			"AppData/Local/npm-cache/_npx/123456/node_modules/cline/bin/cline",
+		);
+		process.env.CLINE_WRAPPER_PATH = wrapperPath;
+		process.argv = ["bun", "/$bunfs/root/cline", "update", "--verbose"];
+
+		expect(getInstallationInfo("1.2.3")).toEqual({
+			packageManager: PackageManager.NPX,
+			packageName: "cline",
+		});
+	});
+
 	it("falls back to unknown when only Bun's virtual compiled path is available", () => {
 		delete process.env.CLINE_WRAPPER_PATH;
 		process.argv = ["bun", "/$bunfs/root/cline", "update", "--verbose"];
