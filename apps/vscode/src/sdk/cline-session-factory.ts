@@ -441,7 +441,10 @@ const DEFAULT_PROVIDER_ID = "cline"
  * the user never installed (e.g. an Ollama Cloud nemotron model).
  */
 function providerHasLocalModelSource(providerId: string): boolean {
-	return Boolean(MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.modelsSourceUrl)
+	return (
+		providerId.startsWith("custom-openai-") ||
+		Boolean(MODEL_COLLECTIONS_BY_PROVIDER_ID[toSdkProviderId(providerId)]?.provider.modelsSourceUrl)
+	)
 }
 
 export function getDefaultModelIdForProvider(providerId: string): string | undefined {
@@ -530,6 +533,12 @@ export function resolveApiKey(providerId: string, config: ApiConfiguration): str
  * Uses mode-specific model ID fields when available, falls back to generic fields.
  */
 export function resolveModelId(providerId: string, mode: Mode, config: ApiConfiguration): string | undefined {
+	// Named endpoints must never inherit a model from another provider's
+	// shared legacy slot after a provider switch or extension restart.
+	if (providerId.startsWith("custom-openai-")) {
+		return getProviderSettingsManager().getProviderSettings(providerId)?.model?.trim() || undefined
+	}
+
 	// VS Code LM has no plain model-id field: the selected model is stored as a
 	// structured LanguageModelChatSelector ({vendor, family, ...}) in
 	// plan/actModeVsCodeLmModelSelector. The SDK ProviderConfig only carries a
@@ -1017,6 +1026,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 		modelId = modelId ?? getDefaultModelIdForProvider(providerId) ?? getDefaultModelIdForProvider(DEFAULT_PROVIDER_ID) ?? ""
 	}
+	if (providerId.startsWith("custom-openai-") && !modelId?.trim()) {
+		throw new Error(
+			"No model selected for this OpenAI Compatible provider. Open Cline Settings, select this provider, and choose a Model ID before starting a task.",
+		)
+	}
 	if (!apiKey && apiConfig) {
 		apiKey = resolveApiKey(providerId, apiConfig)
 	}
@@ -1132,6 +1146,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(apiKey ? { apiKey } : {}),
 		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(apiLine !== undefined ? { apiLine } : {}),
+		...(sdkProviderId.startsWith("custom-openai-")
+			? { headers: getProviderSettingsManager().getProviderSettings(sdkProviderId)?.headers ?? {} }
+			: {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		// Mirror the user's Max Output Tokens for consumers that build handlers
 		// straight from providerConfig — notably the compaction summarizer, which

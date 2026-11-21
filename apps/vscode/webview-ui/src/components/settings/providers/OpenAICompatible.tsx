@@ -20,6 +20,7 @@ import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
+import { DeleteOpenAICompatibleProvider } from "./DeleteOpenAICompatibleProvider"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -29,6 +30,8 @@ interface OpenAICompatibleProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
+	name?: string
+	onDeleted?: () => Promise<void>
 }
 
 /**
@@ -39,6 +42,8 @@ export const OpenAICompatibleProvider = ({
 	showModelOptions,
 	isPopup,
 	currentMode,
+	name,
+	onDeleted,
 }: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
@@ -370,6 +375,7 @@ export const OpenAICompatibleProvider = ({
 								handleOpenAiModelSelection(modelId)
 							}}
 							value={selectedModelId && availableOpenAiModels.includes(selectedModelId) ? selectedModelId : ""}>
+							{!selectedModelId && <VSCodeOption value="">Select a model…</VSCodeOption>}
 							{selectedModelId && !availableOpenAiModels.includes(selectedModelId) && (
 								<VSCodeOption value="">{selectedModelId} (not in current list)</VSCodeOption>
 							)}
@@ -381,6 +387,7 @@ export const OpenAICompatibleProvider = ({
 							<VSCodeOption value="__custom__">Use custom model ID…</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
+					{!selectedModelId && <div role="status">Choose a model above to save it before starting a task.</div>}
 
 					{(isCustomOpenAiModelEntryVisible ||
 						(selectedModelId && !availableOpenAiModels.includes(selectedModelId))) && (
@@ -647,6 +654,10 @@ export const OpenAICompatibleProvider = ({
 					/>
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
+			)}
+
+			{providerId.startsWith("custom-openai-") && !isPopup && onDeleted && (
+				<DeleteOpenAICompatibleProvider name={name ?? "custom provider"} onDeleted={onDeleted} providerId={providerId} />
 			)}
 		</div>
 	)

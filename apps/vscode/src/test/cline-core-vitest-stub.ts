@@ -354,6 +354,11 @@ export class ProviderSettingsManager {
 		return this.filePath
 	}
 
+	write(next: ProviderSettingsState): void {
+		this.state.providers = { ...next.providers }
+		this.state.lastUsedProvider = next.lastUsedProvider
+	}
+
 	read(): ProviderSettingsState {
 		return { providers: { ...this.state.providers }, lastUsedProvider: this.state.lastUsedProvider }
 	}

@@ -49,6 +49,10 @@ service ModelsService {
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Lists providers available from the unified SDK-backed catalog
   rpc listProviders(Empty) returns (ProviderListingsResponse);
+  // Creates an independently configured, named OpenAI Compatible provider.
+  rpc createOpenAiCompatibleProvider(CreateOpenAiCompatibleProviderRequest) returns (ProviderListing);
+  // Deletes a user-created compatible provider and its saved credentials.
+  rpc deleteOpenAiCompatibleProvider(StringRequest) returns (Empty);
   // Resolves model metadata for a provider through the unified SDK-backed catalog
   rpc resolveProviderModels(ResolveProviderModelsRequest) returns (ProviderModelsResponse);
   // Resolves model metadata for a provider/model without refreshing model lists
@@ -173,6 +177,11 @@ message ProviderListing {
 
 message ProviderListingsResponse {
   repeated ProviderListing providers = 1;
+}
+
+message CreateOpenAiCompatibleProviderRequest {
+  string name = 1;
+  string base_url = 2;
 }
 
 message ResolveProviderModelsRequest {

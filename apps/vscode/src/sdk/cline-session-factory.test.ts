@@ -17,6 +17,7 @@ import {
 	normalizeSdkBaseUrl,
 	resolveApiKey,
 	resolveAzureProviderConfig,
+	resolveModelId,
 	resolveProviderFetch,
 	updateHistoryItem,
 } from "./cline-session-factory"
@@ -402,6 +403,39 @@ describe("normalizeProviderReasoningSettings", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildSessionConfig", () => {
+	it("uses a named endpoint's saved model instead of stale shared state", async () => {
+		const providerId = "custom-openai-test-2"
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((id?: string) =>
+			id === providerId
+				? ({
+						provider: providerId,
+						model: "custom-model",
+						baseUrl: "https://custom.example/v1",
+						apiKey: "dummy-token",
+					} as any)
+				: undefined,
+		)
+		const apiConfig = { actModeApiProvider: providerId, actModeApiModelId: "wrong-model-from-another-provider" } as any
+		mocks.stateManager.getApiConfiguration.mockReturnValue(apiConfig)
+		expect(resolveModelId(providerId, "act", apiConfig)).toBe("custom-model")
+		const config = await buildSessionConfig({ cwd: tempDir, mode: "act" })
+		expect(config.modelId).toBe("custom-model")
+		expect(config.providerConfig).toMatchObject({
+			modelId: "custom-model",
+			baseUrl: "https://custom.example/v1",
+			apiKey: "dummy-token",
+		})
+	})
+
+	it("does not invent a default model for an unconfigured named endpoint", async () => {
+		expect(resolveModelId("custom-openai-empty", "act", { actModeApiModelId: "stale-model" } as any)).toBeUndefined()
+		expect(getDefaultModelIdForProvider("custom-openai-empty")).toBeUndefined()
+		mocks.stateManager.getApiConfiguration.mockReturnValue({ actModeApiProvider: "custom-openai-empty" } as any)
+		await expect(buildSessionConfig({ cwd: tempDir, mode: "act" })).rejects.toThrow(
+			"No model selected for this OpenAI Compatible provider",
+		)
+	})
+
 	it("resolves Cline OAuth credentials after defaulting to the Cline provider", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue({

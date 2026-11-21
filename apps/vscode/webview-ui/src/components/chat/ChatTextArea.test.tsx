@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
 	supportsImages: true as boolean | undefined,
 	navigateToSettingsModelPicker: vi.fn(),
 	cloudState: {} as Record<string, unknown>,
+	provider: "anthropic",
+}))
+
+vi.mock("@/hooks/useProviderListings", () => ({
+	useProviderListings: () => ({ providers: [{ id: "custom-openai-test", name: "My server" }] }),
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
@@ -29,7 +34,7 @@ vi.mock("@/context/PlatformContext", () => ({
 
 vi.mock("@/hooks/useNormalizedApiConfiguration", () => ({
 	useNormalizedApiConfiguration: () => ({
-		selectedProvider: "anthropic",
+		selectedProvider: mocks.provider,
 		selectedModelId: "text-only-model",
 		selectedModelInfo: { supportsImages: mocks.supportsImages },
 	}),
@@ -87,6 +92,14 @@ function pasteImage(target: HTMLElement) {
 describe("ChatTextArea model label", () => {
 	beforeEach(() => {
 		mocks.cloudState = {}
+		mocks.provider = "anthropic"
+	})
+
+	it("shows a custom provider's saved name and model instead of its internal id", () => {
+		mocks.provider = "custom-openai-test"
+		renderTextArea()
+		expect(screen.getByTitle("Open API Settings")).toHaveTextContent("My server:text-only-model")
+		expect(screen.getByTitle("Open API Settings")).not.toHaveTextContent("custom-openai-test")
 	})
 
 	it("shows the local provider, model, and local-only controls for a local task", () => {

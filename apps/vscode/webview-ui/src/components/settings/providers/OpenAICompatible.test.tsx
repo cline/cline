@@ -230,6 +230,18 @@ describe("OpenAICompatibleProvider", () => {
 		})
 	})
 
+	it("does not display a discovered model as selected before it has been saved", async () => {
+		mocks.useDynamicProviderSelection.mockReturnValue({ selectedModelId: "", selectedModelInfo: {} })
+		mocks.refreshOpenAiModels.mockResolvedValue({ values: ["gemini-4-argon", "other-model"] })
+		renderProvider()
+		await act(async () => {})
+		expect(screen.getByLabelText("Model ID")).toHaveValue("")
+		expect(screen.getByRole("status")).toHaveTextContent("Choose a model")
+		expect(mocks.commitSelection).not.toHaveBeenCalled()
+		fireEvent.change(screen.getByLabelText("Model ID"), { target: { value: "gemini-4-argon" } })
+		expect(mocks.commitSelection).toHaveBeenCalledWith("act", { providerId: "custom-openai", modelId: "gemini-4-argon" })
+	})
+
 	it("refreshes keyless endpoints and displays only the saved-key mask", async () => {
 		renderProvider()
 

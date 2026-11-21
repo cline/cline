@@ -292,7 +292,6 @@ service UiService {
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
 
-
   // Subscribe to show webview events
   rpc subscribeToShowWebview(EmptyRequest) returns (stream ShowWebviewEvent);
 

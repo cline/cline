@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
+import { useProviderListings } from "@/hooks/useProviderListings"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
@@ -270,6 +271,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
+		const { providers } = useProviderListings()
+		const customProviderName = selectedProvider.startsWith("custom-openai-")
+			? providers.find((provider) => provider.id === selectedProvider)?.name
+			: undefined
 		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
 		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
 		const modelSupportsImages = selectedModelInfo.supportsImages !== false
@@ -1166,6 +1171,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			if (!apiConfiguration) {
 				return unknownModel
 			}
+			if (selectedProvider.startsWith("custom-openai-")) {
+				return `${customProviderName || "OpenAI Compatible"}:${selectedModelId}`
+			}
 			switch (selectedProvider) {
 				case "cline":
 					return `${selectedProvider}:${selectedModelId}`
@@ -1196,7 +1204,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
-		}, [apiConfiguration, mode, selectedProvider, selectedModelId, cloudActOnly, cloudModelId])
+		}, [apiConfiguration, mode, selectedProvider, selectedModelId, customProviderName, cloudActOnly, cloudModelId])
 
 		// Function to show error message for unsupported files for drag and drop
 		const showUnsupportedFileErrorMessage = () => {

@@ -94,6 +94,29 @@ describe("ApiOptions Component", () => {
 		expect(apiKeyInput).toBeInTheDocument()
 	})
 
+	it.each([
+		"openai",
+		"custom-openai-test",
+		"future-simple-provider",
+		"requesty",
+	])("shows provider management controls only for the appropriate selection: %s", (provider) => {
+		mockExtensionState({ planModeApiProvider: provider as any, actModeApiProvider: provider as any })
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		expect(screen.queryByText("Add OpenAI Compatible provider") !== null).toBe(provider === "openai")
+		const deleteButton = screen.queryByText("Delete custom provider")
+		expect(deleteButton !== null).toBe(provider === "custom-openai-test")
+		if (deleteButton) {
+			for (const headers of screen.getAllByText("Custom Headers")) {
+				expect(headers.compareDocumentPosition(deleteButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+			}
+			expect(deleteButton.parentElement?.nextElementSibling).toBeNull()
+		}
+	})
+
 	it("renders Requesty Model ID input", () => {
 		render(
 			<ExtensionStateContextProvider>
