@@ -6,6 +6,8 @@ description: "Explore installable plugin examples from the Cline SDK repository.
 
 The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes installable plugin examples under [`examples/plugins/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins). Use them as starting points for tools, lifecycle hooks, message rewriting, policy enforcement, background jobs, and multi-agent workflows.
 
+Most of these examples are also [official plugins](https://github.com/cline/plugins), which install by name, such as `cline plugin install weather-metrics`.
+
 ## Examples
 
 | Example | What it shows |
@@ -22,14 +24,14 @@ The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes inst
 
 ## Try a File Plugin with the CLI
 
-The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system plugins folder.
+The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and `~/Documents/Cline/Plugins`.
 
 ```sh
 cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
-cline -i "What's the weather like in Tokyo and Paris?"
+cline "What's the weather like in Tokyo and Paris?"
 ```
 
-Swap `weather-metrics.ts` for any other single-file plugin example.
+Swap `weather-metrics.ts` for any other single-file plugin example. Add `-i` to ask in the terminal UI instead.
 
 ## Block Ignored File Access
 
@@ -37,7 +39,7 @@ Use `gitignore-read-files-guard.ts` to block tools from reading or editing files
 
 ```sh
 cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
-cline -i "Read the ignored .env file"
+cline "Read the ignored .env file"
 ```
 
 The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool records a policy error and does not access the file.
