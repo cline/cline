@@ -2,6 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
+import { writeThirdPartyNotices } from "./scripts/third-party-notices.mjs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -163,12 +164,27 @@ const baseConfig = {
 	},
 }
 
+// Watch mode writes the notices once; regenerating them adds ~0.5s to every rebuild.
+const thirdPartyNoticesPlugin = {
+	name: "third-party-notices",
+	setup(build) {
+		let written = false
+		build.onEnd((result) => {
+			if (written || result.errors.length > 0 || !result.metafile) return
+			writeThirdPartyNotices(result.metafile, { requireAllInputs: production })
+			written = true
+		})
+	},
+}
+
 // Extension-specific configuration
 const extensionConfig = {
 	...baseConfig,
+	plugins: [aliasResolverPlugin, thirdPartyNoticesPlugin, esbuildProblemMatcherPlugin],
 	entryPoints: ["src/extension.ts"],
 	outfile: `${destDir}/extension.js`,
 	external: ["vscode"],
+	metafile: true,
 }
 
 // Standalone-specific configuration

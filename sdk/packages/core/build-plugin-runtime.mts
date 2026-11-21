@@ -50,6 +50,7 @@ export async function buildPluginRuntime(): Promise<void> {
 			format: "esm",
 			splitting: true,
 			minify: true,
+			metafile: true,
 		}),
 		Bun.build({
 			entrypoints: [
@@ -62,11 +63,23 @@ export async function buildPluginRuntime(): Promise<void> {
 			target: "node",
 			format: "esm",
 			minify: true,
+			metafile: true,
 		}),
 	]);
 	for (const result of results)
 		if (!result.success)
 			throw new AggregateError(result.logs, "Plugin runtime build failed");
+	// Hosts that ship the runtime list its bundled third-party code in their notices.
+	writeFileSync(
+		resolve(outdir, "../plugin-runtime-inputs.json"),
+		JSON.stringify(
+			results.flatMap((result) =>
+				Object.keys(result.metafile?.inputs ?? {}).map((input) =>
+					resolve(input),
+				),
+			),
+		),
+	);
 	mkdirSync(outdir, { recursive: true });
 	writeFileSync(
 		join(outdir, "package.json"),

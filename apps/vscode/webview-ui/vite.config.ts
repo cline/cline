@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
 
-import { writeFileSync } from "node:fs"
+import { mkdirSync, writeFileSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
@@ -26,6 +26,19 @@ const writePortToFile = (): Plugin => {
 	}
 }
 
+// The extension's production build reads this to list the webview's third-party code in its notices.
+const writeBundleInputs = (): Plugin => {
+	return {
+		name: "write-bundle-inputs",
+		apply: "build",
+		generateBundle() {
+			const outFile = resolve(__dirname, "../dist/.third-party/webview-inputs.json")
+			mkdirSync(resolve(outFile, ".."), { recursive: true })
+			writeFileSync(outFile, JSON.stringify([...this.getModuleIds()]))
+		},
+	}
+}
+
 const isDevBuild = process.argv.includes("--dev-build")
 
 // VS Code launch configurations load apps/vscode/.env for the extension host,
@@ -47,7 +60,7 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	plugins: [react(), tailwindcss(), writePortToFile()],
+	plugins: [react(), tailwindcss(), writePortToFile(), writeBundleInputs()],
 	test: {
 		environment: "jsdom",
 		globals: true,

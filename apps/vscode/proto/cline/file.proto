@@ -58,6 +58,9 @@ service FileService {
   // Opens a task's conversation history file on disk
   rpc openDiskConversationHistory(StringRequest) returns (Empty);
 
+  // Opens the third-party notices file bundled with the extension
+  rpc openThirdPartyNotices(EmptyRequest) returns (Empty);
+
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
