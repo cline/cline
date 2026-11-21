@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import type {
 	HubClientRegistration,
 	HubEventEnvelope,
@@ -18,6 +18,7 @@ import type {
 } from "./command-transport";
 import { HistoryTransferPool } from "./history-transfer";
 import { logHubMessage } from "./hub-server-logging";
+import { isPathInsideWorkspace } from "./session-authority";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
@@ -97,12 +98,7 @@ function registrationAuthority(
 	const cwd = resolve(
 		registration.workspaceContext?.cwd?.trim() || workspaceRoot,
 	);
-	const relativeCwd = relative(workspaceRoot, cwd);
-	if (
-		relativeCwd === ".." ||
-		relativeCwd.startsWith(`..${sep}`) ||
-		isAbsolute(relativeCwd)
-	) {
+	if (!isPathInsideWorkspace(workspaceRoot, cwd)) {
 		throw new Error("Registration cwd must be inside its workspace");
 	}
 	return {
@@ -242,7 +238,9 @@ export class BrowserWebSocketHubAdapter {
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
 						const read = () =>
-							this.transport.command(frame.envelope, authority ?? null);
+							this.transport.command(frame.envelope, authority ?? null, {
+								tokenAuthenticated: options.tokenAuthenticated === true,
+							});
 						const commandPromise = historyAbort
 							? this.historyTransfers.command(
 									frame.envelope,
