@@ -12,11 +12,13 @@ Agent teams let you break complex work across multiple agents that coordinate th
 
 ## Starting a Team
 
-Start your prompt with `/team`, in an interactive session or on the command line:
+Start your prompt with `/team`, in an interactive session or in a one-shot run:
 
 ```bash
-cline "/team Plan and implement user authentication with tests"
+cline --act "/team Plan and implement user authentication with tests"
 ```
+
+One-shot runs (`cline "<prompt>"` or a prompt piped on stdin) start in [yolo mode](/cli/cli-reference#global-options), which turns team tools off, so pass `--act` to use `/team` from the command line. Interactive sessions keep the Plan/Act mode you last used (Act by default).
 
 The coordinator gets tools to add teammates, hand them tasks and collect their results. Without `/team`, Cline can still form a team when it decides a task needs one.
 
@@ -36,7 +38,7 @@ Each team has a task board, a mailbox for messages between agents, and a mission
 
 ## Turning Teams Off
 
-Teams are available in Act and Plan modes, and not with `--yolo`. To turn them off, run `cline`, type `/settings`, and turn off the `teams` tool on the **Tools** tab. Turn off `spawn_agent` there to stop [sub-agents](/features/subagents) too.
+Teams are available in Act and Plan modes, and not with `--yolo`, the default for one-shot runs. To turn them off, run `cline`, type `/settings`, and turn off the `teams` tool on the **Tools** tab. Turn off `spawn_agent` there to stop [sub-agents](/features/subagents) too.
 
 ## Sub-Agents
 

@@ -27,7 +27,7 @@ Approving the `spawn_agent` call approves everything the subagent then does: its
 
 ## Turning Subagents Off
 
-Subagents are on in Act and Plan modes. To turn them off, turn off the `spawn_agent` tool:
+Subagents are on in Act and Plan modes. In the CLI, [yolo mode](/cli/cli-reference#global-options) turns them off, and one-shot runs use yolo mode by default, so pass `--act` to keep them in a one-shot run. To turn them off, turn off the `spawn_agent` tool:
 
 - **CLI:** run `cline`, type `/settings`, and turn off `spawn_agent` on the **Tools** tab.
 - **Desktop:** open **Customize**, select **Tools**, and turn off `spawn_agent`.
