@@ -49,6 +49,9 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     cd sdk && bun run build && cd ..
     ```
 5. Generate Protocol Buffer files (required before first build):
+    ```bash
+    cd apps/vscode && bun run protos && cd ../..
+    ```
 6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
