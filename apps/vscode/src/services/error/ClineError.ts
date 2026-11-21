@@ -91,6 +91,32 @@ interface ErrorDetails {
 	details?: any
 }
 
+/**
+ * Best-effort text for a thrown value with no usable `message` (plain objects,
+ * `new Error()`), so it never surfaces to users or telemetry as "[object Object]".
+ */
+export function describeMessagelessError(error: any): string | undefined {
+	const candidate =
+		error?.cause?.message ||
+		error?.error?.message ||
+		(typeof error?.error === "string" ? error.error : undefined) ||
+		error?.details?.message ||
+		(typeof error?.code === "string" ? error.code : undefined) ||
+		(error?.name && error.name !== "Error" ? error.name : undefined)
+	if (typeof candidate === "string" && candidate.trim()) {
+		return candidate
+	}
+	if (error && typeof error === "object") {
+		try {
+			const json = JSON.stringify({ ...error, stack: undefined })
+			return json && json !== "{}" ? json.slice(0, 500) : undefined
+		} catch {
+			return undefined
+		}
+	}
+	return undefined
+}
+
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
 
 export class ClineError extends Error {
@@ -108,7 +134,7 @@ export class ClineError extends Error {
 	) {
 		const error = serializeError(raw)
 
-		const message = error.message || error?.response?.message || String(error) || error?.cause?.means
+		const message = error.message || error?.response?.message || describeMessagelessError(error) || String(error)
 		super(message)
 
 		// Extract status from multiple possible locations
