@@ -41,6 +41,7 @@ export enum BUILT_IN_PROVIDER {
 	CRUSOE = "crusoe",
 	BASETEN = "baseten",
 	REQUESTY = "requesty",
+	RODIUMAI = "rodiumai",
 	LITELLM = "litellm",
 	HUGGINGFACE = "huggingface",
 	VERCEL_AI_GATEWAY = "vercel-ai-gateway",
