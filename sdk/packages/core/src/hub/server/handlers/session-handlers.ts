@@ -458,6 +458,7 @@ export async function handleSessionCreate(
 			? (payload.initialMessages as never[])
 			: undefined,
 		initialCompactionState,
+		...(runtimeOptions.resumed === true ? { resumed: true } : {}),
 		localRuntime: {
 			modelCatalogDefaults: {
 				loadLatestOnInit: true,
