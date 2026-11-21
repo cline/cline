@@ -163,8 +163,14 @@ export class MessageTranslatorState {
 		private readonly getUiMode?: () => "plan" | "act" | "yolo" | undefined,
 		private readonly getCwd?: () => string | undefined,
 		private readonly getActiveModelId?: () => string | undefined,
+		private readonly resolveMcpTool?: McpToolResolver,
 	) {
 		this.minter = minter
+	}
+
+	/** The MCP server and tool behind an SDK tool name; undefined for any other tool. */
+	mcpToolIdentity(sdkToolName: string): McpToolIdentity | undefined {
+		return getMcpToolIdentity(sdkToolName, this.resolveMcpTool)
 	}
 
 	/** Provider backing the active turn, if the host can supply it. */
@@ -1126,18 +1132,24 @@ export function extractToolOutputText(output: unknown): string {
 // MCP tool detection
 // ---------------------------------------------------------------------------
 
+type McpToolIdentity = { serverName: string; toolName: string }
+
+/** Looks an SDK tool name up among the connected MCP servers' tools. */
+export type McpToolResolver = (sdkToolName: string) => { server: { name: string }; tool: { name: string } } | undefined
+
 /**
- * MCP tools created by `createMcpTools()` use `serverName__toolName` format
- * (double underscore separator). This function detects MCP tools and parses
- * the server name and tool name.
- *
- * Returns undefined if the tool name doesn't match the MCP naming convention.
+ * The MCP server and tool behind an SDK tool name; undefined for any other
+ * tool. The connected servers are asked first, because the SDK rewrites some
+ * names beyond recovery. A tool they no longer list, as in the history of a
+ * removed server, is read from the usual `serverName__toolName` form.
  */
-function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
-	const separatorIndex = toolName.indexOf("__")
+function getMcpToolIdentity(sdkToolName: string, resolveMcpTool: McpToolResolver | undefined): McpToolIdentity | undefined {
+	const resolved = resolveMcpTool?.(sdkToolName)
+	if (resolved) return { serverName: resolved.server.name, toolName: resolved.tool.name }
+	const separatorIndex = sdkToolName.indexOf("__")
 	if (separatorIndex <= 0) return undefined
-	const serverName = toolName.substring(0, separatorIndex)
-	const mcpToolName = toolName.substring(separatorIndex + 2)
+	const serverName = sdkToolName.substring(0, separatorIndex)
+	const mcpToolName = sdkToolName.substring(separatorIndex + 2)
 	if (!mcpToolName) return undefined
 	return { serverName, toolName: mcpToolName }
 }
@@ -1147,7 +1159,7 @@ function parseMcpToolName(toolName: string): { serverName: string; toolName: str
  * This is what the webview's ChatRow expects when rendering MCP tool calls
  * (message.ask === "use_mcp_server" or message.say === "use_mcp_server").
  */
-function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, input?: unknown): string {
+function buildMcpToolPayload(mcpInfo: McpToolIdentity, input?: unknown): string {
 	const parsedInput = parseToolInput(input)
 	// Format arguments as a JSON string (matching classic ClineAskUseMcpServer.arguments)
 	let argumentsStr: string | undefined
@@ -1189,8 +1201,14 @@ function extractCommandText(input: unknown): string {
  * can render specialized rows (MCP, commands, subagents) instead of a generic
  * tool approval with missing context.
  */
-export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts: number, cwd?: string): ClineMessage {
-	const mcpInfo = parseMcpToolName(toolName)
+export function buildToolApprovalAskMessage(
+	toolName: string,
+	input: unknown,
+	ts: number,
+	cwd?: string,
+	resolveMcpTool?: McpToolResolver,
+): ClineMessage {
+	const mcpInfo = getMcpToolIdentity(toolName, resolveMcpTool)
 	if (mcpInfo) {
 		return {
 			ts,
@@ -1476,10 +1494,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// MCP tools use serverName__toolName naming convention.
 					// The webview renders MCP tool calls via say/ask="use_mcp_server"
 					// with ClineAskUseMcpServer JSON, not generic say="tool".
-					const mcpInfo = parseMcpToolName(toolName)
+					const mcpInfo = state.mcpToolIdentity(toolName)
 					if (mcpInfo) {
 						const mcpPayload = buildMcpToolPayload(mcpInfo, input)
 						messages.push({
@@ -1769,7 +1786,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					//   3. say: "mcp_server_response" (tool output)
 					// In the SDK path, by content_end the tool has already executed,
 					// so we emit the finalized tool call + response together.
-					const mcpInfoEnd = parseMcpToolName(toolName)
+					const mcpInfoEnd = state.mcpToolIdentity(toolName)
 					if (mcpInfoEnd) {
 						const storedMcpInput = state.getStreamingToolInput()
 						const mcpTs = state.clearStreamingTool()
@@ -2363,6 +2380,7 @@ export interface SdkMessagesToClineMessagesOptions {
 	 * display, matching the live streaming path.
 	 */
 	cwd?: string
+	resolveMcpTool?: McpToolResolver
 }
 
 /**
@@ -2386,6 +2404,8 @@ export function sdkMessagesToClineMessages(
 		undefined,
 		() => currentMode,
 		() => options?.cwd,
+		undefined,
+		options?.resolveMcpTool,
 	)
 	const pendingToolUses = new Map<string, SdkToolUseBlock>()
 
