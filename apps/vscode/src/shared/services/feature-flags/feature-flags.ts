@@ -18,6 +18,8 @@ export enum FeatureFlag {
 	OPENAI_RESPONSES_WEBSOCKET_MODE = "openai-responses-websocket-mode",
 	// Rollout flag for Cline Cloud sessions (run a task in a hosted sandbox)
 	CLOUD_SESSIONS = "ext-cloud-sessions",
+	// Rollout flag for limiting MCP tools in Plan mode by their read-only hints
+	PLAN_MODE_MCP_LIMITS = "ext-plan-mode-mcp-limits",
 }
 
 export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPayload>> = {
@@ -29,6 +31,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, FeatureFlagPay
 	[FeatureFlag.CLINE_RECOMMENDED_MODELS_UPSTREAM]: false,
 	[FeatureFlag.OPENAI_RESPONSES_WEBSOCKET_MODE]: false,
 	[FeatureFlag.CLOUD_SESSIONS]: false,
+	[FeatureFlag.PLAN_MODE_MCP_LIMITS]: false,
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

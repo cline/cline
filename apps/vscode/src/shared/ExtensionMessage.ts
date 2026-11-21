@@ -147,6 +147,8 @@ export interface ExtensionState {
 	welcomeBanners?: BannerCardData[]
 	/** Cline Cloud sessions rollout flag; shows the Settings toggle. */
 	cloudSessionsAvailable?: boolean
+	/** Plan mode limits MCP tools by their read-only hints; shows the Plan-mode overrides in the MCP tab. */
+	planModeMcpLimitsEnabled?: boolean
 	/** Cline Cloud sessions are available and turned on in Settings. */
 	cloudSessionsEnabled?: boolean
 	/** Where a new task runs, resolved from the user's choice, the account's repositories and the workspace. */
@@ -364,6 +366,16 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+	/**
+	 * How Plan mode treated this tool call, when it changed the outcome.
+	 * - `ask`: the user is asked only because the server does not mark the tool read-only.
+	 * - `ask_unlisted`: the user is asked only because no connected server lists
+	 *   the tool any more, so nothing is known about it. `serverName` and
+	 *   `toolName` are then a guess, and no override can be saved under them.
+	 * - `read_only`: the call ran without asking because the server declares
+	 *   the tool read-only.
+	 */
+	planMode?: "ask" | "ask_unlisted" | "read_only"
 }
 
 export interface ClineAskUseSubagents {

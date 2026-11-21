@@ -1,5 +1,7 @@
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { getMcpPlanModeAccess } from "@shared/mcp-plan-mode"
 import type { McpHub } from "@/services/mcp/McpHub"
+import { findMcpTool, getMcpSdkToolName } from "./mcp-sdk-tool-name"
 
 /**
  * Build SDK `toolPolicies` for tools governed by Cline's auto-approval UI.
@@ -30,8 +32,7 @@ export function buildToolPolicies(
 	if (mcpHub) {
 		for (const server of mcpHub.getServers()) {
 			for (const tool of server.tools ?? []) {
-				const sdkName = `${server.name}__${tool.name}`
-				policies[sdkName] = { autoApprove: false }
+				policies[getMcpSdkToolName(server.name, tool.name)] = { autoApprove: false }
 			}
 		}
 	}
@@ -45,7 +46,7 @@ export function buildToolPolicies(
  * approval callback, so changes from the AutoApproveBar are respected even if
  * an SDK session was created before the toggle changed.
  */
-export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings): boolean {
+export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings, mcpHub?: McpHub): boolean {
 	if (isReadTool(toolName)) {
 		return !!settings.actions.readFiles
 	}
@@ -59,12 +60,40 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.useBrowser
 	}
 
-	if (isMcpToolName(toolName)) {
+	if (isMcpToolName(toolName) || (mcpHub && findMcpTool(toolName, mcpHub.getServers()) !== undefined)) {
 		// One global toggle governs all MCP tools; there is no per-tool opt-in.
 		return !!settings.actions.useMcp
 	}
 
 	return false
+}
+
+/**
+ * How Plan mode changes the approval of an MCP tool call that the settings
+ * would auto-approve.
+ * - `ask`: ask anyway. The tool has no read-only hint and no override, so it
+ *   may modify things. A tool Plan mode hides is asked about too, in case a
+ *   session built before the tool was hidden still offers it, and so is an
+ *   MCP tool whose server no longer lists it.
+ * - `read_only`: auto-approve, and say it is on the server's word.
+ * - `undefined`: Plan mode changes nothing.
+ */
+export function getPlanModeApproval(
+	toolName: string,
+	mode: "plan" | "act" | undefined,
+	mcpHub: McpHub | undefined,
+): "ask" | "read_only" | undefined {
+	if (mode !== "plan" || !mcpHub) {
+		return undefined
+	}
+	const match = findMcpTool(toolName, mcpHub.getServers())
+	if (!match) {
+		return isMcpToolName(toolName) ? "ask" : undefined
+	}
+	if (getMcpPlanModeAccess(match.tool, match.server) !== "allowed") {
+		return "ask"
+	}
+	return match.tool.annotations?.readOnlyHint === true ? "read_only" : undefined
 }
 
 function isReadTool(toolName: string): boolean {
@@ -85,7 +114,10 @@ function isBrowserTool(toolName: string): boolean {
 	return toolName === "fetch_web_content" || toolName === "web_fetch" || toolName === "web_search"
 }
 
-/** MCP tools are registered by `createMcpTools` under `serverName__toolName`. */
+/**
+ * True for the usual `serverName__toolName` shape. A tool the hub no longer
+ * lists is still recognised by it; a rewritten name may not have it.
+ */
 function isMcpToolName(toolName: string): boolean {
 	const separatorIndex = toolName.indexOf("__")
 	return separatorIndex > 0 && separatorIndex + 2 < toolName.length

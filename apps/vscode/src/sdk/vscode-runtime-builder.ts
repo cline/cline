@@ -3,7 +3,9 @@ import type { AgentMode, AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
+import { getMcpPlanModeAccess } from "@/shared/mcp-plan-mode"
 import { Logger } from "@/shared/services/Logger"
+import { getMcpSdkToolName, getMcpToolsBySdkName } from "./mcp-sdk-tool-name"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
@@ -18,6 +20,8 @@ interface McpToolDescriptor {
 export interface McpHubToolProviderOptions {
 	/** Session mode the tools are built for; stamped on tool-call telemetry. */
 	mode?: AgentMode
+	/** Build a Plan-mode session without the tools Plan mode hides. */
+	limitMcpInPlanMode?: boolean
 }
 
 export class McpHubToolProvider {
@@ -34,7 +38,26 @@ export class McpHubToolProvider {
 			return []
 		}
 
-		return (server.tools ?? []).map((tool) => ({
+		// Approval and chat rows name the tool that has a session name in the
+		// hub, so that is the only tool a session may run under it.
+		const toolsBySdkName = getMcpToolsBySdkName(servers)
+		const tools = (server.tools ?? []).filter((tool) => {
+			const sdkToolName = getMcpSdkToolName(serverName, tool.name)
+			const namedTool = toolsBySdkName.get(sdkToolName)
+			if (namedTool?.tool === tool) {
+				return true
+			}
+			Logger.warn(
+				`[McpHubToolProvider] Left out "${tool.name}" of MCP server "${serverName}": server "${namedTool?.server.name}" already has a tool named ${sdkToolName}`,
+			)
+			return false
+		})
+
+		const offered =
+			this.options.mode === "plan" && this.options.limitMcpInPlanMode
+				? tools.filter((tool) => getMcpPlanModeAccess(tool, server) !== "hidden")
+				: tools
+		return offered.map((tool) => ({
 			name: tool.name,
 			description: tool.description ?? undefined,
 			inputSchema: (tool.inputSchema as Record<string, unknown>) ?? {
@@ -72,6 +95,8 @@ export interface VscodeExtraToolsOptions {
 	cwd?: string
 	/** Session mode the tools are built for; a mode switch rebuilds the session. */
 	mode?: AgentMode
+	/** Build a Plan-mode session without the MCP tools Plan mode hides. */
+	limitMcpInPlanMode?: boolean
 	/**
 	 * Lazy factory for the VscodeTerminalManager.
 	 * When provided, the custom `run_commands` tool replaces the SDK's
@@ -85,13 +110,14 @@ export interface VscodeExtraToolsOptions {
 }
 
 export async function createVscodeExtraTools(mcpHub: McpHub, options: VscodeExtraToolsOptions): Promise<AgentTool[]> {
-	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode })
+	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode, limitMcpInPlanMode: options.limitMcpInPlanMode })
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
 			try {
 				return await createMcpTools({
 					serverName: server.name,
 					provider,
+					nameTransform: ({ serverName, toolName }) => getMcpSdkToolName(serverName, toolName),
 					// Keep the tool wrapper timeout in agreement with the MCP
 					// request timeout: both derive from the server's config.
 					timeoutMs: resolveMcpServerTimeoutMs(server.config),

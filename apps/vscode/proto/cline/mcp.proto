@@ -15,6 +15,7 @@ service McpService {
   rpc restartMcpServer(StringRequest) returns (McpServers);
   rpc deleteMcpServer(StringRequest) returns (McpServers);
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
+  rpc setPlanModeAccess(SetPlanModeAccessRequest) returns (McpServers);
   rpc openMcpSettings(EmptyRequest) returns (Empty);
   rpc authenticateMcpServer(StringRequest) returns (Empty);
   rpc getLatestMcpServers(Empty) returns (McpServers);
@@ -49,12 +50,24 @@ message ToggleToolAutoApproveRequest {
   bool auto_approve = 4;
 }
 
+// Allows or disallows MCP tools in Plan mode, whatever the server declares.
+message SetPlanModeAccessRequest {
+  Metadata metadata = 1;
+  string server_name = 2;
+  // The tools to change. Ignored when whole_server is set.
+  repeated string tool_names = 3;
+  bool allowed = 4;
+  // Change the server-wide setting, which also covers tools added later.
+  bool whole_server = 5;
+}
+
 message McpTool {
   string name = 1;
   optional string description = 2;
   optional string input_schema = 3;
   optional bool auto_approve = 4;
   optional McpToolAnnotations annotations = 5;
+  optional bool allow_in_plan_mode = 6;
 }
 
 // Behavior hints declared by the MCP server; absent means undeclared.
@@ -114,6 +127,7 @@ message McpServer {
   optional bool oauth_required = 10;
   optional string oauth_auth_status = 11;
   repeated McpPrompt prompts = 12;
+  optional bool allow_all_in_plan_mode = 13;
 }
 
 message McpServers {
