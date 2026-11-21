@@ -271,6 +271,10 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 
 	private summarizeFile(file: string): ImportableSessionSummary | undefined {
 		const raw = readFileSync(file, "utf8");
+		const lines = raw
+			.split("\n")
+			.map(parseLine)
+			.filter((line): line is ClaudeCodeLine => line !== undefined);
 		let messageCount = 0;
 		let assistantCount = 0;
 		let title: string | undefined;
@@ -279,17 +283,17 @@ export class ClaudeCodeImportAdapter implements SessionImportAdapter {
 		let cwd = "";
 		let firstTs: number | undefined;
 		let lastTs: number | undefined;
-		for (const rawLine of raw.split("\n")) {
-			const line = parseLine(rawLine);
-			if (!line) continue;
+		for (const line of lines) {
 			if (line.type === "ai-title" && typeof line.aiTitle === "string") {
 				title = line.aiTitle;
-				continue;
 			}
 			if (line.type === "summary" && typeof line.summary === "string") {
 				summaryTitle = line.summary;
-				continue;
 			}
+		}
+		// Discovery feeds the import picker, so its preview and counts must
+		// describe the same active branch that convert() will import.
+		for (const line of reconstructThread(lines)) {
 			if (!isConversationLine(line)) continue;
 			if (line.isMeta === true) continue;
 			if (line.type === "user" && !preview) {
