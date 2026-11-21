@@ -264,9 +264,10 @@ export interface FrameViolation {
 
 export interface FrameValidationResult {
 	violations: FrameViolation[];
-	/** Blocks still open (empty for a well-formed terminated stream). */
+	/** Blocks still open (address keys: path#turn#block). */
 	openBlocks: string[];
-	openTurnId?: string;
+	/** Turns still open, one per agent path (address keys: path#turn). */
+	openTurns: string[];
 	/** True when a session-scoped close frame was seen. */
 	sessionEnded: boolean;
 	frameCount: number;
@@ -276,11 +277,13 @@ export interface FrameValidationResult {
  * Validate a frame stream against the v2 tables.
  *
  * Like the v1 validator (`stream-grammar.ts`), this is a fold over
- * per-scope projections: every frame names exactly one scope, and each
- * scope's projection is a small regular language. A prefix is legal;
- * `openBlocks`/`openTurnId` report dangling scopes for debugging and
- * for reconnect snapshots. There is no wart registry in v2 — warts were
- * v1's structural deviations, and v2 makes them unrepresentable.
+ * per-scope projections — keyed by full scope address (agentPath,
+ * turnId, blockId), because multiplexed agent streams each mint their
+ * own `turn-1` and several turns can be open at once (one per agent
+ * path). A prefix is legal; `openBlocks`/`openTurns` report dangling
+ * scopes for debugging and reconnect snapshots. There is no wart
+ * registry in v2 — warts were v1's structural deviations, and v2
+ * makes them unrepresentable.
  */
 export function validateFrameStream(
 	frames: readonly StreamFrame[],
@@ -298,10 +301,12 @@ export function validateFrameStream(
 	let lastSeq = 0;
 	let lastEpoch = 0;
 	let sessionEnded = false;
-	let openTurnId: string | undefined;
-	const openBlocks = new Map<string, string>(); // blockId -> owning turnId
-	const knownBlocks = new Set<string>();
+	// turnKey: `${agentPath joined}/${turnId}` -> turnId
+	const openTurns = new Map<string, string>();
 	const knownTurns = new Set<string>();
+	// blockKey: `${agentPath joined}/${turnId}/${blockId}` -> turnKey
+	const openBlocks = new Map<string, string>();
+	const knownBlocks = new Set<string>();
 
 	for (let index = 0; index < frames.length; index += 1) {
 		const frame = frames[index];
@@ -323,8 +328,15 @@ export function validateFrameStream(
 			continue;
 		}
 
+		const path = frame.scope.agentPath.join("/");
 		const turnId = frame.scope.turnId;
 		const blockId = frame.scope.blockId;
+		const turnKey =
+			turnId !== undefined ? `${path}/${turnId}` : undefined;
+		const blockKey =
+			turnId !== undefined && blockId !== undefined
+				? `${path}/${turnId}/${blockId}`
+				: undefined;
 
 		switch (frame.kind) {
 			case "open": {
@@ -333,66 +345,67 @@ export function validateFrameStream(
 						violation(index, frame, BAD_SCOPE_ADDRESS);
 						break;
 					}
-					if (openTurnId !== undefined) {
-						violation(index, frame, TURN_OVERLAP, turnId);
+					const key = `${path}/${turnId}`;
+					if (openTurns.has(key)) {
+						violation(index, frame, TURN_OVERLAP, key);
 						break;
 					}
-					openTurnId = turnId;
-					knownTurns.add(turnId);
+					openTurns.set(key, turnId);
+					knownTurns.add(key);
 					break;
 				}
-				if (turnId === undefined || blockId === undefined) {
+				if (turnKey === undefined || blockKey === undefined) {
 					violation(index, frame, BAD_SCOPE_ADDRESS);
 					break;
 				}
-				if (openTurnId !== turnId) {
-					violation(index, frame, BLOCK_WITHOUT_TURN, blockId);
+				if (!openTurns.has(turnKey)) {
+					violation(index, frame, BLOCK_WITHOUT_TURN, blockKey);
 					break;
 				}
-				if (openBlocks.has(blockId)) {
-					violation(index, frame, BLOCK_OPEN_WHILE_OPEN, blockId);
+				if (openBlocks.has(blockKey)) {
+					violation(index, frame, BLOCK_OPEN_WHILE_OPEN, blockKey);
 					break;
 				}
-				openBlocks.set(blockId, turnId);
-				knownBlocks.add(blockId);
+				openBlocks.set(blockKey, turnKey);
+				knownBlocks.add(blockKey);
 				break;
 			}
 			case "delta": {
-				if (turnId === undefined || blockId === undefined) {
+				if (blockKey === undefined) {
 					violation(index, frame, BAD_SCOPE_ADDRESS);
 					break;
 				}
-				if (openTurnId !== turnId || !openBlocks.has(blockId)) {
-					violation(index, frame, BLOCK_DELTA_WITHOUT_OPEN, blockId);
+				if (openBlocks.get(blockKey) !== turnKey) {
+					violation(index, frame, BLOCK_DELTA_WITHOUT_OPEN, blockKey);
 				}
 				break;
 			}
 			case "close": {
 				if (blockId !== undefined) {
-					if (openBlocks.get(blockId) !== turnId) {
-						violation(index, frame, BLOCK_CLOSE_WITHOUT_OPEN, blockId);
+					if (blockKey === undefined || openBlocks.get(blockKey) !== turnKey) {
+						violation(index, frame, BLOCK_CLOSE_WITHOUT_OPEN, blockKey ?? blockId);
 						break;
 					}
-					openBlocks.delete(blockId);
+					openBlocks.delete(blockKey);
 					break;
 				}
 				if (turnId !== undefined) {
-					if (openTurnId !== turnId) {
-						violation(index, frame, TURN_CLOSE_WITHOUT_OPEN, turnId);
+					if (turnKey === undefined || !openTurns.has(turnKey)) {
+						violation(index, frame, TURN_CLOSE_WITHOUT_OPEN, turnKey ?? turnId);
 						break;
 					}
 					const stragglers = [...openBlocks.entries()]
-						.filter(([, owner]) => owner === turnId)
-						.map(([id]) => id);
+						.filter(([, owner]) => owner === turnKey)
+						.map(([key]) => key);
 					if (stragglers.length > 0) {
 						violation(
 							index,
 							frame,
 							TURN_CLOSE_WITH_OPEN_CHILDREN,
-							stragglers.join(","),
-						);
+								stragglers.join(","),
+							);
 					}
-					openTurnId = undefined;
+					openTurns.delete(turnKey);
 					break;
 				}
 				sessionEnded = true;
@@ -407,20 +420,20 @@ export function validateFrameStream(
 					}
 					break;
 				}
-				if (openTurnId !== turnId) {
-					violation(index, frame, TURN_FRAME_WITHOUT_TURN, turnId);
+				if (turnKey === undefined || !openTurns.has(turnKey)) {
+					violation(index, frame, TURN_FRAME_WITHOUT_TURN, turnKey);
 				}
 				break;
 			}
 			case "annotation": {
 				// Legal on open or closed scopes, but the scope must be one
 				// this stream has seen (late annotations target real scopes).
-				if (blockId !== undefined) {
-					if (!knownBlocks.has(blockId)) {
-						violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, blockId);
+				if (blockKey !== undefined) {
+					if (!knownBlocks.has(blockKey)) {
+						violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, blockKey);
 					}
-				} else if (turnId !== undefined && !knownTurns.has(turnId)) {
-					violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, turnId);
+				} else if (turnKey !== undefined && !knownTurns.has(turnKey)) {
+					violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, turnKey);
 				}
 				break;
 			}
@@ -442,9 +455,8 @@ export function validateFrameStream(
 	return {
 		violations,
 		openBlocks: [...openBlocks.keys()],
-		openTurnId,
+		openTurns: [...openTurns.keys()],
 		sessionEnded,
 		frameCount: frames.length,
 	};
 }
-

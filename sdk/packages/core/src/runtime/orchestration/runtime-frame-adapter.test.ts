@@ -185,7 +185,7 @@ describe("RuntimeFrameAdapter — dual-emit", () => {
 		const validation = validateFrameStream(frames);
 		expect(validation.violations).toEqual([]);
 		expect(validation.openBlocks).toEqual([]);
-		expect(validation.openTurnId).toBeUndefined();
+		expect(validation.openTurns).toEqual([]);
 	});
 
 	it("reset() fences open scopes with interrupted and the next run opens a new turn with continued seq", () => {
@@ -233,6 +233,6 @@ describe("RuntimeFrameAdapter — dual-emit", () => {
 		// The new run is legitimately mid-flight: turn-2 is open, and
 		// turn-1's tool closed during the fence (zero violations proves
 		// the fence close matched its open).
-		expect(validation.openTurnId).toBe("turn-2");
+		expect(validation.openTurns).toEqual(["root/turn-2"]);
 	});
 });
