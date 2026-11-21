@@ -65,59 +65,79 @@ try {
 	// Best effort: fall back to the runtime's default trust on any failure.
 }
 
-function run(target) {
-	const result = childProcess.spawnSync(target, process.argv.slice(2), {
-		stdio: "inherit",
-		env: childEnv,
-	});
-	if (result.error) {
-		console.error(result.error.message);
-		// Windows application control (Smart App Control, WDAC, AppLocker)
-		// blocks the child exe at launch, which Node surfaces only as an
-		// opaque "spawnSync ... UNKNOWN" error. Point users at the real cause.
-		const code = result.error.code;
-		if (
-			os.platform() === "win32" &&
-			(code === "UNKNOWN" || code === "EACCES" || code === "EPERM")
-		) {
-			console.error(
-				"\nWindows refused to start the Cline binary:\n  " +
-					target +
-					"\n\n" +
-					"This usually means an application control policy (Smart App Control,\n" +
-					"WDAC, or AppLocker) or antivirus blocked the executable. To confirm,\n" +
-					"run the path above directly in a terminal and check the error Windows\n" +
-					"reports, or inspect its signature with:\n\n" +
-					'  Get-AuthenticodeSignature "' +
-					target +
-					'"\n\n' +
-					"If it was blocked by policy, allow the file or ask your administrator\n" +
-					"to trust it. See https://github.com/cline/cline/issues for known issues.",
-			);
-		}
-		process.exit(1);
-	}
-	if (typeof result.status === "number") {
-		process.exit(result.status);
-	}
-	if (result.signal) {
-		process.kill(process.pid, result.signal);
-		process.exit(128);
+// Signals a supervisor sends to the wrapper PID that the child must also see,
+// or it outlives the wrapper. SIGINT is left alone: a terminal already
+// delivers it to the whole process group.
+const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"];
+
+function reportLaunchError(target, error) {
+	console.error(error.message);
+	// Windows application control (Smart App Control, WDAC, AppLocker)
+	// blocks the child exe at launch, which Node surfaces only as an
+	// opaque "spawn ... UNKNOWN" error. Point users at the real cause.
+	const code = error.code;
+	if (
+		os.platform() === "win32" &&
+		(code === "UNKNOWN" || code === "EACCES" || code === "EPERM")
+	) {
+		console.error(
+			"\nWindows refused to start the Cline binary:\n  " +
+				target +
+				"\n\n" +
+				"This usually means an application control policy (Smart App Control,\n" +
+				"WDAC, or AppLocker) or antivirus blocked the executable. To confirm,\n" +
+				"run the path above directly in a terminal and check the error Windows\n" +
+				"reports, or inspect its signature with:\n\n" +
+				'  Get-AuthenticodeSignature "' +
+				target +
+				'"\n\n' +
+				"If it was blocked by policy, allow the file or ask your administrator\n" +
+				"to trust it. See https://github.com/cline/cline/issues for known issues.",
+		);
 	}
 	process.exit(1);
 }
 
-// 1. Check env var override
-const envPath = process.env.CLINE_BIN_PATH;
-if (envPath) {
-	run(envPath);
+function run(target) {
+	let child;
+	try {
+		child = childProcess.spawn(target, process.argv.slice(2), {
+			stdio: "inherit",
+			env: childEnv,
+		});
+	} catch (error) {
+		// Unlike spawnSync, spawn throws some launch failures synchronously.
+		reportLaunchError(target, error);
+	}
+	const forward = (signal) => {
+		if (child.exitCode === null && child.signalCode === null) {
+			child.kill(signal);
+		}
+	};
+	for (const signal of FORWARDED_SIGNALS) {
+		process.on(signal, forward);
+	}
+	child.on("error", (error) => reportLaunchError(target, error));
+	child.on("exit", (status, signal) => {
+		for (const forwarded of FORWARDED_SIGNALS) {
+			process.removeListener(forwarded, forward);
+		}
+		if (typeof status === "number") {
+			process.exit(status);
+		}
+		if (signal) {
+			process.kill(process.pid, signal);
+			process.exit(128);
+		}
+		process.exit(1);
+	});
 }
 
+// 1. Check env var override
 // 2. Check cached binary
 const cached = path.join(scriptDir, ".cline");
-if (fs.existsSync(cached)) {
-	run(cached);
-}
+const preferred =
+	process.env.CLINE_BIN_PATH || (fs.existsSync(cached) ? cached : undefined);
 
 // 3. Detect platform and architecture
 const platformMap = {
@@ -165,7 +185,7 @@ function findBinary(startDir) {
 	}
 }
 
-const resolved = findBinary(scriptDir);
+const resolved = preferred || findBinary(scriptDir);
 if (!resolved) {
 	console.error(
 		"Could not find the Cline CLI binary for your platform.\n" +
