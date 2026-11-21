@@ -84,6 +84,23 @@ describe("ApiOptions Component", () => {
 		})
 	})
 
+	it("shows exactly one delete button beside the selector and hides it while browsing provider options", () => {
+		mockProviderListings([
+			{ id: "custom-openai-test", name: "Test provider", protocol: "openai-chat", allowsCustomModelIds: true },
+		])
+		mockExtensionState({ planModeApiProvider: "custom-openai-test" as any, actModeApiProvider: "custom-openai-test" as any })
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions currentMode="plan" showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		expect(screen.getAllByTestId("delete-custom-provider-control")).toHaveLength(1)
+		expect(screen.getByTestId("delete-custom-provider-control").querySelectorAll("vscode-button")).toHaveLength(1)
+		fireEvent.focus(screen.getByTestId("provider-selector-input"))
+		expect(screen.queryByRole("listbox")).toBeInTheDocument()
+		expect(screen.queryByTestId("delete-custom-provider-control")).not.toBeInTheDocument()
+	})
+
 	it("renders Requesty API Key input", () => {
 		render(
 			<ExtensionStateContextProvider>
@@ -107,13 +124,13 @@ describe("ApiOptions Component", () => {
 			</ExtensionStateContextProvider>,
 		)
 		expect(screen.queryByText("Add OpenAI Compatible provider") !== null).toBe(provider === "openai")
-		const deleteButton = screen.queryByText("Delete custom provider")
-		expect(deleteButton !== null).toBe(provider === "custom-openai-test")
-		if (deleteButton) {
-			for (const headers of screen.getAllByText("Custom Headers")) {
-				expect(headers.compareDocumentPosition(deleteButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-			}
-			expect(deleteButton.parentElement?.nextElementSibling).toBeNull()
+		const deleteButtons = screen.queryAllByText("Delete custom provider")
+		expect(deleteButtons.length > 0).toBe(provider === "custom-openai-test")
+		if (deleteButtons[0]) {
+			const providerSelector = screen.getByTestId("provider-selector-input")
+			expect(providerSelector.compareDocumentPosition(deleteButtons[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+			const customHeaders = screen.getAllByText("Custom Headers")[0]
+			expect(deleteButtons[0].compareDocumentPosition(customHeaders) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 		}
 	})
 

@@ -19,6 +19,7 @@ import { BedrockProvider } from "./providers/BedrockProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClinePassProvider } from "./providers/ClinePassProvider"
 import { ClineProvider } from "./providers/ClineProvider"
+import { DeleteOpenAICompatibleProvider } from "./providers/DeleteOpenAICompatibleProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { GenericProviderSettings } from "./providers/GenericProviderSettings"
 import { GroqProvider } from "./providers/GroqProvider"
@@ -349,14 +350,35 @@ const ApiOptions = ({
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
 
-			{!isPopup && selectedProvider === "openai" && !remoteConfigSettings?.remoteConfiguredProviders?.length && (
-				<AddOpenAICompatibleProvider
-					onCreated={async (providerId) => {
-						await refreshProviders()
-						handleProviderChange(providerId)
-					}}
-				/>
-			)}
+			{showModelOptions &&
+				!isPopup &&
+				!isDropdownVisible &&
+				selectedProvider === "openai" &&
+				!remoteConfigSettings?.remoteConfiguredProviders?.length && (
+					<AddOpenAICompatibleProvider
+						onCreated={async (providerId) => {
+							await refreshProviders()
+							handleProviderChange(providerId)
+						}}
+					/>
+				)}
+			{showModelOptions &&
+				!isPopup &&
+				!isDropdownVisible &&
+				selectedProvider.startsWith("custom-openai-") &&
+				!remoteConfigSettings?.remoteConfiguredProviders?.length && (
+					<div data-testid="delete-custom-provider-control">
+						<DeleteOpenAICompatibleProvider
+							key={selectedProvider}
+							name={currentProviderLabel}
+							onDeleted={async () => {
+								await refreshProviders()
+								handleProviderChange("openai")
+							}}
+							providerId={selectedProvider}
+						/>
+					</div>
+				)}
 
 			{!isPopup && <ClinePassHint currentMode={currentMode} selectedProvider={selectedProvider} />}
 
@@ -485,11 +507,6 @@ const ApiOptions = ({
 					currentMode={currentMode}
 					isPopup={isPopup}
 					key={selectedProvider}
-					name={currentProviderLabel}
-					onDeleted={async () => {
-						await refreshProviders()
-						handleProviderChange("openai")
-					}}
 					providerId={selectedProvider}
 					showModelOptions={showModelOptions}
 				/>

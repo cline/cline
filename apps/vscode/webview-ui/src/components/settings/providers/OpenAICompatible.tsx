@@ -20,7 +20,6 @@ import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
-import { DeleteOpenAICompatibleProvider } from "./DeleteOpenAICompatibleProvider"
 
 /**
  * Props for the OpenAICompatibleProvider component
@@ -30,8 +29,6 @@ interface OpenAICompatibleProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
-	name?: string
-	onDeleted?: () => Promise<void>
 }
 
 /**
@@ -42,8 +39,6 @@ export const OpenAICompatibleProvider = ({
 	showModelOptions,
 	isPopup,
 	currentMode,
-	name,
-	onDeleted,
 }: OpenAICompatibleProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
@@ -654,10 +649,6 @@ export const OpenAICompatibleProvider = ({
 					/>
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
-			)}
-
-			{providerId.startsWith("custom-openai-") && !isPopup && onDeleted && (
-				<DeleteOpenAICompatibleProvider name={name ?? "custom provider"} onDeleted={onDeleted} providerId={providerId} />
 			)}
 		</div>
 	)
