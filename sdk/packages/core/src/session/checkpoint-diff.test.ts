@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { CHECKPOINT_EXCLUSIONS_VERSION } from "../hooks/checkpoint-exclusions";
 import {
 	buildCheckpointWorkspaceDiff,
 	compareCheckpointToWorkspace,
@@ -72,6 +73,41 @@ describe("checkpoint workspace comparison", () => {
 			leftContent: "",
 			rightContent: "new file\n",
 		});
+	});
+
+	it("leaves excluded untracked files out for a checkpoint made with exclusions", async () => {
+		// Such a checkpoint never captured them, so listing them would show
+		// every untouched screenshot or log as newly added.
+		writeFileSync(join(dir, "shot.png"), "png bytes", "utf8");
+		writeFileSync(join(dir, "debug.log"), "log line\n", "utf8");
+		writeFileSync(join(dir, "untracked.txt"), "new file\n", "utf8");
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "commit",
+			exclusions: CHECKPOINT_EXCLUSIONS_VERSION,
+		});
+
+		expect(diffs.map((diff) => diff.filePath.replaceAll("\\", "/"))).toEqual([
+			join(dir, "untracked.txt").replaceAll("\\", "/"),
+		]);
+	});
+
+	it("keeps listing every untracked file for a checkpoint from before exclusions", async () => {
+		writeFileSync(join(dir, "shot.png"), "png bytes", "utf8");
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "commit",
+		});
+
+		expect(diffs.map((diff) => diff.filePath.replaceAll("\\", "/"))).toEqual([
+			join(dir, "shot.png").replaceAll("\\", "/"),
+		]);
 	});
 
 	it("uses the worktree snapshot stored in SDK stash checkpoints", async () => {
