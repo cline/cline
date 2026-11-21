@@ -41,6 +41,7 @@ import {
 	type ToolRoutingRule,
 } from "../../extensions/tools";
 import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
+import { createPlanModeEditorGuardExtension } from "../../extensions/tools/editor-guard-extension";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
@@ -588,9 +589,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						telemetry: telemetry ?? config.telemetry,
 					})
 				: undefined;
+		// Companion to the command guard: plan mode now exposes the SAME
+		// serialized tool set as act mode (stable LLM prompt prefix across
+		// mode switches), so the editor tool must be blocked at execution
+		// time instead of being hidden from the model.
+		const planModeEditorGuard =
+			normalized.mode === "plan" && normalized.enableTools
+				? createPlanModeEditorGuardExtension({
+						telemetry: telemetry ?? config.telemetry,
+					})
+				: undefined;
 		const injectedExtensions = [
 			userInstructionPlugin,
 			planModeCommandGuard,
+			planModeEditorGuard,
 		].filter((extension) => extension !== undefined);
 		const runtimeExtensions =
 			injectedExtensions.length > 0
