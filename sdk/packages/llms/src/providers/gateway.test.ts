@@ -5431,7 +5431,7 @@ describe("sdk-gateway", () => {
 						cache_control: { type: "ephemeral" },
 					}),
 					anthropic: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
+						cacheControl: { type: "ephemeral" },
 					}),
 				}),
 				reasoning: "high",
@@ -5548,7 +5548,7 @@ describe("sdk-gateway", () => {
 						cache_control: { type: "ephemeral" },
 					}),
 					anthropic: expect.not.objectContaining({
-						cache_control: { type: "ephemeral" },
+						cacheControl: { type: "ephemeral" },
 					}),
 				}),
 			}),
@@ -5611,7 +5611,7 @@ describe("sdk-gateway", () => {
 				],
 				providerOptions: expect.objectContaining({
 					anthropic: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
+						cacheControl: { type: "ephemeral" },
 					}),
 				}),
 			}),
@@ -5850,7 +5850,7 @@ describe("sdk-gateway", () => {
 				],
 				providerOptions: expect.objectContaining({
 					anthropic: expect.objectContaining({
-						cache_control: { type: "ephemeral" },
+						cacheControl: { type: "ephemeral" },
 					}),
 					deepseek: expect.objectContaining({
 						cache_control: { type: "ephemeral" },
