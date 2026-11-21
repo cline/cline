@@ -944,4 +944,54 @@ describe("createHookConfigFileHooks", () => {
 			await rm(outputPath, { force: true });
 		}
 	});
+
+	it("dispatches TaskCancel before SessionShutdown on a clean abort", async () => {
+		const outputPath = join(
+			tmpdir(),
+			`hooks-task-cancel-${Date.now()}.jsonl`,
+		);
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskCancel.js",
+			`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, JSON.parse(data).hookName+"\\n");});\n`,
+		);
+		try {
+			await writeFile(
+				join(workspace, ".clinerules", "hooks", "SessionShutdown.js"),
+				`let data='';process.stdin.on('data',c=>data+=c);process.stdin.on('end',()=>{require('node:fs').appendFileSync(${JSON.stringify(outputPath)}, JSON.parse(data).hookName+"\\n");});\n`,
+				"utf8",
+			);
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			// An Esc-aborted run reports status "aborted" with no error
+			// message; TaskCancel must still run before SessionShutdown.
+			await hooks?.afterRun?.({
+				snapshot: beforeToolContext().snapshot,
+				result: {
+					agentId: "agent_1",
+					runId: "run_1",
+					status: "aborted",
+					iterations: 1,
+					outputText: "",
+					messages: [],
+					usage: beforeToolContext().snapshot.usage,
+				},
+			});
+
+			const hookNames = (await waitForJsonLines(outputPath, 2)).map(
+				(line) => line.trim(),
+			);
+			expect(hookNames).toEqual(["agent_abort", "session_shutdown"]);
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(outputPath, { force: true });
+		}
+	});
 });
