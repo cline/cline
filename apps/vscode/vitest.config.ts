@@ -54,6 +54,10 @@ export default defineConfig({
 				find: /^@cline\/core\/cloud$/,
 				replacement: path.resolve(__dirname, "node_modules/@cline/core/dist/cloud/index.js"),
 			},
+			{
+				find: /^@cline\/core\/hub$/,
+				replacement: path.resolve(__dirname, "node_modules/@cline/core/dist/hub/index.js"),
+			},
 			{ find: "@cline/core", replacement: path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts") },
 			{ find: "@cline/llms", replacement: path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js") },
 			// Map @cline/shared subpath exports explicitly. The bare "@cline/shared"

@@ -83,6 +83,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		renameSession: vi.fn(async () => undefined),
 		getStatus: vi.fn(async (): Promise<{ status?: string }> => ({ status: "ready" })),
 		resumeSession: vi.fn(async (_sessionId: string) => undefined),
+		waitUntilReady: vi.fn(async (_sessionId: string) => undefined),
 		getHistory: vi.fn(async (): Promise<unknown[] | null> => []),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
 		sessionSocketUrl: vi.fn((id: string) => `ws://127.0.0.1/${id}`),
@@ -120,6 +121,8 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 		isSignedIn: () => true,
 		isEnabled: () => true,
 		resetMessageTranslator: vi.fn(),
+		getTurnPhase: () => "idle",
+		getPreparingFollowupTask: () => undefined,
 		setTurnPhase: vi.fn(),
 		clearTurnOutcome: vi.fn(),
 		postStateToWebview: vi.fn(async () => undefined),
@@ -1231,7 +1234,11 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 			const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before).mockResolvedValueOnce(after)
 			const attached: unknown[] = []
 			const { coordinator, cloudSessions } = makeCoordinator({
-				sessions: { attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost) } as never,
+				sessions: {
+					getActiveSession: () => undefined,
+					endActiveSessionIfHost: async () => undefined,
+					attachExistingSession: async ({ sdkHost }: { sdkHost: unknown }) => attached.push(sdkHost),
+				} as never,
 			})
 			cloudSessions.listSessions.mockResolvedValue([finished])
 			await coordinator.openCloudTask(finished.id)
@@ -1602,6 +1609,67 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		await coordinator.dispose()
 	})
 
+	it.each([
+		"connection",
+		"notice",
+		"late-list",
+	])("uses current sandbox status after a list refresh during History %s", async (stage) => {
+		const entered = deferred<void>()
+		const released = deferred<void>()
+		const listStarted = deferred<void>()
+		const listResponse = deferred<CloudSessionRecord[]>()
+		const host = {
+			status: "completed",
+			readMessages: async () => [{ role: "user", content: "prior context" }],
+			dispose: vi.fn(async () => {}),
+		} as unknown as CloudSessionHost
+		vi.spyOn(CloudSessionHost, "connect")
+			.mockImplementationOnce(async () => {
+				if (stage === "connection") {
+					entered.resolve()
+					await released.promise
+					throw new Error("socket hang up")
+				}
+				return host
+			})
+			.mockResolvedValue(host)
+		const { coordinator, cloudSessions, options } = makeCoordinator({
+			sessions: { attachExistingSession: vi.fn(async () => {}) } as never,
+			showChatView: async () => {
+				if (stage !== "connection") {
+					entered.resolve()
+					await released.promise
+				}
+			},
+		})
+		const listed = { ...record, status: stage === "connection" ? "ready" : "suspended" }
+		cloudSessions.listSessions.mockResolvedValue([listed])
+		cloudSessions.getStatus.mockResolvedValue({ status: "suspended" })
+		const opening = coordinator.openCloudTask(record.id)
+		await entered.promise
+		vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+		if (stage === "late-list") {
+			cloudSessions.listSessions.mockImplementationOnce(async () => {
+				listStarted.resolve()
+				return listResponse.promise
+			})
+			const listing = coordinator.listHistoryRecords()
+			await listStarted.promise
+			cloudSessions.resumeSession.mockImplementation(async () => {
+				listResponse.resolve([{ ...listed }])
+				await listing
+			})
+		} else {
+			cloudSessions.listSessions.mockResolvedValue([{ ...listed }])
+			await coordinator.listHistoryRecords()
+		}
+		released.resolve()
+		await opening
+		expect(cloudSessions.resumeSession).toHaveBeenCalledOnce()
+		expect(JSON.stringify(options.getTask()?.messageStateHandler.getClineMessages())).toContain("prior context")
+		await coordinator.dispose()
+	})
+
 	it.each([false, true])("renders connection failure only for its current task claim (superseded=%s)", async (superseded) => {
 		const connection = deferred<CloudSessionHost>()
 		const entered = deferred<void>()
@@ -1677,6 +1745,110 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 
 		expect(clearTask).toHaveBeenCalledOnce()
 		expect(clearTask.mock.invocationCallOrder[0]).toBeLessThan(dispose.mock.invocationCallOrder[0])
+	})
+
+	it.each([
+		{ status: "suspended", resumes: 1 },
+		{ status: "suspended", resumes: 1, wasRunning: true },
+		{ status: "suspended", cancelDuringConnect: true },
+		{ status: "ready", resumes: 0 },
+		{ status: "provisioning", resumes: 0, waits: 1 },
+		{ status: "failed", error: "has failed" },
+		{ status: "expired", error: "has expired" },
+		{ status: "ready", cancel: true, error: "cancelled" },
+		{ status: "ready", replaceTask: true, error: "task changed" },
+		{ status: "ready", replaceBeforeSubmit: true, error: "task changed" },
+	] as const)("prepares from live sandbox status: $status (cancel: $cancel)", async (scenario) => {
+		const host = () =>
+			({
+				status: "idle",
+				readMessages: async () => [{ role: "user", content: "prior context" }],
+				dispose: vi.fn(async () => {}),
+			}) as unknown as CloudSessionHost
+		const before = host()
+		const after = host()
+		const connect = vi.spyOn(CloudSessionHost, "connect").mockResolvedValueOnce(before)
+		type Active = { sdkHost: unknown; sessionId: string; isRunning: boolean }
+		let active: Active | undefined
+		const sessions = {
+			getActiveSession: () => active,
+			attachExistingSession: vi.fn(async (session: Active) => (active = session)),
+			endActiveSessionIfHost: vi.fn(async (host: unknown) => {
+				if (active?.sdkHost === host) active = undefined
+			}),
+		}
+		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: sessions as never })
+		cloudSessions.listSessions.mockResolvedValue([record])
+		await coordinator.openCloudTask(record.id)
+		const connecting = deferred<void>()
+		const connected = deferred<void>()
+		connect.mockImplementation(async () => {
+			expect(coordinator.canPrepareFollowup(record.id)).toBe(true)
+			if ("cancelDuringConnect" in scenario) {
+				connecting.resolve()
+				await connected.promise
+			}
+			return after
+		})
+		if ("wasRunning" in scenario && active) active.isRunning = true
+		options.getTurnPhase = () => "streaming"
+		options.getPreparingFollowupTask = () => options.getTask()
+		vi.mocked(options.setTurnPhase).mockClear()
+		cloudSessions.getStatus.mockImplementation(async () => {
+			if ("cancel" in scenario) coordinator.cancelPendingFollowup()
+			if ("replaceTask" in scenario) {
+				cloudSessions.listSessions.mockResolvedValue([
+					{ ...record, metadata: { ...record.metadata, taskId: "tsk-replacement" } },
+				])
+				vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+				await coordinator.listHistoryRecords()
+			}
+			return { status: scenario.status }
+		})
+		if ("replaceBeforeSubmit" in scenario) {
+			const displayed = options.getTask()
+			cloudSessions.listSessions.mockResolvedValue([
+				{ ...record, metadata: { ...record.metadata, taskId: "tsk-replacement" } },
+			])
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000)
+			await coordinator.listHistoryRecords()
+			expect(options.getTask()).toBe(displayed)
+			expect(JSON.stringify(displayed?.messageStateHandler.getClineMessages())).toContain("prior context")
+		}
+		const preparing = coordinator.beginFollowup(options.getTask()!)()
+		if ("cancelDuringConnect" in scenario) {
+			const cancelled = expect(preparing).rejects.toThrow("cancelled")
+			await connecting.promise
+			coordinator.cancelPendingFollowup()
+			options.getPreparingFollowupTask = () => undefined
+			const admittedBeforeConnectSettles = coordinator.canPrepareFollowup(record.id)
+			connected.resolve()
+			await cancelled
+			expect(admittedBeforeConnectSettles).toBe(true)
+			expect(sessions.attachExistingSession).toHaveBeenCalledOnce()
+		} else if ("error" in scenario) {
+			await expect(preparing).rejects.toThrow(scenario.error)
+			expect(cloudSessions.resumeSession).not.toHaveBeenCalled()
+			expect(connect).toHaveBeenCalledOnce()
+			if (!("cancel" in scenario)) expect(before.dispose).toHaveBeenCalledWith("sandboxUnavailable")
+		} else {
+			const prepared = await preparing
+			const resumes = ("resumes" in scenario ? scenario.resumes : undefined) ?? 0
+			const waits = ("waits" in scenario ? scenario.waits : undefined) ?? 0
+			const wakes = resumes + waits
+			expect(prepared.sdkHost).toBe(wakes ? after : before)
+			expect(cloudSessions.resumeSession).toHaveBeenCalledTimes(resumes)
+			expect(cloudSessions.waitUntilReady).toHaveBeenCalledTimes(waits)
+			expect(connect).toHaveBeenCalledTimes(1 + wakes)
+			if (wakes)
+				expect(connect).toHaveBeenLastCalledWith(
+					expect.objectContaining({ outerSessionId: record.id, taskId: record.metadata.taskId }),
+				)
+		}
+		if ("replaceBeforeSubmit" in scenario) expect(cloudSessions.getStatus).not.toHaveBeenCalled()
+		else expect(cloudSessions.getStatus).toHaveBeenCalledWith(record.id, expect.any(AbortSignal))
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+		await coordinator.dispose()
 	})
 
 	it("does not provision when the task view was already superseded", async () => {
