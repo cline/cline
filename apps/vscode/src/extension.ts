@@ -661,6 +661,7 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	Logger.clearSubscribers()
 	// Dispose Non-VSCode-specific services
 	try {
 		await tearDown()
