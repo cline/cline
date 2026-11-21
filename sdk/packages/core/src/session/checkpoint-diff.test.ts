@@ -7,6 +7,7 @@ import {
 	buildCheckpointWorkspaceDiff,
 	compareCheckpointToWorkspace,
 	createCheckpointComparePlan,
+	MAX_TEXT_DIFF_BYTES,
 } from "./checkpoint-diff";
 
 function git(cwd: string, args: string[]): string {
@@ -187,6 +188,33 @@ describe("checkpoint workspace comparison", () => {
 			rightContent: "after\n",
 		});
 	});
+
+	it("reports binary and oversized files as hash placeholders instead of reading them", async () => {
+		writeFileSync(join(dir, "blob.bin"), Buffer.from([0x44, 0x53, 0x00, 0x01, 0xff]));
+		writeFileSync(join(dir, "big.txt"), "x".repeat(MAX_TEXT_DIFF_BYTES + 1024), "utf8");
+		writeFileSync(join(dir, "small.txt"), "small change\n", "utf8");
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: checkpointRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "commit",
+		});
+
+		const byName = (suffix: string) => diffs.find((diff) => diff.filePath.endsWith(suffix));
+
+		expect(byName("small.txt")).toMatchObject({ leftContent: "", rightContent: "small change\n" });
+
+		const blob = byName("blob.bin");
+		expect(blob?.rightContent).toContain("binary or large file");
+		expect(blob?.rightContent).toContain("5 B");
+		expect(blob?.rightContent).toMatch(/blob [0-9a-f]{12}/);
+
+		const big = byName("big.txt");
+		expect(big?.rightContent).toContain("binary or large file");
+		expect(big?.rightContent).toMatch(/blob [0-9a-f]{12}/);
+	});
+
 
 	it("selects the nearest checkpoint at or before the requested run", async () => {
 		const session = {
