@@ -567,6 +567,22 @@ export class SessionRuntime {
 		this.config = { ...this.config, tools: merged };
 	}
 
+	/** Replace tool definitions for subsequent turns without resetting the conversation. */
+	replaceTools(tools: AgentTool[]): void {
+		const replacements = new Map(tools.map((tool) => [tool.name, tool]));
+		this.config = {
+			...this.config,
+			tools: [
+				...this.config.tools.map((tool) => {
+					const replacement = replacements.get(tool.name);
+					replacements.delete(tool.name);
+					return replacement ?? tool;
+				}),
+				...replacements.values(),
+			],
+		};
+	}
+
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
 		const updates = normalizeConnectionUpdate(overrides);

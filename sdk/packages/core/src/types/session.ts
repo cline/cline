@@ -23,7 +23,12 @@ export type ActiveSession = {
 	pendingPrompt?: string;
 	runtime: BuiltRuntime;
 	agent: SessionRuntime;
+	applyClientSetup: (
+		input: import("../runtime/host/runtime-host").StartSessionInput,
+	) => void;
 	started: boolean;
+	/** Includes asynchronous prompt preparation and turn finalization. */
+	turnInFlight: boolean;
 	aborting: boolean;
 	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
 	lastTurnEndedAt?: number;
