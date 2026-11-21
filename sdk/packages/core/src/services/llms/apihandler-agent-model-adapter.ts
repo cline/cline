@@ -85,14 +85,12 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 				{
 					type: "finish",
 					reason: doneFinishReason(chunk),
-					error: chunk.error,
-					// Handlers report failures as an already-flattened message, so
-					// classification works from the text alone here. Keeps registered
-					// handlers (e.g. VS Code LM) eligible for the runtime's
-					// context-overflow recovery.
-					...(chunk.error
-						? { errorClass: classifyProviderError(chunk.error) }
-						: {}),
+					failure: chunk.error
+						? {
+								message: chunk.error,
+								classification: classifyProviderError(chunk.error),
+							}
+						: undefined,
 				},
 			];
 		default:
@@ -182,12 +180,17 @@ export function createAgentModelFromApiHandler(
 					yield {
 						type: "finish",
 						reason: aborted ? "aborted" : "error",
-						error: error instanceof Error ? error.message : String(error),
+						failure: {
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+							...(aborted
+								? {}
+								: { classification: classifyProviderError(error) }),
+						},
 						// Classify while the raw error is still structured — the
 						// message alone can hide the provider's detail (status codes,
 						// response bodies). Without this, an overflow rejection from a
 						// registered handler would never reach recovery.
-						...(aborted ? {} : { errorClass: classifyProviderError(error) }),
 					};
 				}
 			}

@@ -313,10 +313,7 @@ export function captureTaskLifecycleEvent(
  *
  * Returns `true` when the failure is recorded — emitted, or counted toward
  * `suppressed_count` by the volume cap — and `false` when telemetry is
- * unavailable. Reporters that sit on a layer boundary forward the return
- * value (see `errorReported` on the model stream's `finish` event) so outer
- * layers know the failure is already accounted for and one underlying
- * failure produces one event, not one per layer it propagates through.
+ * unavailable. Terminal reporting is owned by the outermost public operation.
  */
 export function captureSdkError(
 	telemetry: ITelemetryService | undefined,
