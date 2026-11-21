@@ -82,6 +82,7 @@ export interface SessionCheckpointRestoreInput<
 	applyWorkspaceCheckpoint?: (
 		cwd: string,
 		checkpoint: CheckpointEntry,
+		ignoredPaths?: readonly string[],
 	) => Promise<void>;
 	beginWorkspaceRestoreTransaction?: (
 		cwd: string,
@@ -295,7 +296,15 @@ export class SessionVersioningService {
 			| undefined;
 		try {
 			if (restoreWorkspace) {
-				await applyWorkspaceCheckpoint(plan.cwd, plan.checkpoint);
+				if (transaction?.ignoredPaths) {
+					await applyWorkspaceCheckpoint(
+						plan.cwd,
+						plan.checkpoint,
+						transaction.ignoredPaths,
+					);
+				} else {
+					await applyWorkspaceCheckpoint(plan.cwd, plan.checkpoint);
+				}
 			}
 			if (!messageRestoreOperations) {
 				await transaction?.commit();
