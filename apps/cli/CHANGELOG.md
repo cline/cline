@@ -1,5 +1,24 @@
 # Cline CLI Changelog
 
+## 3.0.75
+
+- One-shot runs (a prompt argument or piped stdin) now start in yolo mode instead of act mode, since nobody is at the keyboard to approve tools. Act mode is kept when auto-approve is off (`--auto-approve false` or the saved setting), when a mode flag is passed, when plan mode is saved, or when the prompt is a `/team` prompt. Yolo mode has no team tools, so pass `--act` when you need them
+- `--timeout` and Ctrl+C now stop the first turn of a one-shot run. Before, neither could interrupt it
+- The CLI no longer reads `.env` or `bunfig.toml` from the directory it is launched in
+- With no saved model, the Cline provider now starts on the first free model instead of Claude Sonnet 5.5. Saved selections are untouched
+- `/account` shows a Privacy settings link to the Cline web app's data-use preferences
+- `read_files` results are no longer cut to 8k characters on the way to the model. A read now arrives in full, up to the tool's own limit of 2000 lines or about 48k characters
+- Reflection Beam no longer fails every turn with `400 Missing required parameter: 'messages[n].reasoning_content'` after a compaction or a model switch
+- Compaction no longer falls back to the basic summary on models the catalog doesn't describe. The summarizer was sending `reasoning_effort: "none"`, which some endpoints reject
+- Turning reasoning off now reaches custom models that have saved Model Configuration overrides. Before, gpt-5.6 and gpt-6 chat-completions endpoints rejected every tool call
+- On the native OpenAI provider, the reasoning level is fitted to what each model supports, so `max` and Extra High are no longer rejected by GPT-5.x and o-series models
+- LiteLLM: the legacy `max_tokens` field is no longer used as the input budget when the model reports `max_output_tokens`
+- Removed the `CLINE_CAPTURE_*` debug variables, which wrote full provider request bodies to disk
+- Experimental: set `CLINE_CLOUD_SESSIONS=1` to run tasks in Cline Cloud from the TUI. Ctrl+O toggles Local/Cloud, Ctrl+K picks the repo and branch, and `/model` picks the cloud model
+- Each platform package now ships a `THIRD_PARTY_NOTICES.txt`
+- Security: undici raised to 7.30.1, which fixes two process-crash issues
+- Refreshed the model catalog. Adds 94 providers from models.dev and drops Lilac and Tempr. The Cline recommended list adds Muse Ember. The Cline free list drops Reflection Beam, Laguna S 2.1 and Solar Mini 4. ClinePass drops DeepSeek V4.1 Flash, Mimo V2.6 Flash, Mimo V2.6 Pro, MiniMax M3, Qwen3.7 Plus and Qwen3.7 Max. Default models change for 67 other providers, mostly to Kimi K3.1 Pro, Gemini 4 Neon (including the `gemini` and `vertex` providers) or DeepSeek V4.1 Flash 1017
+
 ## 3.0.74
 
 - Opening a task that's already running in another Cline app now attaches to that run instead of starting a second one that couldn't be stopped. If an app closes mid-task, requests waiting on it now fail with a clear message instead of hanging
