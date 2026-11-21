@@ -5,6 +5,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMemo, useState } from "react";
 import { useDialogPalette } from "../../hooks/use-theme";
 import { ProviderRow } from "./provider-row";
+import { hasDisplayableTokenCount } from "./token-metadata";
 
 export interface ModelOption {
 	key: string;
@@ -579,7 +580,7 @@ function ModelRow(props: {
 			<text fg={isSelected ? palette.textOnSelection : undefined}>
 				{model.name}
 			</text>
-			{model.maxInputTokens && (
+			{hasDisplayableTokenCount(model.maxInputTokens) && (
 				<text fg={isSelected ? palette.textOnSelection : "gray"} flexShrink={0}>
 					{formatTokenCount(model.maxInputTokens)}
 				</text>
