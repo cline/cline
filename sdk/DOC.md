@@ -48,6 +48,9 @@ telemetry processor's flushing policy.
 
 Caller cancellation closes model-call spans without recording an exception or
 marking a provider failure, including cancellation before the response opens.
+If a run is stopped mid-stream, the assistant text and media already received
+stay in the transcript for follow-ups. Pending tool calls and reasoning from
+the interrupted stream are discarded.
 Timeout cancellations remain failures.
 
 ## Oversized tool result recovery

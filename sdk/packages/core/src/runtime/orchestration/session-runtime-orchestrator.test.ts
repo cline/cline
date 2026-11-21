@@ -1835,6 +1835,69 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("includes the stopped reply in a fresh follow-up request", async () => {
+		let markReadyToStop: (() => void) | undefined;
+		const readyToStop = new Promise<void>((resolve) => {
+			markReadyToStop = resolve;
+		});
+		const requests: (readonly AgentMessage[])[] = [];
+		const originalPrompt = "Write an essay about the history of terminals.";
+		const partialReply = "Early terminals evolved from teleprinters.";
+		const followUpPrompt = "Summarise what you wrote in one line.";
+		const summary = "Terminals began as teleprinters.";
+		const model: AgentModel = {
+			async *stream(request) {
+				requests.push(request.messages);
+				if (requests.length === 1) {
+					yield { type: "text-delta", text: partialReply };
+					yield { type: "reasoning-delta", text: "Unfinished reasoning" };
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "unfinished",
+						toolName: "read_file",
+						inputText: '{"path":',
+					};
+					const signal = request.signal;
+					if (!signal) throw new Error("Expected a cancellable request");
+					await new Promise<never>((_, reject) => {
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+						markReadyToStop?.();
+					});
+					return;
+				}
+				yield { type: "text-delta", text: summary };
+				yield { type: "finish", reason: "stop" };
+			},
+		};
+		const session = new SessionRuntime(makeAgentConfig(), {
+			createAgentRuntimeImpl: (config) =>
+				createAgentRuntime({
+					...config,
+					model,
+					completionPolicy: { requireCompletionTool: false },
+				}),
+		});
+
+		const first = session.run(originalPrompt);
+		await readyToStop;
+		session.abort();
+		expect((await first).finishReason).toBe("aborted");
+
+		const followUp = await session.continue(followUpPrompt);
+		expect(followUp.finishReason).toBe("completed");
+		expect(followUp.text).toBe(summary);
+		expect(requests).toHaveLength(2);
+		expect(
+			requests[1]?.map(({ role, content }) => ({ role, content })),
+		).toEqual([
+			{ role: "user", content: [{ type: "text", text: originalPrompt }] },
+			{ role: "assistant", content: [{ type: "text", text: partialReply }] },
+			{ role: "user", content: [{ type: "text", text: followUpPrompt }] },
+		]);
+	});
+
 	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
 		const modelRequests: AgentMessage[][] = [];
 		const scriptedModel: AgentModel = {
