@@ -165,6 +165,14 @@ export class AcpAgent implements Agent {
 		}
 	}
 
+	/** `CLINE_MODEL`, else the model saved for the provider (e.g. via `cline auth`). */
+	private preferredModelId(providerId: string): string | undefined {
+		return (
+			process.env.CLINE_MODEL ??
+			this.providerSettingsManager.getProviderSettings(providerId)?.model
+		);
+	}
+
 	availableModes() {
 		return [
 			{
@@ -199,7 +207,7 @@ export class AcpAgent implements Agent {
 		// nothing to `cline`, and vice versa.
 		const defaultModelId = await resolveDefaultModelId(
 			providerId,
-			process.env.CLINE_MODEL,
+			this.preferredModelId(providerId),
 			providerModels,
 		);
 
@@ -278,7 +286,7 @@ export class AcpAgent implements Agent {
 					currentProviderId: providerId,
 					currentModelId: await resolveDefaultModelId(
 						providerId,
-						process.env.CLINE_MODEL,
+						this.preferredModelId(providerId),
 						providerModels,
 					),
 					autoApproveTools: this.defaultAutoApproveTools,
