@@ -392,7 +392,7 @@
 		{
 			"name": "zig-clap (linked into the Bun runtime)",
 			"version": "bun-v1.4.2",
-			"license": "MIT",
+			"license": "Unlicense",
 			"repository": "https://github.com/oven-sh/bun/tree/bun-v1.4.2",
 			"texts": [
 				{

@@ -183,7 +183,7 @@ const IN_REPO = [
 		path: "packages/bun-uws/LICENSE",
 		license: "Apache-2.0",
 	},
-	{ name: "zig-clap", path: "src/clap/LICENSE", license: "MIT" },
+	{ name: "zig-clap", path: "src/clap/LICENSE", license: "Unlicense" },
 ];
 
 // Credited in Bun's LICENSE.md but not fetched by its build scripts. A null ref means Bun does
