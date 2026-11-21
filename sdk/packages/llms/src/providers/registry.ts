@@ -187,6 +187,7 @@ export class GatewayRegistry {
 			apiKey: config.apiKey,
 			apiKeyResolver: config.apiKeyResolver,
 			apiKeyEnv: config.apiKeyEnv,
+			authMetadata: config.authMetadata,
 			baseUrl: config.baseUrl,
 			headers: config.headers ? { ...config.headers } : undefined,
 			timeoutMs: config.timeoutMs,
@@ -308,6 +309,7 @@ export class GatewayRegistry {
 				apiKeyResolver:
 					config?.apiKeyResolver ?? record.defaults?.apiKeyResolver,
 				apiKeyEnv: config?.apiKeyEnv ?? record.defaults?.apiKeyEnv,
+				authMetadata: config?.authMetadata,
 				baseUrl:
 					config?.baseUrl ??
 					resolveApiLineBaseUrl(options) ??

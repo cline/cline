@@ -22,6 +22,7 @@ export type DelegatedAgentConnectionConfig = Pick<
 	| "providerId"
 	| "modelId"
 	| "apiKey"
+	| "authMetadata"
 	| "baseUrl"
 	| "headers"
 	| "onAuthError"
@@ -97,6 +98,7 @@ export function createDelegatedAgentConfigProvider(
 			providerId: runtimeConfig.providerId,
 			modelId: runtimeConfig.modelId,
 			apiKey: runtimeConfig.apiKey,
+			authMetadata: runtimeConfig.authMetadata,
 			baseUrl: runtimeConfig.baseUrl,
 			headers: runtimeConfig.headers,
 			onAuthError: runtimeConfig.onAuthError,
