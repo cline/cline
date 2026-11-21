@@ -26,6 +26,7 @@ Use this page for providers that follow the same setup pattern.
   - [Huawei Cloud MaaS](#huawei-cloud-maas)
   - [Hugging Face](#hugging-face)
   - [Mistral](#mistral)
+  - [Mixlayer](#mixlayer)
   - [Moonshot](#moonshot)
   - [Nebius AI Studio](#nebius-ai-studio)
   - [Nous Research](#nous-research)
@@ -240,6 +241,22 @@ Mistral provides direct API access to its model lineup.
 1. Create/sign in to Mistral platform account.
 2. Generate an API key.
 3. In Cline, choose **Mistral** and paste the key.
+
+### Mixlayer
+Mixlayer is an inference platform for open-source models (Qwen, DeepSeek, GLM) behind an OpenAI-compatible API, with zero data retention.
+
+**Website:** [https://mixlayer.com](https://mixlayer.com)
+
+**Documentation:** [https://docs.mixlayer.com](https://docs.mixlayer.com)
+
+#### Basic Setup
+
+1. Create/sign in at the [Mixlayer Console](https://console.mixlayer.com/sign-up).
+2. Generate an API key from [API keys](https://console.mixlayer.com/app/api-keys).
+3. In Cline, choose **Mixlayer** and paste the key. The CLI also reads `MIXLAYER_API_KEY`.
+4. Choose a model, or enter a model ID from the [Mixlayer docs](https://docs.mixlayer.com). The shipped list comes from models.dev and can lag the live catalog.
+
+If a base URL field is shown, use `https://mixlayer.ai/v1`. The named provider's shipped default is `https://models.mixlayer.ai/v1`; both hosts serve the same API. For manual setup, choose **OpenAI Compatible**, set the base URL to `https://mixlayer.ai/v1`, paste your API key, and enter a model ID. See the [pricing page](https://mixlayer.com/pricing) for current rates.
 
 ### Moonshot
 Moonshot provides API access to Kimi model families.
