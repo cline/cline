@@ -35,6 +35,8 @@ export interface PendingPromptsControllerDeps {
 		mode?: AgentMode;
 		userImages?: string[];
 		userFiles?: string[];
+		/** The dequeued entry, so a turn stopped before it reaches the agent can report it as discarded. */
+		pendingPrompt: PendingPromptEntry;
 	}): Promise<unknown>;
 }
 
@@ -264,7 +266,9 @@ export class PendingPromptsController {
 		},
 	): void {
 		const session = this.deps.getSession(sessionId);
-		if (!session) return;
+		// A session being torn down discarded its queue and will never
+		// drain it again, so it accepts no new prompts.
+		if (!session || session.shuttingDown) return;
 		// The queue survives aborts and is visible while one settles, so
 		// queue operations must keep working during the abort window: a
 		// prompt typed right after Escape joins the queue instead of being
@@ -290,22 +294,26 @@ export class PendingPromptsController {
 	}
 
 	/**
-	 * Drops every queued prompt. Only called when the user aborts a
+	 * Empties the queue and returns what it held, without announcing it; the
+	 * caller reports the entries as discarded. Used when the user aborts a
 	 * queue-initiated turn — that gesture means "stop the queued work", not
-	 * just "stop this response", so the remainder must not auto-run.
+	 * just "stop this response", so the remainder must not auto-run — and
+	 * when the session starts tearing down.
 	 */
-	discardQueue(session: ActiveSession): void {
-		if (session.pendingPrompts.length === 0) return;
-		this.service.clear(session);
-		this.emitPrompts(session);
+	takeQueue(session: ActiveSession): PendingPromptEntry[] {
+		return session.pendingPrompts.splice(0);
 	}
 
-	emitPrompts(session: ActiveSession): void {
+	/** `discarded` lists entries that left the queue without being sent. */
+	emitPrompts(session: ActiveSession, discarded?: PendingPromptEntry[]): void {
 		this.deps.emit({
 			type: "pending_prompts",
 			payload: {
 				sessionId: session.sessionId,
 				prompts: snapshotPrompts(session),
+				...(discarded?.length
+					? { discarded: discarded.map(snapshotPrompt) }
+					: {}),
 			},
 		});
 	}
@@ -313,8 +321,10 @@ export class PendingPromptsController {
 	scheduleDrain(sessionId: string, session: ActiveSession): void {
 		if (
 			session.pendingPrompts.length === 0 ||
+			session.shuttingDown ||
 			session.aborting ||
 			session.drainingPendingPrompts ||
+			session.turnsInFlight > 0 ||
 			!session.agent.canStartRun()
 		) {
 			return;
@@ -327,10 +337,16 @@ export class PendingPromptsController {
 	async drain(sessionId: string): Promise<void> {
 		const session = this.deps.getSession(sessionId);
 		if (!session) return;
-		if (session.aborting || session.drainingPendingPrompts) {
+		if (
+			session.shuttingDown ||
+			session.aborting ||
+			session.drainingPendingPrompts
+		) {
 			return;
 		}
-		if (!session.agent.canStartRun()) {
+		// A turn that is still preparing has no run the agent knows about yet;
+		// draining into it would start a second turn.
+		if (session.turnsInFlight > 0 || !session.agent.canStartRun()) {
 			return;
 		}
 		const { entry: next } = this.service.shiftNext(session);
@@ -347,6 +363,7 @@ export class PendingPromptsController {
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
+				pendingPrompt: next,
 			});
 			// A turn that resolves with an error finish ran (the prompt is in
 			// the conversation and the error is surfaced), so the entry is not
@@ -358,8 +375,12 @@ export class PendingPromptsController {
 			}
 		} catch {
 			continueDrain = false;
-			this.service.requeueFront(session, next);
-			this.emitPrompts(session);
+			// Teardown emptied the queue while this entry was out; putting it
+			// back would resurrect a queue on a session that is going away.
+			if (!session.shuttingDown) {
+				this.service.requeueFront(session, next);
+				this.emitPrompts(session);
+			}
 		} finally {
 			session.drainingPendingPrompts = false;
 			if (
