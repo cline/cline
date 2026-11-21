@@ -2435,14 +2435,29 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "<task>Build the feature</task>" },
 		];
 		for (let i = 0; i < 12; i++) {
+			const rejectedInput = i === 10 || i === 11;
 			messages.push({
 				role: "assistant",
 				content: [
+					...(i === 11
+						? [
+								{
+									type: "thinking" as const,
+									thinking: "reasoning",
+									signature: "sig",
+								},
+								{ type: "text" as const, text: "Attempting the command." },
+							]
+						: []),
 					{
 						type: "tool_use",
 						id: `loop-tool-${i}`,
-						name: "read_files",
-						input: { file_paths: [`/tmp/f${i}.ts`] },
+						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
+						input: rejectedInput
+							? { arguments: '{"commands":["pwd"]}' }
+							: i === 8
+								? { commands: ["bad"] }
+								: { file_paths: [`/tmp/f${i}.ts`] },
 					},
 				],
 			});
@@ -2452,13 +2467,24 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: `loop-tool-${i}`,
-						name: "read_files",
-						content: "x".repeat(1_500),
+						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
+						content: rejectedInput
+							? JSON.stringify({
+									error:
+										i === 11
+											? '✖ Unrecognized key: "arguments"\n✖ Invalid input: expected array, received undefined → at commands'
+											: "✖ Invalid input",
+								})
+							: i === 8
+								? "invalid input syntax for type uuid"
+								: i === 9
+									? "ENOENT: no such file or directory"
+									: "x".repeat(1_500),
+						...(i === 8 || i === 9 || rejectedInput ? { is_error: true } : {}),
 					},
 				],
 			});
 		}
-		messages.push({ role: "assistant", content: "working on it" });
 
 		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
@@ -2504,9 +2530,16 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 		expect(result?.messages.length).toBeLessThan(messages.length);
 		// The preserved tail must not orphan either half of a tool pair.
+		const state = createSessionCompactionState({
+			sourceMessages: messages,
+			compactedMessages: result?.messages ?? [],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const resumedMessages = projectSessionCompactionState(state, messages);
+		expect(resumedMessages).toEqual(result?.messages);
 		const toolUseIds2 = new Set<string>();
 		const toolResultIds2 = new Set<string>();
-		for (const msg of result?.messages ?? []) {
+		for (const msg of resumedMessages ?? []) {
 			if (!Array.isArray(msg.content)) continue;
 			for (const block of msg.content) {
 				if (block.type === "tool_use") toolUseIds2.add(block.id);
@@ -2521,6 +2554,11 @@ describe("createContextCompactionPrepareTurn", () => {
 		for (const id of toolResultIds2) {
 			expect(toolUseIds2.has(id)).toBe(true);
 		}
+		expect(toolUseIds2).not.toContain("loop-tool-11");
+		expect(toolUseIds2).toContain("loop-tool-8");
+		expect(toolUseIds2).toContain("loop-tool-9");
+		expect(toolUseIds2).not.toContain("loop-tool-10");
+		expect(resumedMessages?.at(-1)?.role).toBe("user");
 	});
 
 	it("re-compacts a projection that starts with a compaction summary", async () => {
