@@ -24,6 +24,11 @@ export function bunRuntimeEntries(product: string): NoticeEntry[] {
 	}
 	const [bun, ...bundled] = vendored.entries;
 	const webkit = process.versions.webkit;
+	// The LGPL source link must name the exact commit; never ship it blank.
+	if (!webkit)
+		throw new Error(
+			"[third-party-notices] Bun did not report its WebKit commit",
+		);
 	const webkitSource = `https://github.com/oven-sh/WebKit/tree/${webkit}`;
 	return [
 		bun,
