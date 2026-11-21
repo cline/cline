@@ -73,6 +73,7 @@ export type WebviewChatMessage = Omit<
 };
 
 export type WebviewConfig = {
+	workspaceRoot?: string;
 	provider?: string;
 	model?: string;
 	mode?: "act" | "plan";
