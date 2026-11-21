@@ -396,6 +396,102 @@ describe("UnifiedSessionPersistenceService", () => {
 		15_000,
 	);
 
+	// A session that died idle last wrote its row; one killed mid-turn last
+	// wrote its messages file, which does not touch the row.
+	const deadSessionCases = [
+		{ status: "idle", lastActivityAt: "2026-09-28T18:00:00.000Z" },
+		{ status: "running", lastActivityAt: "2026-09-28T20:00:00.000Z" },
+	] as const;
+
+	const expectReconcileKeepsLastActivityTime = async (
+		service: Pick<
+			CoreSessionService,
+			| "createRootSessionWithArtifacts"
+			| "listSessions"
+			| "persistSessionMessages"
+		>,
+		deadCase: (typeof deadSessionCases)[number],
+	) => {
+		const sessionId = `stale-${deadCase.status}-session`;
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(new Date("2026-09-28T18:00:00.000Z"));
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: 999_999_999,
+				interactive: true,
+				provider: "mock-provider",
+				model: "mock-model",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+				status: deadCase.status,
+				startedAt: "2026-09-28T17:00:00.000Z",
+			});
+			if (deadCase.status === "running") {
+				vi.setSystemTime(new Date(deadCase.lastActivityAt));
+				await service.persistSessionMessages(sessionId, [
+					{ role: "user", content: "hello" },
+				]);
+			}
+
+			// The host process died overnight; the next listing reconciles it.
+			vi.setSystemTime(new Date("2026-09-29T09:00:00.000Z"));
+			const rows = await service.listSessions(10);
+
+			expect(rows[0]).toMatchObject({
+				sessionId,
+				status: "failed",
+				endedAt: deadCase.lastActivityAt,
+				updatedAt: deadCase.lastActivityAt,
+			});
+			const manifest = JSON.parse(
+				readFileSync(artifacts.manifestPath, "utf8"),
+			) as Record<string, unknown>;
+			expect(manifest.ended_at).toBe(deadCase.lastActivityAt);
+			expect(manifest.metadata).toMatchObject({
+				terminal_marker_at: "2026-09-29T09:00:00.000Z",
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	};
+
+	for (const deadCase of deadSessionCases) {
+		sqliteIt(
+			`keeps the last activity time when reconciling a dead ${deadCase.status} session`,
+			async () => {
+				const dbDir = mkdtempSync(join(tmpdir(), "stale-reconcile-db-"));
+				const sessionsDir = mkdtempSync(
+					join(tmpdir(), "stale-reconcile-sessions-"),
+				);
+				tempDirs.push(dbDir, sessionsDir);
+
+				const store = new SqliteSessionStore({ sessionsDir: dbDir });
+				stores.push(store);
+				await expectReconcileKeepsLastActivityTime(
+					new CoreSessionService(store, { sessionArtifactsDir: sessionsDir }),
+					deadCase,
+				);
+			},
+			15_000,
+		);
+
+		it(`keeps the last activity time when reconciling a dead ${deadCase.status} file-backed session`, async () => {
+			const sessionsDir = mkdtempSync(join(tmpdir(), "stale-reconcile-"));
+			tempDirs.push(sessionsDir);
+
+			await expectReconcileKeepsLastActivityTime(
+				new FileSessionService(sessionsDir),
+				deadCase,
+			);
+		});
+	}
+
 	sqliteIt(
 		"persists teammate task metadata in the file envelope and usage on messages",
 		async () => {

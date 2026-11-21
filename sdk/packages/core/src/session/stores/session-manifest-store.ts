@@ -223,10 +223,7 @@ export class SessionManifestStore {
 		systemPrompt?: string,
 	): Promise<void> {
 		const row = await this.resolveSessionRow(sessionId);
-		const path =
-			typeof row.messagesPath === "string" && row.messagesPath.trim().length > 0
-				? row.messagesPath
-				: this.artifacts.sessionMessagesPath(sessionId);
+		const path = this.resolveMessagesPath(row);
 		const payload = buildMessagesFilePayload({
 			updatedAt: nowIso(),
 			context: resolveMessagesFileContext(row),
@@ -252,6 +249,31 @@ export class SessionManifestStore {
 				error,
 			});
 		}
+	}
+
+	/**
+	 * Read the `updated_at` stamp of a session's messages file. Message writes
+	 * do not touch the session row, so this is the last activity time of a
+	 * session that died mid-turn. Resolves to `undefined` when the file is
+	 * missing or unreadable.
+	 */
+	async readMessagesUpdatedAt(row: SessionRow): Promise<string | undefined> {
+		try {
+			const parsed = JSON.parse(
+				await readFile(this.resolveMessagesPath(row), "utf8"),
+			) as { updated_at?: unknown } | null;
+			const updatedAt = parsed?.updated_at;
+			return typeof updatedAt === "string" ? updatedAt : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private resolveMessagesPath(row: SessionRow): string {
+		return typeof row.messagesPath === "string" &&
+			row.messagesPath.trim().length > 0
+			? row.messagesPath
+			: this.artifacts.sessionMessagesPath(row.sessionId);
 	}
 
 	private resolveCompactionPath(sessionId: string): string {
