@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import { promisify } from "node:util";
 import type { WorkspaceInfo } from "@cline/shared";
 import { processWorkspaceInfo } from "@cline/shared";
-import simpleGit from "simple-git";
+import { simpleGit } from "simple-git";
 
 const execFileAsync = promisify(execFile);
 

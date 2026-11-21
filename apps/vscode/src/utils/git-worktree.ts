@@ -1,5 +1,5 @@
 import * as path from "path"
-import simpleGit from "simple-git"
+import { simpleGit } from "simple-git"
 import { Logger } from "@/shared/services/Logger"
 import { copyWorktreeIncludeFiles } from "./worktree-include"
 
