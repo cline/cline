@@ -1,0 +1,100 @@
+name: ui-storybook
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk/packages/ui/**"
+      - "sdk/packages/shared/**"
+      - "package.json"
+      - "bun.lock"
+      - "patches/**"
+      - ".github/workflows/ui-storybook.yml"
+  pull_request:
+    paths:
+      - "sdk/packages/ui/**"
+      - "sdk/packages/shared/**"
+      - "package.json"
+      - "bun.lock"
+      - "patches/**"
+      - ".github/workflows/ui-storybook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish Storybook preview
+    # Match ext-jb-test-integration's trusted-author policy. Fork PRs cannot
+    # access the project token, including those opened by trusted authors.
+    if: >-
+      github.repository == 'cline/cline' &&
+      (github.event_name != 'pull_request' ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(fromJSON('["MEMBER","OWNER","COLLABORATOR"]'), github.event.pull_request.author_association)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check Chromatic configuration
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CLINE_CHROMATIC_PROJECT_TOKEN }}
+        run: |
+          if [ -z "$CHROMATIC_PROJECT_TOKEN" ]; then
+            echo "::error::Set the CLINE_CHROMATIC_PROJECT_TOKEN repository secret."
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build shared package
+        run: bun -F @cline/shared build
+
+      - name: Build Storybook
+        run: bun -F @cline/ui build-storybook
+
+      # Disable both UI Tests and UI Review in Chromatic's project settings
+      # for hosting only. exitOnceUploaded does not disable snapshot capture.
+      - name: Publish to Chromatic
+        id: chromatic
+        uses: chromaui/action@afc18acec64c8b51f9c39c15f9d9808c8b60b5ff # v18.9.6
+        with:
+          projectToken: ${{ secrets.CLINE_CHROMATIC_PROJECT_TOKEN }}
+          workingDir: sdk/packages/ui
+          storybookBuildDir: tmp/storybook-static
+          exitOnceUploaded: true
+
+      - name: Link Storybook preview
+        env:
+          STORYBOOK_URL: ${{ steps.chromatic.outputs.storybookUrl }}
+          BUILD_URL: ${{ steps.chromatic.outputs.buildUrl }}
+        run: |
+          {
+            echo "### Storybook preview"
+            echo ""
+            echo "[Open Storybook]($STORYBOOK_URL)"
+            echo ""
+            echo "[View Chromatic build]($BUILD_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
