@@ -12,7 +12,15 @@ import {
 } from "node:fs";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import {
+	basename,
+	dirname,
+	extname,
+	join,
+	relative,
+	resolve,
+	win32 as win32Path,
+} from "node:path";
 import { toPosixSeparators } from "@cline/shared";
 import {
 	isPluginModulePath,
@@ -527,13 +535,92 @@ function getWrapperPackageName(
 	return sanitizeSegment(basename(resolve(cwd, resolveHomePath(parsed.path))));
 }
 
+export interface CommandInvocation {
+	command: string;
+	args: string[];
+}
+
+/**
+ * On Windows npm ships as `npm.cmd`, which spawn() can neither find by its
+ * bare name (libuv does not apply PATHEXT) nor run by full path (Node refuses
+ * .cmd/.bat files without a shell). A shell would re-parse user-supplied
+ * specs such as `pkg@>=1`, so run the pair `npm.cmd` itself invokes instead:
+ * `node <dir>\node_modules\npm\bin\npm-cli.js`. Anything else, or an npm
+ * layout this does not recognize, is returned unchanged.
+ */
+export function resolveWindowsNpmInvocation(
+	command: string,
+	args: string[],
+	options: {
+		platform?: NodeJS.Platform;
+		pathEnv?: string;
+		fileExists?: (path: string) => boolean;
+	} = {},
+): CommandInvocation {
+	const unchanged = { command, args };
+	if ((options.platform ?? process.platform) !== "win32") {
+		return unchanged;
+	}
+	const fileExists = options.fileExists ?? existsSync;
+	const npmCmdPath = findWindowsNpmCmd(
+		command,
+		options.pathEnv ?? process.env.PATH ?? "",
+		fileExists,
+	);
+	if (!npmCmdPath) {
+		return unchanged;
+	}
+	const npmDir = win32Path.dirname(npmCmdPath);
+	const npmCliPath = win32Path.join(
+		npmDir,
+		"node_modules",
+		"npm",
+		"bin",
+		"npm-cli.js",
+	);
+	if (!fileExists(npmCliPath)) {
+		return unchanged;
+	}
+	const bundledNode = win32Path.join(npmDir, "node.exe");
+	return {
+		command: fileExists(bundledNode) ? bundledNode : "node",
+		args: [npmCliPath, ...args],
+	};
+}
+
+function findWindowsNpmCmd(
+	command: string,
+	pathEnv: string,
+	fileExists: (path: string) => boolean,
+): string | undefined {
+	if (win32Path.basename(command).toLowerCase() === "npm.cmd") {
+		return command;
+	}
+	if (command.toLowerCase() !== "npm") {
+		return undefined;
+	}
+	for (const dir of pathEnv.split(win32Path.delimiter)) {
+		if (!dir) continue;
+		// An npm.exe shim (e.g. Volta) spawns fine as-is.
+		if (fileExists(win32Path.join(dir, "npm.exe"))) {
+			return undefined;
+		}
+		const candidate = win32Path.join(dir, "npm.cmd");
+		if (fileExists(candidate)) {
+			return candidate;
+		}
+	}
+	return undefined;
+}
+
 async function runCommand(
 	command: string,
 	args: string[],
 	options: { cwd?: string } = {},
 ): Promise<void> {
+	const invocation = resolveWindowsNpmInvocation(command, args);
 	await new Promise<void>((resolvePromise, reject) => {
-		const child = spawn(command, args, {
+		const child = spawn(invocation.command, invocation.args, {
 			cwd: options.cwd,
 			stdio: ["ignore", "ignore", "pipe"],
 			env: process.env,
