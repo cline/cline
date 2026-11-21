@@ -80,6 +80,46 @@ describe("formatStatusBarUsageText", () => {
 			}),
 		).toBe("(12,345)");
 	});
+
+	it("appends window and percentage when maxInputTokens is known", () => {
+		const tokens = 236_250;
+		const windowTokens = 1_050_000;
+		expect(
+			formatStatusBarUsageText({
+				totalTokens: tokens,
+				totalCost: 0.02,
+				providerId: "cline",
+				maxInputTokens: windowTokens,
+			}),
+		).toBe(
+			`(${tokens.toLocaleString()}) /${windowTokens.toLocaleString()} 22.5% $0.02`,
+		);
+	});
+
+	it("clamps the percentage at 100 when usage exceeds the window", () => {
+		const tokens = 1_200_000;
+		const windowTokens = 1_000_000;
+		expect(
+			formatStatusBarUsageText({
+				totalTokens: tokens,
+				totalCost: 0,
+				providerId: "cline-pass",
+				maxInputTokens: windowTokens,
+			}),
+		).toBe(
+			`(${tokens.toLocaleString()}) /${windowTokens.toLocaleString()} 100.0%`,
+		);
+	});
+
+	it("omits window and percentage when the window is unknown", () => {
+		expect(
+			formatStatusBarUsageText({
+				totalTokens: 12_345,
+				totalCost: 0.123,
+				providerId: "cline",
+			}),
+		).toBe("(12,345) $0.12");
+	});
 });
 
 describe("resolveModelDisplayName", () => {
