@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.1.27]
+
+### Added
+
+- LM Studio settings have an API key field, for servers with "Require Authentication" turned on.
+- The MCP tab shows a "read-only" badge on tools whose server declares them read-only.
+- The Account view has a Privacy settings link to the Cline web app's data-use preferences.
+- The extension package now includes its third-party license notices.
+
+### Changed
+
+- With no saved model, the Cline provider now starts on the first free model instead of Claude Sonnet 5.5. Saved selections are untouched.
+- The reasoning effort dropdown shows the effort a new task will actually use, and has a Default entry that clears the saved setting.
+- A provider's model list refreshes after you save its API key or base URL, and a failed refresh (such as a rejected key) shows as an error in the model picker.
+- `read_files` results are no longer cut to 8k characters on the way to the model. A read now arrives in full, up to the tool's own limit of 2000 lines or about 48k characters.
+- Refreshed the model catalog. Adds 94 providers from models.dev and drops Lilac and Tempr. The Cline recommended list adds Muse Ember. The Cline free list drops Reflection Beam, Laguna S 2.1 and Solar Mini 4. ClinePass drops DeepSeek V4.1 Flash, Mimo V2.6 Flash, Mimo V2.6 Pro, MiniMax M3, Qwen3.7 Plus and Qwen3.7 Max. Default models change for 67 other providers, mostly to Kimi K3.1 Pro, Gemini 4 Neon (including the `gemini` and `vertex` providers) or DeepSeek V4.1 Flash 1017.
+
+### Fixed
+
+- Picking "None" for reasoning effort is now saved and sent. Before, GPT-6 on Azure kept its default effort and rejected tool calls.
+- Turning reasoning off now reaches custom models that have saved Model Configuration overrides. Before, gpt-5.6 and gpt-6 chat-completions endpoints rejected every tool call.
+- On the native OpenAI provider, the reasoning level is fitted to what each model supports, so `max` and Extra High are no longer rejected by GPT-5.x and o-series models.
+- Reflection Beam no longer fails every turn with `400 Missing required parameter: 'messages[n].reasoning_content'` after a compaction or a model switch.
+- Compaction no longer falls back to the basic summary on models the catalog doesn't describe.
+- LiteLLM: the legacy `max_tokens` field is no longer used as the input budget when the model reports `max_output_tokens`.
+- Reasoning text from a turn that was cancelled or failed no longer shows up at the start of the next turn's reasoning.
+- Commit search passes your query to git as arguments instead of shell text, so a quoted search matches the exact phrase.
+- Security: undici raised to 7.30.1, which fixes two process-crash issues.
+
 ## [4.1.26]
 
 ### Added
