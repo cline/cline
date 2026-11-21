@@ -2,11 +2,14 @@ import type { AgentMode } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureSdkStreamRetryInput,
 	type CaptureTaskLifecycleEventInput,
 	captureAgentUnexpectedReasoningTokens,
+	captureSdkStreamRetry,
 	captureTaskLifecycleEvent,
 	type ITelemetryService,
 	SDK_ERROR_TELEMETRY_EVENT,
+	SDK_STREAM_RETRY_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_MAX_TOKENS_RECOVERY_EVENT,
@@ -111,6 +114,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	SDK: {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
+		STREAM_RETRY: SDK_STREAM_RETRY_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
 		PLAN_MODE_COMMAND_BLOCKED: "sdk.plan_mode_command_blocked",
 	},
@@ -138,6 +142,8 @@ export interface RunCommandsTimeoutTelemetryProperties {
 
 export {
 	captureAgentUnexpectedReasoningTokens,
+	captureSdkStreamRetry,
+	type CaptureSdkStreamRetryInput,
 	captureTaskLifecycleEvent,
 	type CaptureAgentUnexpectedReasoningTokensInput,
 	type CaptureTaskLifecycleEventInput,

@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	captureSdkError,
+	captureSdkStreamRetry,
 	normalizeSdkError,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
 	SDK_ERROR_RATE_LIMIT_WINDOW_MS,
 	SDK_ERROR_TELEMETRY_EVENT,
+	SDK_STREAM_RETRY_TELEMETRY_EVENT,
 } from "./telemetry";
 
 beforeEach(() => {
@@ -286,5 +288,46 @@ describe("SDK error rate limiting", () => {
 		expect(capture).toHaveBeenCalledTimes(
 			12 * SDK_ERROR_RATE_LIMIT_MAX_PER_WINDOW,
 		);
+	});
+});
+
+describe("SDK stream retry telemetry", () => {
+	it("captures the catalogued event with the wait and its correlation context", () => {
+		const telemetry = { capture: vi.fn() };
+
+		captureSdkStreamRetry(telemetry as never, {
+			providerId: "openai-compatible",
+			modelId: "test-model",
+			providerKind: "openai-compatible",
+			attempt: 2,
+			delayMs: 2000,
+			errorClass: "unknown",
+			context: { sessionId: "s1", modelRequestId: "mr1", iteration: undefined },
+		});
+
+		expect(telemetry.capture).toHaveBeenCalledWith({
+			event: SDK_STREAM_RETRY_TELEMETRY_EVENT,
+			properties: {
+				sessionId: "s1",
+				modelRequestId: "mr1",
+				providerId: "openai-compatible",
+				modelId: "test-model",
+				providerKind: "openai-compatible",
+				attempt: 2,
+				delayMs: 2000,
+				errorClass: "unknown",
+			},
+		});
+	});
+
+	it("is a no-op without a telemetry service", () => {
+		expect(() =>
+			captureSdkStreamRetry(undefined, {
+				providerId: "p",
+				modelId: "m",
+				attempt: 1,
+				delayMs: 1000,
+			}),
+		).not.toThrow();
 	});
 });

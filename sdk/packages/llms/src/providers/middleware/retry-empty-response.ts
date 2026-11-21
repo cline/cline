@@ -72,6 +72,7 @@ import type {
 	LanguageModelV4StreamResult,
 	LanguageModelV4Usage,
 } from "@ai-sdk/provider";
+import { sleep } from "../sleep";
 import { classifyModelStreamPart } from "./stream-part-classification";
 
 /** Minimal logger surface (a subset of `BasicLogger`). */
@@ -246,25 +247,6 @@ function withAggregatedUsage(
 	return { ...finish, usage };
 }
 
-/** Sleep that resolves early (without throwing) when the signal aborts. */
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-	return new Promise((resolve) => {
-		if (ms <= 0 || signal?.aborted) {
-			resolve();
-			return;
-		}
-		const onAbort = () => {
-			clearTimeout(timer);
-			resolve();
-		};
-		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort);
-			resolve();
-		}, ms);
-		signal?.addEventListener("abort", onAbort, { once: true });
-	});
-}
-
 /**
  * Create a middleware that retries empty model responses. Apply it as the
  * outermost middleware (first in the `wrapLanguageModel` array) so each retry
@@ -315,6 +297,7 @@ export function createRetryEmptyResponseMiddleware(
 						let pendingFinish: FinishPart | null = null;
 						let streamFailure: unknown;
 						let streamFailed = false;
+						let errorPartForwarded = false;
 
 						try {
 							while (true) {
@@ -347,6 +330,9 @@ export function createRetryEmptyResponseMiddleware(
 								}
 								if (accepted) {
 									controller.enqueue(value);
+									if (value.type === "error") {
+										errorPartForwarded = true;
+									}
 								} else {
 									buffered.push(value);
 								}
@@ -356,6 +342,22 @@ export function createRetryEmptyResponseMiddleware(
 							streamFailure = error;
 						} finally {
 							reader.releaseLock();
+						}
+
+						if (streamFailed && errorPartForwarded) {
+							// The provider already reported the outcome as an error
+							// part; a transport failure after it adds nothing. Ending
+							// the stream cleanly keeps the AI SDK's stream retry
+							// reachable: its read-ahead would otherwise see the
+							// failure while `onError` is pending, its reader cancel
+							// then rejects, and the retry is skipped (vercel/ai#23762).
+							if (pendingFinish) {
+								controller.enqueue(
+									withAggregatedUsage(pendingFinish, discardedUsage),
+								);
+							}
+							controller.close();
+							return;
 						}
 
 						if (streamFailed) {

@@ -19,6 +19,7 @@ import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
+	captureSdkStreamRetry,
 	createMediaBudgetState,
 	formatMessagesForAiSdk,
 	GeneratedMediaSchema,
@@ -27,6 +28,7 @@ import {
 	modelSupportsToolCalling,
 	parseJsonStream,
 	sanitizeSurrogates,
+	type TelemetryProperties,
 	usesImageGenerationOperation,
 	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
@@ -81,6 +83,11 @@ import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
 } from "./routing/provider-options";
+import { sleep } from "./sleep";
+import {
+	createStreamRetryBackoff,
+	type StreamRetryBackoff,
+} from "./stream-retry-backoff";
 import type {
 	AiSdkStreamPart,
 	AiSdkStreamResult,
@@ -1099,7 +1106,8 @@ function getNestedUsageValue(
 /**
  * AI SDK request-start retries (`maxRetries`) handle transient failures before
  * streaming begins, with backoff that honors `retry-after` headers. Provider
- * error parts received after streaming starts use `streamRetries` instead.
+ * error parts received after streaming starts use `streamRetries` instead,
+ * paced by `createStreamRetryBackoff` from `onError`.
  *
  * Exhausted request-start retries (`RetryError`) and terminal stream error parts
  * do not trigger the agent's whole-turn retry, so the retry budgets do not
@@ -2193,6 +2201,24 @@ function createAiSdkProvider(
 			let recordTraceError: ((error: unknown) => Promise<void>) | undefined;
 			let getAiSdkCallId: (() => string | undefined) | undefined;
 			let reportedError: CapturedStreamError | undefined;
+			let streamRetryBackoff: StreamRetryBackoff | undefined;
+			const correlationProperties = (): TelemetryProperties => {
+				const runtimeContext = buildAiSdkRuntimeContext(request, context);
+				return Object.fromEntries(
+					[
+						"runId",
+						"agentId",
+						"sessionId",
+						"conversationId",
+						"modelRequestId",
+						"iteration",
+					].flatMap((key) =>
+						runtimeContext[key] === undefined
+							? []
+							: [[key, runtimeContext[key]]],
+					),
+				) as TelemetryProperties;
+			};
 			const reportError = async (
 				captured: CapturedStreamError,
 				operation = "provider.stream",
@@ -2206,21 +2232,7 @@ function createAiSdkProvider(
 				)
 					return;
 				reportedError = captured;
-				const runtimeContext = buildAiSdkRuntimeContext(request, context);
-				const correlation = Object.fromEntries(
-					[
-						"runId",
-						"agentId",
-						"sessionId",
-						"conversationId",
-						"modelRequestId",
-						"iteration",
-					].flatMap((key) =>
-						runtimeContext[key] === undefined
-							? []
-							: [[key, runtimeContext[key]]],
-					),
-				);
+				const correlation = correlationProperties();
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						...correlation,
@@ -2246,6 +2258,7 @@ function createAiSdkProvider(
 						aiSdkCallId: getAiSdkCallId?.(),
 						errorPhase: captured.phase,
 						errorTurnRetryable: captured.retryable,
+						...streamRetryBackoff?.summary(),
 						providerId: request.providerId,
 						modelId: request.modelId,
 						providerKind: kind,
@@ -2368,6 +2381,13 @@ function createAiSdkProvider(
 				const aiSdkTelemetry = streamTelemetry.telemetry;
 				recordTraceError = streamTelemetry.recordError;
 				getAiSdkCallId = streamTelemetry.getCallId;
+				streamRetryBackoff =
+					provider.streamRetryBackoff === false
+						? undefined
+						: createStreamRetryBackoff(
+								MODEL_STREAM_MAX_RETRIES,
+								provider.streamRetryBackoff,
+							);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2458,10 +2478,38 @@ function createAiSdkProvider(
 							onLanguageModelCallStart: () => {
 								capturedError.current = undefined;
 							},
-							onError: ({ error: streamError }) => {
+							onStepStart: () => {
+								streamRetryBackoff?.startStep();
+							},
+							onError: async ({ error: streamError }) => {
 								const captured = captureStreamError(streamError);
 								capturedError.current = captured;
 								streamTelemetry.captureError(streamError);
+								const wait = streamRetryBackoff?.onError(streamError);
+								if (!wait) return;
+								request.emitStatusNotice?.(
+									`provider error — retrying in ${Math.round(wait.delayMs / 1000)}s (attempt ${wait.attempt}/${MODEL_STREAM_MAX_RETRIES})`,
+									{
+										kind: "stream_retry",
+										attempt: wait.attempt,
+										maxAttempts: MODEL_STREAM_MAX_RETRIES,
+										delayMs: wait.delayMs,
+										providerId: request.providerId,
+										modelId: request.modelId,
+									},
+								);
+								captureSdkStreamRetry(context.telemetry, {
+									providerId: request.providerId,
+									modelId: request.modelId,
+									providerKind: kind,
+									attempt: wait.attempt,
+									delayMs: wait.delayMs,
+									errorClass: captured.errorClass,
+									context: correlationProperties(),
+								});
+								// Remove once the AI SDK waits between stream retries itself
+								// (vercel/ai#24524); the notice and telemetry above stay.
+								await sleep(wait.delayMs, request.signal);
 							},
 							onAbort: async ({ reason }) => {
 								if (!isTimeoutReason(reason)) return;
