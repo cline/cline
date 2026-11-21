@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 		| undefined,
 	getRepositoryBranches: vi.fn(),
 	chooseCloudTaskTarget: vi.fn(),
+	openUrl: vi.fn(),
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
@@ -45,6 +46,7 @@ vi.mock("@/services/grpc-client", () => ({
 		getRepositoryBranches: mocks.getRepositoryBranches,
 		chooseCloudTaskTarget: mocks.chooseCloudTaskTarget,
 	},
+	UiServiceClient: { openUrl: mocks.openUrl },
 }))
 
 const clineRepo = { id: 7, name: "cline", fullName: "cline/cline", url: "https://github.com/cline/cline", defaultBranch: "main" }
@@ -68,6 +70,7 @@ describe("TaskTargetPanel", () => {
 		mocks.connection = undefined
 		mocks.getRepositoryBranches.mockResolvedValue({ branches: [] })
 		mocks.chooseCloudTaskTarget.mockResolvedValue({})
+		mocks.openUrl.mockResolvedValue({})
 	})
 
 	it("shows sign-in onboarding when Cloud is selected while signed out", async () => {
@@ -75,6 +78,18 @@ describe("TaskTargetPanel", () => {
 
 		expect(await screen.findByText("Run Cline in the cloud")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: /Sign in to Cline/i })).toBeInTheDocument()
+	})
+
+	it("opens the cloud docs from the info button and the onboarding Learn more link", async () => {
+		render(<TaskTargetPanel />)
+
+		await userEvent.click(screen.getByRole("button", { name: "Learn more about cloud tasks" }))
+		await userEvent.click(screen.getByRole("button", { name: "Learn more" }))
+
+		expect(mocks.openUrl).toHaveBeenCalledTimes(2)
+		expect(mocks.openUrl).toHaveBeenCalledWith(
+			expect.objectContaining({ value: "https://docs.cline.bot/usage/cloud-agents-vscode" }),
+		)
 	})
 
 	it("names the host editor in the onboarding copy", async () => {
