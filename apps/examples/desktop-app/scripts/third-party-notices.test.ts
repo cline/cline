@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { webviewSourcePaths } from "./third-party-notices";
 
 const REPO_ROOT = "/repo";
@@ -20,8 +21,14 @@ const TURBOPACK_MAP = JSON.stringify({
 describe("webviewSourcePaths", () => {
 	test("resolves [project] sources against the repo root", () => {
 		expect(webviewSourcePaths(TURBOPACK_MAP, REPO_ROOT)).toEqual([
-			"/repo/node_modules/.bun/@shikijs+langs@4.4.3/node_modules/@shikijs/langs/dist/yaml.mjs",
-			"/repo/apps/examples/desktop-app/webview/lib/desktop-client.ts",
+			join(
+				REPO_ROOT,
+				"node_modules/.bun/@shikijs+langs@4.4.3/node_modules/@shikijs/langs/dist/yaml.mjs",
+			),
+			join(
+				REPO_ROOT,
+				"apps/examples/desktop-app/webview/lib/desktop-client.ts",
+			),
 		]);
 	});
 
@@ -38,7 +45,7 @@ describe("webviewSourcePaths", () => {
 			],
 		});
 		expect(webviewSourcePaths(indexMap, REPO_ROOT)).toEqual([
-			"/repo/node_modules/react/index.js",
+			join(REPO_ROOT, "node_modules/react/index.js"),
 		]);
 	});
 
