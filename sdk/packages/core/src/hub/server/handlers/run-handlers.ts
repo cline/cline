@@ -1,10 +1,11 @@
 import type {
 	AgentMode,
 	AgentResult,
+	HookEventPayload,
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
-import { parseHookEventPayload } from "../../../hooks";
+import { HookEventPayloadSchema } from "../../../hooks";
 import {
 	isSessionNotFoundError,
 	SESSION_NOT_FOUND_ERROR_CODE,
@@ -405,14 +406,23 @@ export async function handleSessionHook(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
-	const parsed = parseHookEventPayload(envelope.payload?.payload);
-	if (!parsed) {
+	const parsed = HookEventPayloadSchema.safeParse(envelope.payload?.payload);
+	if (!parsed.success) {
+		// Name the fields the schema rejected; without them a hook author has no
+		// way to tell what is wrong with the payload.
+		const issues = parsed.error.issues
+			.slice(0, 3)
+			.map(
+				(issue) =>
+					`${issue.path.map(String).join(".") || "payload"}: ${issue.message}`,
+			)
+			.join("; ");
 		return errorReply(
 			envelope,
 			"invalid_hook_payload",
-			"session.hook requires a valid hook event payload",
+			`session.hook requires a valid hook event payload (${issues})`,
 		);
 	}
-	await ctx.sessionHost.dispatchHookEvent(parsed);
+	await ctx.sessionHost.dispatchHookEvent(parsed.data as HookEventPayload);
 	return okReply(envelope, { applied: true });
 }
