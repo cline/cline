@@ -1,9 +1,15 @@
+export interface ParsedCronField {
+	values: number[];
+	/** Vixie cron marks fields whose raw pattern starts with `*` as star fields. */
+	startsWithStar: boolean;
+}
+
 function parseCronField(
 	token: string,
 	min: number,
 	max: number,
 	names?: readonly string[],
-): number[] {
+): ParsedCronField {
 	const results = new Set<number>();
 
 	function resolveValue(raw: string): number {
@@ -72,7 +78,10 @@ function parseCronField(
 		results.add(resolveValue(part));
 	}
 
-	return [...results].sort((left, right) => left - right);
+	return {
+		values: [...results].sort((left, right) => left - right),
+		startsWithStar: token.startsWith("*"),
+	};
 }
 
 const MONTH_NAMES = [
@@ -93,11 +102,11 @@ const MONTH_NAMES = [
 const DOW_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 export interface ParsedCron {
-	minutes: number[];
-	hours: number[];
-	daysOfMonth: number[];
-	months: number[];
-	daysOfWeek: number[];
+	minutes: ParsedCronField;
+	hours: ParsedCronField;
+	daysOfMonth: ParsedCronField;
+	months: ParsedCronField;
+	daysOfWeek: ParsedCronField;
 }
 
 interface CronDateParts {
@@ -238,13 +247,24 @@ function getLocalCronDateParts(timestampMs: number): CronDateParts {
 	};
 }
 
+function cronMatchesDay(
+	cron: ParsedCron,
+	dayOfMonth: number,
+	dayOfWeek: number,
+): boolean {
+	const dayOfMonthMatches = cron.daysOfMonth.values.includes(dayOfMonth);
+	const dayOfWeekMatches = cron.daysOfWeek.values.includes(dayOfWeek);
+	return !cron.daysOfMonth.startsWithStar && !cron.daysOfWeek.startsWithStar
+		? dayOfMonthMatches || dayOfWeekMatches
+		: dayOfMonthMatches && dayOfWeekMatches;
+}
+
 function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
 	return (
-		cron.months.includes(parts.month) &&
-		cron.daysOfMonth.includes(parts.dayOfMonth) &&
-		cron.daysOfWeek.includes(parts.dayOfWeek) &&
-		cron.hours.includes(parts.hour) &&
-		cron.minutes.includes(parts.minute)
+		cron.months.values.includes(parts.month) &&
+		cronMatchesDay(cron, parts.dayOfMonth, parts.dayOfWeek) &&
+		cron.hours.values.includes(parts.hour) &&
+		cron.minutes.values.includes(parts.minute)
 	);
 }
 
@@ -297,10 +317,10 @@ export function getNextCronTime(
 		const { month, dayOfMonth, dayOfWeek, hour, minute } =
 			getLocalCronDateParts(next.getTime());
 
-		if (!cron.months.includes(month)) {
+		if (!cron.months.values.includes(month)) {
 			const targetMonth =
-				cron.months.find((value) => value > month) ??
-				getFirstCronValue(cron.months, "months");
+				cron.months.values.find((value) => value > month) ??
+				getFirstCronValue(cron.months.values, "months");
 			const yearDelta = targetMonth <= month ? 1 : 0;
 			next = new Date(
 				next.getFullYear() + yearDelta,
@@ -314,10 +334,7 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (
-			!cron.daysOfMonth.includes(dayOfMonth) ||
-			!cron.daysOfWeek.includes(dayOfWeek)
-		) {
+		if (!cronMatchesDay(cron, dayOfMonth, dayOfWeek)) {
 			next = new Date(
 				next.getFullYear(),
 				next.getMonth(),
@@ -330,10 +347,10 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (!cron.hours.includes(hour)) {
+		if (!cron.hours.values.includes(hour)) {
 			const targetHour =
-				cron.hours.find((value) => value > hour) ??
-				getFirstCronValue(cron.hours, "hours");
+				cron.hours.values.find((value) => value > hour) ??
+				getFirstCronValue(cron.hours.values, "hours");
 			const dayDelta = targetHour <= hour ? 1 : 0;
 			next = new Date(
 				next.getFullYear(),
@@ -347,10 +364,10 @@ export function getNextCronTime(
 			continue;
 		}
 
-		if (!cron.minutes.includes(minute)) {
+		if (!cron.minutes.values.includes(minute)) {
 			const targetMinute =
-				cron.minutes.find((value) => value > minute) ??
-				getFirstCronValue(cron.minutes, "minutes");
+				cron.minutes.values.find((value) => value > minute) ??
+				getFirstCronValue(cron.minutes.values, "minutes");
 			const hourDelta = targetMinute <= minute ? 1 : 0;
 			next = new Date(
 				next.getFullYear(),
