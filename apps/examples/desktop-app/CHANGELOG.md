@@ -2,16 +2,11 @@
 
 ## 0.0.50
 
-- `/cloud [instruction]` continues a local conversation in Cline Cloud. After you confirm the repository, branch, changed files and unpublished commits, it publishes a checkpoint to GitHub and starts a cloud task with a summary of the conversation, your instruction and any attached images. The local conversation stays usable
-- Images published by a cloud session show in the chat with a Download button, and stay visible after completed work collapses
-- UX verification reports show as a screenshot carousel with pass/fail results. Screenshots can be expanded and downloaded
 - The thinking picker offers **Max** reasoning effort, for models whose top level is max
 - A manual `/compact` can be stopped. Before, it could sit on "Thinking…" with no Stop button when the summarizer stalled
 - With no saved model, the Cline provider now starts on the first free model instead of Claude Sonnet 5.5. Saved selections are untouched
 - The Account view has a Privacy settings link to the Cline web app's data-use preferences
 - Settings → About has a **Third-party notices** entry with the licenses for the open source software included in Cline
-- Archived history shows while a cloud session opens. Saved history is no longer applied twice, which could break live updates or put the first prompt below its answer
-- Idle cloud sessions no longer jump above newer conversations in the sidebar after a reconnect or a history load
 - On macOS, Check for Updates from the menu runs once instead of twice
 - Refreshed colours and typography across the app
 - `read_files` results are no longer cut to 8k characters on the way to the model. A read now arrives in full, up to the tool's own limit of 2000 lines or about 48k characters
