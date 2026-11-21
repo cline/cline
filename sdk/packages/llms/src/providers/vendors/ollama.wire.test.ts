@@ -13,7 +13,8 @@
 //      clean finish;
 //   3. an attachment-only user turn must serialize `content` as a string
 //      (Ollama declares `Message.content` as a string), never `[]`;
-//   4. tool results must carry the documented `tool_name` field.
+//   4. tool results must carry the documented `tool_name` field;
+//   5. `images[]` entries must be raw base64, never `data:...;base64,` URIs.
 import type {
 	LanguageModelV4CallOptions,
 	LanguageModelV4Prompt,
@@ -177,6 +178,32 @@ describe("ollama wire contract (real provider package)", () => {
 		// Ollama declares `Message.content` as a string; `[]` is off-contract.
 		expect(message.content).toBe("");
 		expect(message.images).toHaveLength(1);
+	});
+
+	it("sends data-URI image parts as raw base64 in images[]", async () => {
+		// Cline's AI SDK formatter canonicalizes inline images as
+		// `data:<mediaType>;base64,<payload>`; Ollama's `/api/chat` rejects that
+		// with a 400 and only accepts the bare base64 payload.
+		const payload = "iVBORw0KGgoAAAANSUhEUg==";
+		const { requests } = await streamThroughVendor({
+			responseLines: [textChunk("hi"), DONE_CHUNK],
+			prompt: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "describe this" },
+						{
+							type: "file",
+							mediaType: "image/png",
+							data: { type: "data", data: `data:image/png;base64,${payload}` },
+						},
+					],
+				},
+			],
+		});
+
+		const [message] = requests[0].messages;
+		expect(message.images).toEqual([payload]);
 	});
 
 	it("includes tool_name on tool result messages", async () => {
