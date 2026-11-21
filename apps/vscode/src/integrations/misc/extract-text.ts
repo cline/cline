@@ -138,10 +138,16 @@ function formatCellValue(cell: ExcelJS.Cell): string {
 	return value.toString()
 }
 
+/** Rows past this are skipped, with a single notice in their place. */
+export const MAX_EXCEL_ROWS = 50000
+
 /**
  * Extract and format text from xlsx files
+ *
+ * Exported for tests: `extractTextFromFile` truncates its result to 400KB, which
+ * a sheet at the row cap exceeds, so the notice cannot be observed through it.
  */
-async function extractTextFromExcel(filePath: string): Promise<string> {
+export async function extractTextFromExcel(filePath: string): Promise<string> {
 	const workbook = new ExcelJS.Workbook()
 	let excelText = ""
 
@@ -156,11 +162,19 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 
 			excelText += `--- Sheet: ${worksheet.name} ---\n`
 
+			// ExcelJS iterates with `forEach`, so the callback cannot break out of
+			// the loop - a returned value is discarded. The cap is therefore held
+			// with a flag, or every row past it appends another notice.
+			let truncated = false
+
 			worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-				// Optional: limit processing for very large sheets
-				if (rowNumber > 50000) {
-					excelText += `[... truncated at row ${rowNumber} ...]\n`
-					return false
+				// Limit processing for very large sheets
+				if (rowNumber > MAX_EXCEL_ROWS) {
+					if (!truncated) {
+						excelText += `[... truncated at row ${rowNumber} ...]\n`
+						truncated = true
+					}
+					return
 				}
 
 				const rowTexts: string[] = []
@@ -178,8 +192,6 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 				if (hasContent) {
 					excelText += rowTexts.join("\t") + "\n"
 				}
-
-				return true
 			})
 
 			excelText += "\n" // Blank line between sheets
