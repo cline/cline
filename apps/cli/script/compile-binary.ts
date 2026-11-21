@@ -93,10 +93,13 @@ export interface CompileCliBinaryOptions {
 	autoloadLaunchDirectoryConfig?: boolean;
 }
 
-/** Compiles the CLI entrypoint into one self-contained executable. */
+/**
+ * Compiles the CLI entrypoint into one self-contained executable. Returns the
+ * bundled source files, which the caller lists in the third-party notices.
+ */
 export async function compileCliBinary(
 	input: CompileCliBinaryOptions,
-): Promise<void> {
+): Promise<{ bundleInputs: string[] }> {
 	const pluginRuntime = join(rootDir, "sdk/packages/core/dist/plugin-runtime");
 	const dashboardRuntime = await buildDashboardRuntimeDirectory();
 	const parserWorker = findOpenTuiParserWorker();
@@ -122,6 +125,7 @@ export async function compileCliBinary(
 	const previousCwd = process.cwd();
 	process.chdir(scratchRoot);
 	let result: Awaited<ReturnType<typeof Bun.build>>;
+	let bundleInputs: string[];
 	try {
 		const autoload = input.autoloadLaunchDirectoryConfig === true;
 		result = await Bun.build({
@@ -139,6 +143,7 @@ export async function compileCliBinary(
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
 			},
 			minify: true,
+			metafile: true,
 			external: ["@anthropic-ai/vertex-sdk"],
 			define: {
 				OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
@@ -159,6 +164,10 @@ export async function compileCliBinary(
 			}
 			throw new Error(`CLI build failed for ${input.bunTarget}`);
 		}
+		// Metafile paths are relative to the build cwd, which is scratchRoot here.
+		bundleInputs = Object.keys(result.metafile?.inputs ?? {}).map((file) =>
+			resolve(file),
+		);
 
 		mkdirSync(dirname(input.outfile), { recursive: true });
 		copyFileSync(tmpOutfile, input.outfile);
@@ -169,4 +178,5 @@ export async function compileCliBinary(
 		process.chdir(previousCwd);
 		rmSync(tmpDir, { recursive: true, force: true });
 	}
+	return { bundleInputs };
 }

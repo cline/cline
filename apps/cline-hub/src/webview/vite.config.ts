@@ -2,6 +2,7 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
+import { recordBundleInputs } from "../../../../scripts/third-party-notices/vite";
 
 const mermaidChunkGroups = [
 	{
@@ -25,7 +26,14 @@ const mermaidChunkGroups = [
 ];
 
 export default defineConfig({
-	plugins: [react(), tailwindcss()],
+	plugins: [
+		react(),
+		tailwindcss(),
+		// The CLI embeds dist/webview verbatim, so the list goes beside it, not in it.
+		recordBundleInputs(
+			path.resolve(__dirname, "../../dist/webview-inputs.json"),
+		),
+	],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

@@ -21,13 +21,35 @@ export interface GenerateNoticesOptions {
 	product: string;
 	inputs: string[];
 	baseDir: string;
+	inputLists?: Record<string, string>;
+	allowMissingInputLists?: boolean;
 	extraPackageDirs?: string[];
 	extraEntries?: NoticeEntry[];
 	outFile: string;
 }
 
-const LICENSE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
-const NON_TEXT_EXT = /\.(js|cjs|mjs|ts|json|d\.ts|map|html)$/i;
+export const PLUGIN_RUNTIME_INPUTS = resolve(
+	import.meta.dirname,
+	"../../sdk/packages/core/dist/plugin-runtime-inputs.json",
+);
+
+const LOG_PREFIX = "[third-party-notices]";
+
+// Bundles built in a separate step record what they bundled; see vite.ts and build-plugin-runtime.mts.
+function readInputList(
+	label: string,
+	file: string,
+	allowMissing: boolean,
+): string[] {
+	if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
+	const message = `${LOG_PREFIX} ${label} input list not found at ${file}; build ${label} first`;
+	if (!allowMissing) throw new Error(message);
+	console.warn(`${message} (notices will omit it)`);
+	return [];
+}
+
+export const LICENSE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
+export const NON_TEXT_EXT = /\.(js|cjs|mjs|ts|json|d\.ts|map|html)$/i;
 const RULE = "=".repeat(80);
 const THIN_RULE = "-".repeat(80);
 
@@ -89,16 +111,23 @@ function templateText(
 		.split(/\s+(?:AND|OR)\s+/)
 		.map((id) => TEMPLATE_IDS[id])
 		.filter(Boolean);
-	const copyright = `Copyright (c) ${authorOf(pkg) ?? `the ${pkg.name} authors`}`;
+	const holder = authorOf(pkg) ?? `the ${pkg.name} authors`;
 	return [...new Set(ids)].map((id) => ({
 		file: `${id} (standard text; the package ships no license file)`,
-		content: readFileSync(
-			join(import.meta.dirname, "licenses", `${id}.txt`),
-			"utf8",
-		)
-			.replace("{{copyright}}", copyright)
-			.trim(),
+		content: standardLicenseText(id, holder),
 	}));
+}
+
+export function standardLicenseText(
+	id: string,
+	copyrightHolder: string,
+): string {
+	return readFileSync(
+		join(import.meta.dirname, "licenses", `${id}.txt`),
+		"utf8",
+	)
+		.replace("{{copyright}}", `Copyright (c) ${copyrightHolder}`)
+		.trim();
 }
 
 const LICENSE_SIGNATURES: [RegExp, string][] = [
@@ -244,12 +273,23 @@ export function generateNotices(options: GenerateNoticesOptions): {
 	entries: NoticeEntry[];
 	problems: string[];
 } {
-	const entries = dedupe([
-		...collectPackageEntries(options.inputs, options.baseDir),
+	const inputs = [
+		...options.inputs,
+		...Object.entries(options.inputLists ?? {}).flatMap(([label, file]) =>
+			readInputList(label, file, options.allowMissingInputLists ?? false),
+		),
+	];
+	const packages = dedupe([
+		...collectPackageEntries(inputs, options.baseDir),
 		...(options.extraPackageDirs ?? []).map(readPackageEntry),
-		...(options.extraEntries ?? []),
 	]);
+	const entries = [...(options.extraEntries ?? []), ...packages];
 	mkdirSync(dirname(options.outFile), { recursive: true });
 	writeFileSync(options.outFile, renderNotices(options.product, entries));
-	return { entries, problems: findProblems(entries) };
+	const problems = findProblems(packages);
+	console.log(
+		`${LOG_PREFIX} wrote notices for ${entries.length} components to ${options.outFile}`,
+	);
+	for (const problem of problems) console.warn(`${LOG_PREFIX} ${problem}`);
+	return { entries, problems };
 }
