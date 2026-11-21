@@ -7,6 +7,7 @@ import { getToolErrorPresentation } from "../utils/tool-errors";
 import {
 	detectLanguage,
 	extractFullOutputText,
+	normalizeTerminalText,
 	parseApplyPatchInput,
 	parseEditorInput,
 	parseReadFilesInput,
@@ -294,7 +295,11 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 }
 
 export function ToolOutput(props: ToolOutputProps) {
-	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
+	const { toolName, rawOutput, rawInput, error } = props;
+	// A collapsed summary can hold the same control bytes as the full output —
+	// a truncated progress line lands here — so normalize once for every view
+	// below instead of relying on each one.
+	const outputSummary = normalizeTerminalText(props.outputSummary);
 	const terminalTheme = useTheme();
 	const [errorExpanded, setErrorExpanded] = useState(false);
 
