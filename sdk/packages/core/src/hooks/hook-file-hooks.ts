@@ -93,6 +93,7 @@ export type HookRuntimeObserver = (event: {
 
 type HookRuntimeOptions = {
 	cwd: string;
+	hooksDir?: string;
 	workspacePath: string;
 	rootSessionId?: string;
 	logger?: BasicLogger;
@@ -398,9 +399,12 @@ function inferHookCommand(path: string): string[] {
 	return ["bash", path];
 }
 
-function createHookCommandMap(workspacePath: string): HookCommandMap {
+function createHookCommandMap(
+	workspacePath: string,
+	hooksDir?: string,
+): HookCommandMap {
 	const map: HookCommandMap = {};
-	for (const file of listHookConfigFiles(workspacePath)) {
+	for (const file of listHookConfigFiles(workspacePath, hooksDir)) {
 		if (!file.hookEventName) {
 			continue;
 		}
@@ -760,7 +764,10 @@ export function createHookAuditHooks(options: {
 export function createHookConfigFileHooks(
 	options: HookRuntimeOptions,
 ): AgentHooks | undefined {
-	const commandMap = createHookCommandMap(options.workspacePath);
+	const commandMap = createHookCommandMap(
+		options.workspacePath,
+		options.hooksDir,
+	);
 	const hasAnyHooks = Object.values(commandMap).some(
 		(commands) => commands.length > 0,
 	);

@@ -142,6 +142,42 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it("keeps additional hook directories isolated between sessions", async () => {
+		const root = await mkdtemp(join(tmpdir(), "session-hooks-"));
+		try {
+			const workspace = join(root, "workspace");
+			await mkdir(workspace);
+			const markers = [
+				join(root, "first-fired"),
+				join(root, "second-fired"),
+			] as const;
+			const runtimes = [];
+			for (const [index, name] of ["first", "second"].entries()) {
+				const hooksDir = join(root, name);
+				await mkdir(hooksDir);
+				await writeFile(
+					join(hooksDir, "PreToolUse"),
+					`echo fired > "${markers[index]}"\necho '{"cancel":false}'\n`,
+				);
+				runtimes.push(
+					createHookConfigFileHooks({
+						cwd: workspace,
+						workspacePath: workspace,
+						hooksDir,
+					}),
+				);
+			}
+			expect(runtimes[0]?.beforeTool).toBeTypeOf("function");
+			await runtimes[0]?.beforeTool?.(beforeToolContext());
+			expect(await readFile(markers[0], "utf8")).toBe("fired\n");
+			await expect(readFile(markers[1], "utf8")).rejects.toThrow();
+			await runtimes[1]?.beforeTool?.(beforeToolContext());
+			expect(await readFile(markers[1], "utf8")).toBe("fired\n");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("ignores example hook files", async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse.example",

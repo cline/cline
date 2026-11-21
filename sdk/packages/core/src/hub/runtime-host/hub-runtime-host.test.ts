@@ -272,6 +272,7 @@ describe("HubRuntimeHost", () => {
 			config: {
 				...createConfig(),
 				agentPluginPaths: ["./portable-plugin"],
+				hooksDir: "/tmp/client-session-hooks",
 			},
 			source: SessionSource.CLI,
 			localRuntime: {
@@ -311,6 +312,7 @@ describe("HubRuntimeHost", () => {
 				mode: "act",
 				checkpoint: { enabled: true },
 				agentPluginPaths: ["./portable-plugin"],
+				hooksDir: "/tmp/client-session-hooks",
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
