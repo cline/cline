@@ -56,6 +56,7 @@ export function ChatView(props: {
 	editingQueuedPrompt?: QueuedPromptItem;
 	onQueuedPromptEditConfirm: (id: string, prompt: string) => void;
 	onToggleMode: () => void;
+	onReturnToLocal?: () => void;
 	runtimeInteraction?: RuntimeToolInteraction | null;
 	onResolveToolApproval: (id: number, approved: boolean) => void;
 	onResolveAskQuestion: (id: number, answer: string | null) => void;
@@ -160,6 +161,7 @@ export function ChatView(props: {
 					gitBranch={repoStatus.branch}
 					gitDiffStats={repoStatus.diffStats}
 					onToggleMode={props.onToggleMode}
+					onReturnToLocal={props.onReturnToLocal}
 					variant="chat"
 					cloud={props.cloud}
 				/>

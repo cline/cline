@@ -40,6 +40,7 @@ import {
 	subscribeToAgentEvents,
 	subscribeToPendingPromptEvents,
 } from "../session-events";
+import type { CloudHandoffSource } from "./cloud-handoff";
 import { compactInteractiveMessages } from "./compaction";
 import {
 	createInteractiveExitSummary,
@@ -872,6 +873,36 @@ export function createInteractiveSessionRuntime(input: {
 		};
 	};
 
+	const readCloudHandoffSource = async (): Promise<CloudHandoffSource> => {
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId || shutdownRequested) {
+			throw new Error("Start a local conversation before using /cloud.");
+		}
+		const [record, messages, queued] = await Promise.all([
+			manager.get(sessionId),
+			manager.readLiveMessages(sessionId),
+			manager.pendingPrompts.list({ sessionId }),
+		]);
+		if (!record || activeSessionId !== sessionId || shutdownRequested) {
+			throw new Error("The local session changed. Run /cloud again.");
+		}
+		if (
+			record.status === "running" ||
+			record.status === "pending" ||
+			queued.length
+		) {
+			throw new Error(
+				"Wait for the current run and queued prompts before using /cloud.",
+			);
+		}
+		return {
+			sessionId,
+			cwd: record.cwd,
+			messages: structuredClone(messages ?? []),
+		};
+	};
+
 	const resetAbortRequest = (): void => {
 		abortRequested = false;
 	};
@@ -937,6 +968,7 @@ export function createInteractiveSessionRuntime(input: {
 		updatePendingPrompt,
 		getAccumulatedUsage,
 		readCurrentMessages,
+		readCloudHandoffSource,
 		restartEmpty,
 		resetForNewSession,
 		restartWithMessages,

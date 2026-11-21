@@ -5,7 +5,7 @@ import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMemo, useRef, useState } from "react";
 import { useDialogPalette } from "../../hooks/use-theme";
 import {
-	buildCommandPaletteItems,
+	type CommandPaletteItem,
 	type CommandPaletteResult,
 	filterCommandPaletteItems,
 	findCommandPaletteShortcut,
@@ -27,23 +27,16 @@ function countWrappedLines(value: string, width: number): number {
 
 export function CommandPaletteContent(
 	props: ChoiceContext<CommandPaletteResult> & {
-		canForkSession: boolean;
+		items: CommandPaletteItem[];
 		contentWidth: number;
 	},
 ) {
-	const { resolve, dismiss, dialogId, canForkSession, contentWidth } = props;
+	const { resolve, dismiss, dialogId, items: allItems, contentWidth } = props;
 	const palette = useDialogPalette();
 	const { height } = useTerminalDimensions();
 	const [query, setQuery] = useState("");
 	const [selected, setSelected] = useState(0);
 
-	const allItems = useMemo(
-		() =>
-			buildCommandPaletteItems({
-				canForkSession,
-			}),
-		[canForkSession],
-	);
 	const filtered = useMemo(
 		() => filterCommandPaletteItems(allItems, query),
 		[allItems, query],

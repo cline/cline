@@ -127,6 +127,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun -F @cline/cli test:e2e:cli:tui
 
+            - name: Run cloud handoff TUI regression tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
+              run: bun -F @cline/cli test:e2e:tuistory src/cloud-handoff.tuistory.e2e.test.ts
+
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun sdk/scripts/check-publish.ts
