@@ -422,6 +422,12 @@ const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 	"Use for listing files, checking git status, running builds, executing tests, etc. " +
 	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
 
+const RUN_COMMANDS_EXECUTION_INSTRUCTIONS =
+	"Follow explicit user instructions about command grouping and order. " +
+	"If the user asks for commands separately or one at a time, do not combine commands or merge their argument lists. " +
+	"Commands that mutate the same shared state, such as the Git index, are not independent and must not run concurrently. " +
+	"Quote paths and arguments containing whitespace or shell metacharacters for the active shell, including parentheses. ";
+
 /**
  * PowerShell quoting guidance. Models default to bash/C escaping, but in
  * PowerShell a backslash is an ordinary character: `"a \"b\" c"` ends the
@@ -471,6 +477,7 @@ export function buildRunCommandsDescription(
 			`Write commands directly; do not wrap them in another ${wrapper} invocation. ` +
 			(shellKind === "powershell" ? POWERSHELL_QUOTING_INSTRUCTIONS : "") +
 			"Only start another shell when you intentionally need a different shell or a separate process. " +
+			RUN_COMMANDS_EXECUTION_INSTRUCTIONS +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 		);
 	}
@@ -485,7 +492,8 @@ export function buildRunCommandsDescription(
 		"Run non-interactive shell commands from the root of the workspace. " +
 		RUN_COMMANDS_SHARED_INSTRUCTIONS +
 		environmentNote +
-		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
+		RUN_COMMANDS_EXECUTION_INSTRUCTIONS +
+		"Commands should be targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
 		`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 		"For long-running commands, run them in background and redirect output to a tmp file that you can read from later."
 	);
