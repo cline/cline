@@ -2,7 +2,7 @@
 
 This guide covers everything you need to build and run the Cline CLI locally after cloning the repository. It includes setup instructions, a tech stack overview, and a walkthrough of the TUI architecture.
 
-For CLI command reference and usage, see [DOC.md](./DOC.md) and [README.md](./README.md).
+For CLI command reference and usage, see [README.md](./README.md).
 
 ## Prerequisites
 
