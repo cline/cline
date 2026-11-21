@@ -54,7 +54,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 		expect(receivedMedia).toEqual([media]);
 	});
 
-	it("delivers tool status via callbacks instead of appending it to streamed text", async () => {
+	it("streams only the successful submit_and_exit summary", async () => {
 		let handlers: StreamHandlers | undefined;
 
 		const sendRuntimeSession = vi.fn(async () => {
@@ -68,6 +68,20 @@ describe("createConnectorRuntimeTurnStream", () => {
 			handlers?.onEvent({
 				eventType: "runtime.chat.text_delta",
 				payload: { text: "Here is the result." },
+			});
+			handlers?.onEvent({
+				eventType: "runtime.chat.tool_call_start",
+				payload: {
+					toolName: "submit_and_exit",
+					input: {
+						summary: "The result is ready and verified.",
+						verified: true,
+					},
+				},
+			});
+			handlers?.onEvent({
+				eventType: "runtime.chat.tool_call_end",
+				payload: { toolName: "submit_and_exit" },
 			});
 			return {
 				result: {
@@ -87,7 +101,6 @@ describe("createConnectorRuntimeTurnStream", () => {
 		const request = { config: {} as never, prompt: "hi" };
 
 		const chunks: string[] = [];
-		const toolStatuses: string[] = [];
 		for await (const chunk of createConnectorRuntimeTurnStream({
 			client: client as never,
 			sessionId: "session-1",
@@ -96,24 +109,18 @@ describe("createConnectorRuntimeTurnStream", () => {
 			logger: { core: {} } as unknown as CliLoggerAdapter,
 			transport: "telegram",
 			conversationId: "thread-1",
-			onToolStatus: async (message) => {
-				toolStatuses.push(message);
-			},
 		})) {
 			chunks.push(chunk);
 		}
 
-		expect(toolStatuses).toEqual(["Executing read_file..."]);
-		expect(chunks.join("")).toBe("Here is the result.");
+		expect(chunks.join("")).toBe("The result is ready and verified.");
 		expect(sendRuntimeSession).toHaveBeenCalledWith("session-1", request, {
 			timeoutMs: null,
 		});
 	});
 
-	it("keeps streaming when tool status delivery fails", async () => {
+	it("hides narration and tool activity when no completion tool is called", async () => {
 		let handlers: StreamHandlers | undefined;
-		const log = vi.fn();
-		const statusError = new Error("message_not_found");
 		const client = {
 			streamEvents: (_request: unknown, callbacks: StreamHandlers) => {
 				handlers = callbacks;
@@ -145,25 +152,14 @@ describe("createConnectorRuntimeTurnStream", () => {
 			sessionId: "session-1",
 			request: { config: {} as never, prompt: "hi" },
 			clientId: "client-1",
-			logger: { core: { log } } as unknown as CliLoggerAdapter,
+			logger: { core: {} } as unknown as CliLoggerAdapter,
 			transport: "slack",
 			conversationId: "thread-1",
-			onToolStatus: async () => {
-				throw statusError;
-			},
 		})) {
 			chunks.push(chunk);
 		}
 
-		expect(chunks.join("")).toBe("Final response");
-		expect(log).toHaveBeenCalledWith(
-			"Connector tool status delivery failed",
-			expect.objectContaining({
-				severity: "warn",
-				transport: "slack",
-				error: statusError,
-			}),
-		);
+		expect(chunks.join("")).toBe("");
 	});
 
 	it("treats queued runtime turns as non-error completion", async () => {
