@@ -94,6 +94,28 @@ function textFromMessageContent(
 		.join("");
 }
 
+function latestUserPromptMessage(snapshot: {
+	messages: readonly {
+		id: string;
+		role: string;
+		content: readonly { type: string; text?: string }[];
+		metadata?: Record<string, unknown>;
+	}[];
+}): { id: string; text: string } | undefined {
+	for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
+		const message = snapshot.messages[index];
+		// Injected hook-context blocks and runtime reminders are user-role
+		// messages with a system display role; they are not user prompts.
+		if (
+			message?.role === "user" &&
+			message.metadata?.displayRole !== "system"
+		) {
+			return { id: message.id, text: textFromMessageContent(message.content) };
+		}
+	}
+	return undefined;
+}
+
 function isAbortReason(reason?: string): boolean {
 	const value = String(reason ?? "").toLowerCase();
 	return (
@@ -184,6 +206,10 @@ export function createRuntimeHooks(options: {
 	const workspaceRoot = options.workspaceRoot?.trim() || cwd;
 	let shuttingDown = false;
 	const isShuttingDown = () => shuttingDown;
+	// Message ids already dispatched as prompt_submit; beforeRun fires on
+	// every run including continue(), whose snapshot still holds earlier
+	// prompts that must not be dispatched twice.
+	const dispatchedPromptIds = new Set<string>();
 	return {
 		hooks: {
 			beforeRun: async (ctx) => {
@@ -213,6 +239,30 @@ export function createRuntimeHooks(options: {
 						verbose,
 					},
 				);
+				// Orchestrated sessions seed the prompt into the runtime's
+				// initial messages, so it shows up in the beforeRun snapshot
+				// but is never emitted as message-added. The message-added
+				// path in onEvent covers runtimes that receive the prompt as
+				// run input instead.
+				const prompt = latestUserPromptMessage(ctx.snapshot);
+				if (prompt && !dispatchedPromptIds.has(prompt.id)) {
+					dispatchedPromptIds.add(prompt.id);
+					await dispatchHookPayload(
+						{
+							...root,
+							hookName: "prompt_submit",
+							userPromptSubmit: {
+								prompt: prompt.text,
+								attachments: [],
+							},
+						},
+						{
+							dispatchHookEvent: options.dispatchHookEvent,
+							isShuttingDown,
+							verbose,
+						},
+					);
+				}
 				return undefined;
 			},
 			beforeTool: async (ctx) => {
@@ -337,6 +387,7 @@ export function createRuntimeHooks(options: {
 				) {
 					return;
 				}
+				dispatchedPromptIds.add(event.message.id);
 				await dispatchHookPayload(
 					{
 						...basePayload(baseContextFromSnapshot(event.snapshot), {
