@@ -56,4 +56,25 @@ describe("QueuedPrompts", () => {
 
 		expect(container).toBeEmptyDOMElement()
 	})
+
+	it("reveals newly queued messages without scrolling on removals or unchanged updates", () => {
+		const { rerender } = render(<QueuedPrompts items={queuedPrompts} />)
+		const list = screen.getByText("First queued message").parentElement?.parentElement
+		if (!list) throw new Error("Queue container was not rendered")
+		Object.defineProperty(list, "scrollHeight", { configurable: true, value: 400 })
+		const added = { ...queuedPrompts[0], id: "prompt-3", prompt: "Newest queued message" }
+
+		rerender(<QueuedPrompts items={[...queuedPrompts, added]} />)
+		expect(list.scrollTop).toBe(400)
+
+		list.scrollTop = 20
+		rerender(<QueuedPrompts items={[...queuedPrompts, { ...added }]} />)
+		expect(list.scrollTop).toBe(20)
+		rerender(<QueuedPrompts items={queuedPrompts} />)
+		expect(list.scrollTop).toBe(20)
+
+		// A delivery and an addition can arrive in the same state update.
+		rerender(<QueuedPrompts items={[queuedPrompts[1], added]} />)
+		expect(list.scrollTop).toBe(400)
+	})
 })
