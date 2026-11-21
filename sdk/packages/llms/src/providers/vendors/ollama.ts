@@ -20,7 +20,9 @@ import { wrapLanguageModel } from "ai";
 // omitted rather than sent as `false`, mid-stream `{"error": ...}` objects
 // must surface as stream errors instead of being dropped before a clean
 // finish, attachment-only user turns must send string `content` (not `[]`),
-// and tool results must carry the documented `tool_name` field.
+// and tool results must carry the documented `tool_name` field. It also
+// silences a false "reasoning parts ... not supported" warning: reasoning in
+// assistant history is forwarded as `thinking`.
 // `ollama.wire.test.ts` locks each contract at the real provider boundary;
 // drop the patch once an upstream release covers them.
 import { createOllama } from "ollama-ai-provider-v2";
