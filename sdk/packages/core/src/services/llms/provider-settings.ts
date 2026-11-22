@@ -238,11 +238,24 @@ export function toProviderConfig(
 			? BUILT_IN_PROVIDER.OPENAI_NATIVE
 			: undefined);
 
+	const modelOverrides = includeKnownModels
+		? {
+				...(normalizedProviderId !== providerId
+					? Llms.getModelOverridesForProviderSync(normalizedProviderId)
+					: {}),
+				...Llms.getModelOverridesForProviderSync(providerId),
+			}
+		: undefined;
+	const baseKnownModels =
+		providerDefaults?.knownModels ??
+		(Object.keys(generatedKnownModels).length > 0
+			? generatedKnownModels
+			: undefined);
 	const knownModels = includeKnownModels
-		? (providerDefaults?.knownModels ??
-			(Object.keys(generatedKnownModels).length > 0
-				? generatedKnownModels
-				: undefined))
+		? baseKnownModels ||
+			(modelOverrides && Object.keys(modelOverrides).length > 0)
+			? { ...(baseKnownModels ?? {}), ...(modelOverrides ?? {}) }
+			: undefined
 		: undefined;
 
 	const config: ProviderConfig = {

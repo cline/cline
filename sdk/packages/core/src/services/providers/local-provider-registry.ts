@@ -51,6 +51,7 @@ export const StoredModelEntrySchema = z
 		id: z.string().optional(),
 		name: z.string().optional(),
 		maxTokens: OptionalPositiveFiniteNumberSchema,
+		maxOutputTokens: OptionalPositiveFiniteNumberSchema,
 		contextWindow: OptionalPositiveFiniteNumberSchema,
 		maxInputTokens: OptionalPositiveFiniteNumberSchema,
 		capabilities: z.array(ModelCapabilitySchema).optional(),
@@ -393,6 +394,7 @@ function toStoredModelInfo(
 	}
 
 	const apiFormat = model?.apiFormat;
+	const maxTokens = model?.maxTokens ?? model?.maxOutputTokens;
 	const hasPricing =
 		model?.inputPrice !== undefined ||
 		model?.outputPrice !== undefined ||
@@ -401,7 +403,7 @@ function toStoredModelInfo(
 	return {
 		id: modelId,
 		name: model?.name ?? modelId,
-		...(model?.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+		...(maxTokens !== undefined ? { maxTokens } : {}),
 		...(model?.contextWindow !== undefined
 			? { contextWindow: model.contextWindow }
 			: {}),

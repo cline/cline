@@ -1,6 +1,7 @@
 import {
 	createGateway,
 	createHandlerAsync,
+	getModelOverridesForProviderSync,
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
@@ -104,36 +105,63 @@ export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
-	const knownModels = pc?.knownModels
+	const normalizedProviderId = normalizeProviderId(config.providerId);
+	const modelOverrides = {
+		...(normalizedProviderId !== config.providerId
+			? getModelOverridesForProviderSync(normalizedProviderId)
+			: {}),
+		...getModelOverridesForProviderSync(config.providerId),
+	};
+	const baseKnownModels = pc?.knownModels
 		? pc.knownModels
 		: (config.knownModels ??
 			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
 			undefined);
+	const knownModels =
+		Object.keys(modelOverrides).length > 0
+			? { ...(baseKnownModels ?? {}), ...modelOverrides }
+			: baseKnownModels;
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
 	// model's context window):
 	//  - `maxInputTokens` is where `ProviderSettings.contextWindow` lands via
 	//    `toProviderConfig` (the providers.json path used by CLI/Core hosts).
+	//  - `maxOutputTokens` is where `ProviderSettings.maxTokens` lands via
+	//    `toProviderConfig`; apply it as fallback model metadata when the
+	//    model has no declared catalog/models.json maxTokens so unlisted models
+	//    surface their output cap on model.info without weakening catalog caps.
 	//  - `modelInfo` is an explicit per-model override (the VS Code path);
-	//    it wins over the generic limit.
+	//    it wins over generic limits.
 	const configuredContextWindow = readPositiveInteger(pc?.maxInputTokens);
+	const configuredMaxOutputTokens = readPositiveInteger(pc?.maxOutputTokens);
 	const modelInfo =
 		pc?.modelInfo && pc.modelInfo.id === config.modelId
 			? pc.modelInfo
 			: undefined;
-	if (configuredContextWindow === undefined && !modelInfo) {
+	const existingModel = knownModels?.[config.modelId];
+	const shouldApplyConfiguredMaxTokens =
+		configuredMaxOutputTokens !== undefined &&
+		existingModel?.maxTokens === undefined;
+	if (
+		configuredContextWindow === undefined &&
+		!shouldApplyConfiguredMaxTokens &&
+		!modelInfo
+	) {
 		return knownModels;
 	}
 	return {
 		...(knownModels ?? {}),
 		[config.modelId]: {
-			...knownModels?.[config.modelId],
+			...existingModel,
 			...(configuredContextWindow !== undefined
 				? {
 						contextWindow: configuredContextWindow,
 						maxInputTokens: configuredContextWindow,
 					}
+				: {}),
+			...(shouldApplyConfiguredMaxTokens
+				? { maxTokens: configuredMaxOutputTokens }
 				: {}),
 			...modelInfo,
 			id: config.modelId,
@@ -210,10 +238,13 @@ export function createAgentModelFromConfig(
 	logger: BasicLogger | undefined,
 	telemetry?: ITelemetryService,
 ): AgentModel {
+	const connectionProviderConfig = resolveConnectionProviderConfig(config);
 	const normalizedProviderConfig: ProviderConfig = {
-		...resolveConnectionProviderConfig(config),
+		...connectionProviderConfig,
 		knownModels: resolveKnownModelsFromConfig(config),
-		maxOutputTokens: config.maxTokensPerTurn,
+		maxOutputTokens:
+			config.maxTokensPerTurn ??
+			readPositiveInteger(connectionProviderConfig.maxOutputTokens),
 		temperature: config.temperature,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,

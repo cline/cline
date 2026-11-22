@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	_testing,
 	createGatewayApiHandler,
@@ -7,6 +7,7 @@ import {
 } from "./compat";
 import { ClineNotSubscribedError } from "./errors";
 import { DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION } from "./gateway";
+import { registerModel, resetRegistry } from "./model-registry";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -912,6 +913,10 @@ describe("toGatewayRequestMessages — tool_result with images", () => {
 describe("buildGatewayModels", () => {
 	const { buildGatewayModels } = _testing;
 
+	afterEach(() => {
+		resetRegistry();
+	});
+
 	it("projects configured maxInputTokens onto the selected gateway model", () => {
 		const models = buildGatewayModels("ollama", {
 			providerId: "ollama",
@@ -999,5 +1004,69 @@ describe("buildGatewayModels", () => {
 				modelId: "llama3.1",
 			}),
 		).toBeUndefined();
+	});
+
+	it("projects configured maxOutputTokens for unlisted models without weakening catalog caps", () => {
+		expect(
+			buildGatewayModels("alibaba-cn", {
+				providerId: "alibaba-cn",
+				modelId: "qwen4-max",
+				maxInputTokens: 256_000,
+				maxOutputTokens: 200_000,
+			}),
+		).toEqual([
+			expect.objectContaining({
+				id: "qwen4-max",
+				contextWindow: 256_000,
+				maxInputTokens: 256_000,
+				maxOutputTokens: 200_000,
+			}),
+		]);
+
+		expect(
+			buildGatewayModels("openrouter", {
+				providerId: "openrouter",
+				modelId: "small-output",
+				maxOutputTokens: 16_000,
+				knownModels: {
+					"small-output": {
+						id: "small-output",
+						name: "Small Output",
+						contextWindow: 202_800,
+						maxTokens: 8_192,
+					},
+				},
+			}),
+		).toEqual([
+			expect.objectContaining({
+				id: "small-output",
+				maxOutputTokens: 8_192,
+			}),
+		]);
+	});
+
+	it("merges runtime registerModel overrides into gateway models", () => {
+		registerModel("alibaba-cn", "qwen4-max", {
+			id: "qwen4-max",
+			name: "Qwen4 Max",
+			contextWindow: 256_000,
+			maxInputTokens: 256_000,
+			maxTokens: 200_000,
+		});
+
+		expect(
+			buildGatewayModels("alibaba-cn", {
+				providerId: "alibaba-cn",
+				modelId: "qwen4-max",
+			}),
+		).toEqual([
+			expect.objectContaining({
+				id: "qwen4-max",
+				name: "Qwen4 Max",
+				contextWindow: 256_000,
+				maxInputTokens: 256_000,
+				maxOutputTokens: 200_000,
+			}),
+		]);
 	});
 });

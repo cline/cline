@@ -30,6 +30,7 @@ import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
 import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
+	getModelOverridesForProviderSync,
 	getProviderCollection,
 	getProviderCollectionSync,
 } from "./model-registry";
@@ -192,13 +193,17 @@ export async function resolveGatewayProviderRegistration(
 	}
 
 	const routedBuiltin = BUILTIN_PROVIDER_MAP.get(routedProviderId);
+	const mergedModels = {
+		...collection.models,
+		...getModelOverridesForProviderSync(providerId),
+	};
 	return {
 		manifest: {
 			id: providerId,
 			name: collection.provider.name,
 			description: collection.provider.description,
 			defaultModelId: collection.provider.defaultModelId,
-			models: Object.values(collection.models).map((model) =>
+			models: Object.values(mergedModels).map((model) =>
 				toGatewayModelDefinition(providerId, model),
 			),
 			api: collection.provider.baseUrl,
@@ -258,13 +263,17 @@ export function resolveGatewayProviderRegistrationSync(
 	}
 
 	const routedBuiltin = BUILTIN_PROVIDER_MAP.get(routedProviderId);
+	const mergedModels = {
+		...collection.models,
+		...getModelOverridesForProviderSync(providerId),
+	};
 	return {
 		manifest: {
 			id: providerId,
 			name: collection.provider.name,
 			description: collection.provider.description,
 			defaultModelId: collection.provider.defaultModelId,
-			models: Object.values(collection.models).map((model) =>
+			models: Object.values(mergedModels).map((model) =>
 				toGatewayModelDefinition(providerId, model),
 			),
 			api: collection.provider.baseUrl,
@@ -434,7 +443,14 @@ function buildGatewayModels(
 		string,
 		Omit<GatewayModelDefinition, "providerId">
 	>();
-	for (const model of Object.values(config.knownModels ?? {})) {
+	const mergedKnownModels = {
+		...(config.knownModels ?? {}),
+		...getModelOverridesForProviderSync(providerId),
+		...(config.providerId !== providerId
+			? getModelOverridesForProviderSync(config.providerId)
+			: {}),
+	};
+	for (const model of Object.values(mergedKnownModels)) {
 		const { providerId: _providerId, ...definition } = toGatewayModelDefinition(
 			providerId,
 			model,
@@ -446,20 +462,39 @@ function buildGatewayModels(
 	// project them onto its gateway definition so the resolved model carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
 	// model's context window). `maxInputTokens` is where
-	// `ProviderSettings.contextWindow` lands via `toProviderConfig`; an
-	// explicit `modelInfo` override wins over the generic limit.
+	// `ProviderSettings.contextWindow` lands via `toProviderConfig`, and
+	// `maxOutputTokens` is where `ProviderSettings.maxTokens` lands (used as
+	// fallback only when the model has no declared catalog/models.json cap);
+	// an explicit `modelInfo` override wins over generic limits.
 	const configuredContextWindow =
 		typeof config.maxInputTokens === "number" &&
 		Number.isFinite(config.maxInputTokens) &&
 		config.maxInputTokens > 0
 			? Math.floor(config.maxInputTokens)
 			: undefined;
+	const configuredMaxOutputTokens =
+		typeof config.maxOutputTokens === "number" &&
+		Number.isFinite(config.maxOutputTokens) &&
+		config.maxOutputTokens > 0
+			? Math.floor(config.maxOutputTokens)
+			: undefined;
 	const modelInfo =
 		config.modelInfo && config.modelInfo.id === config.modelId
 			? config.modelInfo
 			: undefined;
-	if (config.modelId && (configuredContextWindow !== undefined || modelInfo)) {
-		const base = definitions.get(config.modelId) ?? {
+	const existingBase = config.modelId
+		? definitions.get(config.modelId)
+		: undefined;
+	const shouldApplyConfiguredMaxOutputTokens =
+		configuredMaxOutputTokens !== undefined &&
+		existingBase?.maxOutputTokens === undefined;
+	if (
+		config.modelId &&
+		(configuredContextWindow !== undefined ||
+			shouldApplyConfiguredMaxOutputTokens ||
+			modelInfo)
+	) {
+		const base = existingBase ?? {
 			id: config.modelId,
 			name: config.modelId,
 		};
@@ -489,6 +524,9 @@ function buildGatewayModels(
 						contextWindow: configuredContextWindow,
 						maxInputTokens: configuredContextWindow,
 					}
+				: {}),
+			...(shouldApplyConfiguredMaxOutputTokens
+				? { maxOutputTokens: configuredMaxOutputTokens }
 				: {}),
 			...definedOverrides,
 		} as Omit<GatewayModelDefinition, "providerId">);

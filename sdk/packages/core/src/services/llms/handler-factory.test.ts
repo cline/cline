@@ -20,6 +20,7 @@ vi.mock("@cline/llms", async (importOriginal) => {
 	return {
 		createGateway: gatewayMock.createGateway,
 		MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
+		getModelOverridesForProviderSync: original.getModelOverridesForProviderSync,
 		hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 		createHandlerAsync: gatewayMock.createHandlerAsync,
 		normalizeProviderId: (id: string) => id,
@@ -239,6 +240,7 @@ describe("createAgentModelFromConfig", () => {
 				providerConfig: {
 					providerId: "openai-compatible",
 					modelId: "custom-model",
+					maxOutputTokens: 200_000,
 				},
 			},
 			undefined,
@@ -248,6 +250,156 @@ describe("createAgentModelFromConfig", () => {
 			{ providerId: "openai-compatible", modelId: "custom-model" },
 			{ maxTokens: 4_096, temperature: 0 },
 		);
+	});
+
+	it("preserves providerConfig.maxOutputTokens from providers.json when maxTokensPerTurn is unset", async () => {
+		const { createAgentModelFromConfig, resolveKnownModelsFromConfig } =
+			await import("./handler-factory");
+
+		const config: AgentConfig = {
+			providerId: "alibaba-cn",
+			modelId: "qwen4-max",
+			apiKey: "key",
+			systemPrompt: "",
+			tools: [],
+			providerConfig: {
+				providerId: "alibaba-cn",
+				modelId: "qwen4-max",
+				maxInputTokens: 256_000,
+				maxOutputTokens: 200_000,
+			},
+		};
+
+		expect(resolveKnownModelsFromConfig(config)?.["qwen4-max"]).toMatchObject({
+			id: "qwen4-max",
+			contextWindow: 256_000,
+			maxInputTokens: 256_000,
+			maxTokens: 200_000,
+		});
+
+		createAgentModelFromConfig(config, undefined);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "alibaba-cn",
+						models: [
+							expect.objectContaining({
+								id: "qwen4-max",
+								contextWindow: 256_000,
+								maxInputTokens: 256_000,
+								maxOutputTokens: 200_000,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "alibaba-cn", modelId: "qwen4-max" },
+			{ maxTokens: 200_000, temperature: undefined },
+		);
+	});
+
+	it("does not overwrite a listed catalog model's maxTokens with providers.json maxOutputTokens", async () => {
+		const { resolveKnownModelsFromConfig } = await import("./handler-factory");
+
+		const resolved = resolveKnownModelsFromConfig({
+			providerId: "openrouter",
+			modelId: "small-output",
+			apiKey: "key",
+			systemPrompt: "",
+			tools: [],
+			providerConfig: {
+				providerId: "openrouter",
+				modelId: "small-output",
+				maxOutputTokens: 16_000,
+				knownModels: {
+					"small-output": {
+						id: "small-output",
+						name: "Small Output",
+						contextWindow: 202_800,
+						maxTokens: 8_192,
+					},
+				},
+			},
+		});
+
+		expect(resolved?.["small-output"]?.maxTokens).toBe(8_192);
+	});
+
+	it("merges runtime model registry overrides (models.json) for built-in providers", async () => {
+		const { createAgentModelFromConfig, resolveKnownModelsFromConfig } =
+			await import("./handler-factory");
+		const llms =
+			await vi.importActual<typeof import("@cline/llms")>("@cline/llms");
+
+		llms.registerModel("alibaba-cn", "qwen4-max", {
+			id: "qwen4-max",
+			name: "Qwen4 Max",
+			contextWindow: 256_000,
+			maxInputTokens: 256_000,
+			maxTokens: 200_000,
+		});
+
+		try {
+			const config: AgentConfig = {
+				providerId: "alibaba-cn",
+				modelId: "qwen4-max",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "alibaba-cn",
+					modelId: "qwen4-max",
+					knownModels: {
+						"qwen3.8-omni-flash": {
+							id: "qwen3.8-omni-flash",
+							name: "Qwen 3.8 Omni Flash",
+							contextWindow: 131_072,
+							maxTokens: 16_384,
+						},
+					},
+				},
+			};
+
+			expect(resolveKnownModelsFromConfig(config)?.["qwen4-max"]).toMatchObject(
+				{
+					id: "qwen4-max",
+					name: "Qwen4 Max",
+					contextWindow: 256_000,
+					maxInputTokens: 256_000,
+					maxTokens: 200_000,
+				},
+			);
+
+			createAgentModelFromConfig(config, undefined);
+
+			expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					providerConfigs: [
+						expect.objectContaining({
+							providerId: "alibaba-cn",
+							models: expect.arrayContaining([
+								expect.objectContaining({
+									id: "qwen4-max",
+									contextWindow: 256_000,
+									maxInputTokens: 256_000,
+									maxOutputTokens: 200_000,
+								}),
+							]),
+						}),
+					],
+				}),
+			);
+			expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+				{ providerId: "alibaba-cn", modelId: "qwen4-max" },
+				{ maxTokens: undefined, temperature: undefined },
+			);
+		} finally {
+			llms.unregisterModel("alibaba-cn", "qwen4-max");
+		}
 	});
 
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {

@@ -987,13 +987,18 @@ export async function resolveProviderConfig(
 					return {};
 				})
 			: {};
+		const registeredModelOverrides =
+			await Llms.getModelOverridesForProvider(providerId);
 		const knownModels = await mergeKnownModels(
 			providerId,
 			defaults.knownModels,
 			liveModels,
 			privateModels,
 			publicModels,
-			config?.knownModels,
+			{
+				...registeredModelOverrides,
+				...(config?.knownModels ?? {}),
+			},
 		);
 
 		return {
