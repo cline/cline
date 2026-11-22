@@ -2,7 +2,25 @@
   <img src="assets/icons/icon.png" width="80" alt="Cline" />
 </p>
 
-<h1 align="center">Cline</h1>
+<h1 align="center">Cline Studio (Fork)</h1>
+
+<p align="center">
+Minimal monochrome dark grayscale edition of Cline with full-window Editor Panel support, inline model and context controls, per-message tok/s telemetry, and Studio workspace layout integration.
+</p>
+
+> **Studio Distribution**: Pair this extension with the companion VS Code Studio fork at [tiadiff/vscode-cline-studio](https://github.com/tiadiff/vscode-cline-studio) for an isolated, distraction-free desktop workspace with a project picker, single-file editor, and File Explorer toggle.
+
+### Key Enhancements in This Fork
+
+- **Full-Window WebviewPanel Mode**: Native `cline.openFullScreen` and `cline.applyStudioLayout` commands supporting side-by-side Explorer + 1-File Editor + locked Cline panel, or Cline-only focus mode.
+- **Monochrome Office Minimal Dark UI**: Grayscale dark palette (`#0e0f10` / `#151618` / `#1a1c1f`), offline-bundled `Inter Variable` + `Geist Mono Variable` fonts, centered `820px` editorial reading column, unified floating composer card, and top Studio navigation bar.
+- **Inline Composer Controls**: Live model selector (supporting OpenAI-compatible, Ollama, LM Studio, and SDK catalogs) and live context window selector (`4k` to `1M`) directly below the prompt input.
+- **Per-Message Generation Telemetry**: Real-time `tok/s`, input/output tokens, total latency, TTFT, cache hit ratio, context window utilization %, cost, and model name shown beneath every assistant message.
+- **Redesigned Settings**: Standard structured Preferences sidebar and card layout with a persistent **Show File Explorer and File Editor** layout toggle.
+
+---
+
+<h2 align="center">Upstream Cline</h2>
 
 <p align="center">
 The open source coding agent in your IDE, terminal, & desktop!

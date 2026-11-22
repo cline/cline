@@ -426,24 +426,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				{!hideAutoApprove && <AutoApproveBar />}
-				<ActionButtons
-					chatState={chatState}
-					messageHandlers={messageHandlers}
-					messages={messages}
-					mode={mode}
-					task={task}
-				/>
-				<QueuedPrompts items={queuedPrompts} />
-				<InputSection
-					chatState={chatState}
-					messageHandlers={messageHandlers}
-					placeholderText={placeholderText}
-					scrollBehavior={scrollBehavior}
-					selectFilesAndImages={selectFilesAndImages}
-					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
-				/>
+			<footer className="bg-[#0e0f10] flex flex-col w-full shrink-0" style={{ gridRow: "2" }}>
+				<div className="w-full max-w-[820px] mx-auto px-4 sm:px-6 pb-4 pt-1 flex flex-col">
+					{!hideAutoApprove && <AutoApproveBar />}
+					<ActionButtons
+						chatState={chatState}
+						messageHandlers={messageHandlers}
+						messages={messages}
+						mode={mode}
+						task={task}
+					/>
+					<QueuedPrompts items={queuedPrompts} />
+					<InputSection
+						chatState={chatState}
+						messageHandlers={messageHandlers}
+						placeholderText={placeholderText}
+						scrollBehavior={scrollBehavior}
+						selectFilesAndImages={selectFilesAndImages}
+						shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					/>
+				</div>
 			</footer>
 		</ChatLayout>
 	)

@@ -155,8 +155,8 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			className={`group relative p-2.5 my-1 text-badge-foreground rounded-xs ${
-				messageTs && !isEditing ? "cursor-pointer pr-8" : ""
+			className={`group relative px-4 py-3 my-1.5 text-[#f0f2f5] bg-[#1a1c1f] border border-white/[0.08] hover:border-white/[0.14] rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.18)] transition-colors ${
+				messageTs && !isEditing ? "cursor-pointer pr-10" : ""
 			}`}
 			onClick={messageTs && !isEditing ? startEditing : undefined}
 			onKeyDown={
@@ -171,7 +171,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			}
 			role={messageTs && !isEditing ? "button" : undefined}
 			style={{
-				backgroundColor: "var(--vscode-badge-background)",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}
@@ -183,21 +182,21 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					<TooltipTrigger asChild>
 						<button
 							aria-label="Edit and regenerate from this message"
-							className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-80 hover:opacity-100 bg-transparent border-0 text-badge-foreground cursor-pointer p-1"
+							className="absolute right-2.5 top-2.5 opacity-0 group-hover:opacity-75 hover:opacity-100 bg-white/[0.06] hover:bg-white/[0.12] rounded-md border-0 text-[#c8cdd4] cursor-pointer p-1 transition-all"
 							onClick={(event) => {
 								event.stopPropagation()
 								startEditing()
 							}}
 							type="button">
-							<i className="codicon codicon-edit" />
+							<i className="codicon codicon-edit text-[13px]" />
 						</button>
 					</TooltipTrigger>
 				</Tooltip>
 			)}
 			{isEditing ? (
-				<div className="flex flex-col gap-2" onKeyDown={handleEditingKeyDown}>
+				<div className="flex flex-col gap-2.5" onKeyDown={handleEditingKeyDown}>
 					<textarea
-						className="w-full box-border rounded-xs border border-vscode-input-border bg-vscode-input-background text-vscode-input-foreground p-2 text-sm resize-vertical"
+						className="w-full box-border rounded-lg border border-white/[0.14] bg-[#121315] text-[#f0f2f5] p-2.5 text-[14px] leading-relaxed resize-vertical focus:outline-none focus:border-white/[0.28]"
 						disabled={!!savingMode}
 						onChange={(event) => setEditedText(event.target.value)}
 						rows={Math.max(3, editedText.split("\n").length)}
@@ -212,21 +211,21 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						/>
 					)}
 					{errorMessage && <div className="text-xs text-(--vscode-errorForeground)">{errorMessage}</div>}
-					<div className="flex items-center justify-between gap-1.5">
+					<div className="flex items-center justify-between gap-2">
 						<button
-							className="shrink-0 whitespace-nowrap px-1 py-1 rounded-xs border-0 bg-transparent text-badge-foreground/80 hover:text-badge-foreground cursor-pointer text-xs"
+							className="shrink-0 whitespace-nowrap px-2 py-1 rounded-md border-0 bg-transparent text-[#8f959e] hover:text-[#eceef0] cursor-pointer text-xs transition-colors"
 							disabled={!!savingMode}
 							onClick={cancelEditing}
 							type="button">
 							Cancel
 						</button>
-						<div className="flex items-center gap-1.5">
+						<div className="flex items-center gap-2">
 							<Tooltip>
 								<TooltipContent side="top">Rewind conversation, keep current code edits</TooltipContent>
 								<TooltipTrigger asChild>
 									<span className="inline-flex shrink-0">
 										<button
-											className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
+											className="whitespace-nowrap px-2.5 py-1 rounded-md border border-white/[0.12] bg-[#24262b] hover:bg-[#2d3036] text-[#eceef0] cursor-pointer disabled:opacity-60 text-xs font-medium transition-colors"
 											disabled={!!savingMode}
 											onClick={() => handleSave(false)}
 											type="button">
@@ -266,12 +265,12 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</div>
 			) : (
-				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
+				<span className="ph-no-capture text-[14px] leading-[1.6]" style={{ display: "block" }}>
 					{highlightedText}
 				</span>
 			)}
 			{!isEditing && ((images && images.length > 0) || (files && files.length > 0)) && (
-				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
+				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "10px" }} />
 			)}
 		</div>
 	)

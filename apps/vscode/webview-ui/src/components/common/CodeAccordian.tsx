@@ -49,13 +49,16 @@ const CodeAccordian = ({
 	}, [code])
 
 	return (
-		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
+		<div className="bg-[#111214] overflow-hidden rounded-xl border border-white/[0.08]">
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
-					className={cn("text-description flex items-center cursor-pointer select-none w-full py-[9px] px-2.5", {
-						"cursor-wait opacity-70": isLoading,
-					})}
+					className={cn(
+						"text-[#9aa0a8] hover:text-[#eceef0] flex items-center cursor-pointer select-none w-full py-2.5 px-3.5 bg-[#151618]/60 hover:bg-white/[0.03] transition-colors",
+						{
+							"cursor-wait opacity-70": isLoading,
+						},
+					)}
 					onClick={isLoading ? undefined : onToggleExpand}
 					onKeyDown={(e) => {
 						if (!isLoading) {
@@ -69,14 +72,14 @@ const CodeAccordian = ({
 					tabIndex={0}
 					variant="text">
 					{isFeedback || isConsoleLogs ? (
-						<div className="flex items-center">
+						<div className="flex items-center text-[12.5px] font-medium">
 							<span className={`mr-1.5 codicon codicon-${isFeedback ? "feedback" : "output"}`} />
 							<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2">
 								{isFeedback ? "User Edits" : "Console Logs"}
 							</span>
 						</div>
 					) : (
-						<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2 [direction: rtl] text-left">
+						<span className="whitespace-nowrap overflow-hidden text-ellipsis mr-2 [direction: rtl] text-left font-geist-mono text-[12px]">
 							{path?.startsWith(".") && <span>.</span>}
 							{path && !path.startsWith(".") && <span>/</span>}
 							{cleanPathPrefix(path ?? "") + "\u200E"}
@@ -84,16 +87,16 @@ const CodeAccordian = ({
 					)}
 					<div className="grow" />
 					{numberOfEdits !== undefined && (
-						<div className="flex items-center mr-2 text-description">
+						<div className="flex items-center mr-2 text-[#8c929b] font-geist-mono text-[11.5px]">
 							<span className="codicon codicon-diff-single mr-1" />
 							<span>{numberOfEdits}</span>
 						</div>
 					)}
-					{isExpanded ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
+					{isExpanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
 				</Button>
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
-				<div className="overflow-x-auto overflow-y-hidden max-w-full">
+				<div className="overflow-x-auto overflow-y-hidden max-w-full border-t border-white/[0.06]">
 					<CodeBlock
 						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""

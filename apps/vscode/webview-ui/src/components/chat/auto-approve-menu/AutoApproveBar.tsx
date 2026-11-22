@@ -1,7 +1,6 @@
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon, ShieldCheckIcon } from "lucide-react"
 import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA } from "./constants"
 
@@ -17,8 +16,8 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	const getEnabledActionsText = () => {
 		const baseClasses = isModalVisible
-			? "text-foreground truncate"
-			: "text-muted-foreground group-hover:text-foreground truncate"
+			? "text-[#d8dbe0] truncate"
+			: "text-[#6e747d] group-hover:text-[#b8bdc6] truncate transition-colors"
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
 		)
@@ -26,17 +25,13 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			return ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === action)
 		})
 
-		// Filter out parent actions if their subaction is also enabled (show only subaction)
 		const actionsToShow = enabledActions.filter((action) => {
 			if (!action?.shortName) {
 				return false
 			}
-
-			// If this is a parent action and its subaction is enabled, skip it
 			if (action.subAction?.id && enabledActionsNames.includes(action.subAction.id)) {
 				return false
 			}
-
 			return true
 		})
 
@@ -56,43 +51,11 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		)
 	}
 
-	const borderColor = `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
-	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
-	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
-
 	return (
-		<div
-			className="mx-3.5 select-none break-words relative"
-			style={{
-				borderTop: `0.5px solid ${borderColor}`,
-				borderRadius: "4px 4px 0 0",
-				background: bgGradient,
-				...style,
-			}}>
-			{/* Left border gradient */}
-			<div
-				className="absolute left-0 pointer-events-none"
-				style={{
-					width: 0.5,
-					top: 3,
-					height: "100%",
-					background: borderGradient,
-				}}
-			/>
-			{/* Right border gradient */}
-			<div
-				className="absolute right-0 top-0 pointer-events-none"
-				style={{
-					width: 0.5,
-					top: 3,
-					height: "100%",
-					background: borderGradient,
-				}}
-			/>
-
+		<div className="select-none break-words relative mb-1.5" style={style}>
 			<div
 				aria-label={isModalVisible ? "Close auto-approve settings" : "Open auto-approve settings"}
-				className="group cursor-pointer pt-3 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
+				className="group cursor-pointer py-1.5 px-3 flex items-center justify-between gap-2 rounded-lg hover:bg-white/[0.03] transition-colors"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
@@ -105,11 +68,14 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 				ref={buttonRef}
 				tabIndex={0}>
-				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-					<span className="whitespace-nowrap">Auto-approve:</span>
+				<div className="flex flex-nowrap items-center gap-1.5 min-w-0 flex-1 text-[12px]">
+					<ShieldCheckIcon className="shrink-0 text-[#6e747d] group-hover:text-[#9aa0a8] transition-colors" size={13} />
+					<span className="whitespace-nowrap text-[#8c929b] font-medium">Auto-approve:</span>
 					{getEnabledActionsText()}
 				</div>
-				{isModalVisible ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+				<span className="text-[#6e747d] group-hover:text-[#b8bdc6] transition-colors">
+					{isModalVisible ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+				</span>
 			</div>
 
 			<AutoApproveModal

@@ -1,7 +1,8 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel"
+	type: "grpc_request" | "grpc_request_cancel" | "studio_get_workspace_panes" | "studio_set_workspace_panes"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
+	showExplorerAndEditor?: boolean
 }
 
 export type GrpcRequest = {

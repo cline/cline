@@ -204,14 +204,16 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			{/* Sticky User Message - positioned absolutely to avoid layout shifts */}
 			<div
 				className={cn(
-					"absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px] bg-background",
-					scrolledPastUserMessage && "pb-2",
+					"absolute top-0 left-0 right-0 z-10 bg-[#0e0f10]/90 backdrop-blur-md",
+					scrolledPastUserMessage && "pb-2 pt-1",
 				)}>
-				<StickyUserMessage
-					isVisible={!!scrolledPastUserMessage}
-					lastUserMessage={scrolledPastUserMessage}
-					onScrollToMessage={handleScrollToUserMessage}
-				/>
+				<div className="w-full max-w-[820px] mx-auto px-4 sm:px-6">
+					<StickyUserMessage
+						isVisible={!!scrolledPastUserMessage}
+						lastUserMessage={scrolledPastUserMessage}
+						onScrollToMessage={handleScrollToUserMessage}
+					/>
+				</div>
 			</div>
 
 			<div className="grow flex relative" ref={scrollContainerRef}>
@@ -222,19 +224,21 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				    already warm when the first real row arrives. */}
 				{showEmptyListLoader && (
 					<div className="absolute inset-0 overflow-hidden">
-						<ChatRow
-							inputValue={inputValue}
-							isExpanded={false}
-							isLast={true}
-							lastModifiedMessage={modifiedMessages.at(-1)}
-							message={WAITING_ROW}
-							onCancelCommand={() => messageHandlers.executeButtonAction({ type: "cancel" })}
-							onHeightChange={handleRowHeightChange}
-							onLastRowContentChange={handleLastRowContentChange}
-							onSetQuote={setActiveQuote}
-							onToggleExpand={toggleRowExpansion}
-							sendMessageFromChatRow={messageHandlers.handleSendMessage}
-						/>
+						<div className="w-full max-w-[820px] mx-auto px-4 sm:px-6">
+							<ChatRow
+								inputValue={inputValue}
+								isExpanded={false}
+								isLast={true}
+								lastModifiedMessage={modifiedMessages.at(-1)}
+								message={WAITING_ROW}
+								onCancelCommand={() => messageHandlers.executeButtonAction({ type: "cancel" })}
+								onHeightChange={handleRowHeightChange}
+								onLastRowContentChange={handleLastRowContentChange}
+								onSetQuote={setActiveQuote}
+								onToggleExpand={toggleRowExpansion}
+								sendMessageFromChatRow={messageHandlers.handleSendMessage}
+							/>
+						</div>
 					</div>
 				)}
 				<Virtuoso

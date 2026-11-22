@@ -20,61 +20,50 @@ const AboutSection = ({ version, extensionVariant, renderSectionHeader }: AboutS
 		<div>
 			{renderSectionHeader("about")}
 			<Section>
-				<div className="flex px-4 flex-col gap-2">
-					<h2 className="text-lg font-semibold">
-						Cline v{version}
-						{extensionVariant && (
-							<span className="ml-2 text-sm font-normal text-description">
-								({VARIANT_LABELS[extensionVariant]})
+				<div className="rounded-xl bg-[#151618] border border-white/[0.08] p-5 flex flex-col gap-4">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2.5">
+							<span className="text-[15px] font-semibold text-[#f2f4f7]">Cline Studio</span>
+							<span className="font-geist-mono text-[11px] px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/[0.07] text-[#b0b6bf]">
+								v{version}
+								{extensionVariant ? ` · ${VARIANT_LABELS[extensionVariant]}` : ""}
 							</span>
-						)}
-					</h2>
-					<p>
-						An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks
-						step-by-step with tools that let him create & edit files, explore large projects, use the browser, and
-						execute terminal commands (after you grant permission).
+						</div>
+					</div>
+					<p className="text-[13px] text-[#9aa0a8] leading-relaxed m-0">
+						Autonomous coding agent workspace capable of reading and editing files, running shell commands, and
+						collaborating step-by-step directly inside your local project.
 					</p>
+				</div>
 
-					<h3 className="text-md font-semibold">Community & Support</h3>
-					<p>
-						<VSCodeLink href="https://x.com/cline">X</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://discord.gg/cline">Discord</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://www.reddit.com/r/cline/"> r/cline</VSCodeLink>
-					</p>
-
-					<h3 className="text-md font-semibold">Development</h3>
-					<p>
-						<VSCodeLink href="https://github.com/cline/cline">GitHub</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://github.com/cline/cline/issues"> Issues</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop">
-							{" "}
-							Feature Requests
-						</VSCodeLink>
-					</p>
-
-					<h3 className="text-md font-semibold">Resources</h3>
-					<p>
-						<VSCodeLink href="https://docs.cline.bot/">Documentation</VSCodeLink>
-						{" • "}
-						<VSCodeLink href="https://cline.bot/">https://cline.bot</VSCodeLink>
-						{PLATFORM_CONFIG.supportsThirdPartyNotices && (
-							<>
-								{" • "}
-								<VSCodeLink
-									href="#"
-									onClick={(e) => {
-										e.preventDefault()
-										FileServiceClient.openThirdPartyNotices(EmptyRequest.create()).catch(console.error)
-									}}>
-									Third-Party Notices
-								</VSCodeLink>
-							</>
-						)}
-					</p>
+				<div className="rounded-xl bg-[#151618] border border-white/[0.08] px-4 divide-y divide-white/[0.06] text-[13px]">
+					<div className="py-3 flex items-center justify-between gap-4">
+						<span className="text-[#858b94]">Source & Issues</span>
+						<div className="flex items-center gap-3">
+							<VSCodeLink href="https://github.com/cline/cline">GitHub</VSCodeLink>
+							<VSCodeLink href="https://github.com/cline/cline/issues">Issues</VSCodeLink>
+						</div>
+					</div>
+					<div className="py-3 flex items-center justify-between gap-4">
+						<span className="text-[#858b94]">Documentation</span>
+						<div className="flex items-center gap-3">
+							<VSCodeLink href="https://docs.cline.bot/">Docs</VSCodeLink>
+							<VSCodeLink href="https://cline.bot/">Website</VSCodeLink>
+						</div>
+					</div>
+					{PLATFORM_CONFIG.supportsThirdPartyNotices && (
+						<div className="py-3 flex items-center justify-between gap-4">
+							<span className="text-[#858b94]">Licenses</span>
+							<VSCodeLink
+								href="#"
+								onClick={(e) => {
+									e.preventDefault()
+									FileServiceClient.openThirdPartyNotices(EmptyRequest.create()).catch(console.error)
+								}}>
+								Third-Party Notices
+							</VSCodeLink>
+						</div>
+					)}
 				</div>
 			</Section>
 		</div>

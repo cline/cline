@@ -326,61 +326,39 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				version={version}
 				welcomeBanners={welcomeBanners}
 			/>
-			<div className="overflow-y-auto flex flex-col pb-2.5">
-				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
-				{!showWhatsNewModal && (
-					<>
-						<BannerCarousel banners={activeBanners} />
-						{cloudSessionsEnabled && <RunningCloudTasks />}
-						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-						{/* Quick launch worktree button */}
-						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
-							<div className="flex flex-col items-center gap-3 mt-2 mb-4 px-5">
-								{/* TODO: Re-enable once worktree creation is stable
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<button
-											className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--vscode-foreground)]/30 text-[var(--vscode-foreground)] bg-transparent hover:bg-[var(--vscode-list-hoverBackground)] active:opacity-80 text-sm font-medium cursor-pointer"
-											onClick={() => setShowCreateWorktreeModal(true)}
-											type="button">
-											<span className="codicon codicon-empty-window"></span>
-											New Worktree Window
-										</button>
-									</TooltipTrigger>
-									<TooltipContent side="top">
-										Create a new git worktree and open it in a separate window. Great for running parallel
-										Cline tasks.
-									</TooltipContent>
-								</Tooltip>
-								*/}
-								{currentWorktree && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<button
-												className="flex flex-col items-center gap-0.5 text-xs text-[var(--vscode-descriptionForeground)] hover:text-[var(--vscode-foreground)] cursor-pointer bg-transparent border-none p-1 rounded"
-												onClick={handleWorktreeClick}
-												type="button">
-												<div className="flex items-center gap-1.5 text-xs">
-													<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
-													<span className="break-all text-center">
-														<span className="font-semibold">Current:</span>{" "}
+			<div className="overflow-y-auto flex-1 flex flex-col pb-4 w-full">
+				<div className="w-full max-w-[780px] mx-auto px-4 sm:px-6 flex flex-col my-auto">
+					<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
+					{!showWhatsNewModal && (
+						<>
+							{cloudSessionsEnabled && <RunningCloudTasks />}
+							{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+							{/* Quick launch worktree button */}
+							{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
+								<div className="flex flex-col items-center gap-3 mt-4 mb-4">
+									{currentWorktree && (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													className="flex items-center gap-2 text-[12px] text-[#7c828b] hover:text-[#eceef0] cursor-pointer bg-[#151618] border border-white/[0.07] hover:border-white/[0.14] px-3 py-1.5 rounded-lg transition-colors"
+													onClick={handleWorktreeClick}
+													type="button">
+													<GitBranch className="w-3.5 h-3.5 stroke-[2] shrink-0 text-[#9aa0a8]" />
+													<span className="font-geist-mono text-[11.5px]">
 														{currentWorktree.branch || "detached HEAD"}
 													</span>
-												</div>
-												<span className="break-all text-center max-w-[300px]">
-													{currentWorktree.path}
-												</span>
-											</button>
-										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											View and manage git worktrees. Great for running parallel Cline tasks.
-										</TooltipContent>
-									</Tooltip>
-								)}
-							</div>
-						)}
-					</>
-				)}
+												</button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												{currentWorktree.path} — View and manage git worktrees
+											</TooltipContent>
+										</Tooltip>
+									)}
+								</div>
+							)}
+						</>
+					)}
+				</div>
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
 			{cloudSessionsEnabled && isVisible && (

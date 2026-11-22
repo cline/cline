@@ -167,6 +167,41 @@ export class MessageTranslatorState {
 		this.minter = minter
 	}
 
+	/** Wall-clock timestamp when the current API iteration started (for tok/s & latency metrics) */
+	private iterationStartTimeMs: number | undefined
+	/** Wall-clock timestamp when the first streamed token/content chunk arrived */
+	private firstTokenTimeMs: number | undefined
+
+	markIterationStart(): void {
+		this.iterationStartTimeMs = Date.now()
+		this.firstTokenTimeMs = undefined
+	}
+
+	markFirstTokenIfNeeded(): void {
+		if (this.iterationStartTimeMs !== undefined && this.firstTokenTimeMs === undefined) {
+			this.firstTokenTimeMs = Date.now()
+		}
+	}
+
+	getIterationTimingMetrics(tokensOut: number): {
+		durationMs?: number
+		ttftMs?: number
+		tokensPerSecond?: number
+	} {
+		if (this.iterationStartTimeMs === undefined) {
+			return {}
+		}
+		const now = Date.now()
+		const durationMs = Math.max(1, now - this.iterationStartTimeMs)
+		const ttftMs =
+			this.firstTokenTimeMs !== undefined ? Math.max(0, this.firstTokenTimeMs - this.iterationStartTimeMs) : undefined
+		const genMs =
+			this.firstTokenTimeMs !== undefined ? Math.max(1, now - this.firstTokenTimeMs) : durationMs
+		const tokensPerSecond =
+			tokensOut > 0 && genMs > 0 ? Math.round((tokensOut / (genMs / 1000)) * 10) / 10 : undefined
+		return { durationMs, ttftMs, tokensPerSecond }
+	}
+
 	/** Provider backing the active turn, if the host can supply it. */
 	activeProviderId(): string | undefined {
 		return this.getActiveProviderId?.()
@@ -1350,6 +1385,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 
 	switch (event.type) {
 		case "content_start": {
+			state.markFirstTokenIfNeeded()
 			switch (event.contentType) {
 				case "text": {
 					// The SDK emits MULTIPLE content_start events for streaming text,
@@ -1888,6 +1924,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "iteration_start": {
 			// New iteration — reset streaming state for the new turn
 			state.reset()
+			state.markIterationStart()
 
 			// Emit an api_req_started message before each API request so the
 			// webview shows its request spinner and cost display.
@@ -1946,12 +1983,17 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// api_req_started message's ClineApiReqInfo, so emit a follow-up
 			// api_req_started update carrying the usage data for cost display.
 			const usageEvent = normalizeUsageEvent(event)
+			const timing = state.getIterationTimingMetrics(usageEvent.tokensOut)
 			const apiReqInfo: ClineApiReqInfo = {
 				tokensIn: usageEvent.tokensIn,
 				tokensOut: usageEvent.tokensOut,
 				cacheWrites: usageEvent.cacheWrites,
 				cacheReads: usageEvent.cacheReads,
 				cost: usageEvent.totalCost,
+				durationMs: timing.durationMs,
+				ttftMs: timing.ttftMs,
+				tokensPerSecond: timing.tokensPerSecond,
+				modelId: state.activeModelId(),
 			}
 			messages.push({
 				ts: state.nextTs(),

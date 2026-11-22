@@ -108,7 +108,7 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative pt-2.5 px-4">
+			<div className="relative pt-3.5 pb-0.5">
 				<ChatRowContent {...props} />
 			</div>,
 		)
