@@ -1292,7 +1292,13 @@ export function parseCompactionNoticeMetadata(metadata: Record<string, unknown> 
 	}
 	const mode = kind === "manual_compaction" ? "manual" : "auto"
 	if (metadata.phase === "started") {
-		return { status: "started", mode }
+		return {
+			status: "started",
+			mode,
+			tokensBefore: asFiniteNumber(metadata.tokensBefore),
+			triggerTokens: asFiniteNumber(metadata.triggerTokens),
+			currentTokens: asFiniteNumber(metadata.currentTokens ?? metadata.tokensBefore ?? metadata.triggerTokens),
+		}
 	}
 	if (metadata.phase === "skipped") {
 		return { status: "skipped", mode }

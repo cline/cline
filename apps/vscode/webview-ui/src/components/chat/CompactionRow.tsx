@@ -1,5 +1,8 @@
 import type { ClineCompactionInfo, ClineMessage } from "@shared/ExtensionMessage"
+import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { FoldVerticalIcon, LoaderCircleIcon } from "lucide-react"
+import { useMemo } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 
 /** Mirrors the CLI's formatTokenCount (apps/cli/src/tui/utils/compaction-status.ts). */
@@ -29,9 +32,14 @@ function parseCompactionInfo(text: string | undefined): ClineCompactionInfo | un
 }
 
 /** Mirrors the CLI's formatCompactionDividerLabel wording for product consistency. */
-function formatCompactionLabel(info: ClineCompactionInfo): string {
+function formatCompactionLabel(info: ClineCompactionInfo, lastApiReqTotalTokens?: number): string {
 	if (info.status === "started") {
-		return info.mode === "manual" ? "Compacting context" : "Auto compacting context"
+		const label = info.mode === "manual" ? "Compacting context" : "Auto compacting context"
+		const count = info.tokensBefore ?? info.currentTokens ?? info.triggerTokens ?? lastApiReqTotalTokens
+		if (typeof count === "number" && count > 0) {
+			return `${label} (${formatTokenCount(count)} tokens)`
+		}
+		return label
 	}
 	if (info.status === "failed") {
 		return "Compaction failed"
@@ -59,6 +67,8 @@ function formatCompactionLabel(info: ClineCompactionInfo): string {
  * its terminal state when it finishes.
  */
 export const CompactionRow = ({ message }: { message: ClineMessage }) => {
+	const { clineMessages = [] } = useExtensionState()
+	const lastApiReqTotalTokens = useMemo(() => getLastApiReqTotalTokens(clineMessages) || undefined, [clineMessages])
 	const info = parseCompactionInfo(message.text)
 	if (!info) {
 		// Virtuoso cannot handle zero-height items; render a spacer instead of null.
@@ -81,7 +91,7 @@ export const CompactionRow = ({ message }: { message: ClineMessage }) => {
 				<FoldVerticalIcon className="size-2 shrink-0" />
 			)}
 			<span className="min-w-0">
-				{formatCompactionLabel(info)}
+				{formatCompactionLabel(info, lastApiReqTotalTokens)}
 				{inProgress ? "…" : ""}
 			</span>
 			<div className="flex-1 min-w-4 border-t border-description/30" />

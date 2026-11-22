@@ -102,8 +102,10 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		if (!contextWindow) {
 			return null
 		}
+		const rawPercentage = (lastApiReqTotalTokens / contextWindow) * 100
 		return {
-			percentage: (lastApiReqTotalTokens / contextWindow) * 100,
+			percentage: Math.min(100, Math.max(0, rawPercentage)),
+			rawPercentage,
 			max: contextWindow,
 			used: lastApiReqTotalTokens,
 		}
