@@ -32,6 +32,7 @@ import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { DeleteAllTaskHistoryCount, type GetTaskHistoryRequest, TaskHistoryArray, TaskResponse } from "@shared/proto/cline/task"
+import type { ScheduledTask } from "@shared/scheduled-next-task"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -63,7 +64,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
-import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { buildStartSessionInput, createHistoryItemFromSession, type TaskModelSelection } from "./cline-session-factory"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -76,6 +77,7 @@ import {
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
 import { RemoteConfigRefreshCoordinator } from "./remote-config-refresh-coordinator"
+import { SdkAutoNextTaskCoordinator } from "./sdk-auto-next-task-coordinator"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -221,6 +223,14 @@ export class Controller {
 	private taskControl: SdkTaskControlCoordinator
 	private taskStart: SdkTaskStartCoordinator
 	private compaction: SdkCompactionCoordinator
+	private autoNextTask: SdkAutoNextTaskCoordinator
+	/**
+	 * Provider/model pinned for the task in view by a scheduled row that named
+	 * its own. It belongs to the task, not to the user's settings: it is set when
+	 * such a chat starts and cleared by any other task transition, so nothing the
+	 * user selects globally is ever overwritten.
+	 */
+	private activeTaskModelSelection?: TaskModelSelection
 	private sessionEvents: SdkSessionEventCoordinator
 	private cloud!: SdkCloudSessionCoordinator
 	readonly cloudSessions: CloudSessionsService
@@ -392,6 +402,7 @@ export class Controller {
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
+			getTaskModelSelection: () => this.activeTaskModelSelection,
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
 			getCwd: () => this.getWorkspaceRoot(),
@@ -758,6 +769,24 @@ export class Controller {
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.autoNextTask = new SdkAutoNextTaskCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			rebuilds: this.sessionRebuilds,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			getCurrentMode: () => this.getDisplayedTaskMode(),
+			initTask: async (prompt, modelSelection) =>
+				this.initTask(prompt, undefined, undefined, undefined, undefined, undefined, modelSelection),
+			clearTask: async () => {
+				await this.clearTask()
+			},
+			showChatView: async () => {
+				const { sendChatButtonClickedEvent } = await import("@core/controller/ui/subscribeToChatButtonClicked")
+				await sendChatButtonClickedEvent()
+			},
+			notify: (message, kind) => this.showAutoNextTaskNotification(message, kind),
+		})
 		this.sessionEvents = new SdkSessionEventCoordinator({
 			messageTranslatorState: this.messageTranslatorState,
 			sessions: this.sessions,
@@ -768,6 +797,21 @@ export class Controller {
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
+			getTurnToken: () => this.turnStateTracker.get().seq,
+			onTaskCompleted: (sessionId, turnToken) => {
+				// Fire-and-forget: the event stream must never block on starting
+				// the next chat, and the coordinator claims each turn once.
+				void this.autoNextTask.handleTaskCompleted(sessionId, turnToken).catch((error) => {
+					Logger.error("[SdkController] Auto next-task chaining failed:", error)
+				})
+			},
+			onTaskAwaitingFollowup: (sessionId, turnToken) => {
+				// A chat that just answered (no completion tool) is still a chat the
+				// user is done with, so the scheduled queue runs its head here.
+				void this.autoNextTask.handleTaskAwaitingFollowup(sessionId, turnToken).catch((error) => {
+					Logger.error("[SdkController] Scheduled task handoff failed:", error)
+				})
+			},
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
 		})
@@ -1547,7 +1591,18 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 		cloudTarget?: CloudTarget,
+		modelSelection?: TaskModelSelection,
 	): Promise<string | undefined> {
+		// Automatic chaining starts a task through this same entry point; only a
+		// user-initiated start breaks the chain-depth safeguard.
+		if (!this.autoNextTask.consumeChainHandoff()) {
+			this.autoNextTask.resetChainDepth("manual task start")
+		}
+		// The provider/model a scheduled row pinned belongs to that chat alone;
+		// every other start (typed prompt, New Task, resume) clears it so the task
+		// uses the provider the user actually has configured. The queue itself is
+		// never dropped here: it is the user's plan for the next completions.
+		this.activeTaskModelSelection = modelSelection
 		if (cloudTarget) {
 			// Register the cloud start before the first await so a Cancel that
 			// arrives while remote config is still loading finds it and stops it.
@@ -1568,7 +1623,7 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
+		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings, modelSelection)
 	}
 
 	/**
@@ -1584,6 +1639,8 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		// The user resumed an existing task: an unrelated manual transition.
+		this.autoNextTask.resetChainDepth("task resumed")
 		await this.waitForInitialRemoteConfig()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
@@ -1654,8 +1711,52 @@ export class Controller {
 		await this.compaction.compactTask()
 	}
 
+	/**
+	 * Short native notification for the automatic next-chat feature
+	 * (sdk-auto-next-task-coordinator.ts). Fire-and-forget: the chaining flow
+	 * must not stall on whether the window happens to be visible.
+	 */
+	private showAutoNextTaskNotification(message: string, kind: "information" | "warning"): void {
+		HostProvider.window
+			.showMessage({
+				type: kind === "warning" ? ShowMessageType.WARNING : ShowMessageType.INFORMATION,
+				message,
+			})
+			.catch((error) => Logger.error("[SdkController] Failed to show auto-next-task notification:", error))
+	}
+
+	/**
+	 * "Scheduled Tasks" view: replaces the queue (array order is the run order)
+	 * and/or its pause flag. Nothing is started here — the rows run at the
+	 * completions they were queued for (see sdk-auto-next-task-coordinator.ts).
+	 */
+	async updateScheduledTasks(tasks: ScheduledTask[], paused?: boolean): Promise<void> {
+		this.autoNextTask.setScheduledTasks(tasks)
+		if (paused !== undefined) {
+			this.autoNextTask.setScheduledTasksPaused(paused)
+		}
+		await this.postStateToWebview()
+	}
+
+	/**
+	 * Starts one queued chat immediately ("Run now" in the view), spending that
+	 * row. The webview leaves the view afterwards so the started chat is visible.
+	 */
+	async runScheduledTaskNow(scheduledTaskId: string): Promise<string | undefined> {
+		const task = this.autoNextTask.getScheduledTasks().find((scheduled) => scheduled.id === scheduledTaskId)
+		if (!task) {
+			Logger.warn(`[SdkController] Run-now requested for unknown scheduled task ${scheduledTaskId}`)
+			return undefined
+		}
+		const taskId = await this.autoNextTask.startScheduledTaskNow(task)
+		await this.postStateToWebview()
+		return taskId
+	}
+
 	async clearTask(): Promise<void> {
 		this.pendingStartRetry = undefined
+		// No task in view, so no task-level provider/model pin either.
+		this.activeTaskModelSelection = undefined
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		// A cloud task still provisioning has no SDK session for taskControl to end;
@@ -2205,6 +2306,12 @@ export class Controller {
 	 * replace it.
 	 */
 	async showTaskWithId(taskId: string): Promise<TaskResponse> {
+		// Opening a task from History is a manual transition: it must never chain
+		// a new chat and it breaks any automatic chain in progress. The scheduled
+		// queue is deliberately left alone — it belongs to the completions still
+		// to come, not to the task the user just left.
+		this.autoNextTask.resetChainDepth("task opened from history")
+		this.activeTaskModelSelection = undefined
 		const historyItem = this.cloud.isCloudSessionId(taskId)
 			? await this.cloud.openCloudTask(taskId)
 			: await this.taskControl.showTaskWithId(taskId)

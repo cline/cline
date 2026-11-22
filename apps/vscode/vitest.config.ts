@@ -19,6 +19,8 @@ export default defineConfig({
 			"src/core/controller/state/**/*.test.ts",
 			"src/core/controller/slash/**/*.test.ts",
 			"src/core/controller/task/newTask.test.ts",
+			"src/core/controller/task/updateScheduledTasks.test.ts",
+			"src/core/controller/task/runScheduledTaskNow.test.ts",
 			"src/services/ClineClientIdentity.test.ts",
 			"src/services/mcp/__tests__/settingsLock.test.ts",
 			"src/shared/model-catalog/provider-helpers.test.ts",

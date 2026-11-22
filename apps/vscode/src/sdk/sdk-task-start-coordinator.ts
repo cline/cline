@@ -8,6 +8,7 @@ import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
+import type { TaskModelSelection } from "./cline-session-factory"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -67,6 +68,7 @@ export class SdkTaskStartCoordinator {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
+		modelSelection?: TaskModelSelection,
 	): Promise<string | undefined> {
 		Logger.log(`[SdkController] initTask called: "${prompt?.substring(0, 50)}"`)
 		let taskSessionId: string | undefined
@@ -87,6 +89,7 @@ export class SdkTaskStartCoordinator {
 					files,
 					historyItem,
 					taskSettings,
+					modelSelection,
 					cwd,
 					mode,
 				})

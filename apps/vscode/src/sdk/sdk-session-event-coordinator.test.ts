@@ -124,6 +124,7 @@ describe("SdkSessionEventCoordinator", () => {
 
 		expect(options.setTurnPhase).toHaveBeenCalledWith("error")
 		expect(options.setTurnPhase).not.toHaveBeenCalledWith("awaiting_followup")
+		expect(options.onTaskAwaitingFollowup).not.toHaveBeenCalled()
 	})
 
 	it("marks a submitted queued prompt as a new streaming turn", async () => {
@@ -390,6 +391,117 @@ describe("SdkSessionEventCoordinator", () => {
 			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 		})
 	})
+
+	it("reports task completion only when the turn ended by declaring it", async () => {
+		// submit_and_exit / attempt_completion is the authoritative completion
+		// signal; anything else that ends a turn is not a completed task.
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("completed")
+		expect(options.onTaskCompleted).toHaveBeenCalledWith("session-123", 42)
+		expect(options.onTaskAwaitingFollowup).not.toHaveBeenCalled()
+	})
+
+	it("reports a turn that only stopped talking to the scheduled-task queue", async () => {
+		// A question answered in plain text is not a declared completion, but the
+		// user is done with the chat — the queue treats it as a finished turn.
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.onTaskCompleted).not.toHaveBeenCalled()
+		expect(options.onTaskAwaitingFollowup).toHaveBeenCalledWith("session-123", 42)
+	})
+
+	it("keeps streaming the event pipeline when the followup handler throws", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		options.onTaskAwaitingFollowup.mockImplementation(() => {
+			throw new Error("scheduled handoff blew up")
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("does not report completion for a turn that only stopped talking", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.onTaskCompleted).not.toHaveBeenCalled()
+	})
+
+	it("does not report completion for a failed turn", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+		options.messageTranslatorState.setErrorSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("error")
+		expect(options.onTaskCompleted).not.toHaveBeenCalled()
+		expect(options.onTaskAwaitingFollowup).not.toHaveBeenCalled()
+	})
+
+	it("does not report completion for a cancelled turn's straggler", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			activeSession: makeActiveSession({ isRunning: false }),
+			turnPhase: "resumable",
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).not.toHaveBeenCalled()
+		expect(options.onTaskCompleted).not.toHaveBeenCalled()
+		expect(options.onTaskAwaitingFollowup).not.toHaveBeenCalled()
+	})
+
+	it("does not report completion for events that do not end the turn", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [{ ts: 1, type: "say", say: "text", text: "working" }],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.onTaskCompleted).not.toHaveBeenCalled()
+	})
+
+	it("keeps streaming the event pipeline when the completion handler throws", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		options.messageTranslatorState.setAttemptCompletionSeen()
+		options.onTaskCompleted.mockImplementation(() => {
+			throw new Error("chaining blew up")
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
@@ -420,6 +532,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTurnPhase: vi.fn(() => input.turnPhase ?? "streaming"),
 		captureProviderApiError: vi.fn(),
 		beginProviderFailureTelemetryTurn: vi.fn(),
+		onTaskCompleted: vi.fn(),
+		onTaskAwaitingFollowup: vi.fn(),
+		getTurnToken: vi.fn(() => 42),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
@@ -432,6 +547,8 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		postStateToWebview: ReturnType<typeof vi.fn>
 		captureProviderApiError: ReturnType<typeof vi.fn>
 		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
+		onTaskCompleted: ReturnType<typeof vi.fn>
+		onTaskAwaitingFollowup: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
 	}

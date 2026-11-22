@@ -77,6 +77,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showHistory: boolean
 	showAccount: boolean
 	showWorktrees: boolean
+	showScheduledTasks: boolean
 	showAnnouncement: boolean
 	expandTaskHeader: boolean
 
@@ -127,6 +128,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToHistory: () => void
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
+	navigateToScheduledTasks: () => void
 	navigateToChat: () => void
 
 	// Hide functions
@@ -134,6 +136,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideHistory: () => void
 	hideAccount: () => void
 	hideWorktrees: () => void
+	hideScheduledTasks: () => void
 	hideAnnouncement: () => void
 	closeMarketplaceView: () => void
 	closeMcpView: () => void
@@ -156,13 +159,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
+	const [showScheduledTasks, setShowScheduledTasks] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	// Helper for MCP view
 	const closeMcpView = useCallback(() => {
 		setShowMcp(false)
 		setMcpTab(undefined)
-	}, [setShowMcp, setMcpTab])
+	}, [])
 	const closeMarketplaceView = useCallback(() => {
 		setShowMarketplace(false)
 	}, [])
@@ -173,10 +177,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		setSettingsNavigationRequest(undefined)
 		setSettingsInitialModelTab(undefined)
 	}, [])
-	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
-	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
-	const hideWorktrees = useCallback(() => setShowWorktrees(false), [setShowWorktrees])
-	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
+	const hideHistory = useCallback(() => setShowHistory(false), [])
+	const hideAccount = useCallback(() => setShowAccount(false), [])
+	const hideWorktrees = useCallback(() => setShowWorktrees(false), [])
+	const hideScheduledTasks = useCallback(() => setShowScheduledTasks(false), [])
+	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [])
 
 	// Navigation functions
 	const navigateToMcp = useCallback(
@@ -185,13 +190,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowHistory(false)
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowScheduledTasks(false)
 			closeMcpView()
 			if (tab) {
 				setMcpTab(tab)
 			}
 			setShowMarketplace(true)
 		},
-		[closeMcpView, setMcpTab, setShowSettings, setShowHistory, setShowAccount, setShowWorktrees],
+		[closeMcpView],
 	)
 
 	const navigateToMarketplace = useCallback(() => {
@@ -200,6 +206,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
+		setShowScheduledTasks(false)
 		setShowMarketplace(true)
 	}, [closeMcpView])
 
@@ -210,6 +217,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowScheduledTasks(false)
 			setSettingsNavigationRequest(targetSection ? createSettingsNavigationRequest(targetSection) : undefined)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
@@ -224,6 +232,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowScheduledTasks(false)
 			setSettingsNavigationRequest(opts.targetSection ? createSettingsNavigationRequest(opts.targetSection) : undefined)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
@@ -237,8 +246,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowAccount(false)
 		setShowWorktrees(false)
+		setShowScheduledTasks(false)
 		setShowHistory(true)
-	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowAccount, setShowWorktrees, setShowHistory])
+	}, [closeMarketplaceView, closeMcpView])
 
 	const navigateToAccount = useCallback(() => {
 		closeMarketplaceView()
@@ -246,8 +256,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowHistory(false)
 		setShowWorktrees(false)
+		setShowScheduledTasks(false)
 		setShowAccount(true)
-	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowWorktrees, setShowAccount])
+	}, [closeMarketplaceView, closeMcpView])
 
 	const navigateToWorktrees = useCallback(() => {
 		closeMarketplaceView()
@@ -255,8 +266,21 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowHistory(false)
 		setShowAccount(false)
+		setShowScheduledTasks(false)
 		setShowWorktrees(true)
-	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+	}, [closeMarketplaceView, closeMcpView])
+
+	// The queue is a page, not a popup: it replaces the chat in the root view the
+	// same way History and Settings do, so it has room for the whole list.
+	const navigateToScheduledTasks = useCallback(() => {
+		closeMarketplaceView()
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWorktrees(false)
+		setShowScheduledTasks(true)
+	}, [closeMarketplaceView, closeMcpView])
 
 	const navigateToChat = useCallback(() => {
 		closeMarketplaceView()
@@ -265,7 +289,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
-	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+		setShowScheduledTasks(false)
+	}, [closeMarketplaceView, closeMcpView])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -299,6 +324,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		welcomeViewCompleted: false,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		useAutoCondense: true,
+		autoStartNextTask: false,
+		includePreviousTaskSummary: true,
+		scheduledTasks: [],
+		scheduledTasksPaused: false,
 		compactionStrategy: "basic",
 		webSearchEnabled: false,
 		subagentsEnabled: false,
@@ -416,6 +445,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const mcpButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const historyButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const chatButtonUnsubscribeRef = useRef<(() => void) | null>(null)
+	const scheduleNextTaskButtonUnsubscribeRef = useRef<(() => void) | null>(null)
 	const accountButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const settingsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
@@ -551,6 +581,23 @@ export const ExtensionStateContextProvider: React.FC<{
 				},
 				onError: (error: any) => {
 					console.error("Error in chat button subscription:", error)
+				},
+				onComplete: () => {},
+			},
+		)
+
+		// Subscribe to "Scheduled Tasks" clicks in the panel's actions row
+		// (VS Code view title). The queue is a page of its own, so the click
+		// switches the root view to it exactly like the History button does.
+		scheduleNextTaskButtonUnsubscribeRef.current = UiServiceClient.subscribeToScheduleNextTaskButtonClicked(
+			EmptyRequest.create({}),
+			{
+				onResponse: () => {
+					console.log("[DEBUG] Received schedule next task button clicked event from gRPC stream")
+					navigateToScheduledTasks()
+				},
+				onError: (error: any) => {
+					console.error("Error in schedule next task button subscription:", error)
 				},
 				onComplete: () => {},
 			},
@@ -694,6 +741,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				chatButtonUnsubscribeRef.current()
 				chatButtonUnsubscribeRef.current = null
 			}
+			if (scheduleNextTaskButtonUnsubscribeRef.current) {
+				scheduleNextTaskButtonUnsubscribeRef.current()
+				scheduleNextTaskButtonUnsubscribeRef.current = null
+			}
 			if (accountButtonClickedSubscriptionRef.current) {
 				accountButtonClickedSubscriptionRef.current()
 				accountButtonClickedSubscriptionRef.current = null
@@ -719,7 +770,16 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [
+		navigateToAccount,
+		navigateToChat,
+		navigateToHistory,
+		navigateToMarketplace, // When settings button is clicked, navigate to settings
+		navigateToSettings, // When worktrees button is clicked, navigate to worktrees
+		navigateToScheduledTasks,
+		navigateToWorktrees,
+		showWelcome,
+	])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
@@ -776,7 +836,14 @@ export const ExtensionStateContextProvider: React.FC<{
 		if (state.apiConfiguration?.basetenApiKey) {
 			refreshBasetenModels()
 		}
-	}, [refreshOpenRouterModels, refreshVercelAiGatewayModels, state?.apiConfiguration?.basetenApiKey, refreshBasetenModels])
+	}, [
+		refreshOpenRouterModels,
+		refreshVercelAiGatewayModels,
+		state?.apiConfiguration?.basetenApiKey,
+		refreshBasetenModels,
+		openRouterModels,
+		vercelAiGatewayModels,
+	])
 
 	const contextValue: ExtensionStateContextType = {
 		...state,
@@ -803,6 +870,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		showHistory,
 		showAccount,
 		showWorktrees,
+		showScheduledTasks,
 		showAnnouncement,
 		globalClineRulesToggles: state.globalClineRulesToggles || {},
 		localClineRulesToggles: state.localClineRulesToggles || {},
@@ -823,6 +891,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToHistory,
 		navigateToAccount,
 		navigateToWorktrees,
+		navigateToScheduledTasks,
 		navigateToChat,
 
 		// Hide functions
@@ -830,6 +899,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideScheduledTasks,
 		hideAnnouncement,
 		closeMarketplaceView,
 		setShowAnnouncement,

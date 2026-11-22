@@ -279,6 +279,7 @@ describe("SDK remote-config coordination", () => {
 			}),
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+			autoNextTask: { consumeChainHandoff: () => false, resetChainDepth: vi.fn() },
 			taskStart: { initTask },
 		}
 
@@ -292,7 +293,61 @@ describe("SDK remote-config coordination", () => {
 
 		expect(taskId).toBe("task-id")
 		expect(events).toEqual(["policy", "task"])
-		expect(initTask).toHaveBeenCalledWith("start immediately", undefined, undefined, undefined, undefined)
+		expect(initTask).toHaveBeenCalledWith("start immediately", undefined, undefined, undefined, undefined, undefined)
+	})
+
+	it("resets the auto-chain safeguard for a manual start but not for a chained one", async () => {
+		const makeFixture = (handoff: boolean) => {
+			const consumeChainHandoff = vi.fn(() => handoff)
+			const resetChainDepth = vi.fn()
+			const taskStartInitTask = vi.fn(async () => "task-id")
+			return {
+				resetChainDepth,
+				taskStartInitTask,
+				controller: {
+					waitForInitialRemoteConfig: vi.fn(async () => undefined),
+					turnStateTracker: { set: vi.fn() },
+					messageTranslatorState: { clearTurnOutcome: vi.fn() },
+					autoNextTask: { consumeChainHandoff, resetChainDepth },
+					taskStart: { initTask: taskStartInitTask },
+				},
+			}
+		}
+
+		const manual = makeFixture(false)
+		await SdkController.prototype.initTask.call(manual.controller as never, "a prompt the user typed")
+		expect(manual.resetChainDepth).toHaveBeenCalledWith("manual task start")
+		// The scheduled queue belongs to the completions still to come: a chat
+		// started by hand neither drops it nor inherits a provider pin.
+		expect(manual.taskStartInitTask).toHaveBeenCalledWith(
+			"a prompt the user typed",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+		)
+
+		// The coordinator arms its handoff flag immediately before starting the
+		// chained task, so the same entry point must not credit the safeguard.
+		const chained = makeFixture(true)
+		await SdkController.prototype.initTask.call(
+			chained.controller as never,
+			"Automatic next chat\n\nsummary",
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{ providerId: "openrouter", modelId: "anthropic/claude-sonnet-4-5" },
+		)
+		expect(chained.resetChainDepth).not.toHaveBeenCalled()
+		// The row's provider/model pin travels to the session config builder, which
+		// is the only place it is applied — global settings are never touched.
+		expect(chained.taskStartInitTask).toHaveBeenCalledWith(expect.any(String), undefined, undefined, undefined, undefined, {
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4-5",
+		})
 	})
 
 	describe("after a Cline sign-in error offers to retry a prompt", () => {
@@ -515,6 +570,7 @@ describe("SDK remote-config coordination", () => {
 			waitForInitialRemoteConfig: vi.fn(async () => events.push("policy")),
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+			autoNextTask: { consumeChainHandoff: () => false, resetChainDepth: vi.fn(), clearScheduledTask: vi.fn() },
 			taskStart: { reinitExistingTaskFromId: vi.fn(async () => events.push("resume")) },
 		}
 
@@ -748,6 +804,7 @@ describe("starting a cloud task", () => {
 			waitForInitialRemoteConfig: vi.fn(async () => undefined),
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
+			autoNextTask: { consumeChainHandoff: () => false, resetChainDepth: vi.fn(), clearScheduledTask: vi.fn() },
 		}
 
 		await SdkController.prototype.initTask.call(controller as never, "prompt", undefined, undefined, undefined, undefined, {

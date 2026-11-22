@@ -14,6 +14,7 @@ import type { CloudTaskTargetView, CurrentCloudTaskInfo } from "./cloud/cloud-se
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
+import { ScheduledTask } from "./scheduled-next-task"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -135,6 +136,18 @@ export interface ExtensionState {
 	lastDismissedCliBannerVersion: number
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
+	/** Automatically start a new chat when Cline completes a task. */
+	autoStartNextTask?: boolean
+	/** Carry a summary of the completed task into that new chat as its first message. */
+	includePreviousTaskSummary?: boolean
+	/**
+	 * Chats queued in the "Scheduled Tasks" view, in the order they will run.
+	 * The head is started by the next task completion (see
+	 * sdk-auto-next-task-coordinator.ts); an empty array means nothing is queued.
+	 */
+	scheduledTasks: ScheduledTask[]
+	/** When true the queue is kept but nothing from it is started. */
+	scheduledTasksPaused: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
 	remoteConfigRevision?: number
 	globalSkillsToggles?: Record<string, boolean>

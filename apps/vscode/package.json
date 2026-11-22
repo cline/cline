@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "4.1.27",
+	"version": "4.1.32",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.101.0"
@@ -133,6 +133,11 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "cline.scheduleNextTaskButtonClicked",
+				"title": "Scheduled Tasks",
+				"icon": "$(calendar)"
+			},
+			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
@@ -260,13 +265,18 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.marketplaceButtonClicked",
+					"command": "cline.scheduleNextTaskButtonClicked",
 					"group": "navigation@2",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "cline.marketplaceButtonClicked",
 					"group": "navigation@3",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.historyButtonClicked",
+					"group": "navigation@4",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{

@@ -15,6 +15,8 @@ const mockExtensionState = vi.hoisted(() => ({
 		worktreesEnabled: { user: true, featureFlag: true },
 		remoteConfigSettings: {},
 		backgroundEditEnabled: false,
+		autoStartNextTask: false,
+		includePreviousTaskSummary: true,
 	},
 }))
 
@@ -105,5 +107,49 @@ describe("FeatureSettingsSection", () => {
 		fireEvent.click(screen.getByRole("switch", { name: "Cloud" }))
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("cloudSessionsEnabled", true)
+	})
+
+	it("renders the Auto Next Chat and Previous Task Summary toggles in the Agent section", () => {
+		const { container } = render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		const agentSection = container.querySelector("#agent-features")
+		expect(agentSection?.querySelector("#auto-start-next-task-setting-control")).toBeTruthy()
+		expect(agentSection?.querySelector("#include-previous-task-summary-setting-control")).toBeTruthy()
+		expect(
+			screen.getByText(
+				"Automatically start a new chat when Cline completes a task. Chats queued in Scheduled Tasks run either way.",
+			),
+		).toBeTruthy()
+		expect(screen.getByText("Include a summary of the previous task as the initial message in the new chat.")).toBeTruthy()
+	})
+
+	it("reflects the saved chaining settings in the switches", () => {
+		mockExtensionState.value = {
+			...mockExtensionState.value,
+			autoStartNextTask: true,
+			includePreviousTaskSummary: false,
+		}
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.getByRole("switch", { name: "Auto Next Chat" })).toHaveAttribute("aria-checked", "true")
+		expect(screen.getByRole("switch", { name: "Previous Task Summary" })).toHaveAttribute("aria-checked", "false")
+	})
+
+	it("calls updateSetting with autoStartNextTask when toggled", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, autoStartNextTask: false }
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByRole("switch", { name: "Auto Next Chat" }))
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("autoStartNextTask", true)
+	})
+
+	it("calls updateSetting with includePreviousTaskSummary when toggled", () => {
+		mockExtensionState.value = { ...mockExtensionState.value, includePreviousTaskSummary: true }
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		fireEvent.click(screen.getByRole("switch", { name: "Previous Task Summary" }))
+
+		expect(mockUpdateSetting).toHaveBeenCalledWith("includePreviousTaskSummary", false)
 	})
 })

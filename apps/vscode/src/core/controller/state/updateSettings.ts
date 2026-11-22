@@ -268,6 +268,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("showFeatureTips", request.showFeatureTips)
 		}
 
+		// Automatic next-chat chaining settings.
+		if (request.autoStartNextTask !== undefined) {
+			controller.stateManager.setGlobalState("autoStartNextTask", !!request.autoStartNextTask)
+		}
+
+		if (request.includePreviousTaskSummary !== undefined) {
+			controller.stateManager.setGlobalState("includePreviousTaskSummary", !!request.includePreviousTaskSummary)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

@@ -1,8 +1,9 @@
 import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
-import { useMemo } from "react"
+import { Fragment, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+import { ScheduleNextTaskButton } from "./ScheduleNextTaskButton"
 
 interface NavbarProps {
 	startNewTask: (source: "navbar") => Promise<boolean>
@@ -66,21 +67,27 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 			className="flex-none inline-flex justify-end bg-transparent gap-2 mb-1 z-10 border-none items-center mr-4!"
 			id="cline-navbar-container">
 			{SETTINGS_TABS.map((tab) => (
-				<Tooltip key={`navbar-tooltip-${tab.id}`}>
-					<TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
-					<TooltipTrigger asChild>
-						<Button
-							aria-label={tab.tooltip}
-							className="p-0 h-7"
-							data-testid={`tab-${tab.id}`}
-							key={`navbar-button-${tab.id}`}
-							onClick={() => tab.navigate()}
-							size="icon"
-							variant="icon">
-							<tab.icon className="stroke-1 [svg]:size-4" size={18} />
-						</Button>
-					</TooltipTrigger>
-				</Tooltip>
+				<Fragment key={`navbar-entry-${tab.id}`}>
+					<Tooltip>
+						<TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
+						<TooltipTrigger asChild>
+							<Button
+								aria-label={tab.tooltip}
+								className="p-0 h-7"
+								data-testid={`tab-${tab.id}`}
+								key={`navbar-button-${tab.id}`}
+								onClick={() => tab.navigate()}
+								size="icon"
+								variant="icon">
+								<tab.icon className="stroke-1 [svg]:size-4" size={18} />
+							</Button>
+						</TooltipTrigger>
+					</Tooltip>
+					{/* Next-chat scheduling belongs to the task lifecycle, so its
+						composer sits right beside "New Task" instead of being
+						buried in Settings. */}
+					{tab.id === "chat" && <ScheduleNextTaskButton />}
+				</Fragment>
 			))}
 		</nav>
 	)

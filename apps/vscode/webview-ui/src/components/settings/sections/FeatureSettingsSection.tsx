@@ -39,6 +39,21 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
+	{
+		id: "auto-start-next-task",
+		label: "Auto Next Chat",
+		description:
+			"Automatically start a new chat when Cline completes a task. Chats queued in Scheduled Tasks run either way.",
+		stateKey: "autoStartNextTask",
+		settingKey: "autoStartNextTask",
+	},
+	{
+		id: "include-previous-task-summary",
+		label: "Previous Task Summary",
+		description: "Include a summary of the previous task as the initial message in the new chat.",
+		stateKey: "includePreviousTaskSummary",
+		settingKey: "includePreviousTaskSummary",
+	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
@@ -148,6 +163,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		mcpDisplayMode,
 		useAutoCondense,
+		autoStartNextTask,
+		includePreviousTaskSummary,
 		compactionStrategy,
 		webSearchEnabled,
 		subagentsEnabled,
@@ -164,6 +181,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableCheckpointsSetting,
 		hooksEnabled,
 		useAutoCondense,
+		autoStartNextTask,
+		includePreviousTaskSummary,
 		subagentsEnabled,
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,

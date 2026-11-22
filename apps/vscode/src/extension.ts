@@ -10,6 +10,7 @@ import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChat
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
 import { sendMarketplaceButtonClickedEvent } from "./core/controller/ui/subscribeToMarketplaceButtonClicked"
 import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
+import { sendScheduleNextTaskButtonClickedEvent } from "./core/controller/ui/subscribeToScheduleNextTaskButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
@@ -140,6 +141,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
+	// "Schedule New Task" sits beside "New Task" in the panel's actions row. It
+	// only tells the webview to open the composer; the queue itself is created
+	// there and consumed by the controller when the current task completes.
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ScheduleNextTaskButton, () => sendScheduleNextTaskButtonClickedEvent()),
+	)
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MarketplaceButton, () => sendMarketplaceButtonClickedEvent()),
 	)

@@ -14,6 +14,7 @@ import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
 import { toLegacyApiProvider } from "@shared/model-catalog/provider-helpers"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
+import type { ScheduledTask } from "@shared/scheduled-next-task"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -103,6 +104,21 @@ const GLOBAL_STATE_FIELDS = {
 	cloudSessionStatuses: { default: {} as RememberedCloudStatuses },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
+	// Automatic next-chat chaining (see sdk-auto-next-task-coordinator.ts).
+	// Number of chats started automatically in a row; persisted so the chain
+	// safeguard survives an extension restart, and reset whenever the user
+	// starts or resumes a task themselves (an unrelated manual task breaks the chain).
+	autoNextTaskChainDepth: { default: 0 as number },
+	// Task the most recent auto-created chat was chained from. Records the
+	// previous-task -> next-task link so it survives a restart.
+	autoNextTaskParentTaskId: { default: undefined as string | undefined },
+	// Chats queued in the "Scheduled Tasks" view. The array order IS the run
+	// order: the head starts when a task completes, the next one when that chat
+	// completes, and so on. The queue survives task switches — pausing it is the
+	// user's control over whether it runs.
+	scheduledTasks: { default: [] as ScheduledTask[] },
+	// Paused queue: the rows stay configured but nothing is started at completion.
+	scheduledTasksPaused: { default: false as boolean },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
@@ -289,6 +305,12 @@ const USER_SETTINGS_FIELDS = {
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
 	showFeatureTips: { default: false as boolean },
+	// Automatically start a new chat when Cline completes a task. Disabled by
+	// default so Cline's stock behavior is unchanged unless the user opts in.
+	autoStartNextTask: { default: false as boolean },
+	// Carry a summary of the completed task into the auto-started chat as its
+	// first message; when off, the new chat starts empty.
+	includePreviousTaskSummary: { default: true as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

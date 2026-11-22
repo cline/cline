@@ -65,6 +65,12 @@ import type { SdkSessionHost } from "./session-host"
 // Types
 // ---------------------------------------------------------------------------
 
+/** Provider/model a single task runs on, overriding the pair configured for its mode. */
+export interface TaskModelSelection {
+	providerId?: string
+	modelId?: string
+}
+
 /** Configuration for creating a new session */
 export interface SessionConfigInput {
 	/** The user's prompt */
@@ -83,6 +89,13 @@ export interface SessionConfigInput {
 	workspaceRoot?: string
 	/** Current mode (act/plan) */
 	mode?: Mode
+	/**
+	 * Per-task provider/model pin (the "Scheduled Tasks" queue lets a row name
+	 * its own). It overrides only the pair, never the credentials: the API key,
+	 * base URL and provider options are still resolved from state for the pinned
+	 * provider, exactly as if the user had selected it themselves.
+	 */
+	modelSelection?: TaskModelSelection
 	/** Runtime identity when execution happens outside the extension host. */
 	runtime?: {
 		modelSelection: { providerId: string; modelId: string }
@@ -342,6 +355,23 @@ function resolveCommittedRuntimeModel(
 	} catch (error) {
 		Logger.warn(`[SessionFactory] Failed to resolve committed model settings for provider=${providerId}:`, error)
 		return undefined
+	}
+}
+
+/**
+ * Trims a per-task provider/model pin. A blank pin is "no pin": the task then
+ * inherits the mode's configured pair rather than an empty string, which would
+ * otherwise fall through to the provider defaults.
+ */
+function normalizeTaskModelSelection(selection: TaskModelSelection | undefined): TaskModelSelection | undefined {
+	const providerId = selection?.providerId?.trim()
+	const modelId = selection?.modelId?.trim()
+	if (!providerId && !modelId) {
+		return undefined
+	}
+	return {
+		...(providerId ? { providerId } : {}),
+		...(modelId ? { modelId } : {}),
 	}
 }
 
@@ -908,12 +938,15 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	try {
 		const stateManager = StateManager.get()
 		apiConfig = stateManager.getApiConfiguration()
+		const taskSelection = normalizeTaskModelSelection(input.modelSelection)
 
-		// Resolve the provider for the current mode. State written by older
-		// builds or other hosts may carry SDK catalog spellings (e.g.
-		// `openai-compatible`); fold them back to the legacy spelling the
+		// Resolve the provider for the current mode. A per-task pin (a scheduled
+		// chat that names its own provider) wins over the mode's selection. State
+		// written by older builds or other hosts may carry SDK catalog spellings
+		// (e.g. `openai-compatible`); fold them back to the legacy spelling the
 		// provider-keyed maps below are keyed by.
 		const modeProvider =
+			taskSelection?.providerId ??
 			input.runtime?.modelSelection.providerId ??
 			(mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider)
 		providerId = modeProvider ? toLegacyApiProvider(modeProvider) : modeProvider
@@ -923,7 +956,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			apiKey = resolveApiKey(providerId, apiConfig)
 
 			// Resolve model ID
-			modelId = input.runtime?.modelSelection.modelId ?? resolveModelId(providerId, mode, apiConfig)
+			modelId =
+				taskSelection?.modelId ?? input.runtime?.modelSelection.modelId ?? resolveModelId(providerId, mode, apiConfig)
 
 			// Resolve base URL
 			baseUrl = resolveBaseUrl(providerId, apiConfig)

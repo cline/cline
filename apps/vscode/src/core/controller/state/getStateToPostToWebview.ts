@@ -7,6 +7,7 @@
 import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
+import { normalizeScheduledTasks } from "@shared/scheduled-next-task"
 import { ClineEnv } from "@/config"
 import { ExtensionRegistryInfo, HostRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
@@ -42,6 +43,10 @@ export async function getStateToPostToWebview(controller: {
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
+	const autoStartNextTask = stateManager.getGlobalSettingsKey("autoStartNextTask")
+	const includePreviousTaskSummary = stateManager.getGlobalSettingsKey("includePreviousTaskSummary")
+	const scheduledTasks = stateManager.getGlobalStateKey("scheduledTasks")
+	const scheduledTasksPaused = stateManager.getGlobalStateKey("scheduledTasksPaused")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const webSearchEnabled = isModelToolEnabledGlobally("web_search")
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
@@ -122,6 +127,10 @@ export async function getStateToPostToWebview(controller: {
 		preferredLanguage,
 		mode,
 		useAutoCondense,
+		autoStartNextTask,
+		includePreviousTaskSummary,
+		scheduledTasks: normalizeScheduledTasks(scheduledTasks),
+		scheduledTasksPaused: scheduledTasksPaused === true,
 		compactionStrategy,
 		webSearchEnabled,
 		subagentsEnabled,

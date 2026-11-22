@@ -37,6 +37,24 @@ export interface SdkSessionEventCoordinatorOptions {
 	setTurnPhase?: (phase: TurnPhase, anchorTs?: number) => void
 	/** Current authoritative UI turn phase, from the controller's TurnStateTracker. */
 	getTurnPhase?: () => TurnPhase
+	/**
+	 * Fires when a turn ended by the assistant declaring completion (the SDK's
+	 * submit_and_exit — the analog of original Cline's attempt_completion), i.e.
+	 * exactly when the phase resolves to "completed". Cancelled turns
+	 * ("resumable") and errored turns ("error") never reach this. The turn token
+	 * (from the turn phase tracker) lets a handler claim one action per turn
+	 * instead of one per session. Optional for tests.
+	 */
+	onTaskCompleted?: (sessionId: string, turnToken?: number) => void
+	/**
+	 * Fires when a turn ended with the agent simply waiting for the user
+	 * ("awaiting_followup") — a chat that answered without using the completion
+	 * tool. Scheduled tasks run on this too, because from the user's side that
+	 * chat is finished; automatic next-chat chaining does not. Optional for tests.
+	 */
+	onTaskAwaitingFollowup?: (sessionId: string, turnToken?: number) => void
+	/** Current turn token, i.e. the sequence number the phase tracker advances on every phase change. */
+	getTurnToken?: () => number
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
 }
@@ -114,19 +132,44 @@ export class SdkSessionEventCoordinator {
 				// isRunning back to false mid-turn (see fireAndForgetSend). Keying on isRunning
 				// alone made the queued turn's real completion look like this straggler, leaving
 				// the phase stuck on "streaming" (endless Thinking).
+				let resolvedPhase: TurnPhase | undefined
 				if (!activeSession.isRunning && this.options.getTurnPhase?.() === "resumable") {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
 				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
 					// The turn surfaced a provider error (ask:"api_req_failed" was emitted) —
 					// offer error recovery (Retry / Start New Task), not the followup state.
+					resolvedPhase = "error"
 					this.options.setTurnPhase?.("error")
 				} else if (this.options.messageTranslatorState.wasAttemptCompletionSeen()) {
+					resolvedPhase = "completed"
 					this.options.setTurnPhase?.("completed")
 				} else {
+					resolvedPhase = "awaiting_followup"
 					this.options.setTurnPhase?.("awaiting_followup")
 				}
 
 				this.options.sessions.setRunning(false)
+
+				// Authoritative task completion: the assistant declared it with the
+				// completion tool. Everything else (cancel stragglers, provider
+				// errors) is not a completion, so automatic next-chat chaining only
+				// ever sees genuine ones. A turn that merely stopped talking is not a
+				// completion either, but it IS a chat the user is done with — the
+				// scheduled-task queue reacts to that shape separately.
+				const turnToken = this.options.getTurnToken?.()
+				if (resolvedPhase === "completed") {
+					try {
+						this.options.onTaskCompleted?.(activeSession.sessionId, turnToken)
+					} catch (error) {
+						Logger.error("[SdkController] onTaskCompleted handler failed:", error)
+					}
+				} else if (resolvedPhase === "awaiting_followup") {
+					try {
+						this.options.onTaskAwaitingFollowup?.(activeSession.sessionId, turnToken)
+					} catch (error) {
+						Logger.error("[SdkController] onTaskAwaitingFollowup handler failed:", error)
+					}
+				}
 			}
 
 			if (result.usage && activeSession.startResult) {

@@ -7,6 +7,7 @@ import MarketplaceView from "./components/marketplace/MarketplaceView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
+import ScheduledTasksView from "./components/scheduled/ScheduledTasksView"
 import SettingsView from "./components/settings/SettingsView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
@@ -27,6 +28,7 @@ const AppContent = () => {
 		showHistory,
 		showAccount,
 		showWorktrees,
+		showScheduledTasks,
 		showAnnouncement,
 		setShowAnnouncement,
 		setShouldShowAnnouncement,
@@ -36,6 +38,7 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideScheduledTasks,
 		closeMarketplaceView,
 		hideAnnouncement,
 	} = useExtensionState()
@@ -100,10 +103,19 @@ const AppContent = () => {
 				/>
 			)}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
+			{showScheduledTasks && <ScheduledTasksView onDone={hideScheduledTasks} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
+				isHidden={
+					showSettings ||
+					showHistory ||
+					showMarketplace ||
+					showMcp ||
+					showAccount ||
+					showWorktrees ||
+					showScheduledTasks
+				}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
