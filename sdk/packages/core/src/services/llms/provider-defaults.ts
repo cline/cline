@@ -536,7 +536,7 @@ async function fetchPoolsidePrivateModels(
 	return models;
 }
 
-interface UberllmModelResponse {
+interface MartllmModelResponse {
 	id?: string;
 	display_name?: string;
 	created?: number;
@@ -554,12 +554,12 @@ interface UberllmModelResponse {
 	};
 }
 
-async function fetchUberllmPrivateModels(
+async function fetchMartllmPrivateModels(
 	config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
 	const baseUrl =
-		normalizeBaseUrl(config.baseUrl) || "https://api.uberllm.dev/v1";
+		normalizeBaseUrl(config.baseUrl) || "https://api.martllm.com/v1";
 	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models?type=chat`;
 	const response = await fetchWithTimeout(endpoint, {
 		method: "GET",
@@ -569,10 +569,10 @@ async function fetchUberllmPrivateModels(
 		},
 	});
 	if (!response.ok) {
-		throw new Error(`UberLLM model refresh failed: HTTP ${response.status}`);
+		throw new Error(`MartLLM model refresh failed: HTTP ${response.status}`);
 	}
 
-	const payload = (await response.json()) as { data?: UberllmModelResponse[] };
+	const payload = (await response.json()) as { data?: MartllmModelResponse[] };
 	const entries = payload?.data ?? [];
 	const models: Record<string, ModelInfo> = {};
 	for (const model of entries) {
@@ -732,7 +732,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
-	uberllm: fetchUberllmPrivateModels,
+	martllm: fetchMartllmPrivateModels,
 };
 
 /**

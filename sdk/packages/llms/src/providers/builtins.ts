@@ -960,17 +960,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
 	},
 	{
-		id: "uberllm",
-		name: "UberLLM",
+		id: "martllm",
+		name: "MartLLM",
 		description:
 			"Marketplace for spare inference capacity: one OpenAI-compatible API key, each request routed to an available provider for the model",
 		family: "openai-compatible",
 		defaultModelId: "anthropic/claude-sonnet-5.5",
-		apiKeyEnv: ["UBERLLM_API_KEY"],
-		docsUrl: "https://uberllm.dev/docs/cline",
+		apiKeyEnv: ["MARTLLM_API_KEY"],
+		docsUrl: "https://martllm.com/docs/cline",
 		// Not on models.dev: the model list is loaded from the account's own
 		// GET /v1/models by the private catalog fetcher in @cline/core.
-		defaults: { baseUrl: "https://api.uberllm.dev/v1" },
+		defaults: { baseUrl: "https://api.martllm.com/v1" },
 	},
 	{
 		id: "nousResearch",

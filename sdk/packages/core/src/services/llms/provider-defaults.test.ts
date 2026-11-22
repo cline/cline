@@ -21,7 +21,7 @@ describe("isPrivateModelCatalogProvider", () => {
 		"hicap",
 		"litellm",
 		"poolside",
-		"uberllm",
+		"martllm",
 	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
 	});
@@ -712,7 +712,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("loads UberLLM chat models from the authenticated models endpoint", async () => {
+	it("loads MartLLM chat models from the authenticated models endpoint", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(
 				JSON.stringify({
@@ -759,18 +759,18 @@ describe("resolveProviderConfig", () => {
 		vi.stubGlobal("fetch", fetchMock);
 
 		const resolved = await resolveProviderConfig(
-			"uberllm",
+			"martllm",
 			{ failOnError: true, cacheTtlMs: 0 },
 			{
-				providerId: "uberllm",
+				providerId: "martllm",
 				modelId: "anthropic/claude-sonnet-5.5",
 				apiKey: "ull_test",
-				baseUrl: "https://api.uberllm.dev/v1",
+				baseUrl: "https://api.martllm.com/v1",
 			},
 		);
 
 		expect(fetchMock).toHaveBeenCalledWith(
-			"https://api.uberllm.dev/v1/models?type=chat",
+			"https://api.martllm.com/v1/models?type=chat",
 			expect.objectContaining({
 				method: "GET",
 				headers: expect.objectContaining({

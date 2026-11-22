@@ -443,28 +443,28 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
-	it("registers UberLLM as an OpenAI-compatible built-in with an API key field", async () => {
-		await expect(getProvider("uberllm")).resolves.toMatchObject({
-			id: "uberllm",
-			name: "UberLLM",
-			baseUrl: "https://api.uberllm.dev/v1",
+	it("registers MartLLM as an OpenAI-compatible built-in with an API key field", async () => {
+		await expect(getProvider("martllm")).resolves.toMatchObject({
+			id: "martllm",
+			name: "MartLLM",
+			baseUrl: "https://api.martllm.com/v1",
 			defaultModelId: "anthropic/claude-sonnet-5.5",
 			client: "openai-compatible",
-			env: ["UBERLLM_API_KEY"],
-			docsUrl: "https://uberllm.dev/docs/cline",
+			env: ["MARTLLM_API_KEY"],
+			docsUrl: "https://martllm.com/docs/cline",
 		});
 		const configFields =
-			BUILTIN_PROVIDER_MANIFESTS_BY_ID.uberllm?.metadata?.configFields ?? [];
+			BUILTIN_PROVIDER_MANIFESTS_BY_ID.martllm?.metadata?.configFields ?? [];
 		expect(configFields.map((field) => field.path)).toEqual(
 			expect.arrayContaining(["apiKey", "baseUrl"]),
 		);
 		// Not on models.dev: the list comes from the account's /v1/models at
 		// runtime (@cline/core private catalog), so the bundled entry is only
 		// the default model.
-		expect(GENERATED_PROVIDER_SPECS.some((s) => s.id === "uberllm")).toBe(
+		expect(GENERATED_PROVIDER_SPECS.some((s) => s.id === "martllm")).toBe(
 			false,
 		);
-		expect(Object.keys(await getModelsForProvider("uberllm"))).toEqual([
+		expect(Object.keys(await getModelsForProvider("martllm"))).toEqual([
 			"anthropic/claude-sonnet-5.5",
 		]);
 	});

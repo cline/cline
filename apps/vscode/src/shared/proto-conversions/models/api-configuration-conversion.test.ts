@@ -11,7 +11,7 @@ describe("api configuration provider conversion", () => {
 			"tencent-tokenhub",
 			"chutes",
 			"aiand",
-			"uberllm",
+			"martllm",
 			"zai-coding-plan",
 		]
 

@@ -60,7 +60,7 @@ const KNOWN_API_PROVIDERS = {
 	"tencent-tokenhub": true,
 	chutes: true,
 	aiand: true,
-	uberllm: true,
+	martllm: true,
 	"cline-pass": true,
 } satisfies Record<ApiProvider, true>
 
