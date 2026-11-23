@@ -200,6 +200,33 @@ describe("createTokenEstimator", () => {
 		// line per extra image, not another flat 1600-token bonus.
 		expect(twoImages - oneImage).toBeLessThan(50);
 	});
+
+	it("does not bill a generated media block's base64 payload at CHARS_PER_TOKEN", () => {
+		const estimateMessageTokens = createTokenEstimator();
+		const base64Data = "A".repeat(90_000);
+		const makeMediaMessage = (data: string): MessageWithMetadata => ({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "media_1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data },
+					},
+				},
+			],
+		});
+
+		const naiveCharBasedEstimate = Math.ceil(base64Data.length / 3);
+		expect(estimateMessageTokens(makeMediaMessage(base64Data))).toBeLessThan(
+			naiveCharBasedEstimate / 10,
+		);
+		expect(estimateMessageTokens(makeMediaMessage("A"))).toBe(
+			estimateMessageTokens(makeMediaMessage("A".repeat(500_000))),
+		);
+	});
 });
 
 describe("resolveEffectiveMaxInputTokens", () => {

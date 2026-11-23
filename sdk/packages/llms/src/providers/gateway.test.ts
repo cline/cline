@@ -569,6 +569,79 @@ describe("sdk-gateway", () => {
 		expect(estimatedTokens).toBeGreaterThan(4_000);
 	});
 
+	it("does not trigger context overflow when messages include base64 generated media", async () => {
+		const log = vi.fn();
+		const capturedMaxTokens: Array<number | undefined> = [];
+		const createProvider = vi.fn(() => ({
+			async *stream(request: { maxTokens?: number }) {
+				capturedMaxTokens.push(request.maxTokens);
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			logger: { log },
+			providers: [
+				{
+					manifest: {
+						id: "custom-provider",
+						name: "CustomProvider",
+						defaultModelId: "media-model",
+						models: [
+							{
+								id: "media-model",
+								name: "Media Model",
+								providerId: "custom-provider",
+								contextWindow: 128_000,
+								maxInputTokens: 128_000,
+								maxOutputTokens: 16_384,
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		const messages: AgentMessage[] = [
+			{
+				id: "m-1",
+				role: "assistant",
+				createdAt: 1,
+				content: [
+					{
+						type: "media",
+						media: {
+							id: "media_1",
+							modality: "image",
+							mediaType: "image/png",
+							source: {
+								type: "base64",
+								data: "A".repeat(600_000),
+							},
+						},
+					},
+				],
+			},
+			...baseMessages,
+		];
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-provider",
+				modelId: "media-model",
+				messages,
+			}),
+		);
+
+		expect(capturedMaxTokens).toEqual([16_384]);
+		expect(log).not.toHaveBeenCalledWith(
+			"Estimated prompt tokens exceed model context window",
+			expect.anything(),
+		);
+	});
+
 	it("defaults max tokens to a fraction of the model output budget", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream(request: { maxTokens?: number }) {
