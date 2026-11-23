@@ -81,6 +81,12 @@ async function main(): Promise<void> {
 	const extensionsDir = path.join(distDir, "vsce-extension")
 	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
+	// Trust the workspaces up front; nobody is there to answer the trust prompt.
+	fs.mkdirSync(path.join(userDataDir, "data", "settings"), { recursive: true })
+	fs.writeFileSync(
+		path.join(userDataDir, "data", "settings", "trusted-workspaces.json"),
+		JSON.stringify({ trustedWorkspaces: [clineTestWorkspace, WORKSPACE_DIR] }),
+	)
 
 	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("bun", [path.join(__dirname, "test-hostbridge-server.ts")], {

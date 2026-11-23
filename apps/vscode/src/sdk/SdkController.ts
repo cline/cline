@@ -24,6 +24,7 @@ import {
 } from "@cline/core"
 import { loadCloudModels } from "@cline/core/cloud"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
+import { isWorkspaceTrusted, trustWorkspace } from "@cline/shared/storage"
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -1538,6 +1539,12 @@ export class Controller {
 		this.postStateToWebview().catch(() => {})
 	}
 
+	/** Adds the open folder to the allow list shared with the CLI and desktop app. */
+	async trustCurrentWorkspace(): Promise<void> {
+		trustWorkspace(await this.getWorkspaceRoot())
+		await this.postStateToWebview()
+	}
+
 	// ---- Task lifecycle ----
 
 	async initTask(
@@ -1562,6 +1569,11 @@ export class Controller {
 			await this.waitForInitialRemoteConfig()
 			this.pendingStartRetry = undefined
 			return startCloudTask()
+		}
+		// The webview asks for trust in place of the chat; this covers the entry
+		// points that skip it, such as editor commands.
+		if (!isWorkspaceTrusted(await this.getWorkspaceRoot())) {
+			return undefined
 		}
 		await this.waitForInitialRemoteConfig()
 		// A new task is starting — the agent is about to stream.
@@ -2680,6 +2692,8 @@ export class Controller {
 				}
 			}
 
+			const workspaceRoot = await this.getWorkspaceRoot()
+
 			// Stamp the snapshot with the current epoch and a fresh monotonic version, sampled
 			// from the SAME counter that stamps messages. This lets the webview ignore stale
 			// out-of-order state pushes and fence traffic from a previous task/render. Sampled
@@ -2703,6 +2717,7 @@ export class Controller {
 			const currentCloudTask = this.cloud.getCurrentTaskInfo()
 			return {
 				...state,
+				untrustedWorkspacePath: isWorkspaceTrusted(workspaceRoot) ? undefined : workspaceRoot,
 				currentTaskItem: snapshotTask?.taskId
 					? processedTaskHistory.find((item) => item.id === snapshotTask.taskId)
 					: undefined,
