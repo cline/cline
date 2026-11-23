@@ -4,8 +4,8 @@ import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
-import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
+import { createDifyProvider } from "./dify";
 import type { ProviderFactoryResult } from "./types";
 
 type SapModel = Record<PropertyKey, unknown>;
