@@ -336,13 +336,72 @@ describe("SqliteCronStore: runs", () => {
 		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
 	});
 
-	it("consumes a queued one-time occurrence when manually triggered", () => {
+	it.each([
+		false,
+		true,
+	])("rejects retries on disabled schedules (one-time: %s)", (oneTime) => {
+		const spec = store.createHubSchedule({
+			name: "Paused",
+			cronPattern: oneTime ? ONE_TIME_SCHEDULE_CRON_PATTERN : "0 * * * *",
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+			enabled: false,
+			metadata: {
+				[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: Date.now() + 60_000,
+			},
+		});
+		expect(
+			store.enqueueHubScheduleRun(spec.externalId, "retry"),
+		).toBeUndefined();
+		expect(store.listRuns({ specId: spec.specId })).toEqual([]);
+	});
+
+	it.each([
+		"missing",
+		"deleted",
+		"invalid",
+	] as const)("rejects manual runs for a %s schedule", (state) => {
+		const spec = store.createHubSchedule({
+			name: "Routine",
+			cronPattern: "0 * * * *",
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+		});
+		if (state === "deleted") store.deleteHubSchedule(spec.externalId);
+		if (state === "invalid") {
+			store.upsertSpec({
+				externalId: spec.externalId,
+				sourcePath: spec.sourcePath,
+				triggerKind: "schedule",
+				sourceHash: "invalid",
+				parseStatus: "invalid",
+				spec: {
+					triggerKind: "schedule",
+					schedule: "invalid",
+					source: "hub-schedule",
+				},
+			});
+		}
+		expect(
+			store.enqueueHubScheduleRun(
+				state === "missing" ? "missing-schedule" : spec.externalId,
+				"manual",
+			),
+		).toBeUndefined();
+		expect(store.listRuns({ specId: spec.specId })).toEqual([]);
+	});
+
+	it.each([
+		false,
+		true,
+	])("consumes a queued one-time occurrence when manually triggered (enabled: %s)", (enabled) => {
 		const runAt = Date.now() + 60_000;
 		const spec = store.createHubSchedule({
 			name: "Run once",
 			cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
 			prompt: "Do the work",
 			workspaceRoot: "/ws",
+			enabled,
 			metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
 		});
 		const scheduled = store.enqueueRun({
@@ -363,6 +422,8 @@ describe("SqliteCronStore: runs", () => {
 		);
 		expect(repeatedManual?.runId).toBe(manual?.runId);
 		expect(store.getRun(scheduled.runId)?.status).toBe("cancelled");
+		expect(store.getSpec(spec.specId)?.enabled).toBe(enabled);
+		expect(store.getSpec(spec.specId)?.revision).toBe(spec.revision);
 		expect(store.getSpec(spec.specId)?.nextRunAt).toBeUndefined();
 		expect(store.hasConsumedOneOffRevision(spec.specId, spec.revision)).toBe(
 			true,

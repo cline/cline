@@ -1134,6 +1134,11 @@ claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
 
+Explicit manual triggers bypass the enabled check at enqueue and execution
+without changing the schedule's enabled state. Automatic runs and retries
+still require an enabled spec; removed and invalid specs cannot execute.
+One-time manual triggers retain occurrence consumption and deduplication.
+
 Runner claims enforce global and per-spec capacity inside the SQLite claim
 transaction, skipping saturated specs before choosing the next due run. This
 keeps multiple database connections from exceeding a schedule's parallelism

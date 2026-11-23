@@ -327,10 +327,15 @@ export class CronRunner {
 			});
 			return;
 		}
-		if (!spec.enabled || spec.removed) {
+		// Pausing disables automatic triggers; an explicit manual run can still run.
+		if (
+			(!spec.enabled && run.triggerKind !== "manual") ||
+			spec.removed ||
+			spec.parseStatus !== "valid"
+		) {
 			this.store.completeRun(run.runId, {
 				status: "cancelled",
-				error: "spec disabled or removed",
+				error: "spec disabled, removed, or invalid",
 				claimToken: claim.claimToken,
 			});
 			return;
