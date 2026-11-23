@@ -46,23 +46,6 @@ function shieldRunningHubDiscovery() {
 	console.log("Set aside hub discovery record for the updated CLI");
 }
 
-// The binary embeds third-party code; put its notices at the package root, where users look for them.
-function copyThirdPartyNotices() {
-	const platform = { darwin: "darwin", linux: "linux", win32: "windows" }[
-		os.platform()
-	];
-	const packageName = `@cline/cli-${platform}-${os.arch()}`;
-	const notices = "THIRD_PARTY_NOTICES.txt";
-	const packageDir = path.dirname(
-		require.resolve(`${packageName}/package.json`),
-	);
-	const rootDir =
-		path.basename(__dirname) === "script"
-			? path.join(__dirname, "..")
-			: __dirname;
-	fs.copyFileSync(path.join(packageDir, notices), path.join(rootDir, notices));
-}
-
 function main() {
 	if (os.platform() === "win32") {
 		// On Windows, npm creates .cmd shims from the bin field.
@@ -131,15 +114,6 @@ try {
 	// Best-effort: without the shield the worst case is the pre-3.0.55
 	// restart-while-busy behavior, never a broken install.
 	console.error(`postinstall: hub discovery shield skipped: ${error.message}`);
-}
-
-try {
-	copyThirdPartyNotices();
-} catch (error) {
-	// The notices also ship beside the binary in the platform package.
-	console.error(
-		`postinstall: third-party notices not copied: ${error.message}`,
-	);
 }
 
 try {
