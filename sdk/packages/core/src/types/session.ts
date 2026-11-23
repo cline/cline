@@ -25,6 +25,8 @@ export type ActiveSession = {
 	agent: SessionRuntime;
 	started: boolean;
 	aborting: boolean;
+	/** Epoch ms the last turn ended; labels the next input for stall analysis. */
+	lastTurnEndedAt?: number;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
@@ -34,7 +36,12 @@ export type ActiveSession = {
 	teamRunWaiters: Array<() => void>;
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
+	/** Set by the queue drain on the one input it replays; consumed by runTurn. */
+	replayingQueuedPrompt?: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
+	pluginCommandError?: string;
+	pluginCommandTail?: Promise<unknown>;
+	pluginCommandsClosing?: boolean;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;
@@ -48,14 +55,21 @@ export type ActiveSession = {
 	 *    declares completion (parity with original Cline's
 	 *    `attempt_completion`).
 	 * 2. Suppress the fallback `task.completed` emission from
-	 *    `shutdownSession(...)` so the same logical completion is not
-	 *    reported twice.
+	 *    `emitTaskCompletedOnTeardown(...)` so the same logical completion
+	 *    is not reported twice.
 	 *
 	 * Non-interactive sessions that finish without ever calling the
-	 * completion tool still receive a `task.completed` from the shutdown
+	 * completion tool still receive a `task.completed` from the teardown
 	 * fallback.
 	 */
 	submitAndExitObserved: boolean;
+	/**
+	 * Set to `true` the moment `task.completed` is emitted for this session,
+	 * whether by the `submit_and_exit` observer or by the teardown fallback
+	 * (`emitTaskCompletedOnTeardown`). Enforces the invariant of exactly one
+	 * `task.completed` per session regardless of which teardown path runs.
+	 */
+	taskCompletedEmitted: boolean;
 };
 
 export type PendingPrompt = {
@@ -110,6 +124,8 @@ export interface SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		/** Only root sessions: excludes subagent and team-task child rows. */
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]>;
 	updateSession(
 		input: PersistedSessionUpdateInput,

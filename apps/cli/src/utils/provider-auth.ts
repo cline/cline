@@ -1,6 +1,7 @@
 import {
 	formatProviderOAuthApiKey,
 	getPersistedProviderApiKey as getCorePersistedProviderApiKey,
+	isLocalAuthProvider,
 	isOAuthProvider,
 	Llms,
 	type ProviderOAuthCredentials,
@@ -21,7 +22,7 @@ export function normalizeAuthProviderId(providerId: string): string {
 	return normalizeProviderId(normalized);
 }
 
-export { isOAuthProvider };
+export { isLocalAuthProvider, isOAuthProvider };
 
 export function toProviderApiKey(
 	providerId: string,

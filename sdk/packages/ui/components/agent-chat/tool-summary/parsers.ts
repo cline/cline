@@ -1,3 +1,4 @@
+import { validateImageMedia } from "@cline/shared/browser";
 import { FRAGMENT_HUNK_HEADER, hunkHeader } from "./diff.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -380,89 +381,223 @@ export function parseEditorResultDiffCounts(
 	return { additions, deletions };
 }
 
-// Base64 payloads are one giant line; chunk to MIME width so line-based
-// collapsed previews stay compact and expand shows the full data.
+export interface ToolOutputMedia {
+	modality: "image" | "audio" | "video" | "file";
+	mediaType: string;
+	data: string;
+	name?: string;
+}
+
+function contentBlockMediaType(part: Record<string, unknown>): string {
+	for (const key of ["mimeType", "mediaType", "mime_type"] as const) {
+		const value = part[key];
+		if (typeof value === "string" && value.trim()) return value.trim();
+	}
+	return "";
+}
+
 function chunkBase64(data: string): string {
 	return data.match(/.{1,76}/g)?.join("\n") ?? data;
 }
 
+function contentBlockText(part: Record<string, unknown>): string | undefined {
+	if (part.type === "text" && typeof part.text === "string") {
+		return part.text;
+	}
+	if (part.type === "resource" && isRecord(part.resource)) {
+		if (typeof part.resource.text === "string") {
+			return part.resource.text;
+		}
+		if (typeof part.resource.blob === "string" && part.resource.blob) {
+			const label =
+				typeof part.resource.uri === "string"
+					? `[resource: ${part.resource.uri}]`
+					: "[resource]";
+			return `${label}\n${chunkBase64(part.resource.blob)}`;
+		}
+		if (typeof part.resource.uri === "string") {
+			return `[resource: ${part.resource.uri}]`;
+		}
+		return "[resource]";
+	}
+	if (part.type === "resource_link" && typeof part.uri === "string") {
+		return `[resource_link: ${part.uri}]`;
+	}
+	if (part.type === "image" || part.type === "audio") {
+		const mediaType = contentBlockMediaType(part);
+		return mediaType ? `[${part.type}: ${mediaType}]` : `[${part.type}]`;
+	}
+	if (part.type === "media" && isRecord(part.media)) {
+		const modality =
+			typeof part.media.modality === "string" ? part.media.modality : "media";
+		const mediaType =
+			typeof part.media.mediaType === "string" ? part.media.mediaType : "";
+		return mediaType ? `[${modality}: ${mediaType}]` : `[${modality}]`;
+	}
+	return typeof part.type === "string" ? `[${part.type}]` : undefined;
+}
+
+function extractOutputArrayText(raw: unknown[]): string | undefined {
+	const parts: string[] = [];
+	for (const item of raw) {
+		if (typeof item === "string") {
+			if (item) parts.push(item);
+			continue;
+		}
+		if (!isRecord(item)) continue;
+
+		if ("result" in item) {
+			const text = extractOutputText(item.result);
+			if (text) parts.push(text);
+			continue;
+		}
+
+		const blockText = contentBlockText(item);
+		if (blockText) {
+			parts.push(blockText);
+			continue;
+		}
+
+		if (Array.isArray(item.content)) {
+			const text = extractOutputText(item.content);
+			if (text) parts.push(text);
+		}
+	}
+	return parts.length > 0 ? parts.join("\n") : undefined;
+}
+
+function inlineContentBlockMedia(
+	part: Record<string, unknown>,
+): ToolOutputMedia | undefined {
+	if (part.type !== "image" && part.type !== "audio") return undefined;
+	const mediaType = contentBlockMediaType(part);
+	const data =
+		typeof part.data === "string"
+			? part.data
+			: typeof part.image === "string"
+				? part.image
+				: "";
+	if (!data) return undefined;
+	if (part.type === "image") {
+		const validation = validateImageMedia(mediaType || undefined, data);
+		return validation.ok
+			? {
+					modality: "image",
+					mediaType: validation.mediaType,
+					data: validation.base64,
+				}
+			: undefined;
+	}
+	if (!mediaType) return undefined;
+	return {
+		modality: "audio",
+		mediaType,
+		data,
+	};
+}
+
+function canonicalInlineMedia(
+	part: Record<string, unknown>,
+): ToolOutputMedia | undefined {
+	if (part.type !== "media" || !isRecord(part.media)) return undefined;
+	const { media } = part;
+	if (
+		(media.modality !== "image" &&
+			media.modality !== "audio" &&
+			media.modality !== "video" &&
+			media.modality !== "file") ||
+		typeof media.mediaType !== "string" ||
+		!isRecord(media.source) ||
+		media.source.type !== "base64" ||
+		typeof media.source.data !== "string"
+	) {
+		return undefined;
+	}
+	const output: ToolOutputMedia = {
+		modality: media.modality,
+		mediaType: media.mediaType,
+		data: media.source.data,
+		name: typeof media.name === "string" ? media.name : undefined,
+	};
+	if (output.modality !== "image") return output;
+	const validation = validateImageMedia(output.mediaType, output.data);
+	return validation.ok
+		? {
+				...output,
+				mediaType: validation.mediaType,
+				data: validation.base64,
+			}
+		: undefined;
+}
+
+function collectOutputMedia(raw: unknown, output: ToolOutputMedia[]): void {
+	const normalized = normalizeValue(raw);
+	if (Array.isArray(normalized)) {
+		for (const item of normalized) collectOutputMedia(item, output);
+		return;
+	}
+	if (!isRecord(normalized)) return;
+
+	const direct =
+		inlineContentBlockMedia(normalized) ?? canonicalInlineMedia(normalized);
+	if (direct) {
+		output.push(direct);
+		return;
+	}
+
+	if ("result" in normalized) {
+		collectOutputMedia(normalized.result, output);
+	}
+	if (Array.isArray(normalized.content)) {
+		collectOutputMedia(normalized.content, output);
+	}
+}
+
+/** Extract inline media blocks from direct, wrapped, or batched tool output. */
+export function extractOutputMedia(raw: unknown): ToolOutputMedia[] {
+	const output: ToolOutputMedia[] = [];
+	collectOutputMedia(raw, output);
+	return output.filter(
+		(media, index) =>
+			output.findIndex(
+				(candidate) =>
+					candidate.modality === media.modality &&
+					candidate.mediaType === media.mediaType &&
+					candidate.data === media.data,
+			) === index,
+	);
+}
+
 /**
  * Extract human-readable text from a tool result: plain strings,
- * `[{ result }]` arrays, and MCP `{ content: [...] }` shapes (text,
- * resource, resource_link, image/audio blocks) are all handled.
+ * `[{ result }]` arrays, direct content-block arrays, and MCP
+ * `{ content: [...] }` shapes are all handled. Binary payloads are represented
+ * by compact placeholders; visual consumers render them via
+ * `extractOutputMedia` instead of dumping base64 into the transcript.
  */
 export function extractOutputText(raw: unknown): string | undefined {
 	if (raw === null || raw === undefined) return undefined;
 	if (typeof raw === "string") return raw;
 
 	if (Array.isArray(raw)) {
-		const parts: string[] = [];
-		for (const item of raw) {
-			if (isRecord(item) && "result" in item) {
-				const result = item.result;
-				if (typeof result === "string") {
-					parts.push(result);
-				} else if (Array.isArray(result)) {
-					for (const part of result) {
-						if (
-							isRecord(part) &&
-							(part as { type?: string }).type === "text" &&
-							"text" in part
-						) {
-							parts.push(String(part.text));
-						}
-					}
-				}
-			}
-		}
-		if (parts.length > 0) return parts.join("\n");
+		const text = extractOutputArrayText(raw);
+		if (text) return text;
 	}
 
 	if (typeof raw === "object") {
 		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
 		// text so multi-line results keep real newlines instead of being
-		// JSON-escaped into one giant line. Non-text blocks keep their
-		// identifying metadata plus their base64 payloads so mixed results are
-		// not silently truncated.
+		// JSON-escaped into one giant line. Non-text blocks keep identifying
+		// placeholders while their binary payloads are returned separately by
+		// extractOutputMedia.
 		const content = (raw as { content?: unknown }).content;
 		if (Array.isArray(content)) {
-			const parts = content
-				.map((part) => {
-					if (!isRecord(part)) return "";
-					if (part.type === "text" && typeof part.text === "string") {
-						return part.text;
-					}
-					if (part.type === "resource" && isRecord(part.resource)) {
-						if (typeof part.resource.text === "string") {
-							return part.resource.text;
-						}
-						if (typeof part.resource.blob === "string" && part.resource.blob) {
-							const label =
-								typeof part.resource.uri === "string"
-									? `[resource: ${part.resource.uri}]`
-									: "[resource]";
-							return `${label}\n${chunkBase64(part.resource.blob)}`;
-						}
-						if (typeof part.resource.uri === "string") {
-							return `[resource: ${part.resource.uri}]`;
-						}
-					}
-					if (part.type === "resource_link" && typeof part.uri === "string") {
-						return `[resource_link: ${part.uri}]`;
-					}
-					if (
-						(part.type === "image" || part.type === "audio") &&
-						typeof part.mimeType === "string"
-					) {
-						if (typeof part.data === "string" && part.data) {
-							return `[${part.type}: ${part.mimeType}]\n${chunkBase64(part.data)}`;
-						}
-						return `[${part.type}: ${part.mimeType}]`;
-					}
-					return typeof part.type === "string" ? `[${part.type}]` : "";
-				})
-				.filter(Boolean);
-			if (parts.length > 0) return parts.join("\n");
+			const text = extractOutputArrayText(content);
+			if (text) return text;
+		}
+		if (isRecord(raw) && "result" in raw) {
+			const text = extractOutputText(raw.result);
+			if (text) return text;
 		}
 		try {
 			return JSON.stringify(raw, null, 2);

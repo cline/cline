@@ -34,7 +34,7 @@ export type FeatureFlagsAndPayloads = {
  * Any feature flags provider must implement this interface
  */
 export interface IFeatureFlagsProvider {
-	getAllFlagsAndPayloads(options: { flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined>
+	getAllFlagsAndPayloads(options: { distinctId?: string; flagKeys?: string[] }): Promise<FeatureFlagsAndPayloads | undefined>
 
 	/**
 	 * Check if the provider is enabled and ready

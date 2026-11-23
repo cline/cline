@@ -1,3 +1,4 @@
+import { createTeamName } from "@cline/core";
 import type { InteractiveTurnResult } from "../../tui/types";
 import type { ChatCommandHost } from "../../utils/chat-commands";
 import {
@@ -5,7 +6,6 @@ import {
 	maybeHandleChatCommand,
 } from "../../utils/chat-commands";
 import {
-	enableTeamsForPrompt,
 	rewriteTeamPrompt,
 	TEAM_COMMAND_USAGE,
 } from "../../utils/team-command";
@@ -58,7 +58,8 @@ export async function runInteractiveChatCommand(input: {
 			};
 		}
 		if (!input.config.enableAgentTeams) {
-			await enableTeamsForPrompt(input.config);
+			input.config.enableAgentTeams = true;
+			input.config.teamName = input.config.teamName?.trim() || createTeamName();
 			await input.sessionRuntime.restartEmpty();
 		}
 		prompt = rewrittenTeamPrompt.prompt;

@@ -1,16 +1,18 @@
 "use client";
 
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	CheckCircle2,
+	ChevronDown,
 	Circle,
 	Clock3,
 	ExternalLink,
-	Eye,
 	Pause,
 	Pencil,
 	Play,
@@ -63,8 +65,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	Tooltip,
@@ -79,6 +79,8 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
+import { preserveRoutineCron } from "@/lib/routine-schedule-cron";
+import { routineScheduleTimezone } from "@/lib/routine-schedule-timezone";
 import { cn } from "@/lib/utils";
 import {
 	CommandBadge,
@@ -86,6 +88,7 @@ import {
 	PageFrame,
 	PageHeader,
 } from "../page-layout";
+import { ROUTINE_TEMPLATES, type RoutineTemplate } from "./routine-templates";
 
 type DateTimeValue = number | string;
 
@@ -93,6 +96,7 @@ interface RoutineSchedule {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	metadata?: Record<string, unknown>;
 	prompt: string;
 	provider?: string;
@@ -141,13 +145,10 @@ interface RoutineOverviewResponse {
 	lastExecutions: RoutineExecution[];
 }
 
-const ROUTINE_OVERVIEW_CACHE_TTL_MS = 30_000;
+const ROUTINE_OVERVIEW_POLL_INTERVAL_MS = 15_000;
 
-let routineOverviewCache:
-	| (RoutineOverviewResponse & {
-			fetchedAt: number;
-	  })
-	| null = null;
+// Preserve the last snapshot for navigation, but always revalidate on mount.
+let routineOverviewCache: RoutineOverviewResponse | null = null;
 
 async function fetchRoutineOverview(): Promise<RoutineOverviewResponse> {
 	const response = await desktopClient.invoke<RoutineOverviewResponse>(
@@ -168,9 +169,11 @@ interface ProcessContext {
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	// Anthropic's own API expects bare ids, so use the Anthropic-format
+	// equivalent of CLINE_DEFAULT_MODEL_ID rather than the prefixed id.
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.3-codex"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-2.5-pro"],
 };
 
@@ -375,9 +378,11 @@ function formatScheduleTrigger(schedule: RoutineSchedule): string {
 		return `Once · ${formatDateTime(getOneTimeScheduleRunAt(schedule))}`;
 	}
 	const parsed = parseCronPattern(schedule.cronPattern);
-	return parsed.scheduleType === "daily"
-		? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
-		: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+	const label =
+		parsed.scheduleType === "daily"
+			? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
+			: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+	return schedule.timezone ? `${label} · ${schedule.timezone}` : label;
 }
 
 function getOneTimeScheduleRunAt(
@@ -512,6 +517,8 @@ export function RoutineSchedulesContent({
 	);
 	const [isLoading, setIsLoading] = useState(() => !routineOverviewCache);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const overviewRequestSequence = useRef(0);
+	const overviewRefreshPending = useRef(false);
 	// Sets rather than single ids: several rows can have in-flight actions at
 	// once, and one action finishing must not clear another row's busy state.
 	const [busyScheduleIds, setBusyScheduleIds] = useState<ReadonlySet<string>>(
@@ -524,6 +531,15 @@ export function RoutineSchedulesContent({
 	// rejected synchronously — two rapid clicks can both fire before React
 	// re-renders the disabled state, and state alone can't distinguish them.
 	const busyScheduleIdsRef = useRef<Set<string>>(new Set());
+	// Guards the run-now follow-up: an auto-navigation into the started
+	// session should not fire from a page the user already left.
+	const mountedRef = useRef(true);
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+		};
+	}, []);
 	const beginScheduleAction = (scheduleId: string): boolean => {
 		if (busyScheduleIdsRef.current.has(scheduleId)) {
 			return false;
@@ -547,6 +563,7 @@ export function RoutineSchedulesContent({
 			return next;
 		});
 	};
+	const [showAllViewingRuns, setShowAllViewingRuns] = useState(false);
 	const [viewingSchedule, setViewingSchedule] =
 		useState<RoutineSchedule | null>(null);
 	const [schedulePendingDelete, setSchedulePendingDelete] =
@@ -609,6 +626,7 @@ export function RoutineSchedulesContent({
 
 	useEffect(() => {
 		let cancelled = false;
+		const normalizedProvider = normalizeProviderId(createForm.provider);
 
 		async function loadCatalog() {
 			try {
@@ -619,11 +637,8 @@ export function RoutineSchedulesContent({
 				setProviderModels(payload.providerModels);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					const normalizedCurrentProvider = normalizeProviderId(
-						createForm.provider,
-					);
-					if (normalizedCurrentProvider) {
-						nextProviderIds.add(normalizedCurrentProvider);
+					if (normalizedProvider) {
+						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
 						if (providerId in payload.providerModels) {
@@ -635,26 +650,12 @@ export function RoutineSchedulesContent({
 			} catch {
 				// Keep fallback values if provider catalog is unavailable.
 			}
-		}
 
-		void loadCatalog();
-		return () => {
-			cancelled = true;
-		};
-	}, [createForm.provider]);
-
-	useEffect(() => {
-		const normalizedProvider = normalizeProviderId(createForm.provider);
-		if (!normalizedProvider) {
-			return;
-		}
-		if ((providerModels[normalizedProvider] ?? []).length > 0) {
-			return;
-		}
-
-		let cancelled = false;
-
-		async function loadModelsForProvider() {
+			// The catalog is the app's bundled snapshot; replace the selected
+			// provider's list with its live one so retired models drop out.
+			if (!normalizedProvider || cancelled) {
+				return;
+			}
 			try {
 				const models = await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
@@ -670,15 +671,15 @@ export function RoutineSchedulesContent({
 						: [...current, normalizedProvider],
 				);
 			} catch {
-				// Keep existing values when provider-specific model loading fails.
+				// Keep the catalog values when provider-specific loading fails.
 			}
 		}
 
-		void loadModelsForProvider();
+		void loadCatalog();
 		return () => {
 			cancelled = true;
 		};
-	}, [createForm.provider, providerModels]);
+	}, [createForm.provider]);
 
 	useEffect(() => {
 		if (availableProviders.length === 0) {
@@ -733,28 +734,20 @@ export function RoutineSchedulesContent({
 	]);
 
 	const refreshSchedules = useCallback(
-		async (options?: { force?: boolean; showLoading?: boolean }) => {
-			const now = Date.now();
-			if (
-				!options?.force &&
-				routineOverviewCache &&
-				now - routineOverviewCache.fetchedAt < ROUTINE_OVERVIEW_CACHE_TTL_MS
-			) {
-				setSchedules(routineOverviewCache.schedules);
-				setActiveExecutions(routineOverviewCache.activeExecutions);
-				setUpcomingRuns(routineOverviewCache.upcomingRuns);
-				setLastExecutions(routineOverviewCache.lastExecutions);
-				setErrorMessage(null);
-				setIsLoading(false);
-				return;
-			}
-
+		async (options?: { showLoading?: boolean }) => {
 			if (options?.showLoading !== false) {
 				setIsLoading(true);
 			}
+			const requestId = ++overviewRequestSequence.current;
+			overviewRefreshPending.current = true;
 			setErrorMessage(null);
 			try {
 				const response = await fetchRoutineOverview();
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return response;
 				const schedules = response.schedules;
 				const activeExecutions = response.activeExecutions;
 				const upcomingRuns = response.upcomingRuns;
@@ -768,23 +761,67 @@ export function RoutineSchedulesContent({
 					activeExecutions,
 					upcomingRuns,
 					lastExecutions,
-					fetchedAt: now,
 				};
+				return response;
 			} catch (error) {
+				if (
+					!mountedRef.current ||
+					requestId !== overviewRequestSequence.current
+				)
+					return;
 				const message = error instanceof Error ? error.message : String(error);
 				setErrorMessage(message);
 			} finally {
-				setIsLoading(false);
+				if (
+					mountedRef.current &&
+					requestId === overviewRequestSequence.current
+				) {
+					overviewRefreshPending.current = false;
+					setIsLoading(false);
+				}
 			}
 		},
 		[],
 	);
 
 	useEffect(() => {
+		const refresh = () => {
+			void refreshSchedules({ showLoading: false });
+		};
+		const refreshVisible = () => {
+			// Background refreshes must not supersede a slow request on every
+			// poll, otherwise neither its response nor its error can be shown.
+			if (
+				document.visibilityState === "visible" &&
+				!overviewRefreshPending.current
+			) {
+				refresh();
+			}
+		};
 		const timeoutId = window.setTimeout(() => {
-			void refreshSchedules();
+			refresh();
 		}, 0);
-		return () => window.clearTimeout(timeoutId);
+		// Completion events deliver errors promptly, including failures before
+		// session creation. Polling also picks up queued/running transitions
+		// and changes missed during a transport disconnect.
+		const unsubscribers = [
+			"schedule.execution_completed",
+			"schedule.execution_failed",
+		].map((event) => desktopClient.subscribe(event, refresh));
+		const intervalId = window.setInterval(
+			refreshVisible,
+			ROUTINE_OVERVIEW_POLL_INTERVAL_MS,
+		);
+		window.addEventListener("focus", refreshVisible);
+		document.addEventListener("visibilitychange", refreshVisible);
+		return () => {
+			overviewRequestSequence.current += 1;
+			window.clearTimeout(timeoutId);
+			window.clearInterval(intervalId);
+			for (const unsubscribe of unsubscribers) unsubscribe();
+			window.removeEventListener("focus", refreshVisible);
+			document.removeEventListener("visibilitychange", refreshVisible);
+		};
 	}, [refreshSchedules]);
 
 	const upsertScheduleEnabled = async (
@@ -805,7 +842,7 @@ export function RoutineSchedulesContent({
 					schedule_id: schedule.scheduleId,
 				});
 			}
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -821,17 +858,61 @@ export function RoutineSchedulesContent({
 		setScheduleTriggering(schedule.scheduleId, true);
 		setErrorMessage(null);
 		try {
-			await desktopClient.invoke("trigger_routine_schedule", {
+			const reply = await desktopClient.invoke<{
+				execution?: RoutineExecution | null;
+			}>("trigger_routine_schedule", {
 				schedule_id: schedule.scheduleId,
 			});
+			// A reply without an execution means no run was enqueued (the
+			// schedule may have been disabled or deleted since the page
+			// loaded) — say so instead of confirming a start.
+			if (!reply?.execution) {
+				toast({
+					title: "Run not started",
+					description: `"${schedule.name}" did not queue a run — the schedule may be disabled or deleted.`,
+					variant: "destructive",
+				});
+				await refreshSchedules({ showLoading: false });
+				return;
+			}
 			toast({
 				title: "Run started",
 				description: `"${schedule.name}" was queued to run now.`,
 			});
-			await refreshSchedules({ force: true, showLoading: false });
-			window.setTimeout(() => {
-				void refreshSchedules({ force: true, showLoading: false });
-			}, 1_000);
+			// The trigger queues the run and returns before the runner starts
+			// the agent session, so the session id usually is not attached
+			// yet. Poll the overview (which also keeps the page's run status
+			// fresh) until it appears, then jump into the session.
+			// Only ever follow the execution the trigger itself named; matching
+			// "the schedule's newest execution" could open a previous run's
+			// session when the trigger failed to enqueue one.
+			const executionId = reply.execution.executionId ?? null;
+			let sessionId = reply.execution.sessionId?.trim() || null;
+			const deadline = Date.now() + 15_000;
+			while (
+				!sessionId &&
+				executionId &&
+				mountedRef.current &&
+				Date.now() < deadline
+			) {
+				const overview = await refreshSchedules({
+					showLoading: false,
+				});
+				const executions = [
+					...(overview?.activeExecutions ?? []),
+					...(overview?.lastExecutions ?? []),
+				];
+				const match = executions.find(
+					(execution) => execution.executionId === executionId,
+				);
+				sessionId = match?.sessionId?.trim() || null;
+				if (!sessionId) {
+					await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+				}
+			}
+			if (sessionId && mountedRef.current) {
+				await onOpenSession?.(sessionId);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -856,7 +937,7 @@ export function RoutineSchedulesContent({
 				schedule_id: scheduleId,
 			});
 			setSchedulePendingDelete(null);
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -865,7 +946,7 @@ export function RoutineSchedulesContent({
 		}
 	};
 
-	const openCreateDialog = async () => {
+	const openCreateDialog = async (template?: RoutineTemplate) => {
 		setEditingSchedule(null);
 		setErrorMessage(null);
 		setCreateFormError(null);
@@ -890,13 +971,20 @@ export function RoutineSchedulesContent({
 				? rememberedModel
 				: (modelsForProvider[0] ?? createForm.model);
 		setCreateForm({
-			name: "",
-			scheduleType: "once",
+			name: template?.name ?? "",
+			scheduleType: template?.scheduleType ?? "once",
 			scheduleDate: defaultScheduleDate(),
-			scheduleHour: "9",
-			scheduleMinute: "0",
-			scheduleDays: ["MON", "TUE", "WED", "THU", "FRI"],
-			prompt: "Review PRs opened yesterday and summarize issues.",
+			scheduleHour: template?.scheduleHour ?? "9",
+			scheduleMinute: template?.scheduleMinute ?? "0",
+			scheduleDays: template?.scheduleDays ?? [
+				"MON",
+				"TUE",
+				"WED",
+				"THU",
+				"FRI",
+			],
+			prompt:
+				template?.prompt ?? "Review PRs opened yesterday and summarize issues.",
 			provider: preferredProvider,
 			model: preferredModel,
 			workspaceRoot: context.workspaceRoot || context.cwd,
@@ -955,7 +1043,7 @@ export function RoutineSchedulesContent({
 			setCreateFormError("Choose a one-time date and time in the future.");
 			return;
 		}
-		const cronPattern =
+		const editedCronPattern =
 			createForm.scheduleType === "daily"
 				? buildCronPattern(
 						WEEKDAY_OPTIONS.map((option) => option.value),
@@ -969,6 +1057,16 @@ export function RoutineSchedulesContent({
 							createForm.scheduleMinute,
 						)
 					: undefined;
+		const cronPattern =
+			editingSchedule &&
+			editingSchedule.cronPattern !== ONE_TIME_SCHEDULE_CRON_PATTERN
+				? preserveRoutineCron(
+						editingSchedule.cronPattern,
+						parseCronPattern(editingSchedule.cronPattern),
+						createForm,
+						editedCronPattern,
+					)
+				: editedCronPattern;
 		if (createForm.scheduleType === "weekly" && !cronPattern) {
 			setCreateFormError("Select at least one weekday.");
 			return;
@@ -1011,6 +1109,10 @@ export function RoutineSchedulesContent({
 					createForm.scheduleType === "once" ? "once" : "recurring",
 				run_at: runAt,
 				cron_pattern: cronPattern,
+				timezone: routineScheduleTimezone(
+					createForm.scheduleType,
+					editingSchedule,
+				),
 				prompt,
 				provider,
 				model,
@@ -1027,7 +1129,7 @@ export function RoutineSchedulesContent({
 				enabled: createForm.enabled,
 				tags: tags ?? [],
 			});
-			await refreshSchedules({ force: true, showLoading: false });
+			await refreshSchedules({ showLoading: false });
 			setIsCreateOpen(false);
 			setEditingSchedule(null);
 		} catch (error) {
@@ -1072,6 +1174,23 @@ export function RoutineSchedulesContent({
 		[schedules],
 	);
 
+	// Hide suggestions the user has already created (matched by schedule name).
+	const visibleTemplates = useMemo(() => {
+		const existingNames = new Set(
+			schedules.map((schedule) => schedule.name.trim().toLowerCase()),
+		);
+		return ROUTINE_TEMPLATES.filter(
+			(template) => !existingNames.has(template.name.trim().toLowerCase()),
+		);
+	}, [schedules]);
+
+	// Collapse the runs list back to the recent-three preview whenever a
+	// different schedule's details are opened.
+	const viewingScheduleId = viewingSchedule?.scheduleId ?? null;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: viewingScheduleId is the reset trigger, not a value the effect reads
+	useEffect(() => {
+		setShowAllViewingRuns(false);
+	}, [viewingScheduleId]);
 	const viewingExecutions = useMemo(() => {
 		if (!viewingSchedule) {
 			return [];
@@ -1094,14 +1213,15 @@ export function RoutineSchedulesContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Scheduled jobs are run through the hub."
-				title="Schedules"
+				description="Run agents on cron schedules for recurring automations like daily summaries and code reviews."
+				title="Schedule"
 				meta={<CommandBadge>cline schedule</CommandBadge>}
 				actions={
 					<>
 						<Button
 							variant="outline"
 							size="sm"
+							aria-label="Refresh schedules"
 							onClick={() => void refreshSchedules()}
 							disabled={isLoading}
 						>
@@ -1127,8 +1247,8 @@ export function RoutineSchedulesContent({
 				<PageEmptyState>Loading schedules...</PageEmptyState>
 			) : sortedSchedules.length === 0 ? (
 				<PageEmptyState>
-					No schedules found. Create a schedule to run routines on a recurring
-					basis.
+					No schedules yet. Start from a suggestion below, or create your own
+					with New Schedule.
 				</PageEmptyState>
 			) : (
 				<div className="flex flex-col gap-3">
@@ -1143,10 +1263,35 @@ export function RoutineSchedulesContent({
 						const upcoming = upcomingRuns.find(
 							(item) => item.scheduleId === schedule.scheduleId,
 						);
+						// The whole card opens the details dialog; clicks on the row's
+						// own controls (all button elements, including the Radix
+						// switch) are excluded via closest().
 						return (
+							// biome-ignore lint/a11y/useSemanticElements: The card contains nested action buttons and a switch, so the wrapper cannot be a native button.
 							<div
 								key={schedule.scheduleId}
-								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-surface-hover-lighter"
+								className="cursor-pointer rounded-lg border border-border px-5 py-4 transition-colors hover:bg-surface-hover-lighter"
+								onClick={(event) => {
+									if (
+										(event.target as HTMLElement).closest(
+											"button,a,input,textarea,[role='menuitem']",
+										)
+									) {
+										return;
+									}
+									setViewingSchedule(schedule);
+								}}
+								onKeyDown={(event) => {
+									if (event.target !== event.currentTarget) {
+										return;
+									}
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										setViewingSchedule(schedule);
+									}
+								}}
+								role="button"
+								tabIndex={0}
 							>
 								<div className="flex items-center gap-3">
 									<Circle
@@ -1172,25 +1317,13 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
-													aria-label={`View ${schedule.name}`}
-													onClick={() => setViewingSchedule(schedule)}
-												>
-													<Eye className="h-3.5 w-3.5" />
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent>View details</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Edit ${schedule.name}`}
 													onClick={() => openEditDialog(schedule)}
 													disabled={isBusy}
 												>
-													<Pencil className="h-3.5 w-3.5" />
+													<Pencil className="size-4" />
 												</Button>
 											</TooltipTrigger>
 											<TooltipContent>Edit schedule</TooltipContent>
@@ -1199,15 +1332,16 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Run ${schedule.name} now`}
 													onClick={() => void triggerSchedule(schedule)}
 													disabled={isBusy}
 												>
 													{triggeringScheduleIds.has(schedule.scheduleId) ? (
-														<RefreshCw className="h-3.5 w-3.5 animate-spin" />
+														<RefreshCw className="size-4 animate-spin" />
 													) : (
-														<PlayIcon className="h-3.5 w-3.5" />
+														<PlayIcon className="size-4" />
 													)}
 												</Button>
 											</TooltipTrigger>
@@ -1217,7 +1351,8 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={
 														schedule.enabled
 															? `Pause ${schedule.name}`
@@ -1232,9 +1367,9 @@ export function RoutineSchedulesContent({
 													disabled={isBusy}
 												>
 													{schedule.enabled ? (
-														<Pause className="h-3.5 w-3.5" />
+														<Pause className="size-4" />
 													) : (
-														<Play className="h-3.5 w-3.5" />
+														<Play className="size-4" />
 													)}
 												</Button>
 											</TooltipTrigger>
@@ -1248,12 +1383,13 @@ export function RoutineSchedulesContent({
 											<TooltipTrigger asChild>
 												<Button
 													variant="ghost"
-													size="icon-sm"
+													size="icon"
+													className="size-7"
 													aria-label={`Delete ${schedule.name}`}
 													onClick={() => setSchedulePendingDelete(schedule)}
 													disabled={isBusy}
 												>
-													<Trash2 className="h-3.5 w-3.5" />
+													<Trash2 className="size-4" />
 												</Button>
 											</TooltipTrigger>
 											<TooltipContent>Delete schedule</TooltipContent>
@@ -1310,7 +1446,7 @@ export function RoutineSchedulesContent({
 										</p>
 									)}
 									{lastExecution?.errorMessage && (
-										<p className="text-destructive">
+										<p className="whitespace-pre-wrap break-words text-destructive">
 											<span className="text-muted-foreground/70">
 												Last error:
 											</span>{" "}
@@ -1340,6 +1476,45 @@ export function RoutineSchedulesContent({
 					})}
 				</div>
 			)}
+
+			{!isLoading && visibleTemplates.length > 0 && (
+				<section className="mt-10">
+					<h2 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+						Suggested
+					</h2>
+					<div className="mt-3 grid gap-3 sm:grid-cols-2">
+						{visibleTemplates.map((template) => {
+							const Icon = template.icon;
+							return (
+								<button
+									className="group flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-surface-hover-lighter"
+									key={template.id}
+									onClick={() => void openCreateDialog(template)}
+									type="button"
+								>
+									<div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors group-hover:text-primary">
+										<Icon className="size-4.5" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<h3 className="truncate text-sm font-semibold text-foreground">
+												{template.title}
+											</h3>
+											<span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+												{template.scheduleType === "daily" ? "Daily" : "Weekly"}
+											</span>
+										</div>
+										<p className="mt-1 text-xs leading-5 text-muted-foreground">
+											{template.description}
+										</p>
+									</div>
+									<Plus className="mt-0.5 size-4 shrink-0 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100" />
+								</button>
+							);
+						})}
+					</div>
+				</section>
+			)}
 			<Dialog
 				open={Boolean(viewingSchedule)}
 				onOpenChange={(open) => {
@@ -1348,124 +1523,121 @@ export function RoutineSchedulesContent({
 					}
 				}}
 			>
-				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+				<DialogContent
+					aria-describedby={undefined}
+					className="flex max-h-[85vh] flex-col sm:max-w-2xl"
+				>
 					<DialogHeader>
 						<DialogTitle>{viewingSchedule?.name ?? "Schedule"}</DialogTitle>
-						<DialogDescription>
-							Full configuration for this schedule.
-						</DialogDescription>
 					</DialogHeader>
 					{viewingSchedule && (
-						<Tabs defaultValue="overview">
-							<TabsList>
-								<TabsTrigger value="overview">Overview</TabsTrigger>
-								<TabsTrigger value="runs">
-									Runs
-									{viewingExecutions.length > 0 && (
-										<span className="ml-1 text-xs text-muted-foreground">
-											{viewingExecutions.length}
-										</span>
-									)}
-								</TabsTrigger>
-							</TabsList>
-							<TabsContent
-								className="mt-4 flex flex-col gap-3"
-								value="overview"
-							>
-								<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
-									<p>
-										<span className="text-muted-foreground/70">Schedule:</span>{" "}
-										{formatScheduleTrigger(viewingSchedule)}
-									</p>
-									<p>
-										<span className="text-muted-foreground/70">Mode:</span>{" "}
-										{viewingSchedule.mode}
-									</p>
-									<p>
-										<span className="text-muted-foreground/70">Model:</span>{" "}
-										{formatScheduleModel(viewingSchedule)}
-									</p>
-									<p>
-										<span className="text-muted-foreground/70">Enabled:</span>{" "}
-										{viewingSchedule.enabled ? "yes" : "no"}
-									</p>
-									<p>
-										<span className="text-muted-foreground/70">Last run:</span>{" "}
-										{formatDateTime(viewingSchedule.lastRunAt)}
-									</p>
-									<p>
-										<span className="text-muted-foreground/70">Next run:</span>{" "}
-										{formatDateTime(viewingSchedule.nextRunAt)}
-									</p>
+						<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+							<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
+								<p>
+									<span className="text-muted-foreground/70">Schedule:</span>{" "}
+									{formatScheduleTrigger(viewingSchedule)}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Mode:</span>{" "}
+									{viewingSchedule.mode}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Model:</span>{" "}
+									{formatScheduleModel(viewingSchedule)}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Enabled:</span>{" "}
+									{viewingSchedule.enabled ? "yes" : "no"}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Last run:</span>{" "}
+									{formatDateTime(viewingSchedule.lastRunAt)}
+								</p>
+								<p>
+									<span className="text-muted-foreground/70">Next run:</span>{" "}
+									{formatDateTime(viewingSchedule.nextRunAt)}
+								</p>
+							</div>
+							{/* The JSON block scrolls internally past its cap so it
+								    cannot push the runs below it out of easy reach. */}
+							<pre className="max-h-64 shrink-0 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
+								{JSON.stringify(viewingSchedule, null, 2)}
+							</pre>
+							<div className="mt-1 flex items-center justify-between">
+								<h3 className="text-sm font-semibold">Runs</h3>
+								<span className="text-xs text-muted-foreground">
+									{viewingExecutions.length} result
+									{viewingExecutions.length === 1 ? "" : "s"}
+								</span>
+							</div>
+							{viewingExecutions.length === 0 ? (
+								<div className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">
+									No runs yet.
 								</div>
-								<pre className="max-h-80 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs">
-									{JSON.stringify(viewingSchedule, null, 2)}
-								</pre>
-							</TabsContent>
-							<TabsContent className="mt-4" value="runs">
-								<div className="mb-2 flex items-center justify-between">
-									<h3 className="text-sm font-semibold">Runs</h3>
-									<span className="text-xs text-muted-foreground">
-										{viewingExecutions.length} result
-										{viewingExecutions.length === 1 ? "" : "s"}
-									</span>
-								</div>
-								{viewingExecutions.length === 0 ? (
-									<div className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">
-										No runs yet.
-									</div>
-								) : (
-									<div className="overflow-hidden rounded-lg border border-border">
-										{viewingExecutions.map((execution) => {
-											const status = execution.status?.toLowerCase() ?? "";
-											const succeeded = ["success", "completed"].includes(
-												status,
-											);
-											const failed = ["failed", "timeout", "aborted"].includes(
-												status,
-											);
-											return (
-												<button
-													className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent"
-													disabled={!execution.sessionId || !onOpenSession}
-													key={execution.executionId}
-													onClick={() => {
-														if (execution.sessionId) {
-															void onOpenSession?.(execution.sessionId);
-														}
-													}}
-													type="button"
-												>
-													{succeeded ? (
-														<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
-													) : failed ? (
-														<XCircle className="size-4 shrink-0 text-destructive" />
-													) : (
-														<Clock3 className="size-4 shrink-0 text-muted-foreground" />
-													)}
-													<span className="min-w-0 flex-1">
-														<span className="block truncate font-medium capitalize">
-															{execution.status || "Unknown result"}
+							) : (
+								<div className="overflow-hidden rounded-lg border border-border">
+									{(showAllViewingRuns
+										? viewingExecutions
+										: viewingExecutions.slice(0, 3)
+									).map((execution) => {
+										const status = execution.status?.toLowerCase() ?? "";
+										const succeeded = ["success", "completed"].includes(status);
+										const failed = ["failed", "timeout", "aborted"].includes(
+											status,
+										);
+										return (
+											<button
+												className="group flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left text-sm transition-colors last:border-b-0 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent"
+												disabled={!execution.sessionId || !onOpenSession}
+												key={execution.executionId}
+												onClick={() => {
+													if (execution.sessionId) {
+														void onOpenSession?.(execution.sessionId);
+													}
+												}}
+												type="button"
+											>
+												{succeeded ? (
+													<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+												) : failed ? (
+													<XCircle className="size-4 shrink-0 text-destructive" />
+												) : (
+													<Clock3 className="size-4 shrink-0 text-muted-foreground" />
+												)}
+												<span className="min-w-0 flex-1">
+													<span className="block truncate font-medium capitalize">
+														{execution.status || "Unknown result"}
+													</span>
+													{execution.errorMessage && (
+														<span className="block whitespace-pre-wrap break-words text-xs text-destructive">
+															{execution.errorMessage}
 														</span>
-														{execution.errorMessage && (
-															<span className="block truncate text-xs text-destructive">
-																{execution.errorMessage}
-															</span>
-														)}
-													</span>
-													<span className="shrink-0 text-xs text-muted-foreground">
-														{formatExecutionTimestamp(execution)}
-													</span>
-													{execution.sessionId && onOpenSession && (
-														<ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
 													)}
-												</button>
-											);
-										})}
-									</div>
-								)}
-							</TabsContent>
-						</Tabs>
+												</span>
+												<span className="shrink-0 text-xs text-muted-foreground">
+													{formatExecutionTimestamp(execution)}
+												</span>
+												{execution.sessionId && onOpenSession && (
+													<ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+												)}
+											</button>
+										);
+									})}
+								</div>
+							)}
+							{!showAllViewingRuns && viewingExecutions.length > 3 ? (
+								<Button
+									className="self-start text-muted-foreground"
+									onClick={() => setShowAllViewingRuns(true)}
+									size="sm"
+									type="button"
+									variant="ghost"
+								>
+									Show all {viewingExecutions.length} runs
+									<ChevronDown className="size-3.5" />
+								</Button>
+							) : null}
+						</div>
 					)}
 				</DialogContent>
 			</Dialog>
@@ -1524,9 +1696,7 @@ export function RoutineSchedulesContent({
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>
-							{editingSchedule ? "Edit Routine" : "Create Routine"}
-						</DialogTitle>
+						<DialogTitle>Schedule</DialogTitle>
 						<DialogDescription>
 							{editingSchedule
 								? "Update this scheduler routine."
@@ -1535,7 +1705,7 @@ export function RoutineSchedulesContent({
 					</DialogHeader>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-name">Name</Label>
 							<Input
 								id="routine-name"
@@ -1552,8 +1722,17 @@ export function RoutineSchedulesContent({
 
 						<div className="sm:col-span-2 space-y-3">
 							<Label>Schedule</Label>
+							{editingSchedule &&
+								editingSchedule.cronPattern !==
+									ONE_TIME_SCHEDULE_CRON_PATTERN && (
+									<p className="text-xs text-muted-foreground">
+										Current cron expression:{" "}
+										<code>{editingSchedule.cronPattern}</code>. Changing the
+										timing controls replaces this expression.
+									</p>
+								)}
 							<div className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-3">
-								<div className="min-w-32 flex-1">
+								<div className="min-w-32 flex-1 space-y-2">
 									<Label htmlFor="routine-schedule-type">Frequency</Label>
 									<Select
 										onValueChange={(value) =>
@@ -1581,7 +1760,7 @@ export function RoutineSchedulesContent({
 									</Select>
 								</div>
 								{createForm.scheduleType === "once" && (
-									<div className="min-w-40 flex-1">
+									<div className="min-w-40 flex-1 space-y-2">
 										<Label htmlFor="routine-date">Date</Label>
 										<Input
 											id="routine-date"
@@ -1617,7 +1796,7 @@ export function RoutineSchedulesContent({
 									</div>
 								)}
 								{createForm.scheduleType === "weekly" && (
-									<div className="min-w-44 flex-[1.4]">
+									<div className="min-w-44 flex-[1.4] space-y-2">
 										<Label>Days</Label>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
@@ -1660,7 +1839,7 @@ export function RoutineSchedulesContent({
 										</DropdownMenu>
 									</div>
 								)}
-								<div className="min-w-32 flex-1">
+								<div className="min-w-32 flex-1 space-y-2">
 									<Label htmlFor="routine-time">Time</Label>
 									<Input
 										id="routine-time"
@@ -1693,7 +1872,7 @@ export function RoutineSchedulesContent({
 							</div>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-prompt">Prompt</Label>
 							<Textarea
 								id="routine-prompt"
@@ -1708,7 +1887,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label>Provider</Label>
 							<Combobox
 								items={availableProviders}
@@ -1752,7 +1931,7 @@ export function RoutineSchedulesContent({
 							</Combobox>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label>Model</Label>
 							<Combobox
 								items={availableModelsForProvider}
@@ -1783,7 +1962,7 @@ export function RoutineSchedulesContent({
 							</Combobox>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-workspace">Workspace</Label>
 							<Input
 								id="routine-workspace"
@@ -1797,7 +1976,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div className="sm:col-span-2">
+						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-system-prompt">
 								System prompt (optional)
 							</Label>
@@ -1814,7 +1993,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label htmlFor="routine-timeout">
 								Timeout seconds (optional)
 							</Label>
@@ -1831,7 +2010,7 @@ export function RoutineSchedulesContent({
 							/>
 						</div>
 
-						<div>
+						<div className="space-y-2">
 							<Label htmlFor="routine-tags">
 								Tags (comma-separated, optional)
 							</Label>

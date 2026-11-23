@@ -20,7 +20,13 @@ export async function commitModelSelection(
 	const previousApiConfiguration = hasProviderCatalogStateController(controller)
 		? controller.stateManager.getApiConfiguration?.()
 		: undefined
-	controller.getProviderConfigStore().commitSelection(providerId, mode, selection)
+	const cachedModels = controller.getProviderCatalog().peekModels(providerId)
+	const baseModelInfoHint = cachedModels?.ok ? cachedModels.models.get(selection.modelId) : undefined
+	if (baseModelInfoHint) {
+		controller.getProviderConfigStore().commitSelection(providerId, mode, selection, baseModelInfoHint)
+	} else {
+		controller.getProviderConfigStore().commitSelection(providerId, mode, selection)
+	}
 
 	if (hasProviderCatalogStateController(controller)) {
 		controller.stateManager.setGlobalStateBatch({

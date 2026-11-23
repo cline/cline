@@ -119,6 +119,43 @@ describe("resolveProviderRequestHeaders", () => {
 		});
 	});
 
+	it("omits X-Task-ID when the request is not part of a session", () => {
+		const headers = resolveProviderRequestHeaders({
+			providerId: "cline",
+			source: "vscode",
+			defaultSource: "vscode",
+			client: {
+				name: "VSCode Extension",
+				version: "4.1.16",
+			},
+			coreVersion: "4.1.16",
+		});
+
+		expect(headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"User-Agent": "Cline/4.1.16",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "4.1.16",
+			"X-PLATFORM": "vscode",
+			"X-PLATFORM-VERSION": "4.1.16",
+			"X-CORE-VERSION": "4.1.16",
+		});
+		expect(headers && "X-Task-ID" in headers).toBe(false);
+	});
+
+	it("omits the Codex session_id when the request is not part of a session", () => {
+		const headers = resolveProviderRequestHeaders({
+			providerId: "openai-codex",
+			defaultSource: "cli",
+			coreVersion: "0.2.0",
+			openAiCodex: { userAgentVersion: "3.0.38" },
+		});
+
+		expect(headers).toMatchObject({ originator: "cline" });
+		expect(headers && "session_id" in headers).toBe(false);
+	});
+
 	it("preserves existing precedence for providers without required headers", () => {
 		expect(
 			resolveProviderRequestHeaders({
@@ -146,5 +183,30 @@ describe("resolveProviderRequestHeaders", () => {
 				},
 			}),
 		).toEqual({ "x-session": "session" });
+	});
+
+	it("identifies Go conversations and the client while preserving custom headers", () => {
+		for (const sessionId of ["conversation-a", "conversation-b"]) {
+			expect(
+				resolveProviderRequestHeaders({
+					providerId: "opencode-go",
+					sessionId,
+					defaultSource: "desktop",
+					coreVersion: "0.0.82",
+					client: { version: "1.2.3" },
+					headers: {
+						stored: { "x-stored": "kept", "x-opencode-session": "stale" },
+						config: { "x-config": "kept" },
+						session: { "x-session": "kept" },
+					},
+				}),
+			).toEqual({
+				"x-opencode-session": sessionId,
+				"User-Agent": "Cline/1.2.3",
+				"x-stored": "kept",
+				"x-config": "kept",
+				"x-session": "kept",
+			});
+		}
 	});
 });

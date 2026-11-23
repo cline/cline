@@ -1,5 +1,25 @@
 import type { TeamRuntimeState, TeamTeammateSpec } from "@cline/shared";
-import type { TeamEvent } from "../extensions/tools/team";
+import type {
+	TeamEvent,
+	TeamRuntimeStateDelta,
+} from "../extensions/tools/team";
+
+/**
+ * One batched durable write: events to append to the history log plus the
+ * entities that changed since the previous batch. Applied atomically.
+ */
+export interface TeamPersistenceBatch {
+	/** Already-compacted durable events (see `toPersistableTeamEvent`). */
+	events: Array<{ type: string; payload: unknown }>;
+	delta: TeamRuntimeStateDelta;
+	teammates: TeamTeammateSpec[];
+	/**
+	 * Full state accessor for stores that cannot apply deltas (file fallback).
+	 * Row-based stores must not call it.
+	 */
+	getFullState: () => TeamRuntimeState;
+}
+
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";
 
@@ -39,6 +59,12 @@ export interface TeamStore {
 				interruptedRunIds: string[];
 		  };
 	handleTeamEvent(teamName: string, event: TeamEvent): Promise<void> | void;
+	/** Preferred write path: incremental, batched, single transaction. */
+	persistBatch(
+		teamName: string,
+		batch: TeamPersistenceBatch,
+	): Promise<void> | void;
+	/** Full rewrite of a team's state. Kept for callers outside the runtime. */
 	persistRuntime(
 		teamName: string,
 		state: TeamRuntimeState,

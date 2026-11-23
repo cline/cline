@@ -14,13 +14,11 @@
  *                                         skips the cohort refresh
  *   6. the activated bundle's reportRolloutActivation export receives the
  *      authoritative attempted/actual/fallback record (and its absence is
- *      tolerated); the loader's own loader_decision capture fires exactly
- *      once per window
+ *      tolerated); the loader itself never captures PostHog events
  *   7. the nightly identity (manifest name cline-nightly) switches the
  *      setting section + context key namespace and shows the status bar
  *      bundle indicator
- *   8. both bundles throwing surfaces the failure and captures a
- *      double_failure loader event
+ *   8. both bundles throwing surfaces the failure
  *
  * Usage: node smoke-loader.mjs <staging-dir>
  * Copies the staging dir to a temp sandbox; the input is never modified.
@@ -106,18 +104,6 @@ function captureCalls(fetchCalls) {
 	return fetchCalls
 		.filter(([url]) => String(url).includes("/capture/"))
 		.map(([, init]) => JSON.parse(init.body));
-}
-
-function captureEvents(fetchCalls, event) {
-	return captureCalls(fetchCalls).filter((capture) => capture.event === event);
-}
-
-function loaderDecisionCaptures(fetchCalls) {
-	return captureEvents(fetchCalls, "extension.rollout.loader_decision");
-}
-
-function featureFlagCalledCaptures(fetchCalls) {
-	return captureEvents(fetchCalls, "$feature_flag_called");
 }
 
 function decideCalls(fetchCalls) {
@@ -407,10 +393,7 @@ await runScenario(
 		// promotes the NEXT window.
 		assert.deepEqual(api, { bundle: "legacy" });
 		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "next");
-		const [featureFlagCalled] = featureFlagCalledCaptures(fetchCalls);
-		assert.ok(featureFlagCalled, "rollout refresh must emit the PostHog feature-flag exposure event");
-		assert.equal(featureFlagCalled.properties.$feature_flag, "ext-sdk-bundle-rollout");
-		assert.equal(featureFlagCalled.properties.$feature_flag_response, true);
+		assert.deepEqual(captureCalls(fetchCalls), [], "flag evaluation must not capture events");
 	},
 );
 
@@ -425,11 +408,7 @@ await runScenario(
 		// back to legacy on its next reload.
 		assert.deepEqual(api, { bundle: "next" });
 		assert.equal(context.globalState._dump()["cline.rollout.bundle"], "legacy");
-		const [featureFlagCalled] = featureFlagCalledCaptures(fetchCalls);
-		assert.ok(featureFlagCalled, "rollout refresh must emit the PostHog feature-flag exposure event");
-		assert.equal(featureFlagCalled.event, "$feature_flag_called");
-		assert.equal(featureFlagCalled.properties.$feature_flag, "ext-sdk-bundle-rollout");
-		assert.equal(featureFlagCalled.properties.$feature_flag_response, false);
+		assert.deepEqual(captureCalls(fetchCalls), [], "flag evaluation must not capture events");
 	},
 );
 
@@ -531,62 +510,6 @@ await runScenario(
 );
 
 await runScenario(
-	"loader_decision capture carries the loader-side metadata",
-	{
-		env: { CLINE_BUNDLE_OVERRIDE: "next" },
-		telemetryEnabled: true,
-		contextPackageJSON: { name: "claude-dev" },
-	},
-	async ({ fetchCalls }) => {
-		await waitFor(
-			() => loaderDecisionCaptures(fetchCalls).length > 0,
-			"loader_decision capture never reached the network",
-		);
-		const captures = loaderDecisionCaptures(fetchCalls);
-		assert.equal(captures.length, 1);
-		const [capture] = captures;
-		assert.equal(capture.event, "extension.rollout.loader_decision");
-		assert.equal(capture.properties.bundle, "next");
-		assert.equal(capture.properties.attempted_bundle, "next");
-		assert.equal(capture.properties.fallback, false);
-		assert.equal(capture.properties.override, "env");
-		assert.equal(capture.properties.loader_version, "4.1.0-smoke");
-		assert.equal(capture.properties.extension_name, "claude-dev");
-	},
-);
-
-await runScenario(
-	"crash fallback captures exactly one loader_decision event",
-	{
-		seed: { "cline.rollout.bundle": "next" },
-		nextThrows: true,
-		telemetryEnabled: true,
-		expectRefresh: false,
-	},
-	async ({ fetchCalls }) => {
-		await waitFor(
-			() => loaderDecisionCaptures(fetchCalls).length > 0,
-			"fallback loader_decision capture never reached the network",
-		);
-		// Give an incorrect second capture (the pre-fix fallback:false event from
-		// the recursive legacy success) time to reach the network before counting.
-		await new Promise((resolve) => setTimeout(resolve, 100));
-		const captures = loaderDecisionCaptures(fetchCalls);
-		assert.equal(
-			captures.length,
-			1,
-			"fallback must emit exactly ONE loader event (regression: duplicate fallback:false event)",
-		);
-		const [capture] = captures;
-		assert.equal(capture.event, "extension.rollout.loader_decision");
-		assert.equal(capture.properties.bundle, "legacy");
-		assert.equal(capture.properties.attempted_bundle, "next");
-		assert.equal(capture.properties.fallback, true);
-		assert.match(capture.properties.error_message, /next activation exploded/);
-	},
-);
-
-await runScenario(
 	"a bundle without the reportRolloutActivation export still activates",
 	{ omitReportExport: true },
 	async ({ api }) => {
@@ -621,7 +544,7 @@ await runScenario(
 );
 
 await runScenario(
-	"double failure: both bundles throw, loader reports and rethrows",
+	"double failure: both bundles throw, loader rethrows",
 	{
 		seed: { "cline.rollout.bundle": "next" },
 		nextThrows: true,
@@ -637,25 +560,7 @@ await runScenario(
 			[],
 			"no bundle survived to report the authoritative event",
 		);
-		await waitFor(
-			() => loaderDecisionCaptures(fetchCalls).length >= 2,
-			"double failure should capture the fallback AND the double_failure events",
-		);
-		const captures = loaderDecisionCaptures(fetchCalls);
-		assert.equal(captures.length, 2);
-		for (const capture of captures) {
-			assert.equal(capture.event, "extension.rollout.loader_decision");
-			assert.equal(capture.properties.fallback, true);
-		}
-		const doubleFailure = captures.find(
-			(c) => c.properties.double_failure === true,
-		);
-		assert.ok(doubleFailure, "one capture must be flagged double_failure");
-		assert.equal(doubleFailure.properties.attempted_bundle, "next");
-		assert.match(
-			doubleFailure.properties.error_message,
-			/legacy activation exploded/,
-		);
+		assert.deepEqual(captureCalls(fetchCalls), [], "the loader must not capture events");
 	},
 );
 

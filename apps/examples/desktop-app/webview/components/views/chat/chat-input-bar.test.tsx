@@ -1,47 +1,148 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import {
+	act,
+	Fragment,
+	type MouseEvent as ReactMouseEvent,
+	StrictMode,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
+import { PromptDraftCache, usePromptDraft } from "@/hooks/use-prompt-draft";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
+	REASONING_SELECTION_STORAGE_KEY,
+	readModelSelectionStorageFromWindow,
+	selectChatModel,
 } from "@/lib/model-selection";
+import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
 
 const {
+	toastMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
+	speechInputMockState,
+	startStreamingTranscriptionMock,
+	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
+	toastMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
-	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+	speechInputMockState: {
+		current: null as MockSpeechInputProps | null,
+	},
+	startStreamingTranscriptionMock: vi.fn(),
+	subscribeToProviderCatalogInvalidationMock: vi.fn<
+		(listener: () => void) => () => void
+	>(() => vi.fn()),
+	subscribeToProviderModelsMock: vi.fn<
+		(
+			listener: (providerId: string, models: ProviderModel[]) => void,
+		) => () => void
+	>(() => vi.fn()),
 }));
+
+type MockSpeechInputProps = {
+	title?: string;
+	disabled?: boolean;
+	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
+	onError?: (error: unknown) => void;
+	onActiveChange?: (active: boolean) => void;
+	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+	onProcessingChange?: (processing: boolean) => void;
+	onStartStreaming?: () => Promise<unknown>;
+	onStreamingEnd?: () => void;
+	onStreamingStart?: () => void;
+	onTranscriptionChange?: (
+		transcript: string,
+		source?: "speech-recognition" | "media-recorder",
+	) => void;
+	recordingMode?: "auto" | "media-recorder" | "streaming";
+};
+
+vi.mock("@/components/ai-elements/speech-input", async () => {
+	const React = await vi.importActual<typeof import("react")>("react");
+	return {
+		SpeechInput: (props: MockSpeechInputProps) => {
+			speechInputMockState.current = props;
+			const [initialRecordingMode] = React.useState(props.recordingMode);
+			React.useEffect(() => {
+				props.onActiveChange?.(false);
+				props.onProcessingChange?.(false);
+			}, [props.onActiveChange, props.onProcessingChange]);
+			return (
+				<div data-initial-recording-mode={initialRecordingMode}>
+					<button
+						aria-label="Record speech"
+						disabled={props.disabled}
+						onClick={props.onClick}
+						title={props.title}
+						type="button"
+					/>
+				</div>
+			);
+		},
+	};
+});
 
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderCatalogInvalidation:
+		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
+	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
+
+vi.mock("@/lib/streaming-transcription", () => ({
+	startStreamingTranscription: startStreamingTranscriptionMock,
+}));
+
+vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
 
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
+	window.localStorage.removeItem(REASONING_SELECTION_STORAGE_KEY);
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
+		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	toastMock.mockReset();
+	speechInputMockState.current = null;
+	startStreamingTranscriptionMock.mockReset().mockResolvedValue({
+		done: new Promise<void>(() => {}),
+		stop: vi.fn(),
+		cancel: vi.fn(),
+	});
+	subscribeToProviderCatalogInvalidationMock
+		.mockReset()
+		.mockReturnValue(vi.fn());
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
@@ -58,7 +159,748 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+const workspaceValue = {
+	workspaceRoot: "/workspace/cline",
+	workspaces: ["/workspace/cline"],
+	listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+	refreshWorkspaces: vi.fn(async () => undefined),
+	switchWorkspace: vi.fn(async () => true),
+	pickWorkspaceDirectory: vi.fn(async () => null),
+	selectChat: vi.fn(async () => true),
+};
+
+function providerCatalog(
+	voiceInput: {
+		providerId: string;
+		providerName: string;
+		modelId: string;
+		modelName: string;
+		supportsStreaming: boolean;
+	} | null,
+) {
+	return {
+		providers: [],
+		enabledProviderIds: ["cline"],
+		providerModels: { cline: ["test-model"] },
+		providerReasoningModels: { cline: [] },
+		voiceInput,
+	};
+}
+
+function deferred<T>() {
+	let resolve: (value: T) => void = () => {};
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+}
+
+async function renderVoiceComposer({
+	attachments = [],
+	model = "test-model",
+	hasRunningAgents = false,
+	onAbort = vi.fn(),
+	onPromptInputChange = vi.fn(),
+	onSend = vi.fn(),
+	prompt = "",
+	promptVersion = 0,
+	status = "idle",
+	readOnly = false,
+	placeholder,
+	executionTarget,
+	onAttachFiles = vi.fn(),
+	sessionId,
+	strictMode = false,
+	cloudHandoffAvailable = false,
+}: {
+	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
+	model?: string;
+	hasRunningAgents?: boolean;
+	onAbort?: ReturnType<typeof vi.fn>;
+	onPromptInputChange?: ReturnType<typeof vi.fn>;
+	onSend?: ReturnType<typeof vi.fn>;
+	prompt?: string;
+	promptVersion?: number;
+	status?: ChatSessionStatus;
+	readOnly?: boolean;
+	placeholder?: string;
+	executionTarget?: "cloud" | "local";
+	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
+	sessionId?: string;
+	strictMode?: boolean;
+	cloudHandoffAvailable?: boolean;
+} = {}) {
+	const Wrapper = strictMode ? StrictMode : Fragment;
+	await act(async () => {
+		root.render(
+			<Wrapper>
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						workspaceRoot="/workspace/cline"
+						readOnly={readOnly}
+						placeholder={placeholder}
+						cloudHandoffAvailable={cloudHandoffAvailable}
+						executionTarget={executionTarget}
+						sessionId={sessionId}
+						attachments={attachments}
+						gitBranch="main"
+						hasRunningAgents={hasRunningAgents}
+						mode="act"
+						model={model}
+						onAbort={onAbort}
+						onAttachFiles={onAttachFiles}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={onPromptInputChange}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={onSend}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: promptVersion, value: prompt }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status={status}
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>
+			</Wrapper>,
+		);
+		await Promise.resolve();
+	});
+}
+
+function DraftComposer({
+	drafts,
+	threadId,
+	sendPrompt,
+}: {
+	drafts: PromptDraftCache;
+	threadId: string;
+	sendPrompt?: (prompt: string) => Promise<boolean>;
+}) {
+	const { promptDraft, handlePromptInputChange, clearPromptForSend } =
+		usePromptDraft(drafts, threadId);
+	return (
+		<WorkspaceProvider value={workspaceValue}>
+			<ChatInputBar
+				environmentId="local"
+				attachments={[]}
+				gitBranch="main"
+				mode="act"
+				model="test-model"
+				onAbort={vi.fn()}
+				onAttachFiles={vi.fn()}
+				onEditPromptInQueue={vi.fn()}
+				onListGitBranches={vi.fn(async () => ({
+					current: "main",
+					branches: ["main"],
+				}))}
+				onModeToggle={vi.fn()}
+				onModelChange={vi.fn()}
+				onPromptInputChange={handlePromptInputChange}
+				onProviderChange={vi.fn()}
+				onReasoningChange={vi.fn()}
+				onRemoveAttachment={vi.fn()}
+				onRemovePromptInQueue={vi.fn()}
+				onSend={async (prompt) => {
+					const restorePrompt = clearPromptForSend();
+					if (sendPrompt && !(await sendPrompt(prompt))) restorePrompt(prompt);
+				}}
+				onSteerPromptInQueue={vi.fn()}
+				onSwitchGitBranch={vi.fn(async () => true)}
+				promptDraft={promptDraft}
+				promptsInQueue={[]}
+				provider="cline"
+				reasoningEffort="low"
+				status="idle"
+				summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+				thinking
+			/>
+		</WorkspaceProvider>
+	);
+}
+
+describe("ChatInputBar draft navigation", () => {
+	it("restores a failed send after the real composer acknowledges the external clear", async () => {
+		const drafts = new PromptDraftCache([
+			["A", { text: "Try again", attachments: [] }],
+		]);
+		const response = deferred<boolean>();
+		await act(async () => {
+			root.render(
+				<DraftComposer
+					drafts={drafts}
+					threadId="A"
+					sendPrompt={() => response.promise}
+				/>,
+			);
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('button[aria-label="Send message"]')
+				?.click();
+		});
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await act(async () => response.resolve(false));
+		expect(container.querySelector("textarea")?.value).toBe("Try again");
+		expect(drafts.get("A")?.text).toBe("Try again");
+	});
+
+	it("restores typed text on return and does not restore it after sending", async () => {
+		const drafts = new PromptDraftCache();
+		const showThread = async (threadId: string) => {
+			await act(async () => {
+				root.render(
+					<DraftComposer key={threadId} threadId={threadId} drafts={drafts} />,
+				);
+			});
+		};
+		const typePrompt = async (value: string) => {
+			const textarea = container.querySelector("textarea");
+			expect(textarea).not.toBeNull();
+			await act(async () => {
+				const setValue = Object.getOwnPropertyDescriptor(
+					HTMLTextAreaElement.prototype,
+					"value",
+				)?.set;
+				setValue?.call(textarea, value);
+				textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		};
+
+		await showThread("new-session");
+		await typePrompt("My unfinished prompt\nMore details");
+		await showThread("existing-session");
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await typePrompt("A separate follow-up");
+		await showThread("new-session");
+		expect(container.querySelector("textarea")?.value).toBe(
+			"My unfinished prompt\nMore details",
+		);
+		const send = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Send message"]',
+		);
+		expect(send?.disabled).toBe(false);
+		await act(async () => send?.click());
+		expect(container.querySelector("textarea")?.value).toBe("");
+		await showThread("existing-session");
+		expect(container.querySelector("textarea")?.value).toBe(
+			"A separate follow-up",
+		);
+		await showThread("new-session");
+		expect(container.querySelector("textarea")?.value).toBe("");
+	});
+});
+
 describe("ChatInputBar", () => {
+	it("highlights /cloud only when handoff is available", async () => {
+		for (const enabled of [false, true, false]) {
+			await renderVoiceComposer({
+				prompt: "/cloud Continue",
+				cloudHandoffAvailable: enabled,
+			});
+			expect(
+				container
+					.querySelector("textarea")
+					?.parentElement?.querySelector("[aria-hidden] span")?.textContent,
+			).toBe(enabled ? "/cloud" : undefined);
+		}
+	});
+
+	it("retains skills and workflows when plugin discovery rejects", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name === "list_plugin_commands") throw new Error("hub unavailable");
+			return {
+				runtimeCommands: [
+					{
+						name: "publish-skill",
+						kind: "skill",
+						description: "Publish skill",
+					},
+					{
+						name: "publish-workflow",
+						kind: "workflow",
+						description: "Publish workflow",
+					},
+				],
+			};
+		});
+		await renderVoiceComposer({ prompt: "/publish", executionTarget: "local" });
+		expect(container.textContent).toContain("Publish skill");
+		expect(container.textContent).toContain("Publish workflow");
+	});
+
+	it("re-reads plugin commands when the slash menu reopens after a failure", async () => {
+		let available = false;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			if (!available) throw new Error("hub connection lost");
+			return {
+				workspacePath: "/workspace/cline",
+				status: "ready",
+				commands: [{ name: "restored", description: "Recovered command" }],
+			};
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Plugin commands unavailable");
+		available = true;
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/rest",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Recovered command");
+		expect(container.textContent).not.toContain("Plugin commands unavailable");
+	});
+
+	it("does not show another session's plugin commands", async () => {
+		vi.spyOn(desktopClient, "invoke").mockImplementation(
+			async (name, payload) => {
+				if (name !== "list_plugin_commands") return {};
+				if ((payload as { sessionId?: string }).sessionId === "session-b")
+					throw new Error("hub connection closed");
+				return {
+					status: "ready",
+					commands: [{ name: "publish-a", description: "Session A plugin" }],
+				};
+			},
+		);
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-a",
+		});
+		expect(container.textContent).toContain("Session A plugin");
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+			sessionId: "session-b",
+		});
+		expect(container.textContent).not.toContain("Session A plugin");
+	});
+
+	it("loads commands up front so a skill chips before the menu opens", async () => {
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) =>
+				name === "list_plugin_commands"
+					? { status: "ready", commands: [] }
+					: {
+							runtimeCommands: [
+								{ name: "publish-skill", kind: "skill", description: "" },
+							],
+						},
+			);
+		const instructionRequests = () =>
+			invoke.mock.calls.filter(
+				([name]) => name === "list_user_instruction_configs",
+			).length;
+		// StrictMode replays the mount effect; the cancelled first load must not
+		// count as loaded (Next dev renders the app this way).
+		await renderVoiceComposer({
+			prompt: "/publish-skill ship it",
+			executionTarget: "local",
+			strictMode: true,
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		const chip = container.querySelector("[aria-hidden] span");
+		expect(chip?.textContent).toBe("/publish-skill");
+
+		const loadsBeforeMenu = instructionRequests();
+		await renderVoiceComposer({
+			prompt: "/pub",
+			promptVersion: 1,
+			executionTarget: "local",
+			strictMode: true,
+		});
+		expect(instructionRequests()).toBeGreaterThan(loadsBeforeMenu);
+	});
+
+	it("retries a plugin catalog cut off by closing the menu", async () => {
+		const firstPluginLoad = deferred<unknown>();
+		let pluginRequests = 0;
+		vi.spyOn(desktopClient, "invoke").mockImplementation(async (name) => {
+			if (name !== "list_plugin_commands") return { runtimeCommands: [] };
+			pluginRequests++;
+			return pluginRequests === 1
+				? firstPluginLoad.promise
+				: { status: "ready", commands: [{ name: "deploy" }] };
+		});
+		await renderVoiceComposer({ prompt: "/dep", executionTarget: "local" });
+		await renderVoiceComposer({
+			prompt: "/deploy now",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		const textarea = container.querySelector("textarea");
+		// Moving the caret past the command closes the menu mid-load.
+		await act(async () => {
+			textarea?.setSelectionRange(11, 11);
+			textarea?.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+		await vi.waitFor(() =>
+			expect(container.querySelector("[aria-hidden] span")?.textContent).toBe(
+				"/deploy",
+			),
+		);
+	});
+
+	it("refreshes commands on reopen without resetting cached suggestions", async () => {
+		const updated = deferred<{
+			runtimeCommands: Array<{
+				name: string;
+				kind: "workflow";
+				description: string;
+			}>;
+		}>();
+		let instructionRequests = 0;
+		const invoke = vi
+			.spyOn(desktopClient, "invoke")
+			.mockImplementation(async (name) => {
+				if (name === "list_plugin_commands")
+					return {
+						status: "ready",
+						commands: [
+							{ name: "publish-plugin", description: "Plugin suggestion" },
+						],
+					};
+				if (name === "list_user_instruction_configs") {
+					instructionRequests++;
+					return instructionRequests === 1
+						? {
+								runtimeCommands: [
+									{
+										name: "publish-old",
+										kind: "skill",
+										description: "Old skill",
+									},
+								],
+							}
+						: updated.promise;
+				}
+				return {};
+			});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 1,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		await renderVoiceComposer({
+			prompt: "ordinary text",
+			promptVersion: 2,
+			executionTarget: "local",
+		});
+		await renderVoiceComposer({
+			prompt: "/publish",
+			promptVersion: 3,
+			executionTarget: "local",
+		});
+		expect(container.textContent).toContain("Old skill");
+		expect(container.textContent).toContain("Plugin suggestion");
+		expect(instructionRequests).toBe(2);
+		expect(
+			invoke.mock.calls.filter(([name]) => name === "list_plugin_commands"),
+		).toHaveLength(2);
+		await act(async () =>
+			updated.resolve({
+				runtimeCommands: [
+					{
+						name: "publish-new",
+						kind: "workflow",
+						description: "New workflow",
+					},
+				],
+			}),
+		);
+		expect(container.textContent).not.toContain("Old skill");
+		expect(container.textContent).toContain("New workflow");
+		expect(container.textContent).toContain("Plugin suggestion");
+	});
+
+	it("uses caller placeholder text while preserving defaults and repository prompts", async () => {
+		await renderVoiceComposer({
+			status: "starting",
+			placeholder: "Custom prompt",
+		});
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.placeholder).toBe("Custom prompt");
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			placeholder: "Custom prompt",
+		});
+		expect(textarea?.placeholder).toBe("Choose a repository");
+		await renderVoiceComposer({ status: "starting" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer({ status: "running" });
+		expect(textarea?.placeholder).toBe(
+			"Agent is working... submit to queue another message",
+		);
+		await renderVoiceComposer();
+		expect(textarea?.placeholder).toBe(
+			"Enter your question or type / for commands or @ for context",
+		);
+	});
+
+	it("prevents sending from a read-only session", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.readOnly).toBe(true);
+		const send = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Send message"]',
+		);
+		expect(send).not.toBeNull();
+		expect(send?.disabled).toBe(true);
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+			send?.click();
+		});
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("blocks sending existing draft images after switching models and preserves the draft", async () => {
+		const onSend = vi.fn();
+		const attachments = [{ id: "image", name: "photo.jfif", isImage: true }];
+		await renderVoiceComposer({ onSend, attachments, prompt: "Describe it" });
+		await renderVoiceComposer({
+			onSend,
+			attachments,
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{ id: "text-only", name: "Text only", inputModalities: ["text"] },
+			]);
+		});
+		expect(container.querySelector("output")?.textContent).toContain(
+			"doesn’t support",
+		);
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+		expect(textarea?.value).toBe("Describe it");
+		await renderVoiceComposer({
+			onSend,
+			attachments: [],
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("Describe it");
+	});
+
+	it("does not send attachments without a text prompt", async () => {
+		const onSend = vi.fn();
+		const attachments = [{ id: "image", name: "photo.png", isImage: true }];
+		await renderVoiceComposer({ onSend, attachments });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await renderVoiceComposer({
+			onSend,
+			attachments,
+			prompt: "What is this?",
+			promptVersion: 1,
+		});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("What is this?");
+	});
+
+	it("does not send when Enter commits an IME composition", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend, prompt: "你好" });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					isComposing: true,
+					bubbles: true,
+				}),
+			);
+		});
+		// WebKit fires the committing Enter after compositionend with
+		// isComposing false but keyCode 229.
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					keyCode: 229,
+					bubbles: true,
+				}),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("你好");
+	});
+
+	it("allows a parent session with a running child agent to be stopped", async () => {
+		const onAbort = vi.fn();
+		await renderVoiceComposer({
+			hasRunningAgents: true,
+			onAbort,
+			status: "idle",
+		});
+
+		const stopButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop agent"]',
+		);
+		expect(stopButton).not.toBeNull();
+
+		await act(async () => stopButton?.click());
+		expect(onAbort).toHaveBeenCalledOnce();
+	});
+
+	it("filters unsupported cloud file selections while preserving local files", async () => {
+		const cloudAttach = vi.fn();
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			onAttachFiles: cloudAttach,
+		});
+		const cloudInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		const pngByExtension = new File(["png"], "capture.jfif");
+		const text = new File(["text"], "notes.txt", { type: "text/plain" });
+		const svg = new File(["svg"], "diagram.svg", { type: "image/svg+xml" });
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [png, pngByExtension, text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledWith([png, pngByExtension]);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: "Unsupported cloud attachment" }),
+		);
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledTimes(1);
+
+		const localAttach = vi.fn();
+		await renderVoiceComposer({ onAttachFiles: localAttach });
+		const localInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		Object.defineProperty(localInput, "files", {
+			configurable: true,
+			value: [text],
+		});
+		await act(async () =>
+			localInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(localAttach).toHaveBeenCalledWith([text]);
+	});
+
+	it("blocks cloud images for a model without vision support", async () => {
+		const onAttachFiles = vi.fn();
+		loadProviderModelCatalogMock.mockResolvedValue({
+			...providerCatalog(null),
+			providerModelDetails: {
+				cline: [
+					{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+				],
+			},
+		});
+		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
+		const input =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		Object.defineProperty(input, "files", { configurable: true, value: [png] });
+		await act(async () =>
+			input?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(onAttachFiles).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "This model doesn’t support image input",
+			}),
+		);
+		expect(toastMock.mock.calls.at(-1)?.[0]?.description).not.toContain(
+			"Other files can still be attached",
+		);
+	});
+
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -81,6 +923,476 @@ describe("ChatInputBar", () => {
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
+	});
+
+	it("shows the reserved cloud command only while Cloud sessions are available", () => {
+		const commands = [
+			{ name: "fork", description: "Fork" },
+			{ name: "cloud", description: "User workflow" },
+		];
+		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
+		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
+			{
+				name: "cloud",
+				description: "Continue this local session in Cline Cloud",
+			},
+			{ name: "fork", description: "Fork" },
+		]);
+	});
+
+	it("gives plugin commands the same precedence as execution", () => {
+		expect(
+			buildUserInstructionSlashCommands(
+				{
+					runtimeCommands: [{ id: "skill:goal", name: "goal", kind: "skill" }],
+				},
+				[
+					{ name: "goal", description: "Set or clear a goal" },
+					{ name: "goal-status" },
+					{ name: "team", description: "Plugin team" },
+				],
+			),
+		).toEqual([
+			{ name: "goal", description: "Set or clear a goal" },
+			{ name: "goal-status", description: "Plugin command" },
+		]);
+	});
+
+	it("suggests the built-in /compact command", async () => {
+		await renderVoiceComposer({ prompt: "/comp", executionTarget: "local" });
+		const suggestions = container.querySelector("#slash-command-suggestions");
+		expect(suggestions?.textContent).toContain("/compact");
+	});
+
+	it("opens the slash menu after leading whitespace", async () => {
+		await renderVoiceComposer({ prompt: "  /comp", executionTarget: "local" });
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+	});
+
+	it("does not open the slash menu mid-sentence", async () => {
+		await renderVoiceComposer({
+			prompt: "please /comp",
+			executionTarget: "local",
+		});
+		expect(container.querySelector("#slash-command-suggestions")).toBeNull();
+	});
+
+	it("scrolls the arrow-key selected slash command into view", async () => {
+		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
+		const textarea = container.querySelector("textarea");
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+			);
+		});
+		const selected = container.querySelector("#slash-command-option-1");
+		expect(selected?.getAttribute("aria-selected")).toBe("true");
+		expect(selected?.scrollIntoView).toHaveBeenCalledWith({
+			block: "nearest",
+		});
+	});
+
+	it("allows cloud image and model selection without replacing local defaults", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "cline-pass", "cline-cloud"],
+			providerNames: {
+				cline: "Cline Usage-Billing",
+				"cline-pass": "ClinePass",
+				"cline-cloud": "ClineFree",
+			},
+			providerModels: {
+				"cline-pass": ["cline-pass/pass-model"],
+				"cline-cloud": ["cline-cloud/free-model"],
+				cline: ["cline-test", "cline-alt"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
+		const localSelection = {
+			lastProvider: "anthropic",
+			lastModelByProvider: { anthropic: "claude-test" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(localSelection),
+		);
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "",
+						workspaces: [],
+						listWorkspaces: vi.fn(async () => []),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						cloudBranch="feature/cloud"
+						environmentId="local"
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession
+						mode="act"
+						model="claude-test"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="anthropic"
+						reasoningEffort="low"
+						repoUrl="https://github.com/cline/cline"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="conversation"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		const initialCatalogLoads = loadProviderModelCatalogMock.mock.calls.length;
+		const catalogInvalidated =
+			subscribeToProviderCatalogInvalidationMock.mock.calls[0]?.[0];
+		await act(async () => catalogInvalidated?.());
+		await vi.waitFor(() => {
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(
+				initialCatalogLoads + 1,
+			);
+		});
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
+		const providerModelsListener =
+			subscribeToProviderModelsMock.mock.calls[0]?.[0];
+		await act(async () => {
+			providerModelsListener?.("cline", [
+				{ id: "local-only-model", name: "Local only" },
+			]);
+		});
+		expect(onModelChange).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('[aria-label="Attach images"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLInputElement>('input[type="file"]')?.accept,
+		).toBe("image/*");
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.textContent).toContain("cline/cline / feature/cloud");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model and provider"]',
+			)?.disabled,
+		).toBe(false);
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Thinking level"]',
+			)?.disabled,
+		).toBe(true);
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		await act(async () => modelTrigger?.click());
+		const cloudModel = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model: claude-test"]',
+		);
+		loadProviderModelsMock.mockClear();
+		loadProviderModelCatalogMock.mockClear();
+		await act(async () => cloudModel?.click());
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+			includeCloudModels: true,
+		});
+		expect(loadProviderModelsMock).not.toHaveBeenCalled();
+		const alternateModel = Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-search-combobox__option",
+			),
+		).find((button) => button.textContent?.includes("cline-alt"));
+		expect(alternateModel).not.toBeUndefined();
+		expect(container.textContent).not.toContain("Local only");
+		await act(async () => alternateModel?.click());
+		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "cline-alt" },
+		});
+		for (const [label, model] of [
+			["ClinePass", "cline-pass/pass-model"],
+			["ClineFree", "cline-cloud/free-model"],
+		]) {
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>(
+						'[aria-label="Provider: Cline Usage-Billing"]',
+					)
+					?.click(),
+			);
+			const option = [
+				...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((button) => button.textContent?.includes(label));
+			expect(option).toBeDefined();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenLastCalledWith(model);
+		}
+		expect(
+			onProviderChange.mock.calls.every(([provider]) => provider === "cline"),
+		).toBe(true);
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
+			),
+		).toEqual(localSelection);
+	});
+
+	it.each([
+		["an offered model", "cline-test", true, "cline-pass", undefined],
+		[
+			"a local ClinePass free model",
+			"cline-free/free-model",
+			true,
+			"cline-pass",
+			"cline-pass/first-pass",
+		],
+		[
+			"an unoffered model for a local Cline user",
+			"cline-pass/retired",
+			true,
+			"cline",
+			CLINE_DEFAULT_MODEL_ID,
+		],
+		[
+			"a local ClinePass model on an organization account",
+			"cline-pass/retired",
+			false,
+			"cline-pass",
+			CLINE_DEFAULT_MODEL_ID,
+		],
+	])("starts a new cloud chat on %s", async (_label, model, hasPass, localProvider, expected) => {
+		window.localStorage.clear();
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: localProvider,
+				lastModelByProvider: { [localProvider]: model },
+			}),
+		);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: hasPass
+				? ["cline", "cline-pass", "cline-cloud"]
+				: ["cline", "cline-cloud"],
+			providerModels: {
+				cline: ["cline-test", CLINE_DEFAULT_MODEL_ID],
+				"cline-pass": hasPass
+					? ["cline-pass/first-pass", "cline-pass/second-pass"]
+					: [],
+				"cline-cloud": ["cline-cloud/free-model"],
+			},
+			providerReasoningModels: {},
+		});
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						environmentId="local"
+						attachments={[]}
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession={false}
+						mode="act"
+						model={model}
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() =>
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledWith({
+				includeCloudModels: true,
+			}),
+		);
+		await act(async () => await Promise.resolve());
+		if (expected) {
+			await vi.waitFor(() =>
+				expect(onModelChange).toHaveBeenLastCalledWith(expected),
+			);
+		} else {
+			expect(onModelChange).not.toHaveBeenCalled();
+		}
+		// Automatic choices stay defaults; only explicit picks are remembered.
+		expect(readModelSelectionStorageFromWindow("cloud")).toEqual({
+			lastProvider: "",
+			lastModelByProvider: {},
+		});
+	});
+
+	it("blocks a new cloud message until its repository and cloud model catalog are ready", async () => {
+		const onSend = vi.fn();
+		let catalogAvailable = false;
+		loadProviderModelCatalogMock.mockImplementation(async (options) => {
+			if (options?.includeCloudModels && !catalogAvailable)
+				throw new Error("offline");
+			return providerCatalog(null);
+		});
+		const render = async (
+			repoUrl?: string,
+			prompt = "Continue in cloud",
+			attachments: Array<{ id: string; name: string; isImage: boolean }> = [],
+		) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "",
+							workspaces: [],
+							listWorkspaces: vi.fn(async () => []),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							environmentId="local"
+							attachments={attachments}
+							executionTarget="cloud"
+							gitBranch="no-git"
+							hasActiveSession={false}
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "no-git",
+								branches: [],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={onSend}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => false)}
+							promptDraft={{ version: 0, value: prompt }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							repoUrl={repoUrl}
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+		};
+
+		await render();
+		const sendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(sendButton?.disabled).toBe(true);
+		expect(sendButton?.title).toBe("Choose a repository");
+		expect(container.textContent).toContain("Repository required");
+		expect(promptInput?.placeholder).toBe("Choose a repository");
+		await act(async () => {
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(true);
+		await act(async () =>
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+		const retry = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Retry"),
+		);
+		expect(retry).toBeDefined();
+		catalogAvailable = true;
+		await act(async () => retry?.click());
+		expect(sendButton?.disabled).toBe(false);
+		await act(async () => sendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+
+		onSend.mockClear();
+		await render("https://github.com/cline/cline", "", [
+			{ id: "image-1", name: "image.png", isImage: true },
+		]);
+		const imageOnlySendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		expect(imageOnlySendButton?.disabled).toBe(false);
+		await act(async () => imageOnlySendButton?.click());
+		expect(onSend).not.toHaveBeenCalled();
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {
@@ -135,9 +1447,400 @@ describe("ChatInputBar", () => {
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("min-h-16");
-		expect(promptInput?.parentElement?.className).toContain("items-end");
-		expect(promptInput?.className).toContain("self-start");
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("min-h-16");
+		expect(field?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("self-start");
+	});
+
+	it("inserts cumulative browser fallback transcripts without duplicating text", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "Whisper",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({
+			onPromptInputChange: vi.fn(),
+			onSend: vi.fn(),
+			prompt: "alpha omega",
+		});
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+		await act(async () =>
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"hello",
+				"speech-recognition",
+			),
+		);
+		expect(textarea?.value).toBe("alpha hello omega");
+		await act(async () =>
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"hello world",
+				"speech-recognition",
+			),
+		);
+		expect(textarea?.value).toBe("alpha hello world omega");
+		await act(async () => {
+			speechInputMockState.current?.onStreamingEnd?.();
+			speechInputMockState.current?.onActiveChange?.(false);
+		});
+		expect(textarea?.readOnly).toBe(false);
+	});
+
+	it("protects the draft and send action for the full streaming transcription lifecycle", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		const onPromptInputChange = vi.fn();
+		const onSend = vi.fn();
+		await renderVoiceComposer({
+			onPromptInputChange,
+			onSend,
+			prompt: "alpha omega",
+		});
+
+		await vi.waitFor(() => {
+			expect(
+				container
+					.querySelector("[data-initial-recording-mode]")
+					?.getAttribute("data-initial-recording-mode"),
+			).toBe("streaming");
+		});
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+
+		const sendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		expect(textarea?.readOnly).toBe(true);
+		expect(sendButton?.disabled).toBe(true);
+		await act(async () => {
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const onTranscript = (
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+		await act(async () => onTranscript?.("hello"));
+		expect(textarea?.value).toBe("alpha hello omega");
+
+		await act(async () => {
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(textarea, "tampered draft");
+			textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(onPromptInputChange).toHaveBeenLastCalledWith("alpha hello omega");
+		await act(async () => onTranscript?.("hello world"));
+		expect(textarea?.value).toBe("alpha hello world omega");
+
+		await renderVoiceComposer({
+			onPromptInputChange,
+			onSend,
+			prompt: "external replacement",
+			promptVersion: 1,
+			placeholder: "Custom prompt",
+		});
+		expect(textarea?.value).toBe("external replacement");
+		expect(textarea?.readOnly).toBe(true);
+		await act(async () => onTranscript?.("must not overwrite"));
+		expect(textarea?.value).toBe("external replacement");
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			);
+			sendButton?.click();
+			speechInputMockState.current?.onProcessingChange?.(true);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('output[aria-live="polite"]'),
+		).not.toBeNull();
+		expect(textarea?.placeholder).toBe("Transcribing voice input…");
+
+		await act(async () => {
+			speechInputMockState.current?.onStreamingEnd?.();
+			speechInputMockState.current?.onProcessingChange?.(false);
+			speechInputMockState.current?.onActiveChange?.(false);
+		});
+		expect(textarea?.readOnly).toBe(false);
+		expect(sendButton?.disabled).toBe(false);
+		await act(async () => sendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("external replacement");
+	});
+
+	it("discards streaming updates after an equal-valued draft replacement", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		const onPromptInputChange = vi.fn();
+		await renderVoiceComposer({ onPromptInputChange });
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const onTranscript = (
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+
+		await renderVoiceComposer({
+			onPromptInputChange,
+			prompt: "",
+			promptVersion: 1,
+		});
+		expect(textarea?.value).toBe("");
+		await act(async () => onTranscript?.("stale transcript"));
+
+		expect(textarea?.value).toBe("");
+		expect(onPromptInputChange).not.toHaveBeenCalledWith("stale transcript");
+	});
+
+	it("keeps the streaming draft identity across internal transcript updates", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "alpha omega" });
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const onTranscript = (
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+
+		await act(async () => onTranscript?.("hello"));
+		expect(textarea?.value).toBe("alpha hello omega");
+		await act(async () => onTranscript?.("hello world"));
+		expect(textarea?.value).toBe("alpha hello world omega");
+	});
+
+	it("starts a live session without a recorded-audio callback", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "elevenlabs",
+				providerName: "ElevenLabs",
+				modelId: "scribe_v2_realtime",
+				modelName: "Scribe v2 Realtime",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer();
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		expect(speechInputMockState.current?.onAudioRecorded).toBeUndefined();
+		expect(speechInputMockState.current?.onStartStreaming).toEqual(
+			expect.any(Function),
+		);
+	});
+
+	it.each([
+		[
+			new Error("Transcription connection closed"),
+			"Transcription connection closed",
+		],
+		[
+			new DOMException("Permission denied", "NotAllowedError"),
+			"Check the microphone permission for Cline and try again.",
+		],
+	])("shows speech failures in chat with a configured model: %s", async (error, description) => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "Keep my draft" });
+		await act(async () => {
+			speechInputMockState.current?.onError?.(error);
+		});
+		expect(toastMock).toHaveBeenCalledWith({
+			variant: "destructive",
+			title: "Speech input failed",
+			description,
+		});
+		expect(container.querySelector("textarea")?.value).toBe("Keep my draft");
+		expect(
+			container.querySelector('[aria-label="Record speech"]'),
+		).not.toBeNull();
+	});
+
+	it("ignores stale voice catalog responses", async () => {
+		const firstCatalog = deferred<ReturnType<typeof providerCatalog>>();
+		const refreshedCatalog = deferred<ReturnType<typeof providerCatalog>>();
+		loadProviderModelCatalogMock
+			.mockReset()
+			// ModelSelector loads the same catalog independently before the
+			// composer's voice-input effect runs.
+			.mockResolvedValueOnce(providerCatalog(null))
+			.mockReturnValueOnce(firstCatalog.promise)
+			.mockReturnValueOnce(refreshedCatalog.promise);
+		await renderVoiceComposer();
+
+		await act(async () => {
+			window.dispatchEvent(
+				new Event("cline:test-voice-input-settings-changed"),
+			);
+		});
+		expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(3);
+		await act(async () => {
+			refreshedCatalog.resolve(
+				providerCatalog({
+					providerId: "vercel-ai-gateway",
+					providerName: "Vercel AI Gateway",
+					modelId: "openai/gpt-realtime-whisper",
+					modelName: "GPT-4o mini Transcribe",
+					supportsStreaming: true,
+				}),
+			);
+			await refreshedCatalog.promise;
+		});
+		await vi.waitFor(() => {
+			expect(
+				container
+					.querySelector("[data-initial-recording-mode]")
+					?.getAttribute("data-initial-recording-mode"),
+			).toBe("streaming");
+		});
+
+		await act(async () => {
+			firstCatalog.resolve(
+				providerCatalog({
+					providerId: "openai",
+					providerName: "OpenAI",
+					modelId: "whisper-1",
+					modelName: "Whisper",
+					supportsStreaming: true,
+				}),
+			);
+			await firstCatalog.promise;
+		});
+		expect(speechInputMockState.current?.recordingMode).toBe("streaming");
+		expect(
+			container
+				.querySelector("[data-initial-recording-mode]")
+				?.getAttribute("data-initial-recording-mode"),
+		).toBe("streaming");
+	});
+
+	it("ignores late transcripts from a session canceled by a provider change", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Vercel AI Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "draft" });
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(5, 5);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+			await speechInputMockState.current?.onStartStreaming?.();
+		});
+		const oldSessionTranscript = (
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+				| { onTranscript?: (text: string) => void }
+				| undefined
+		)?.onTranscript;
+		await act(async () => oldSessionTranscript?.("one"));
+		expect(textarea?.value).toBe("draft one");
+
+		loadProviderModelCatalogMock.mockResolvedValueOnce(
+			providerCatalog({
+				providerId: "elevenlabs",
+				providerName: "ElevenLabs",
+				modelId: "scribe_v2_realtime",
+				modelName: "Scribe v2 Realtime",
+				supportsStreaming: true,
+			}),
+		);
+		await act(async () => {
+			window.dispatchEvent(
+				new Event("cline:test-voice-input-settings-changed"),
+			);
+		});
+		await vi.waitFor(() =>
+			expect(
+				container
+					.querySelector('[aria-label="Record speech"]')
+					?.getAttribute("title"),
+			).toContain("ElevenLabs"),
+		);
+		await act(async () => oldSessionTranscript?.("late replacement"));
+
+		expect(textarea?.value).toBe("draft one");
 	});
 
 	it("preserves an explicit High selection across capability and status updates", async () => {
@@ -158,6 +1861,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							environmentId="local"
 							gitBranch="main"
 							mode="act"
 							model="test-model"
@@ -200,7 +1904,7 @@ describe("ChatInputBar", () => {
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
 		await act(async () => {
 			providerModelsListener?.("cline", [
-				{ id: "refreshed-model", name: "Refreshed model" },
+				{ id: "test-model", name: "Refreshed model" },
 			]);
 		});
 		await vi.waitFor(() => {
@@ -212,7 +1916,7 @@ describe("ChatInputBar", () => {
 			expect(
 				trigger?.querySelector('[data-slot="select-value"]')?.parentElement
 					?.className,
-			).toContain("max-[560px]:sr-only");
+			).toContain("group-data-[compact]/composer:sr-only");
 		});
 		const compactModelTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Model and provider"]',
@@ -228,7 +1932,8 @@ describe("ChatInputBar", () => {
 		expect(
 			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
 		).toHaveLength(2);
-		expect(container.textContent).toContain("refreshed-model");
+		// The picker labels models by display name, not raw id.
+		expect(container.textContent).toContain("Refreshed model");
 		await act(async () =>
 			container
 				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
@@ -266,23 +1971,34 @@ describe("ChatInputBar", () => {
 		const providerTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label^="Provider:"]',
 		);
-		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
-			"max-[560px]:hidden",
+		expect(
+			providerTrigger?.parentElement?.parentElement?.parentElement?.className,
+		).toContain("group-data-[compact]/composer:hidden");
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
 		);
-		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
+		expect(modelTrigger?.className).toContain("max-w-full");
+		expect(modelTrigger?.className).not.toMatch(/max-w-\d/);
+		expect(compactModelTrigger?.className).toContain(
+			"group-data-[compact]/composer:inline-flex",
+		);
 		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
 		const workspaceTrigger =
 			container.querySelector<HTMLButtonElement>("#git-branch-btn");
 		const attachTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Attach files"]',
 		);
+		const speechTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
 		const thinkingTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Thinking level"]',
 		);
 		const leftControls = attachTrigger?.parentElement;
-		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
+		expect(leftControls?.className).not.toContain("flex-wrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
+		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);
 
 		expect(workspaceTrigger?.disabled).toBe(true);
 		expect(workspaceTrigger?.className).toContain("max-[560px]:size-7");
@@ -296,11 +2012,19 @@ describe("ChatInputBar", () => {
 		expect(workspaceFooterSlot?.className).not.toContain("max-w-");
 		const rightControls = workspaceFooterSlot?.parentElement?.parentElement;
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
-		const sendTrigger = container.querySelector('[aria-label="Send message"]');
-		const stopTrigger = container.querySelector('[aria-label="Stop agent"]');
-		expect(promptInput?.parentElement?.className).toContain("items-end");
-		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		const sendTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const stopTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop agent"]',
+		);
+		const field = promptInput?.parentElement?.parentElement;
+		expect(field?.className).toContain("items-start");
+		expect(field?.contains(sendTrigger)).toBe(true);
+		expect(field?.contains(stopTrigger)).toBe(true);
+		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
+		expect(speechTrigger).toBeNull();
+		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
@@ -328,6 +2052,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -390,9 +2115,155 @@ describe("ChatInputBar", () => {
 			thinking: true,
 			reasoningEffort: "high",
 		});
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(REASONING_SELECTION_STORAGE_KEY) ?? "{}",
+			),
+		).toEqual({ cline: "high" });
 	});
 
-	it("shows queued prompts in an accessible list with clear priority actions", async () => {
+	it.each([
+		"medium",
+		"max",
+	] as const)("seeds an unset thinking level from the remembered provider choice (%s) instead of Low", async (remembered) => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: { cline: ["test-model"] },
+			providerReasoningModels: { cline: ["test-model"] },
+		});
+		window.localStorage.setItem(
+			REASONING_SELECTION_STORAGE_KEY,
+			JSON.stringify({ cline: remembered, anthropic: "high" }),
+		);
+		const onReasoningChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={onReasoningChange}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort={undefined}
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={undefined}
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(onReasoningChange).toHaveBeenCalledWith({
+				thinking: true,
+				reasoningEffort: remembered,
+			});
+		});
+		expect(onReasoningChange).not.toHaveBeenCalledWith({
+			thinking: true,
+			reasoningEffort: "low",
+		});
+	});
+
+	it("applies the new provider's remembered thinking level when switching providers", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: { anthropic: ["claude-test"], cline: ["test-model"] },
+			providerReasoningModels: {
+				anthropic: ["claude-test"],
+				cline: ["test-model"],
+			},
+		});
+		window.localStorage.setItem(
+			REASONING_SELECTION_STORAGE_KEY,
+			JSON.stringify({ anthropic: "high" }),
+		);
+		const onReasoningChange = vi.fn();
+		const renderBar = (provider: string, model: string) =>
+			act(async () => {
+				root.render(
+					<WorkspaceProvider value={workspaceValue}>
+						<ChatInputBar
+							attachments={[]}
+							environmentId="local"
+							gitBranch="main"
+							mode="act"
+							model={model}
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={onReasoningChange}
+							onRemoveAttachment={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							onRemovePromptInQueue={vi.fn()}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider={provider}
+							reasoningEffort="medium"
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+			});
+
+		await renderBar("cline", "test-model");
+		await vi.waitFor(() => {
+			expect(
+				container.querySelector<HTMLButtonElement>(
+					'[aria-label="Thinking level"]',
+				)?.disabled,
+			).toBe(false);
+		});
+		expect(onReasoningChange).not.toHaveBeenCalled();
+
+		await renderBar("anthropic", "claude-test");
+		await vi.waitFor(() => {
+			expect(onReasoningChange).toHaveBeenCalledWith({
+				thinking: true,
+				reasoningEffort: "high",
+			});
+		});
+	});
+
+	it.each([
+		"local",
+		"cloud",
+	] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
 		const onSteerPromptInQueue = vi
 			.fn()
 			.mockRejectedValue(new Error("steer failed"));
@@ -415,12 +2286,14 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={onEditPromptInQueue}
+						executionTarget={executionTarget}
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -457,6 +2330,39 @@ describe("ChatInputBar", () => {
 				</WorkspaceProvider>,
 			);
 		});
+
+		onSteerPromptInQueue.mockResolvedValueOnce(undefined);
+		const input = container.querySelector("textarea");
+		for (const modifiers of [
+			{ shiftKey: true },
+			{ isComposing: true },
+			{ repeat: true },
+		]) {
+			await act(async () => {
+				input?.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						key: "Enter",
+						bubbles: true,
+						cancelable: true,
+						...modifiers,
+					}),
+				);
+			});
+		}
+		expect(onSteerPromptInQueue).not.toHaveBeenCalled();
+		await act(async () => {
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		});
+		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith(
+			...(executionTarget === "cloud" ? ["queued-prompt-1"] : []),
+		);
+		onSteerPromptInQueue.mockClear();
 
 		const queueToggle = [
 			...container.querySelectorAll<HTMLButtonElement>(
@@ -732,7 +2638,704 @@ describe("ChatInputBar", () => {
 		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
 	});
 
-	it("attaches clipboard images on paste instead of inserting text", async () => {
+	it("renders the cline model picker with recommended and free sections", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: {
+				cline: [
+					"anthropic/claude-opus-5",
+					"deepseek/deepseek-v4-flash",
+					"zzz/other-model",
+				],
+			},
+			// Tier data arrives on the models themselves, stamped by the SDK.
+			providerModelDetails: {
+				cline: [
+					{
+						id: "anthropic/claude-opus-5",
+						name: "Claude Opus 5",
+						description: "Most intelligent model",
+						featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+					},
+					{
+						id: "deepseek/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+						description: "Fast and efficient",
+						featured: { tier: "free", rank: 0, tags: [] },
+					},
+					{ id: "zzz/other-model", name: "Other Model" },
+				],
+			},
+			providerNames: { cline: "Cline" },
+			providerReasoningModels: { cline: [] },
+		});
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="anthropic/claude-opus-5"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		// The provider trigger uses the catalog display name, the model
+		// trigger the model's display name.
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(1);
+
+		await act(async () => modelTrigger?.click());
+		// Opening re-fetches so the tiers reflect the current feed.
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(2);
+		expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline");
+		const panel = document.querySelector('[role="dialog"]');
+		expect(panel?.textContent).toContain("Recommended");
+		expect(panel?.textContent).toContain("Free");
+		expect(panel?.textContent).toContain("All models");
+		expect(panel?.textContent).toContain("Most intelligent model");
+		expect(
+			panel?.querySelector(".cline-ui-search-combobox__badge")?.textContent,
+		).toBe("NEW");
+		// Featured entries lead; the rest of the catalog follows.
+		const optionLabels = [
+			...(panel?.querySelectorAll('[role="option"]') ?? []),
+		].map((option) => option.textContent);
+		expect(optionLabels[0]).toContain("Claude Opus 5");
+		expect(optionLabels[1]).toContain("DeepSeek V4 Flash");
+		expect(optionLabels[2]).toContain("Other Model");
+	});
+
+	it("opens model settings from the provider picker's set-up row", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "cline-pass"],
+			providerModels: {
+				cline: ["anthropic/claude-opus-5"],
+				"cline-pass": ["anthropic/claude-opus-5"],
+			},
+			providerModelDetails: {},
+			providerNames: { cline: "Cline", "cline-pass": "Cline Pass" },
+			providerReasoningModels: {},
+		});
+		const onOpenModelSettings = vi.fn();
+		const onProviderChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="anthropic/claude-opus-5"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onOpenModelSettings={onOpenModelSettings}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+
+		await act(async () => providerTrigger?.click());
+		const panel = document.querySelector('[role="dialog"]');
+		const options = [...(panel?.querySelectorAll('[role="option"]') ?? [])];
+		// Both Cline entries list (one sign-in configures both); the set-up
+		// row trails the real providers.
+		expect(options.map((option) => option.textContent)).toEqual([
+			"Cline",
+			"Cline Pass",
+			"Set up another provider",
+		]);
+
+		await act(async () => (options[2] as HTMLButtonElement).click());
+		expect(onOpenModelSettings).toHaveBeenCalledTimes(1);
+		expect(onProviderChange).not.toHaveBeenCalled();
+		// The row is an action, not a selection: the trigger still shows Cline.
+		expect(providerTrigger?.textContent).toContain("Cline");
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+	});
+
+	describe("cline-pass picker offer", () => {
+		const renderComposer = async (props: {
+			executionTarget?: "cloud" | "local";
+			hasActiveSession?: boolean;
+			model: string;
+			provider: string;
+			onModelChange?: ReturnType<typeof vi.fn>;
+			onProviderChange?: ReturnType<typeof vi.fn>;
+			status?: "idle" | "running";
+		}) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider value={workspaceValue}>
+						<ChatInputBar
+							attachments={[]}
+							executionTarget={props.executionTarget}
+							gitBranch="main"
+							hasActiveSession={props.hasActiveSession}
+							mode="act"
+							model={props.model}
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={props.onModelChange ?? vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={props.onProviderChange ?? vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider={props.provider}
+							reasoningEffort="low"
+							status={props.status ?? "idle"}
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking={false}
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+			await vi.waitFor(() => {
+				expect(loadProviderModelCatalogMock).toHaveBeenCalled();
+			});
+		};
+
+		it("switches to a model chosen in Settings once the running turn ends", async () => {
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			const props = {
+				model: "openai/gpt-5",
+				provider: "cline-pass",
+				onModelChange,
+				onProviderChange,
+			};
+			await renderComposer({ ...props, status: "running" });
+			await act(async () => selectChatModel("cline", "test-model"));
+			expect(onProviderChange).not.toHaveBeenCalledWith("cline");
+
+			await renderComposer({ ...props, status: "idle" });
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+			expect(onModelChange).toHaveBeenCalledWith("test-model");
+		});
+
+		beforeEach(() => {
+			// The ClinePass offer: one subscribed and one free model, stamped
+			// by the SDK onto ProviderModel.featured. The catalog additionally
+			// contains a stale unstamped model outside the offer, which the
+			// picker hides while the subscribed tier is non-empty.
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [
+						"openai/gpt-5",
+						"google/gemini-flash",
+						"legacy/stale-model",
+					],
+				},
+				providerModelDetails: {
+					"cline-pass": [
+						{
+							id: "openai/gpt-5",
+							name: "GPT-5",
+							featured: { tier: "subscribed", rank: 0, tags: [] },
+						},
+						{
+							id: "google/gemini-flash",
+							name: "Gemini Flash",
+							featured: { tier: "free", rank: 0, tags: [] },
+						},
+						{ id: "legacy/stale-model", name: "Stale Legacy" },
+					],
+				},
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		});
+
+		afterEach(() => {
+			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+		});
+
+		const kimi: ProviderModel = {
+			id: "cline-pass/kimi-k3",
+			name: "Kimi K3",
+			featured: { tier: "subscribed", rank: 0, tags: [] },
+		};
+		const flash: ProviderModel = {
+			id: "deepseek/deepseek-v4-flash",
+			name: "DeepSeek V4 Flash",
+			featured: { tier: "free", rank: 0, tags: [] },
+		};
+
+		function mockBundledCatalog() {
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [flash.id],
+				},
+				providerModelDetails: { "cline-pass": [flash] },
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		}
+
+		it.each([
+			"success",
+			"failure",
+		])("preserves the saved model through a delayed live catalog %s", async (outcome) => {
+			mockBundledCatalog();
+			const selection = {
+				lastProvider: "cline-pass",
+				lastModelByProvider: { "cline-pass": kimi.id },
+			};
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify(selection),
+			);
+			let resolveModels!: (models: ProviderModel[]) => void;
+			let rejectModels!: (error: Error) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve, reject) => {
+					resolveModels = resolve;
+					rejectModels = reject;
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(kimi.id);
+
+			await act(async () => {
+				if (outcome === "success") resolveModels([flash, kimi]);
+				else rejectModels(new Error("offline"));
+			});
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(outcome === "success" ? kimi.name : kimi.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual(selection);
+		});
+
+		it("keeps the live model name while the picker-open refresh is in flight", async () => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			await renderComposer({ model: kimi.id, provider: "cline-pass" });
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(kimi.name);
+			});
+			loadProviderModelCatalogMock.mockClear();
+			let resolveModels!: (models: ProviderModel[]) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve) => {
+					resolveModels = resolve;
+				}),
+			);
+
+			await act(async () => modelTrigger?.click());
+			// Only the live list is re-fetched; re-applying the bundled catalog
+			// (which lacks kimi) would flash the raw id in the trigger.
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+			expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline-pass");
+			expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+			await act(async () => resolveModels([flash, kimi]));
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+		});
+
+		it.each([
+			"catalog refresh",
+			"new chat",
+		])("preserves an explicit pick through a %s with an incomplete catalog", async (transition) => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			let publishModels!: (providerId: string, models: ProviderModel[]) => void;
+			subscribeToProviderModelsMock.mockImplementation((listener) => {
+				publishModels = listener;
+				return vi.fn();
+			});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: flash.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Model:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes(kimi.name));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			onModelChange.mockClear();
+			if (transition === "new chat") {
+				// New chat remounts the pane and seeds its config from storage.
+				// The app stays open, but this picker has to load live models again.
+				await act(async () => root.unmount());
+				root = createRoot(container);
+				const initial = getInitialChatConfig();
+				expect(initial).toMatchObject({
+					provider: "cline-pass",
+					model: kimi.id,
+				});
+				let resolveModels!: (models: ProviderModel[]) => void;
+				loadProviderModelsMock.mockReturnValue(
+					new Promise<ProviderModel[]>((resolve) => {
+						resolveModels = resolve;
+					}),
+				);
+				await renderComposer({
+					model: initial.model,
+					provider: initial.provider,
+					onModelChange,
+				});
+				expect(onModelChange).not.toHaveBeenCalled();
+				expect(
+					container.querySelector('[aria-label^="Model:"]')?.textContent,
+				).toContain(kimi.id);
+				await act(async () => resolveModels([flash, kimi]));
+			} else {
+				await act(async () => publishModels("cline-pass", [flash]));
+			}
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(transition === "new chat" ? kimi.name : kimi.id);
+		});
+
+		it("restores a remembered live model when switching back before live models load", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model", "cline-pass": kimi.id },
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				provider: "cline",
+				onModelChange,
+				onProviderChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Provider:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes("ClinePass"));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			expect(onModelChange).not.toHaveBeenCalledWith(flash.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				).lastModelByProvider["cline-pass"],
+			).toBe(kimi.id);
+		});
+
+		it("does not resurrect a stale remembered model the picker hides", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline-pass",
+					lastModelByProvider: { "cline-pass": "legacy/stale-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The default selection must come from the visible offer, not the
+			// hidden remembered id.
+			await vi.waitFor(() => {
+				expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			});
+			expect(onModelChange).not.toHaveBeenCalledWith("legacy/stale-model");
+
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).not.toContain("Stale Legacy");
+			expect(panel?.textContent).not.toContain("Current model");
+		});
+
+		it("does not apply another provider's remembered model to an empty selection", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(onModelChange).toHaveBeenCalledWith(flash.id);
+			expect(onModelChange).not.toHaveBeenCalledWith("test-model");
+		});
+
+		it("keeps an explicitly active out-of-offer model visible and selectable", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "legacy/stale-model",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The session's configured model stays active…
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain("Stale Legacy");
+			});
+
+			// …and the picker surfaces it under its own section instead of
+			// selecting a value that does not exist in the list.
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).toContain("Current model");
+			const staleOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("Stale Legacy"));
+			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it.each([
+			"empty",
+			"failed",
+		])("does not replace the active cloud model with bundled choices when its catalog is %s", async (result) => {
+			if (result === "failed")
+				loadProviderModelCatalogMock.mockRejectedValue(new Error("offline"));
+			else
+				loadProviderModelCatalogMock.mockResolvedValue({
+					providers: [],
+					enabledProviderIds: [],
+					providerNames: {},
+					providerModels: {},
+					providerModelDetails: {},
+					providerReasoningModels: {},
+				});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "selected-model",
+				provider: "cline",
+				onModelChange,
+			});
+			if (result === "failed") {
+				expect(container.textContent).toContain(
+					"Could not load cloud models. Retry",
+				);
+			} else {
+				const trigger = container.querySelector<HTMLButtonElement>(
+					'[aria-label="Model: selected-model"]',
+				);
+				expect(trigger).not.toBeNull();
+				await act(async () => trigger?.click());
+				const options = [...document.querySelectorAll('[role="option"]')];
+				expect(options).toHaveLength(1);
+				expect(options[0]?.textContent).toContain("selected-model");
+			}
+			expect(loadProviderModelsMock).not.toHaveBeenCalled();
+			expect(onModelChange).not.toHaveBeenCalled();
+		});
+
+		it("keeps an active model that is absent from the gated catalog", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "cline-cloud/claude-sonnet-4.6",
+				onModelChange,
+				provider: "cline",
+			});
+
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(
+					"cline-cloud/claude-sonnet-4.6",
+				);
+			});
+		});
+
+		it("falls back to a visible model when switching providers with a hidden remembered model", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: {
+						cline: "test-model",
+						"cline-pass": "legacy/stale-model",
+					},
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				onModelChange,
+				onProviderChange,
+				provider: "cline",
+			});
+
+			const providerTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Provider:"]',
+			);
+			await act(async () => providerTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			const clinePassOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("ClinePass"));
+			await act(async () => clinePassOption?.click());
+
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			// The hidden remembered model is not restored; the selection falls
+			// back to the offer and the remembered slot is repaired.
+			expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual({
+				lastProvider: "cline-pass",
+				lastModelByProvider: {
+					cline: "test-model",
+					"cline-pass": "openai/gpt-5",
+				},
+			});
+		});
+	});
+
+	it.each([
+		true,
+		false,
+		undefined,
+	])("handles clipboard and file images with image support %s", async (supportsImages) => {
 		const onAttachFiles = vi.fn();
 		const onPromptInputChange = vi.fn();
 		await act(async () => {
@@ -800,22 +3403,70 @@ describe("ChatInputBar", () => {
 			return event;
 		};
 
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{
+					id: "test-model",
+					name: "Test model",
+					inputModalities:
+						supportsImages === undefined
+							? undefined
+							: supportsImages
+								? ["text", "image"]
+								: ["text"],
+				},
+			]);
+		});
+		expect(container.querySelector('[aria-label="Attach images"]')).toBeNull();
+		expect(
+			container.querySelector<HTMLButtonElement>('[aria-label="Attach files"]')
+				?.disabled,
+		).toBe(false);
+
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
-		const attached = onAttachFiles.mock.calls[0][0] as File[];
-		expect(attached).toHaveLength(1);
-		expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
+		if (supportsImages !== false) {
+			const attached = onAttachFiles.mock.calls[0][0] as File[];
+			expect(attached).toHaveLength(1);
+			expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		}
 		expect(imagePaste.defaultPrevented).toBe(true);
 
 		// Plain-text pastes stay untouched so normal text pasting keeps working.
 		const textPaste = await pasteWithClipboard([
 			{ kind: "string", type: "text/plain", getAsFile: () => null },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
 		expect(textPaste.defaultPrevented).toBe(false);
+
+		onAttachFiles.mockClear();
+		const textFile = new File(["hello"], "notes.txt", { type: "text/plain" });
+		const imageWithoutMime = new File(["fake"], "photo.JFIF");
+		const genericImage = new File(["fake"], "photo.jpe", {
+			type: "application/octet-stream",
+		});
+		const fileInput = container.querySelector<HTMLInputElement>(
+			'input[type="file"][accept="*/*"]',
+		);
+		if (!fileInput) throw new Error("File input missing");
+		Object.defineProperty(fileInput, "files", {
+			value: [png, textFile, imageWithoutMime, genericImage],
+		});
+		await act(async () => {
+			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		expect(onAttachFiles).toHaveBeenCalledWith(
+			supportsImages === false
+				? [textFile]
+				: [png, textFile, imageWithoutMime, genericImage],
+		);
 	});
 });
 
@@ -839,6 +3490,7 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -913,7 +3565,9 @@ describe("ChatInputBar token ring", () => {
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-width")).toBe("4");
 		const circumference = 2 * Math.PI * 8.5;
 		expect(
@@ -943,19 +3597,25 @@ describe("ChatInputBar token ring", () => {
 			{ toolCalls: 0, tokensIn: 499, tokensOut: 0 },
 			1000,
 		);
-		expect(belowWarning?.querySelector("circle.stroke-primary")).not.toBeNull();
+		expect(
+			belowWarning?.querySelector("circle.stroke-cline-ui-primary"),
+		).not.toBeNull();
 
 		const warning = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
 			1000,
 		);
-		expect(warning?.querySelector("circle.stroke-orange-500")).not.toBeNull();
+		expect(
+			warning?.querySelector("circle.stroke-cline-ui-warning-text"),
+		).not.toBeNull();
 
 		const critical = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 750, tokensOut: 0 },
 			1000,
 		);
-		expect(critical?.querySelector("circle.stroke-red-500")).not.toBeNull();
+		expect(
+			critical?.querySelector("circle.stroke-cline-ui-error-text"),
+		).not.toBeNull();
 	});
 
 	it("opens only supported usage details on click", async () => {
@@ -988,9 +3648,13 @@ describe("ChatInputBar token ring", () => {
 		const outputSegment = panel?.querySelector<HTMLElement>(
 			'[data-token-kind="output"]',
 		);
-		expect(uncachedSegment?.classList.contains("bg-primary")).toBe(true);
+		expect(uncachedSegment?.classList.contains("bg-cline-ui-primary")).toBe(
+			true,
+		);
 		expect(uncachedSegment?.style.width).toBe("37.5%");
-		expect(cachedSegment?.classList.contains("bg-primary/60")).toBe(true);
+		expect(cachedSegment?.classList.contains("bg-cline-ui-primary/60")).toBe(
+			true,
+		);
 		expect(cachedSegment?.style.backgroundImage).toContain("linear-gradient");
 		expect(cachedSegment?.style.width).toBe("12.5%");
 		expect(outputSegment?.classList.contains("bg-blue-500")).toBe(true);
@@ -1009,7 +3673,93 @@ describe("ChatInputBar token ring", () => {
 			},
 			128_000,
 		);
-		const progressCircle = trigger?.querySelector("circle.stroke-red-500");
+		const progressCircle = trigger?.querySelector(
+			"circle.stroke-cline-ui-error-text",
+		);
 		expect(progressCircle?.getAttribute("stroke-dashoffset")).toBe("0");
+	});
+});
+
+describe("ChatInputBar compact layout", () => {
+	it("compacts by the composer's own width, not the window's", async () => {
+		const observers: Array<(width: number) => void> = [];
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				constructor(callback: ResizeObserverCallback) {
+					observers.push((width) =>
+						callback(
+							[{ contentRect: { width } } as ResizeObserverEntry],
+							this as unknown as ResizeObserver,
+						),
+					);
+				}
+				observe() {}
+				unobserve() {}
+				disconnect() {}
+			},
+		);
+		try {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "/workspace/cline",
+							workspaces: ["/workspace/cline"],
+							listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							attachments={[]}
+							environmentId="local"
+							gitBranch="main"
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							status="idle"
+							summary={{ additions: 0, deletions: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+			const composer = container.querySelector(".group\\/composer");
+			expect(composer?.hasAttribute("data-compact")).toBe(false);
+			await act(async () => {
+				for (const notify of observers) notify(440);
+			});
+			expect(composer?.hasAttribute("data-compact")).toBe(true);
+			await act(async () => {
+				for (const notify of observers) notify(700);
+			});
+			expect(composer?.hasAttribute("data-compact")).toBe(false);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });

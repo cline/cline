@@ -4,10 +4,12 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
+import { useProviderUsageCostDisplay } from "@/hooks/useProviderUsageCostDisplay"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
+import { reasoningEffortPatch } from "../utils/reasoningEffort"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -27,7 +29,10 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const providerId = "claude-code"
 	const { models, defaultModelId } = useProviderModels(providerId)
-	const { config, write, commitSelection } = useProviderConfig(providerId)
+	// The models reuse Anthropic API pricing metadata, but usage is billed
+	// through the Claude subscription — suppress the per-token price rows.
+	const hideUsageCost = useProviderUsageCostDisplay(providerId) !== "show"
+	const { config, write, commitSelection, reasoningEffort } = useProviderConfig(providerId)
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(providerId, currentMode, {
 		models,
 		defaultModelId,
@@ -89,17 +94,22 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					{selectedModelInfo.supportsReasoning === true && (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
-							defaultEffort="none"
 							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
 							onEffortChange={(effort) => {
-								void write({
-									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
-								}).catch((err) => console.error("Failed to update Claude Code reasoning effort:", err))
+								void write(reasoningEffortPatch(effort)).catch((err) =>
+									console.error("Failed to update Claude Code reasoning effort:", err),
+								)
 							}}
+							value={reasoningEffort}
 						/>
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

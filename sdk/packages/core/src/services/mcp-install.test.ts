@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildMcpInstallTransport,
 	installMcpServer,
+	parseMcpHeaders,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./mcp-install";
@@ -127,6 +128,25 @@ describe("MCP install service", () => {
 		);
 	});
 
+	it("treats -- in marketplace args as the end of option parsing", () => {
+		// Marketplace catalog entries mark the start of the stdio command with
+		// "--" (matching the CLI form `cline mcp install name -- npx ...`).
+		// The separator must not become the command itself.
+		const parsed = parseMcpInstallArgs([
+			"aikido",
+			"--",
+			"npx",
+			"-y",
+			"@aikidosec/mcp@1.0.9",
+		]);
+		expect(parsed.targetArgs).toEqual(["npx", "-y", "@aikidosec/mcp@1.0.9"]);
+		expect(buildMcpInstallTransport(parsed).transport).toEqual({
+			type: "stdio",
+			command: "npx",
+			args: ["-y", "@aikidosec/mcp@1.0.9"],
+		});
+	});
+
 	it("keeps transport-like values as stdio command args for direct builder input", () => {
 		expect(
 			buildMcpInstallTransport({
@@ -220,6 +240,23 @@ describe("MCP install service", () => {
 			}),
 		).toThrow(/only http and https are supported/);
 		expect(existsSync(settingsPath)).toBe(false);
+	});
+});
+
+describe("parseMcpHeaders", () => {
+	it("keeps commas and colons inside a header value", () => {
+		expect(parseMcpHeaders(["Accept: a, b", "X-Time: 12:30"]).headers).toEqual({
+			Accept: "a, b",
+			"X-Time": "12:30",
+		});
+	});
+
+	it("rejects headers --header would reject", () => {
+		expect(() => parseMcpHeaders(["no-colon"])).toThrow(/Invalid MCP header/);
+		expect(() => parseMcpHeaders(["Empty:"])).toThrow(/Invalid MCP header/);
+		expect(() => parseMcpHeaders(["Bad Name: x"])).toThrow(
+			/Invalid MCP header name/,
+		);
 	});
 });
 

@@ -56,6 +56,7 @@ export interface CoreRuntimeFeatures {
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
 	disableMcpSettingsTools?: boolean;
+	mcpApps?: boolean;
 	yolo?: boolean;
 }
 
@@ -271,6 +272,11 @@ export interface CoreSessionConfig
 	extensionContext?: ExtensionContext;
 	extraTools?: AgentTool[];
 	pluginPaths?: string[];
+	/**
+	 * Additional Agent Plugins v1 package roots. Paths are resolved by the
+	 * execution host, so hub clients do not load package contents themselves.
+	 */
+	agentPluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;

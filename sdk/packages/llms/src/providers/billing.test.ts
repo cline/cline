@@ -17,6 +17,11 @@ describe("provider usage cost display", () => {
 		expect(shouldShowProviderUsageCost("openai-codex-cli")).toBe(false);
 	});
 
+	it("hides usage cost for the Claude Code subscription provider", () => {
+		expect(resolveProviderUsageCostDisplay("claude-code")).toBe("subscription");
+		expect(shouldShowProviderUsageCost("claude-code")).toBe(false);
+	});
+
 	it("shows usage cost by default for usage-billed providers", () => {
 		expect(resolveProviderUsageCostDisplay("openai-native")).toBe("show");
 		expect(resolveProviderUsageCostDisplay("anthropic")).toBe("show");

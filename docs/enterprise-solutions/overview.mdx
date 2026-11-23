@@ -4,7 +4,7 @@ sidebarTitle: "Overview"
 description: "Enterprise security, governance, and observability for the coding agent millions of developers trust"
 ---
 
-Cline Enterprise brings centralized governance to the same open-source architecture that millions of developers already use. Your code stays in your environment, you use your own inference at your negotiated rates, and you get the security and observability capabilities that platform teams need for org-wide deployment.
+Cline Enterprise brings centralized governance to the same open-source architecture that millions of developers already use. Cline runs in the environment you choose, you use your own inference at your negotiated rates, and you get the security and observability capabilities that platform teams need for org-wide deployment.
 
 <Card title="Learn More About Enterprise" icon="building" href="https://cline.bot/enterprise">
   Visit our website for detailed information about enterprise features, pricing, and deployment options.
@@ -16,23 +16,23 @@ It delivers five core capabilities that platform teams need for production deplo
 
 ### Security by Design
 
-Your code never leaves your environment. Cline processes everything locally - no uploads, no indexing, no training on your data.
+Cline runs in the environment you choose: on developers' computers, or on remote hosts they connect it to. Prompts go to the inference provider you configure.
 
 <CardGroup cols={2}>
-  <Card title="Client-side execution" icon="computer">
-    All processing happens within your environment
+  <Card title="Runs where you choose" icon="computer">
+    The agent and its tools run on the developer's computer or a remote host they choose
   </Card>
 
-  <Card title="No data exfiltration" icon="shield-check">
-    Code and context never transmitted externally
+  <Card title="Your inference provider" icon="shield-check">
+    Prompts and code context go to the model provider you configure
   </Card>
 
   <Card title="No codebase indexing" icon="database">
-    Repositories are never indexed or cached
+    Cline reads files when a task needs them and doesn't index or embed the contents of your repositories
   </Card>
 
-  <Card title="No model training" icon="ban">
-    Your code and prompts aren't used for training
+  <Card title="Scoped telemetry" icon="chart-simple" href="/enterprise-solutions/monitoring/telemetry">
+    Cline's telemetry doesn't include your code, file contents or prompts, except for requests to the Cline and ClinePass providers
   </Card>
 </CardGroup>
 
@@ -49,7 +49,7 @@ Connect to any inference provider:
 - Cerebras
 - Any OpenAI-compatible endpoint
 
-Switch models instantly as new ones release. Use Claude Sonnet 4.5 as your daily driver, GPT-5 for complex refactoring, open-source models for simple tasks. Your existing cloud credits and startup program contracts now cover AI coding. We handle the agent loop. You handle the inference. No markup, no vendor lock-in.
+Switch models instantly as new ones release. Use one model as your daily driver, a stronger one for complex refactoring, and open-source models for simple tasks. Your existing cloud credits and startup program contracts now cover AI coding. We handle the agent loop. You handle the inference. No markup, no vendor lock-in.
 
 ### Governance at Scale
 

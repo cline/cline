@@ -1,4 +1,5 @@
 import { validateWithZod } from "@cline/shared";
+import type { z } from "zod";
 import {
 	type EditFileInput,
 	INPUT_ARG_CHAR_LIMIT,
@@ -137,8 +138,24 @@ export function coalesceOrphanReadRanges(input: unknown): unknown {
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
-	const validate = validateWithZod(RunCommandsInputUnionSchema, input);
+	const commands = collectRunCommands(
+		validateWithZod(RunCommandsInputUnionSchema, input),
+	);
+	// An empty list is well-formed but never a real request: nothing would
+	// run and the call would still report success. Fail it so the model sees
+	// that no command was given instead of an empty result it has to read
+	// into.
+	if (commands.length === 0) {
+		throw new Error(
+			"run_commands requires at least one command; the commands list was empty.",
+		);
+	}
+	return commands;
+}
 
+function collectRunCommands(
+	validate: z.infer<typeof RunCommandsInputUnionSchema>,
+): Array<string | StructuredCommandInput> {
 	if (typeof validate === "string") {
 		return [validate];
 	}

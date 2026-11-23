@@ -107,7 +107,7 @@ function ComboboxContent({
 				align={align}
 				alignOffset={alignOffset}
 				anchor={anchor}
-				className="isolate z-50"
+				className="pointer-events-auto isolate z-[60]"
 				side={side}
 				sideOffset={sideOffset}
 			>

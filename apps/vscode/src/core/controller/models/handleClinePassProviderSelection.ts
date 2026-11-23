@@ -12,6 +12,11 @@ export const CLINE_PASS_PROVIDER_ID = "cline-pass"
  * the state post that re-renders the settings UI — on it. Auth state changes
  * propagate to the webview separately once the switch completes.
  *
+ * switchAccount does nothing when the account is already Personal, waits for
+ * any switch already in flight before deciding, and tears down the previous
+ * account's cloud task and connections before the account changes, so this
+ * call is safe on every API configuration update.
+ *
  * This is intentionally best-effort: selecting the provider should still be
  * saved even if the account switch fails.
  */

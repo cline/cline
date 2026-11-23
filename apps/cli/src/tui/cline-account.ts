@@ -2,19 +2,21 @@ import {
 	type ClineAccountBalance,
 	type ClineAccountOrganization,
 	type ClineAccountOrganizationBalance,
-	type ClineSubscriptionPlan,
-	type UserCurrentPlan,
 	ClineAccountService,
 	type ClineAccountUser,
+	type ClineSubscriptionPlan,
 	formatProviderOAuthApiKey,
 	getPersistedProviderApiKey,
 	getProviderOAuthCredentialsFromSettings,
 	getValidClineCredentials,
 	type ProviderSettings,
 	ProviderSettingsManager,
+	persistClineAccountTelemetryIdentity,
+	resolveClineAccountTelemetryIdentity,
 	saveLocalProviderOAuthCredentials,
+	type UserCurrentPlan,
 } from "@cline/core";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import { getClineEnvironmentConfig, resolveClineAppUrl } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
@@ -33,6 +35,7 @@ export interface ClineAccountSnapshot {
 	organizations: ClineAccountOrganization[];
 	activeOrganization: ClineAccountOrganization | null;
 	displayedBalance: number;
+	privacySettingsUrl?: string;
 }
 
 export function formatClineCredits(value: number): string {
@@ -158,38 +161,6 @@ export async function createClineAccountService(input: {
 	});
 }
 
-/**
- * Persist the active organization so headless runs and the hub daemon can
- * attach it to telemetry identity. Personal account clears stale org fields.
- */
-function persistClineOrganizationContext(
-	activeOrganization: ClineAccountOrganization | null,
-	userId: string,
-): void {
-	try {
-		const manager = new ProviderSettingsManager();
-		const persisted = manager.getProviderSettings("cline");
-		if (!persisted) {
-			return;
-		}
-		manager.saveProviderSettings(
-			{
-				...persisted,
-				auth: {
-					...persisted.auth,
-					accountId: persisted.auth?.accountId ?? userId,
-					organizationId: activeOrganization?.organizationId,
-					organizationName: activeOrganization?.name,
-					memberId: activeOrganization?.memberId,
-				},
-			},
-			{ setLastUsed: false },
-		);
-	} catch {
-		// Best-effort only.
-	}
-}
-
 export async function loadClineAccountSnapshot(input: {
 	config: ClineAccountConfig;
 	clineApiBaseUrl?: string;
@@ -213,16 +184,12 @@ export async function loadClineAccountSnapshot(input: {
 	const displayedBalance = activeOrganization
 		? (organizationBalance?.balance ?? balance.balance)
 		: balance.balance;
-	const accountContext = {
-		id: user.id,
-		email: user.email,
-		provider: "cline",
-		organizationId: activeOrganization?.organizationId,
-		organizationName: activeOrganization?.name,
-		memberId: activeOrganization?.memberId,
-	};
+	const accountContext = resolveClineAccountTelemetryIdentity(user);
 	identifyTelemetryAccount(accountContext, input.config.logger);
-	persistClineOrganizationContext(activeOrganization, user.id);
+	persistClineAccountTelemetryIdentity(
+		new ProviderSettingsManager(),
+		accountContext,
+	);
 
 	return {
 		user,
@@ -231,6 +198,10 @@ export async function loadClineAccountSnapshot(input: {
 		organizations,
 		activeOrganization,
 		displayedBalance,
+		privacySettingsUrl: resolveClineAppUrl(
+			user.dataPrivacyPath,
+			getClineEnvironmentConfig().appBaseUrl,
+		),
 	};
 }
 

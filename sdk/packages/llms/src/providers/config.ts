@@ -138,6 +138,13 @@ export interface ReasoningConfig {
 	thinkingBudgetTokens?: number;
 	/** Enable thinking with provider/model defaults when supported */
 	thinking?: boolean;
+	/**
+	 * Turn thinking off when the model is known to allow that, and otherwise
+	 * leave the settings above as they are. Unlike `thinking: false` this is
+	 * never sent to a model whose catalog entry does not advertise an off
+	 * option, so it is safe to set for a model the catalog does not describe.
+	 */
+	preferThinkingOff?: boolean;
 }
 
 /**
@@ -265,6 +272,11 @@ export interface ProviderOptions {
 export interface ModelCatalogConfig {
 	/** Fetch latest catalog at handler initialization */
 	loadLatestOnInit?: boolean;
+	/**
+	 * Include models that are only valid for Cline Cloud sessions.
+	 * Defaults to false; cloud-inclusive and local catalogs use separate caches.
+	 */
+	includeClineCloudModels?: boolean;
 	/** Fetch provider-private models when auth is available */
 	loadPrivateOnAuth?: boolean;
 	/** Catalog endpoint URL */

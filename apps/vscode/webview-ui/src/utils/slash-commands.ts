@@ -118,7 +118,7 @@ export function removeSlashCommand(text: string, position: number): { newText: s
 		// matchEnd[1] is the whitespace or empty string before the slash
 		// matchEnd[2] is the slash command (e.g., "/newtask")
 		const slashCommand = matchEnd[2]
-		const newText = text.slice(0, position - slashCommand.length) + afterCursor.replace(" ", "") // removes the first space after the command
+		const newText = text.slice(0, position - slashCommand.length) + afterCursor.replace(/^ /, "") // removes the space immediately after the command
 		const newPosition = position - slashCommand.length
 		return { newText, newPosition }
 	}

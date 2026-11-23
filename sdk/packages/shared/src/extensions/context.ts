@@ -39,8 +39,10 @@ export interface ClientContext {
  * Identity of the authenticated user.
  */
 export interface UserContext {
-	/** PostHog / analytics distinct ID */
+	/** PostHog / analytics distinct ID (an account or anonymous machine ID). */
 	distinctId?: string;
+	/** Authenticated Cline account ID, or null when explicitly signed out. */
+	accountId?: string | null;
 	email?: string;
 	organizationId?: string;
 }

@@ -1,5 +1,6 @@
 import { validateImageMedia } from "@cline/shared/browser";
 import type { ChatMessageImage } from "@/lib/chat-schema";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import type { SerializedAttachmentFile, SerializedAttachments } from "./types";
 
 async function readFileAsDataUrl(file: File): Promise<string> {
@@ -23,8 +24,11 @@ export async function serializeAttachments(
 	const userFiles: SerializedAttachmentFile[] = [];
 
 	for (const file of files) {
-		if (file.type.startsWith("image/")) {
-			const dataUrl = await readFileAsDataUrl(file);
+		const mediaType = imageAttachmentMediaType(file);
+		if (mediaType) {
+			const dataUrl = await readFileAsDataUrl(
+				new File([file], file.name, { type: mediaType }),
+			);
 			if (dataUrl) {
 				userImages.push(dataUrl);
 			}

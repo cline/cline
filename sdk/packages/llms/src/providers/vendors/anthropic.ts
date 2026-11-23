@@ -26,14 +26,36 @@ export async function createAnthropicProviderModule(
 		name: context.provider.id,
 	});
 	return {
-		model: (modelId) => {
-			const model = provider(modelId);
-			return isMiniMax
-				? wrapLanguageModel({
-						model: model as LanguageModelV4,
-						middleware: miniMaxThinkingDisabledMiddleware,
-					})
-				: model;
+		buildModelTools: (tools) => {
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
+			for (const tool of tools) {
+				if (tool.name === "web_search") {
+					result.web_search = {
+						tool: provider.tools.webSearch_20250305({
+							maxUses: tool.maxUses,
+							allowedDomains: tool.allowedDomains,
+							blockedDomains: tool.blockedDomains,
+							userLocation: tool.userLocation
+								? { type: "approximate", ...tool.userLocation }
+								: undefined,
+						}),
+					};
+				}
+			}
+			return result;
+		},
+		operations: {
+			language: (modelId) => {
+				const model = provider(modelId);
+				return isMiniMax
+					? wrapLanguageModel({
+							model: model as LanguageModelV4,
+							middleware: miniMaxThinkingDisabledMiddleware,
+						})
+					: model;
+			},
 		},
 	};
 }

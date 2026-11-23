@@ -393,6 +393,23 @@ describe("ProviderCatalog Phase 3.3 error path", () => {
 		expect(result.fetchedAt).toEqual(expect.any(Number))
 	})
 
+	it("enables failOnError for private-catalog providers when credentials are present", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.resolveProviderConfig.mockRejectedValue(new Error("Baseten model refresh failed: HTTP 401"))
+		const providerId = parseProviderId("baseten")
+		const config: EffectiveProviderConfig = { providerId, apiKey: "bad-key" }
+		const result = await createProviderCatalog(makeReader(config)).resolveModels(providerId)
+
+		expect(mocks.resolveProviderConfig).toHaveBeenCalledWith(
+			"baseten",
+			expect.objectContaining({ loadLatestOnInit: false, failOnError: true }),
+			expect.objectContaining({ apiKey: "bad-key" }),
+		)
+		expect(result.ok).toBe(false)
+		if (result.ok) throw new Error("expected error")
+		expect(result.error).toEqual({ kind: "unknown", message: "Baseten model refresh failed: HTTP 401" })
+	})
+
 	it("shape validation failure produces a shape error arm", async () => {
 		const { createProviderCatalog } = await import("./catalog")
 		mocks.resolveProviderConfig.mockResolvedValue({
@@ -552,6 +569,30 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		expect(listings[0]).not.toHaveProperty("models")
 		expect(mocks.listLocalProviders).toHaveBeenCalledTimes(1)
 		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
+	})
+
+	it("passes the SDK's subscription usage-cost display through to listings", async () => {
+		const { createProviderCatalog } = await import("./catalog")
+		mocks.listLocalProviders.mockResolvedValue({
+			providers: [
+				{
+					id: "openai-codex",
+					name: "OpenAI ChatGPT Subscription",
+					authDescription: "OpenAI ChatGPT subscription access uses an OAuth device code flow.",
+					protocol: "openai-responses",
+					client: "openai-codex",
+					defaultModelId: "gpt-5.4",
+					source: "system",
+				},
+			],
+		})
+		const providerId = parseProviderId("openai-codex")
+		const catalog = createProviderCatalog(makeReader({ providerId }))
+
+		const listings = await catalog.listProviders()
+
+		expect(listings).toHaveLength(1)
+		expect(listings[0].usageCostDisplay).toBe("subscription")
 	})
 
 	it("caches provider listings per catalog instance without reading provider config", async () => {

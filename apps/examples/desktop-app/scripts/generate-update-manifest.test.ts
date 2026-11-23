@@ -77,6 +77,125 @@ describe("buildUpdateManifest", () => {
 		expect(Object.keys(manifest.platforms)).toHaveLength(2);
 	});
 
+	test("maps a Windows NSIS setup artifact to windows-x86_64", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64-setup.exe"), "nsis");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_x64-setup.exe.sig"),
+			"sig-windows-x64\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(manifest.platforms["windows-x86_64"]).toEqual({
+			signature: "sig-windows-x64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_x64-setup.exe",
+		});
+		// darwin entries from the universal artifact are unaffected.
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"windows-x86_64",
+		]);
+	});
+
+	test("maps Linux deb and rpm packages to their installer-specific keys only", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_amd64.deb"), "deb");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_amd64.deb.sig"),
+			"sig-deb\n",
+		);
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x86_64.rpm"), "rpm");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_x86_64.rpm.sig"),
+			"sig-rpm\n",
+		);
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_arm64.deb"), "deb");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_arm64.deb.sig"),
+			"sig-deb-arm64\n",
+		);
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_aarch64.rpm"), "rpm");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_aarch64.rpm.sig"),
+			"sig-rpm-arm64\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(manifest.platforms["linux-x86_64-deb"]).toEqual({
+			signature: "sig-deb",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_amd64.deb",
+		});
+		expect(manifest.platforms["linux-x86_64-rpm"]).toEqual({
+			signature: "sig-rpm",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_x86_64.rpm",
+		});
+		expect(manifest.platforms["linux-aarch64-deb"]).toEqual({
+			signature: "sig-deb-arm64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_arm64.deb",
+		});
+		expect(manifest.platforms["linux-aarch64-rpm"]).toEqual({
+			signature: "sig-rpm-arm64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_aarch64.rpm",
+		});
+		// No bare linux-<arch> keys: the updater would fall back to them for an
+		// install whose package format has no entry of its own.
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"linux-aarch64-deb",
+			"linux-aarch64-rpm",
+			"linux-x86_64-deb",
+			"linux-x86_64-rpm",
+		]);
+	});
+
+	test("ignores non-updater exe files without a setup arch suffix", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64.exe"), "exe");
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+		]);
+	});
+
+	test("throws when a Windows setup artifact is missing its signature", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64-setup.exe"), "nsis");
+		expect(() =>
+			buildUpdateManifest({
+				version: "0.1.0",
+				tag: "desktop-v0.1.0",
+				dir,
+				repo: "cline/cline",
+				notes: "notes",
+				pubDate: "2026-07-21T00:00:00.000Z",
+			}),
+		).toThrow();
+	});
+
 	test("throws when universal and per-arch artifacts claim the same platform", () => {
 		const dir = makePerArchArtifactDir();
 		writeFileSync(

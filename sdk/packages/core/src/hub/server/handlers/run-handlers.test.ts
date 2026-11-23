@@ -9,6 +9,7 @@ function createContext(
 ): HubTransportContext & { events: HubEventEnvelope[] } {
 	const events: HubEventEnvelope[] = [];
 	return {
+		sessionSearch: { removeSession: vi.fn() } as never,
 		clients: new Map(),
 		sessionState: new Map(),
 		pendingApprovals: new Map(),
@@ -69,6 +70,53 @@ describe("run handlers", () => {
 				sessionId: "session-1",
 			}),
 		);
+	});
+
+	it("accepts image-only input and rejects blank attachments", async () => {
+		const runTurn = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ runTurn });
+		const image = "data:image/png;base64,aGVsbG8=";
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-image-only",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: {
+						userImages: ["", "  ", image],
+						userFiles: ["", "\t"],
+					},
+				},
+			}),
+		).resolves.toMatchObject({ ok: true });
+
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "",
+				userImages: [image],
+				userFiles: [],
+			}),
+		);
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "session.send_input",
+				requestId: "req-blank-attachments",
+				sessionId: "session-1",
+				payload: {
+					prompt: "",
+					attachments: { userImages: [" "], userFiles: ["\t"] },
+				},
+			}),
+		).resolves.toMatchObject({
+			error: { code: "invalid_session_input" },
+			ok: false,
+		});
+		expect(runTurn).toHaveBeenCalledOnce();
 	});
 
 	it("does not publish run start for an unknown session", async () => {

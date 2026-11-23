@@ -1,6 +1,7 @@
 import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
 import * as health from "grpc-health-check"
+import { hostBridgeGrpcMetadata } from "@/hosts/external/host-bridge-auth"
 import { log } from "./utils"
 
 export const HOSTBRIDGE_PORT = 26041
@@ -37,7 +38,9 @@ function createHealthClient(address: string) {
 
 async function checkHealthOnce(client: any): Promise<boolean> {
 	return new Promise<boolean>((resolve) => {
-		client.check({ service: "" }, (err: unknown, resp: any) => {
+		// The health check crosses the same authenticated boundary as every other
+		// bridge call, so it carries the token too.
+		client.check({ service: "" }, hostBridgeGrpcMetadata(), (err: unknown, resp: any) => {
 			if (err) {
 				console.debug(err.toString())
 				return resolve(false)

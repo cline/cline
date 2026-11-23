@@ -1,3 +1,14 @@
+export { normalizeMcpToolAnnotations } from "./annotations";
+export type { McpAppToolMeta, McpAppToolVisibility } from "./apps";
+export {
+	createMcpAppsClientCapabilities,
+	getMcpAppToolMeta,
+	isMcpAppResourceUri,
+	isMcpToolVisibleToApp,
+	isMcpToolVisibleToModel,
+	MCP_APP_MIME_TYPE,
+	MCP_APPS_EXTENSION_ID,
+} from "./apps";
 export type {
 	DefaultMcpServerClientFactoryOptions,
 	ProbeMcpServerConnectionOptions,
@@ -59,6 +70,14 @@ export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 } from "./policies";
+export type {
+	CreateMcpAppsRuntimeOptions,
+	McpAppResourceReadRequest,
+	McpAppsRuntime,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+} from "./session-apps";
+export { createMcpAppsRuntime } from "./session-apps";
 export { augmentMcpTimeoutError } from "./timeout";
 export { createMcpTools } from "./tools";
 export type {
@@ -66,6 +85,9 @@ export type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
+	McpResourceContents,
+	McpResourceReadRequest,
+	McpResourceReadResult,
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerOAuthClientConfig,
@@ -77,6 +99,7 @@ export type {
 	McpSseTransportConfig,
 	McpStdioTransportConfig,
 	McpStreamableHttpTransportConfig,
+	McpToolAnnotations,
 	McpToolCallRequest,
 	McpToolCallResult,
 	McpToolDescriptor,

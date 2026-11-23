@@ -146,6 +146,19 @@ The setup `ctx` may include `session`, `client`, `user`, `workspaceInfo`, `autom
 
 `ctx.telemetry` works in both plugin execution modes: in-process plugins receive the host telemetry service directly, and sandboxed plugins receive a bridge that forwards `capture`/`captureRequired`/`recordCounter`/`recordHistogram`/`recordGauge` calls to the host over IPC (pass only JSON-serializable properties). The host namespaces every plugin event and metric under `plugin.` and stamps it with `plugin_name`, and drops them when the user has opted out of telemetry. Always feature-detect it (`ctx.telemetry?.capture(...)`) — it is undefined when the host has no telemetry service. One sandbox caveat: the bridge is stateless, so `isEnabled()` always reports `true` and opted-out events are simply dropped host-side — do not use it to gate expensive property computation, and keep telemetry properties cheap to build. Identity setters (`setDistinctId`, `setCommonProperties`, …) are host concerns and are no-ops in the sandbox. See [`weather-metrics.ts`](./weather-metrics.ts) for usage.
 
+### Sandboxed plugin lifetime
+
+Discovered plugins run in a session-owned subprocess. An idle subprocess is
+reclaimed after 30 minutes without an active plugin call, and the next tool,
+hook, command, rule, or message-builder call transparently starts a fresh
+process and runs plugin setup again. Hosts can tune the idle period with
+`CLINE_PLUGIN_IDLE_TIMEOUT_MS` (milliseconds). Active calls are never evicted.
+
+Treat module-level variables as a cache, not durable storage: they reset after
+idle eviction, a hub restart, or a sandbox crash. Persist state that must survive
+those boundaries to disk or another durable store. Plugin setup should remain
+safe to run again for the same session.
+
 ## Runtime hooks
 
 Hooks are typed, in-process callbacks on the same hook layer as `@cline/agents`. They run inside the agent loop with full type information.

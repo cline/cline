@@ -62,6 +62,8 @@ function serializePart(message: AgentMessage, part: AgentMessagePart): string {
 			return `[assistant reasoning]: ${preview(part.text, 300)}`;
 		case "image":
 			return `[${message.role} image]: ${part.mediaType ?? "unknown"}`;
+		case "media":
+			return `[assistant generated ${part.media.modality}]: ${part.media.mediaType}`;
 		case "file":
 			return `[${message.role} file ${part.path}]: ${preview(part.content, 500)}`;
 		case "tool-call":

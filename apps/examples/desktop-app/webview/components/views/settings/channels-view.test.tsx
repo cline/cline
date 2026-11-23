@@ -217,10 +217,10 @@ describe("ChannelsContent", () => {
 		expect(channelListIds()).toEqual(["slack", "telegram"]);
 		expect(container.textContent).not.toContain("Mattermost");
 		expect(
-			container
-				.querySelector('button[aria-label="Connect Telegram"]')
-				?.getAttribute("aria-checked"),
-		).toBe("false");
+			container.querySelector<HTMLInputElement>(
+				'[role="switch"][aria-label="Telegram connection"]',
+			)?.checked,
+		).toBe(false);
 
 		await click(buttonWithText("Telegram"));
 		const tokenInput = container.querySelector<HTMLInputElement>(
@@ -253,10 +253,10 @@ describe("ChannelsContent", () => {
 			});
 			expect(container.textContent).toContain("@test_bot");
 			expect(
-				container
-					.querySelector('button[aria-label="Disconnect Telegram"]')
-					?.getAttribute("aria-checked"),
-			).toBe("true");
+				container.querySelector<HTMLInputElement>(
+					'[role="switch"][aria-label="Telegram connection"]',
+				)?.checked,
+			).toBe(true);
 			expect(channelListIds()).toEqual(["telegram", "slack"]);
 			expect(tokenInput.type).toBe("password");
 			expect(tokenInput.value).toBe("7123456789:test-token");
@@ -413,7 +413,9 @@ describe("ChannelsContent", () => {
 		) as HTMLButtonElement;
 		expect(slackTrigger.getAttribute("aria-expanded")).toBe("false");
 		await click(
-			container.querySelector('button[aria-label="Connect Slack"]') as Element,
+			container.querySelector(
+				'[role="switch"][aria-label="Slack connection"]',
+			) as Element,
 		);
 
 		expect(slackTrigger.getAttribute("aria-expanded")).toBe("true");
@@ -461,8 +463,10 @@ describe("ChannelsContent", () => {
 		});
 		await click(buttonWithText("Telegram"));
 		expect(
-			container.querySelector('button[aria-label^="Disconnect @"]'),
-		).toBeNull();
+			container.querySelectorAll(
+				'[role="switch"][aria-label="Telegram connection"]',
+			),
+		).toHaveLength(1);
 		await click(buttonWithText("Reset"));
 
 		await vi.waitFor(() => {
@@ -480,10 +484,10 @@ describe("ChannelsContent", () => {
 				channel: "telegram",
 			});
 			expect(
-				container
-					.querySelector('button[aria-label="Connect Telegram"]')
-					?.getAttribute("aria-checked"),
-			).toBe("false");
+				container.querySelector<HTMLInputElement>(
+					'[role="switch"][aria-label="Telegram connection"]',
+				)?.checked,
+			).toBe(false);
 		});
 	});
 });

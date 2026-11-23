@@ -3,7 +3,7 @@ import type { Llms } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMemo, useState } from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import { ProviderRow } from "./provider-row";
 
 export interface ModelOption {
@@ -65,6 +65,7 @@ export function ModelIdInputContent(
 ) {
 	const { resolve, dismiss, dialogId, currentModel, currentProviderName } =
 		props;
+	const palette = useDialogPalette();
 	const [modelId, setModelId] = useState(currentModel);
 	const [error, setError] = useState("");
 	const [onProvider, setOnProvider] = useState(false);
@@ -328,6 +329,7 @@ export function ThinkingLevelContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, modelName, currentLevel } = props;
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(() => {
 		const initialLevel = currentLevel === "none" ? "medium" : currentLevel;
 		const idx = THINKING_LEVELS.findIndex((l) => l.value === initialLevel);
@@ -516,6 +518,7 @@ function CreateCustomModelRow(props: {
 	onSelect: () => void;
 }) {
 	const { isSelected, dimmed, onSelect } = props;
+	const palette = useDialogPalette();
 	const active = isSelected && !dimmed;
 	const bg = active
 		? palette.selection
@@ -553,6 +556,7 @@ function ModelRow(props: {
 	onSelect: (key: string) => void;
 }) {
 	const { model, isSelected, dimmed, isCurrent, onSelect } = props;
+	const palette = useDialogPalette();
 	const active = isSelected && !dimmed;
 	const bg = active
 		? palette.selection

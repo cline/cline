@@ -9,7 +9,6 @@ import { refreshBasetenModels } from "../models/refreshBasetenModels"
 
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
-import { refreshLiteLlmModels } from "../models/refreshLiteLlmModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 
 /**
@@ -20,6 +19,11 @@ import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
+		// The webview calls this once on mount, on every host. The VS Code-only
+		// "sidebar_resolved"/"sidebar_visible" sources never fire for JetBrains, so
+		// this is the only host-neutral signal that the Cline UI actually rendered.
+		telemetryService.capturePanelOpened("webview_initialized")
+
 		// Sync workflow toggles with the files on disk so the chat input's slash
 		// command menu knows about workflows without requiring the user to open
 		// the Workflows modal first (which is the only other place that refreshes
@@ -212,12 +216,6 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 				}
 			})
 			.catch((error) => Logger.warn("Failed to refresh Hicap models on webview launch:", error))
-
-		const liteLlmBaseUrl = controller.stateManager.getGlobalSettingsKey("liteLlmBaseUrl")
-		const liteLlmApiKey = controller.stateManager.getSecretKey("liteLlmApiKey")
-		if (liteLlmBaseUrl && liteLlmApiKey) {
-			await refreshLiteLlmModels(controller)
-		}
 
 		// GUI relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 		// We do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point

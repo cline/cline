@@ -11,14 +11,16 @@ Tool policies control whether tools are enabled and whether they run without app
 The simplest way to manage permissions is through tool policies. Set them per-tool when creating an agent:
 
 ```typescript
+import { Agent, createBuiltinTools } from "@cline/sdk"
+
 const agent = new Agent({
   // ...config
-  tools: [readFileTool, writeFileTool, bashTool, searchTool],
+  tools: createBuiltinTools({ cwd: process.cwd() }),
   toolPolicies: {
-    read_files: { autoApprove: true },     // Always run without asking
-    search_codebase: { autoApprove: true },         // Always run without asking
-    write_file: { autoApprove: false },    // Always ask before running
-    run_commands: { autoApprove: false },          // Always ask before running
+    read_files: { autoApprove: true },       // Always run without asking
+    search_codebase: { autoApprove: true },  // Always run without asking
+    editor: { autoApprove: false },          // Always ask before running
+    run_commands: { autoApprove: false },    // Always ask before running
   },
 })
 ```
@@ -124,19 +126,28 @@ const cline = await ClineCore.create({
   clientName: "smart-approval",
   capabilities: {
     requestToolApproval: async (request) => {
-      // Auto-approve non-destructive shell commands
-      if (request.toolName === "run_commands") {
-        const cmd = JSON.stringify(request.input)
-        const safeCommands = ["ls", "cat", "grep", "find", "git status", "git log", "git diff"]
-        if (safeCommands.some((safe) => cmd.startsWith(safe))) {
+      // request.input is the model's raw tool input, so check its shape first.
+      const input = request.input as { commands?: unknown; files?: unknown }
+
+      // Auto-approve a fixed set of commands that only read: { commands: string[] }.
+      // Match whole commands, because flags can change what a command does.
+      // Git can also run programs named in a repository's config (for example
+      // core.fsmonitor), so approve Git commands only in repositories you trust.
+      if (request.toolName === "run_commands" && Array.isArray(input.commands)) {
+        const safeCommands = new Set(["ls", "git status", "git log --oneline -20"])
+        if (input.commands.every((cmd) => typeof cmd === "string" && safeCommands.has(cmd.trim()))) {
           return { approved: true }
         }
       }
 
-      // Auto-approve reads to specific directories
-      if (request.toolName === "read_files") {
-        const path = request.input.path as string
-        if (path.startsWith("/src/") || path.startsWith("/tests/")) {
+      // Auto-approve reads in specific directories: { files: { path: string }[] }.
+      if (request.toolName === "read_files" && Array.isArray(input.files)) {
+        const isAllowed = (file: unknown) => {
+          const path = (file as { path?: unknown })?.path
+          return typeof path === "string" && !path.includes("..") &&
+            (path.startsWith("/src/") || path.startsWith("/tests/"))
+        }
+        if (input.files.every(isAllowed)) {
           return { approved: true }
         }
       }

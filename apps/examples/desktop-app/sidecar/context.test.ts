@@ -2,8 +2,12 @@ import { existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
+import { HubCloudSessionService } from "@cline/core/hub";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
+import * as clineAuth from "./cline-auth";
+import { createCloudSessionTestRuntime } from "./cloud-session-test-runtime";
+import type { CloudSessionManager, CloudSessionRecord } from "./cloud-sessions";
 import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
@@ -15,6 +19,11 @@ const hubGetUrlMock = vi.hoisted(() => vi.fn());
 const hubIsConnectedMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const updateCapabilitiesMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@ai-sdk/provider-utils", () => ({
+	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -35,6 +44,7 @@ vi.mock("@cline/core", async () => {
 			getUrl = hubGetUrlMock;
 			isConnected = hubIsConnectedMock;
 			subscribe = subscribeMock;
+			updateCapabilities = updateCapabilitiesMock;
 			dispose = vi.fn();
 		},
 	};
@@ -53,7 +63,43 @@ function readEvents(ctx: SidecarContext): Array<{
 	);
 }
 
+async function createSearchCloudManager(
+	ctx: SidecarContext,
+	list: () => Promise<CloudSessionRecord[]>,
+): Promise<CloudSessionManager> {
+	vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
+	await createCloudSessionTestRuntime(ctx, {
+		api: { list } as never,
+		apiBaseUrl: "https://api.example",
+		getAuthToken: async () => "token",
+	});
+	return ctx.cloudSessionManager as CloudSessionManager;
+}
+
+function cloudSearchRecord(
+	sessionId: string,
+	title: string,
+	createdAt = "2026-01-01T00:00:00.000Z",
+) {
+	return {
+		id: sessionId,
+		status: "ready",
+		title,
+		sandboxUrl: "",
+		repoContext: {},
+		metadata: {},
+		createdAt,
+		updatedAt: createdAt,
+	};
+}
+
 describe("Code sidecar runtime capabilities", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
 	beforeEach(() => {
 		createCoreMock.mockReset();
 		connectMock.mockReset();
@@ -64,6 +110,7 @@ describe("Code sidecar runtime capabilities", () => {
 		hubIsConnectedMock.mockReset();
 		nodeHubClientCtorMock.mockReset();
 		subscribeMock.mockReset();
+		updateCapabilitiesMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
@@ -73,6 +120,7 @@ describe("Code sidecar runtime capabilities", () => {
 		hubGetUrlMock.mockReturnValue("ws://127.0.0.1:25463/hub");
 		hubIsConnectedMock.mockReturnValue(true);
 		subscribeMock.mockReturnValue(() => {});
+		updateCapabilitiesMock.mockResolvedValue(undefined);
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
 			subscribe: vi.fn(() => () => {}),
@@ -80,7 +128,7 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
-	it("registers Code App capability factory with core", async () => {
+	it("registers the desktop capability factory with core", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
 		);
@@ -102,7 +150,7 @@ describe("Code sidecar runtime capabilities", () => {
 					workspaceRoot: "/workspace/project",
 					cwd: "/workspace/project",
 					clientType: "code-sidecar",
-					displayName: "Code App sidecar",
+					displayName: "Cline Desktop sidecar",
 				}),
 			}),
 		);
@@ -113,9 +161,26 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				url: "ws://127.0.0.1:25463/hub",
 				clientType: "code-sidecar-observer",
-				displayName: "Code App observer",
+				displayName: "Cline Desktop observer",
 			}),
 		);
+	});
+
+	it("reuses the installed session manager when a retried startup only failed its readiness sync", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		updateCapabilitiesMock.mockRejectedValueOnce(new Error("hub busy"));
+
+		await expect(initializeSessionManager(ctx)).rejects.toThrow("hub busy");
+		const installed = ctx.runtimeBindings.get("local");
+		expect(installed).toBeDefined();
+
+		await initializeSessionManager(ctx);
+		expect(createCoreMock).toHaveBeenCalledTimes(1);
+		expect(ctx.runtimeBindings.get("local")).toBe(installed);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("wires the desktop logger and telemetry through the shared Hub client", async () => {
@@ -186,7 +251,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBe(ctx.hubClient);
+		expect(hubClient).toBeDefined();
 
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
@@ -200,6 +265,615 @@ describe("Code sidecar runtime capabilities", () => {
 			}),
 		);
 		expect(connectMock).toHaveBeenCalledOnce();
+	});
+
+	it("records only local observer events, excluding cloud events projected through a local context", async () => {
+		const { createSidecarContext, ensureSharedHubClient, handleHubLiveEvent } =
+			await import("./context");
+		const { getHubStatus } = await import("./hub-admin");
+		const ctx = createSidecarContext("/workspace/project");
+		const client = await ensureSharedHubClient(ctx);
+		const observer = subscribeMock.mock.calls[0][0];
+		observer({
+			event: "hub.client.registered",
+			payload: { displayName: "Local client" },
+		});
+		// CloudSessionManager projects cloud hub events through this same handler
+		// with a local environment context; context identity is not event origin.
+		for (let i = 0; i < 105; i++) {
+			handleHubLiveEvent(ctx, {
+				event: "ui.notify",
+				payload: { title: "Cloud run", body: "Cloud content" },
+			});
+		}
+		const status = await getHubStatus(ctx, client);
+		expect(status.events).toHaveLength(1);
+		expect(status.events[0]).toMatchObject({
+			title: "Client connected",
+			detail: "Local client",
+		});
+	});
+
+	it("preserves the artifact ID when resolving a cloud download", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const download = {
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const resolve = vi
+			.spyOn(manager, "getArtifactDownloadUrl")
+			.mockResolvedValue(download);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: " frame ",
+			}),
+		).resolves.toEqual(download);
+		expect(resolve).toHaveBeenCalledWith("ses-one", " frame ");
+	});
+
+	it.each([
+		"https://api.example",
+		"https://api.example/api/v1",
+		"https://api.example/api/v1/",
+	])("resolves artifacts with an older Hub and API base %s", async (baseUrl) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		await createSearchCloudManager(ctx, async () => []);
+		vi.spyOn(HubCloudSessionService.prototype, "command").mockRejectedValue(
+			new Error("Unknown cloud operation: getArtifactDownloadUrl"),
+		);
+		vi.spyOn(clineAuth, "getClineAccountId").mockReturnValue("account-one");
+		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(baseUrl);
+		const refresh = vi
+			.spyOn(clineAuth, "resolveFreshClineAuthToken")
+			.mockResolvedValue("fresh-token");
+		const download = {
+			url: "https://storage.example/frame.png",
+			expiresAt: "2030-01-01T00:00:00Z",
+		};
+		const fetch = vi
+			.fn()
+			.mockResolvedValue(Response.json({ success: true, data: download }));
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: " frame/雪 ",
+			}),
+		).resolves.toEqual(download);
+		expect(refresh).toHaveBeenCalledOnce();
+		expect(fetch).toHaveBeenCalledExactlyOnceWith(
+			"https://api.example/api/v1/session/ses-one/artifacts/download-url?name=%20frame%2F%E9%9B%AA%20",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer fresh-token",
+				}),
+			}),
+		);
+	});
+
+	it.each([
+		"authentication required",
+		"Cline account changed during cloud operation",
+		"network unavailable",
+	])("does not bypass a Hub failure: %s", async (message) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const error = new Error(message);
+		vi.spyOn(manager, "getArtifactDownloadUrl").mockRejectedValue(error);
+		const fetch = vi.fn();
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: "frame",
+			}),
+		).rejects.toBe(error);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"hub",
+		"refresh",
+		"download",
+	])("discards old-Hub artifact access if the account changes during %s", async (phase) => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		let accountId = "account-one";
+		vi.spyOn(clineAuth, "getClineAccountId").mockImplementation(
+			() => accountId,
+		);
+		vi.spyOn(clineAuth, "getClineApiBaseUrl").mockReturnValue(
+			"https://api.example",
+		);
+		vi.spyOn(manager, "getArtifactDownloadUrl").mockImplementation(async () => {
+			if (phase === "hub") accountId = "account-two";
+			throw new Error("Unknown cloud operation: getArtifactDownloadUrl");
+		});
+		vi.spyOn(clineAuth, "resolveFreshClineAuthToken").mockImplementation(
+			async () => {
+				if (phase === "refresh") accountId = "account-two";
+				return "fresh-token";
+			},
+		);
+		const fetch = vi.fn().mockImplementation(async () => {
+			accountId = "account-two";
+			return Response.json({
+				success: true,
+				data: {
+					url: "https://storage.example/frame.png",
+					expiresAt: "2030-01-01T00:00:00Z",
+				},
+			});
+		});
+		vi.stubGlobal("fetch", fetch);
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "ses-one",
+				artifactId: "frame",
+			}),
+		).rejects.toThrow("Cline account changed");
+		expect(fetch).toHaveBeenCalledTimes(phase === "download" ? 1 : 0);
+	});
+
+	it("does not send local artifact references to cloud storage", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const manager = await createSearchCloudManager(ctx, async () => []);
+		const resolve = vi.spyOn(manager, "getArtifactDownloadUrl");
+		await expect(
+			handleCommand(ctx, "resolve_artifact", {
+				sessionId: "local-one",
+				artifactId: "frame",
+			}),
+		).rejects.toThrow(
+			"Artifact access is not available for local sessions yet.",
+		);
+		expect(resolve).not.toHaveBeenCalled();
+	});
+
+	it("returns indexed search results without listing every session", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const oversizedPrompt = `<user_input mode="act">${"generate an image ".repeat(3_000)}</user_input>`;
+		const hits = [
+			{
+				sessionId: "session-1",
+				documentId: "session-1:0",
+				ordinal: 0,
+				role: "user",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				title: oversizedPrompt,
+				snippet: oversizedPrompt,
+				score: -1,
+			},
+		];
+		const command = vi.fn(async () => ({ ok: true, payload: { hits } }));
+		const list = vi.fn(async () => []);
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ title: string; snippet: string }>;
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:0",
+			}),
+		]);
+		expect(results[0]?.title.length).toBeLessThanOrEqual(240);
+		expect(results[0]?.snippet.length).toBeLessThanOrEqual(480);
+		expect(results[0]?.title).not.toContain("user_input");
+		expect(results[0]?.snippet).not.toContain("user_input");
+		expect(command).toHaveBeenCalledWith("session.search", {
+			query: "generate",
+			limit: 50,
+			workspaceRoot: undefined,
+		});
+		expect(list).not.toHaveBeenCalled();
+	});
+
+	it("falls back to session metadata while the index has no hits", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => ({ ok: true, payload: { hits: [] } }));
+		const oversizedPrompt = `<user_input mode="act">${"generate an image ".repeat(3_000)}</user_input>`;
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: oversizedPrompt,
+				metadata: { title: oversizedPrompt },
+			},
+			{
+				sessionId: "out-of-scope",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/other/workspace",
+				prompt: oversizedPrompt,
+				metadata: { title: oversizedPrompt },
+			},
+		]);
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
+			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
+		]);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+			workspaceRoot: "/workspace/project",
+		})) as Array<{ title: string; snippet: string }>;
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(results[0]?.title.length).toBeLessThanOrEqual(240);
+		expect(results[0]?.snippet.length).toBeLessThanOrEqual(480);
+		expect(results[0]?.title).not.toContain("user_input");
+		expect(results[0]?.snippet).not.toContain("user_input");
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call rejects", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection lost");
+		});
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: "generate an image of a puppy",
+				metadata: { title: "generate an image of a puppy" },
+			},
+		]);
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			async () => [],
+		);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(command).toHaveBeenCalledOnce();
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call exceeds the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			// Never resolves: exercises the withSearchDeadline race timing out
+			// rather than the hub call rejecting.
+			const command = vi.fn(() => new Promise(() => {}));
+			const list = vi.fn(async () => [
+				{
+					sessionId: "session-1",
+					startedAt: "2026-08-27T12:00:00.000Z",
+					workspaceRoot: "/workspace/project",
+					prompt: "generate an image of a puppy",
+					metadata: { title: "generate an image of a puppy" },
+				},
+			]);
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: { command } as never,
+				sessionManager: { list } as never,
+				unsubscribeSessionEvents: () => {},
+			});
+			ctx.cloudSessionManager = await createSearchCloudManager(
+				ctx,
+				async () => [],
+			);
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "generate",
+			}) as Promise<Array<{ sessionId: string; documentId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			const results = await pending;
+
+			expect(results).toEqual([
+				expect.objectContaining({
+					sessionId: "session-1",
+					documentId: "session-1:metadata",
+				}),
+			]);
+			expect(command).toHaveBeenCalledOnce();
+			expect(list).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("includes a cold cloud session in title search", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const list = vi.fn(async () => [
+			cloudSearchRecord("cloud-cold", "UNIQUE-CLOUD-TITLE"),
+		]);
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, list);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "UNIQUE-CLOUD-TITLE",
+		})) as Array<{ sessionId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({ sessionId: "cloud-cold" }),
+		]);
+	});
+
+	it("appends unique cloud hits after indexed local hits and applies the limit", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({
+					ok: true,
+					payload: {
+						hits: [
+							{
+								sessionId: "local-1",
+								documentId: "local-1:0",
+								role: "user",
+								title: "match",
+								snippet: "match",
+							},
+							{
+								sessionId: "shared",
+								documentId: "shared:0",
+								role: "user",
+								title: "match",
+								snippet: "match",
+							},
+							{
+								sessionId: "shared",
+								documentId: "shared:1",
+								role: "assistant",
+								title: "match",
+								snippet: "match again",
+							},
+						],
+					},
+				})),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(ctx, async () => [
+			cloudSearchRecord("shared", "match"),
+			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
+			cloudSearchRecord("cloud-3", "match third", "2026-01-02T00:00:00.000Z"),
+		]);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "match",
+			limit: 4,
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(
+			results.map(({ sessionId, documentId }) => [sessionId, documentId]),
+		).toEqual([
+			["local-1", "local-1:0"],
+			["shared", "shared:0"],
+			["shared", "shared:1"],
+			["cloud-2", "cloud-2:metadata"],
+		]);
+	});
+
+	it("preserves local fallback results when cloud discovery times out", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: {
+					command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+				} as never,
+				sessionManager: {
+					list: vi.fn(async () => [
+						{
+							sessionId: "local-match",
+							workspaceRoot: "/workspace/project",
+							prompt: "local match",
+							metadata: { title: "local match" },
+						},
+					]),
+				} as never,
+				unsubscribeSessionEvents: () => {},
+			});
+			ctx.cloudSessionManager = await createSearchCloudManager(
+				ctx,
+				async () => await new Promise<CloudSessionRecord[]>(() => {}),
+			);
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "local match",
+			}) as Promise<Array<{ sessionId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			await expect(pending).resolves.toEqual([
+				expect.objectContaining({ sessionId: "local-match" }),
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not append results from a manager replaced during search", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		let release!: (records: CloudSessionRecord[]) => void;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+		ctx.cloudSessionManager = await createSearchCloudManager(
+			ctx,
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		const pending = handleCommand(ctx, "search_sessions", {
+			query: "stale cloud",
+		}) as Promise<unknown[]>;
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		ctx.cloudSessionManager = null;
+		release([cloudSearchRecord("stale-cloud", "stale cloud")]);
+
+		await expect(pending).resolves.toEqual([]);
+	});
+
+	it("forwards raw hub tool updates to attached desktop sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "tool.updated",
+			sessionId: "session-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live\n" },
+			},
+		});
+
+		const forwarded = readEvents(ctx).find(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_tool_call_update",
+		);
+		expect(forwarded?.event.payload).toMatchObject({
+			sessionId: "session-1",
+			stream: "chat_tool_call_update",
+		});
+		expect(
+			JSON.parse(
+				String((forwarded?.event.payload as { chunk?: string }).chunk),
+			),
+		).toEqual({
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			update: { stream: "stdout", chunk: "live\n" },
+		});
+	});
+
+	it("forwards proceed-while-running requests to the hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { detachedCount: 1 },
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				sessionId: "session-1",
+				toolCallId: "call-1",
+			}),
+		).resolves.toEqual({ detachedCount: 1 });
+		expect(hubCommandMock).toHaveBeenCalledWith(
+			"run.proceed_while_running",
+			{ sessionId: "session-1", toolCallId: "call-1" },
+			"session-1",
+		);
 	});
 
 	it("serializes queued image data when a queued prompt starts", async () => {
@@ -219,6 +893,24 @@ describe("Code sidecar runtime capabilities", () => {
 			prompt: "Describe this",
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
+		});
+	});
+
+	it("preserves the reflected transcript marker on queued lifecycle chunks", async () => {
+		const { serializeQueuedPromptStart } = await import("./context");
+		expect(
+			JSON.parse(
+				serializeQueuedPromptStart({
+					promptId: "q-1",
+					prompt: "Continue",
+					transcriptReflected: true,
+				}),
+			),
+		).toEqual({
+			promptId: "q-1",
+			prompt: "Continue",
+			attachmentCount: 0,
+			transcriptReflected: true,
 		});
 	});
 
@@ -243,7 +935,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -295,6 +992,146 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
+	it("does not announce a queued prompt start when the head is deleted from the queue", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{ id: "prompt-1", prompt: "first", steer: false, attachmentCount: 0 },
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		// Removing the head only produces a shrunken snapshot — no
+		// pending_prompt_submitted — so nothing must reach the transcript.
+		onEvent?.({
+			type: "pending_prompts",
+			payload: {
+				sessionId: "session-1",
+				prompts: [{ id: "prompt-2", prompt: "second", delivery: "queue" }],
+			},
+		});
+
+		const events = readEvents(ctx);
+		expect(
+			events.filter(
+				(message) =>
+					message.event.name === "chat_event" &&
+					(message.event.payload as { stream?: string }).stream ===
+						"chat_queued_prompt_start",
+			),
+		).toHaveLength(0);
+		expect(
+			events.find((message) => message.event.name === "prompts_in_queue_state")
+				?.event.payload,
+		).toEqual({
+			environmentId: "local",
+			sessionId: "session-1",
+			items: [
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+		});
+	});
+
+	it("relays generated media for attach-only Hub sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.media",
+			sessionId: "session-image",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			expect.objectContaining({
+				event: {
+					name: "chat_event",
+					payload: expect.objectContaining({
+						sessionId: "session-image",
+						stream: "chat_media",
+						chunk: JSON.stringify({
+							id: "generated-1",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "base64", data: "aGVsbG8=" },
+						}),
+					}),
+				},
+			}),
+		]);
+	});
+
+	it("ignores raw assistant media for locally-owned sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: false,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.media",
+			sessionId: "session-image",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([]);
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
@@ -302,7 +1139,11 @@ describe("Code sidecar runtime capabilities", () => {
 		const { handleCommand } = await import("./commands");
 
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
 
 		await initializeSessionManager(ctx);
 
@@ -312,6 +1153,7 @@ describe("Code sidecar runtime capabilities", () => {
 			"Which branch?",
 			["Keep current", "Create new"],
 			{
+				sessionId: "session-1",
 				agentId: "agent-1",
 				conversationId: "conversation-1",
 				iteration: 3,
@@ -323,6 +1165,7 @@ describe("Code sidecar runtime capabilities", () => {
 			(item) => item.event.name === "ask_question_requested",
 		);
 		expect(event?.event.payload).toMatchObject({
+			sessionId: "session-1",
 			question: "Which branch?",
 			options: ["Keep current", "Create new"],
 			context: {
@@ -333,6 +1176,23 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 		const requestId = String(event?.event.payload.requestId ?? "");
 		expect(requestId.length).toBeGreaterThan(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([
+			expect.objectContaining({
+				requestId,
+				sessionId: "session-1",
+				question: "Which branch?",
+				options: ["Keep current", "Create new"],
+			}),
+		]);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "another-session",
+			}),
+		).toEqual([]);
 
 		await handleCommand(ctx, "respond_ask_question", {
 			requestId,
@@ -341,14 +1201,45 @@ describe("Code sidecar runtime capabilities", () => {
 
 		await expect(answer).resolves.toBe("Create new");
 		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([]);
 		expect(readEvents(ctx)).toContainEqual(
 			expect.objectContaining({
 				event: expect.objectContaining({
 					name: "ask_question_answered",
-					payload: { requestId },
+					payload: { requestId, environmentId: "local" },
 				}),
 			}),
 		);
+	});
+
+	it("rejects askQuestion requests without an owning session", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+
+		const capabilities = createCoreMock.mock.calls[0][0]
+			.capabilities as RuntimeCapabilities;
+		const answer = capabilities.toolExecutors?.askQuestion?.(
+			"Which branch?",
+			["Keep current", "Create new"],
+			{ agentId: "agent-1", iteration: 3 },
+		);
+
+		await expect(answer).rejects.toThrow(
+			"ask_question requires an active session ID",
+		);
+		expect(
+			readEvents(ctx).some(
+				(message) => message.event.name === "ask_question_requested",
+			),
+		).toBe(false);
 	});
 
 	it("resolves approval through websocket state", async () => {
@@ -358,7 +1249,11 @@ describe("Code sidecar runtime capabilities", () => {
 		const { handleCommand } = await import("./commands");
 
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
 
 		await initializeSessionManager(ctx);
 
@@ -371,7 +1266,7 @@ describe("Code sidecar runtime capabilities", () => {
 				hub: expect.objectContaining({
 					strategy: "require-hub",
 					clientType: "code-sidecar",
-					displayName: "Code App sidecar",
+					displayName: "Cline Desktop sidecar",
 				}),
 			}),
 		);
@@ -390,9 +1285,12 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 
 		expect(approval).toBeInstanceOf(Promise);
-		const pending = await handleCommand(ctx, "poll_tool_approvals", {
-			sessionId: "sess-1",
-		});
+		const pending = await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "sess-1" },
+			{ connection: approvalClient },
+		);
 		expect(pending).toEqual([
 			expect.objectContaining({
 				sessionId: "sess-1",
@@ -418,16 +1316,310 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 
 		const [{ requestId }] = pending as Array<{ requestId: string }>;
-		await handleCommand(ctx, "respond_tool_approval", {
-			sessionId: "sess-1",
-			requestId,
-			approved: true,
-		});
+		const untrustedClient = { send: vi.fn() };
+		ctx.wsClients.add(untrustedClient);
+		await expect(
+			handleCommand(
+				ctx,
+				"respond_tool_approval",
+				{ sessionId: "sess-1", requestId, approved: true },
+				{ connection: untrustedClient },
+			),
+		).rejects.toThrow("trusted desktop connection");
+		expect(ctx.pendingApprovals.size).toBe(1);
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{ sessionId: "sess-1", requestId, approved: true },
+			{ connection: approvalClient },
+		);
 
 		await expect(approval).resolves.toEqual({ approved: true });
 		expect(
-			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
+			await handleCommand(
+				ctx,
+				"poll_tool_approvals",
+				{ sessionId: "sess-1" },
+				{ connection: approvalClient },
+			),
 		).toEqual([]);
+	});
+
+	it("keeps an approval visible when its remote acknowledgement fails", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		const cloudClient = { data: { canApproveTools: true }, send: vi.fn() };
+		ctx.wsClients.add(cloudClient);
+		ctx.pendingApprovals.set("cloud-approval", {
+			item: {
+				requestId: "cloud-approval",
+				sessionId: "ses-cloud",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+			},
+			owner: cloudClient,
+			resolve: async () => {
+				throw new Error("hub disconnected");
+			},
+		});
+
+		await expect(
+			handleCommand(
+				ctx,
+				"respond_tool_approval",
+				{
+					sessionId: "ses-cloud",
+					requestId: "cloud-approval",
+					approved: true,
+				},
+				{ connection: cloudClient },
+			),
+		).rejects.toThrow("hub disconnected");
+		expect(
+			await handleCommand(
+				ctx,
+				"poll_tool_approvals",
+				{ sessionId: "ses-cloud" },
+				{ connection: cloudClient },
+			),
+		).toEqual([expect.objectContaining({ requestId: "cloud-approval" })]);
+	});
+
+	it("rejects and removes an approval when initial delivery fails", async () => {
+		const { createSidecarContext, createSidecarRuntimeCapabilities } =
+			await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const failedClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(() => {
+				throw new Error("socket closed");
+			}),
+		};
+		ctx.wsClients.add(failedClient);
+
+		const approval = createSidecarRuntimeCapabilities(
+			ctx,
+		).requestToolApproval?.({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "tool-call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+
+		await expect(approval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(failedClient)).toBe(false);
+	});
+
+	it("rejects an owned approval when a later broadcast fails", async () => {
+		const {
+			broadcastEvent,
+			createSidecarContext,
+			createSidecarRuntimeCapabilities,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi
+				.fn()
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => {
+					throw new Error("socket closed");
+				}),
+		};
+		ctx.wsClients.add(approvalClient);
+
+		const approval = createSidecarRuntimeCapabilities(
+			ctx,
+		).requestToolApproval?.({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "tool-call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		expect(ctx.pendingApprovals.size).toBe(1);
+
+		broadcastEvent(ctx, "task.updated", { taskId: "task-1" });
+
+		await expect(approval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(approvalClient)).toBe(false);
+	});
+
+	it("rejects sibling approvals when a targeted state update fails", async () => {
+		const { createSidecarContext, createSidecarRuntimeCapabilities } =
+			await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi
+				.fn()
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => {
+					throw new Error("socket closed");
+				}),
+		};
+		ctx.wsClients.add(approvalClient);
+		const capabilities = createSidecarRuntimeCapabilities(ctx);
+		const request = (toolCallId: string) =>
+			capabilities.requestToolApproval?.({
+				sessionId: "sess-1",
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				iteration: 1,
+				toolCallId,
+				toolName: "run_commands",
+				input: { commands: ["echo hi"] },
+				policy: { autoApprove: false },
+			});
+		const firstApproval = request("tool-call-1");
+		const siblingApproval = request("tool-call-2");
+		const [{ requestId }] = (await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "sess-1" },
+			{ connection: approvalClient },
+		)) as Array<{ requestId: string }>;
+
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{ sessionId: "sess-1", requestId, approved: true },
+			{ connection: approvalClient },
+		);
+
+		await expect(firstApproval).resolves.toEqual({ approved: true });
+		await expect(siblingApproval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(approvalClient)).toBe(false);
+	});
+
+	it("serializes approval readiness updates and publishes the latest state", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			syncSidecarApprovalReadiness,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		updateCapabilitiesMock.mockReset();
+
+		let finishDisconnectedUpdate: (() => void) | undefined;
+		updateCapabilitiesMock
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve) => {
+						finishDisconnectedUpdate = resolve;
+					}),
+			)
+			.mockResolvedValue(undefined);
+
+		const disconnected = syncSidecarApprovalReadiness(ctx);
+		await vi.waitFor(() =>
+			expect(updateCapabilitiesMock).toHaveBeenCalledWith([]),
+		);
+		ctx.wsClients.add({
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		});
+		const connected = syncSidecarApprovalReadiness(ctx);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(1);
+
+		finishDisconnectedUpdate?.();
+		await Promise.all([disconnected, connected]);
+		expect(updateCapabilitiesMock).toHaveBeenLastCalledWith([
+			expect.objectContaining({ name: "approval.respond" }),
+		]);
+	});
+
+	it("forwards Hub-owned task session approvals to the live desktop", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		let onHubEvent: ((event: Record<string, unknown>) => void) | undefined;
+		subscribeMock.mockImplementation((handler) => {
+			onHubEvent = handler;
+			return () => {};
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
+		await initializeSessionManager(ctx);
+
+		expect(updateCapabilitiesMock).toHaveBeenCalledWith([
+			expect.objectContaining({ name: "approval.respond" }),
+		]);
+		onHubEvent?.({
+			event: "approval.requested",
+			sessionId: "task-session-1",
+			payload: {
+				approvalId: "hub-approval-1",
+				agendaTaskId: "task-1",
+				agentId: "task-agent-1",
+				conversationId: "task-conversation-1",
+				iteration: 2,
+				toolCallId: "tool-call-1",
+				toolName: "write_to_file",
+				inputJson: JSON.stringify({ path: "src/a.ts" }),
+				policy: { autoApprove: false },
+			},
+		});
+		await vi.waitFor(() => expect(ctx.pendingApprovals.size).toBe(1));
+		const pendingItems = (await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "task-session-1" },
+			{ connection: approvalClient },
+		)) as Array<{ requestId: string }>;
+		const pending = pendingItems[0];
+		if (!pending) throw new Error("expected a pending task approval");
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{
+				sessionId: "task-session-1",
+				requestId: pending.requestId,
+				approved: true,
+			},
+			{ connection: approvalClient },
+		);
+
+		await vi.waitFor(() =>
+			expect(hubCommandMock).toHaveBeenCalledWith(
+				"approval.respond",
+				{
+					approvalId: "hub-approval-1",
+					approved: true,
+					reason: undefined,
+				},
+				"task-session-1",
+			),
+		);
 	});
 
 	it("routes routine commands through the connected shared Hub client", async () => {
@@ -451,8 +1643,172 @@ describe("Code sidecar runtime capabilities", () => {
 			schedule: { scheduleId: "schedule-1", enabled: false },
 		});
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
+			allWorkspaces: true,
 			scheduleId: "schedule-1",
 		});
+	});
+
+	it("proxies Agenda task commands through the connected shared Hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const task = {
+			taskId: "task-1",
+			title: "Review the PR",
+			status: "pending_approval",
+		};
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { tasks: [task] },
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+
+		await expect(
+			handleCommand(ctx, "task.list", {
+				workspaceRoot: "/workspace/project",
+				statuses: ["pending_approval"],
+			}),
+		).resolves.toEqual({ tasks: [task] });
+		expect(hubCommandMock).toHaveBeenCalledWith("task.list", {
+			workspaceRoot: "/workspace/project",
+			statuses: ["pending_approval"],
+		});
+
+		hubCommandMock.mockResolvedValueOnce({
+			ok: true,
+			payload: { task: { ...task, status: "in_progress", revision: 4 } },
+		});
+		await expect(
+			handleCommand(
+				ctx,
+				"task.run",
+				{
+					taskId: "task-1",
+					expectedRevision: 4,
+				},
+				{ connection: approvalClient },
+			),
+		).resolves.toEqual({
+			task: { ...task, status: "in_progress", revision: 4 },
+		});
+		expect(hubCommandMock).toHaveBeenCalledWith("task.run", {
+			taskId: "task-1",
+			expectedRevision: 4,
+		});
+	});
+
+	it.each([
+		"task.create",
+		"task.approve",
+		"task.cancel",
+		"task.run",
+		"task.automation.set",
+	])("rejects untrusted %s commands before they reach the shared Hub", async (command) => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		const untrustedClient = {
+			data: { canApproveTools: false },
+			send: vi.fn(),
+		};
+
+		await expect(
+			handleCommand(ctx, command, {}, { connection: untrustedClient }),
+		).rejects.toThrow("task execution requires a trusted desktop connection");
+		expect(hubCommandMock).not.toHaveBeenCalled();
+	});
+
+	it("forwards Hub task events that do not have a session", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+
+		handleHubLiveEvent(ctx, {
+			event: "task.created",
+			payload: {
+				taskId: "task-1",
+				status: "pending_approval",
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "task.created",
+					payload: {
+						environmentId: "local",
+						taskId: "task-1",
+						status: "pending_approval",
+					},
+				},
+			},
+		]);
+	});
+
+	it.each([
+		"schedule.execution_failed",
+		"schedule.execution_completed",
+	])("forwards %s without requiring an attached session", async (event) => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+		const payload = {
+			scheduleId: "schedule-1",
+			executionId: "execution-1",
+			errorMessage: "getaddrinfo ENOTFOUND api.cline.bot",
+		};
+
+		handleHubLiveEvent(ctx, { event, payload });
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: { name: event, payload: { environmentId: "local", ...payload } },
+			},
+		]);
+	});
+
+	it("forwards Hub settings changes so open desktop views can refresh", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+
+		handleHubLiveEvent(ctx, {
+			event: "settings.changed",
+			payload: {
+				types: ["plugins", "skills", "mcp"],
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "settings.changed",
+					payload: {
+						environmentId: "local",
+						types: ["plugins", "skills", "mcp"],
+					},
+				},
+			},
+		]);
 	});
 });
 
@@ -503,5 +1859,261 @@ describe("disposeSidecarContext attachment cleanup", () => {
 
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
+	});
+
+	it.each([
+		"local",
+		"remote-1",
+	])("waits for %s approval callbacks before shutdown completes", async (environmentId) => {
+		const {
+			createSidecarContext,
+			disposeSidecarContext,
+			getEnvironmentContext,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		let release: (() => void) | undefined;
+		getEnvironmentContext(ctx, environmentId).pendingApprovals.set(
+			"approval-1",
+			{
+				owner: { data: { canApproveTools: true }, send: vi.fn() },
+				item: {
+					requestId: "approval-1",
+					sessionId: "session-1",
+					createdAt: new Date().toISOString(),
+					toolCallId: "tool-1",
+					toolName: "run_commands",
+					input: {},
+				},
+				resolve: async () =>
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					}),
+			},
+		);
+
+		let disposed = false;
+		const disposing = disposeSidecarContext(ctx, "test_shutdown").then(() => {
+			disposed = true;
+		});
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		expect(disposed).toBe(false);
+
+		release?.();
+		await disposing;
+		expect(disposed).toBe(true);
+	});
+});
+
+describe("Chat chunk pipe selection", () => {
+	async function createStreamingContext(
+		sessionId: string,
+		coreSubscriptions: Set<string> = new Set(),
+	) {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set(sessionId, {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+		ctx.runtimeBindings.set("local", {
+			sessionManager: {
+				hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+			},
+		} as never);
+		return ctx;
+	}
+
+	function coreTextEvent(sessionId: string, text: string) {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId,
+				event: { type: "content_start", contentType: "text", text },
+			},
+		} as never;
+	}
+
+	function eventsFor(ctx: SidecarContext, name: string) {
+		return readEvents(ctx)
+			.filter((message) => message.event.name === name)
+			.map((message) => message.event.payload);
+	}
+
+	function chunksFor(ctx: SidecarContext, stream: string): string[] {
+		return eventsFor(ctx, "chat_event")
+			.filter((payload) => (payload as { stream?: string }).stream === stream)
+			.map((payload) => String((payload as { chunk?: string }).chunk));
+	}
+
+	it("emits one copy when both pipes carry the same delta", async () => {
+		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		// Opening a session arms both pipes: ClineCore subscribes to the session
+		// and `attach` enables the observer projection, so the hub publishes each
+		// delta to both sockets.
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "Pack " },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "Pack "));
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "my box" },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "my box"));
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["Pack ", "my box"]);
+	});
+
+	it("still streams sessions only the observer delivers", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("session-1");
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "remote " },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "run" },
+		});
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
+	});
+
+	it("mutes the whole observer projection, not just text", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		handleHubLiveEvent(ctx, {
+			event: "tool.started",
+			sessionId: "session-1",
+			payload: { toolCallId: "call-1", toolName: "run_commands" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "run.completed",
+			sessionId: "session-1",
+			payload: {},
+		});
+
+		expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
+		expect(eventsFor(ctx, "chat_session_ended")).toEqual([]);
+		expect(ctx.liveSessions.get("session-1")?.busy).toBe(true);
+	});
+
+	it("follows the subscription as it comes and goes", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const coreSubscriptions = new Set<string>();
+		const ctx = await createStreamingContext("session-1", coreSubscriptions);
+		const delta = (text: string) =>
+			handleHubLiveEvent(ctx, {
+				event: "assistant.delta",
+				sessionId: "session-1",
+				payload: { text },
+			});
+
+		delta("observer first");
+		// A send (or pending-prompt list) subscribes ClineCore.
+		coreSubscriptions.add("session-1");
+		delta("muted");
+		// `stop` drops the subscription; a run another client starts on the
+		// same session is the observer's to render again.
+		coreSubscriptions.delete("session-1");
+		delta("observer again");
+
+		expect(chunksFor(ctx, "chat_text")).toEqual([
+			"observer first",
+			"observer again",
+		]);
+	});
+
+	it("decides per session", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+		ctx.liveSessions.set("session-2", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "one" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-2",
+			payload: { text: "two" },
+		});
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["two"]);
+	});
+
+	it("never drops chunks the sidecar produces itself", async () => {
+		const { broadcastChunk } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		broadcastChunk(ctx, "session-1", "chat_queued_prompt_start", "{}");
+
+		expect(chunksFor(ctx, "chat_queued_prompt_start")).toEqual(["{}"]);
+	});
+
+	it("stamps chunks with a stable per-process boot id", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const first = await createStreamingContext("session-1");
+		handleHubLiveEvent(first, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "a" },
+		});
+		handleHubLiveEvent(first, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "b" },
+		});
+
+		const boots = readEvents(first)
+			.filter((message) => message.event.name === "chat_event")
+			.map((message) => (message.event.payload as { boot?: string }).boot);
+		expect(boots).toHaveLength(2);
+		expect(boots[0]).toBeTruthy();
+		expect(boots[1]).toBe(boots[0]);
+
+		// A replacement sidecar restarts `index` at 1, so it must be
+		// distinguishable by boot id.
+		const second = createSidecarContext("/workspace/project");
+		expect(second.bootId).not.toBe(first.bootId);
 	});
 });

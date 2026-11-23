@@ -1,22 +1,16 @@
 import type { WorkspaceContext } from "../extensions/context";
 import { isClineProvider } from "../providers/utils";
 import type { WorkspaceInfo } from "../session/workspace";
-import {
-	DEFAULT_CLINE_SYSTEM_PROMPT,
-	YOLO_CLINE_SYSTEM_PROMPT,
-} from "./system";
+import { DEFAULT_CLINE_SYSTEM_PROMPTS } from "./system";
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
 /**
  * Explains the <user_input mode="..."> wrapper and <mode_notice> elements the
  * runtime stamps on user messages (prepareTurnInput / formatUserInputBlock).
- * Every host that sends through the SDK runtime produces those tags, so every
- * host's system prompt must explain them: without this section the model has
- * no idea what the attribute means, and a mid-conversation mode switch is an
- * invisible system-prompt swap it cannot diff. Included for BOTH modes, since
- * after a switch the transcript still contains messages tagged with the other
- * mode.
+ * Included in plan and act prompts so the model can interpret mode switches
+ * and earlier messages tagged with the other mode. YOLO prompts omit these
+ * instructions because they do not use the plan/act workflow.
  */
 export const MODE_TAG_INSTRUCTIONS = `# Plan / Act Modes
 
@@ -58,13 +52,39 @@ export const PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH = `${PLAN_MODE_INSTRUCTIONS_BA
 
 Once you have presented your plan, end your turn and wait for the user's response. You do NOT have the ability to switch to act mode yourself -- the user must do it manually with the Plan/Act toggle once they are satisfied with the plan. If the task requires tools that are only available in act mode, ask the user to "toggle to Act mode" (use those words).`;
 
+function redactRemoteUrlCredentials(remote: string): string {
+	const schemeEnd = remote.indexOf("://");
+	if (schemeEnd < 1) return remote;
+
+	const authorityStart = schemeEnd + 3;
+	let authorityEnd = authorityStart;
+	while (authorityEnd < remote.length) {
+		const char = remote[authorityEnd];
+		if (
+			char === "/" ||
+			char === "?" ||
+			char === "#" ||
+			char.charCodeAt(0) <= 32
+		) {
+			break;
+		}
+		authorityEnd++;
+	}
+
+	const userInfoEnd = remote.lastIndexOf("@", authorityEnd - 1);
+	if (userInfoEnd < authorityStart) return remote;
+	return remote.slice(0, authorityStart) + remote.slice(userInfoEnd + 1);
+}
+
 export function processWorkspaceInfo(info: WorkspaceInfo): string {
 	return JSON.stringify(
 		{
 			workspaces: {
 				[info.rootPath]: {
 					hint: info.hint,
-					associatedRemoteUrls: info.associatedRemoteUrls,
+					associatedRemoteUrls: info.associatedRemoteUrls?.map(
+						redactRemoteUrlCredentials,
+					),
 					latestGitCommitHash: info.latestGitCommitHash,
 					latestGitBranchName: info.latestGitBranchName,
 				},
@@ -159,15 +179,15 @@ export function buildClineSystemPrompt(
 	}
 
 	const basePrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+		mode === "yolo"
+			? DEFAULT_CLINE_SYSTEM_PROMPTS.YOLO
+			: DEFAULT_CLINE_SYSTEM_PROMPTS.ACT;
 
-	// Mode semantics ride in the rules slot so every host emits them without
-	// composing its own copy. Order matches what the CLI historically built by
-	// hand (caller rules, then the mode-tag explanation, then the plan-mode
-	// contract), keeping CLI output byte-identical after the promotion.
+	// Keep mode semantics shared across hosts, but omit the plan/act workflow
+	// instructions in YOLO mode. Caller rules apply in every mode.
 	const effectiveRules = [
 		rules,
-		MODE_TAG_INSTRUCTIONS,
+		mode === "yolo" ? undefined : MODE_TAG_INSTRUCTIONS,
 		mode === "plan"
 			? planModeSwitchTool
 				? PLAN_MODE_INSTRUCTIONS

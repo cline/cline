@@ -33,14 +33,14 @@ describe("reshapeErrorForWebview - free promotion ended", () => {
 		const payload = reshapeErrorForWebview({ message: "Model not found" }, "cline", "deepseek/deepseek-v4-flash")
 
 		expect(payload).toBe(
-			"Model not found This model may be retired or unavailable on your account. Switch to a different model in API Configuration settings, then retry.",
+			"Model not found The model may be retired or unavailable on your account, or the model ID or base URL may be wrong. Check the model ID and base URL in API Configuration settings, or switch to a different model, then retry.",
 		)
 	})
 
 	it("leaves model-not-found on the generic guidance path when the model id is unknown", () => {
 		const payload = reshapeErrorForWebview({ message: "Model not found" }, "cline")
 
-		expect(payload).toContain("This model may be retired or unavailable")
+		expect(payload).toContain("Check the model ID and base URL")
 	})
 
 	it("does not touch unrelated errors from a cline-free model", () => {

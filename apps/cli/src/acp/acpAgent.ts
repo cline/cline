@@ -14,6 +14,7 @@ import type {
 	PromptRequest,
 	PromptResponse,
 	SessionConfigOption,
+	SessionConfigSelectOption,
 	SetSessionConfigOptionRequest,
 	SetSessionConfigOptionResponse,
 	SetSessionModelRequest,
@@ -30,7 +31,7 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
-import { isLikelyAuthError, type Message } from "@cline/shared";
+import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
@@ -38,6 +39,7 @@ import { createCliCore } from "../session/session";
 import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
+import type { ResolvedCliReasoning } from "../utils/reasoning";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
@@ -46,11 +48,8 @@ import {
 	authenticateAcpProvider,
 	isAcpAuthMethodId,
 } from "./auth";
-import {
-	AUTO_APPROVE_CONFIG_ID,
-	buildAutoApproveConfigOption,
-	parseAutoApproveValue,
-} from "./auto-approve";
+import { AUTO_APPROVE_CONFIG_ID, parseAutoApproveValue } from "./auto-approve";
+import { buildConfigOptions } from "./config-options";
 import {
 	buildOrganizationConfigOption,
 	fetchClineOrganizations,
@@ -69,6 +68,10 @@ import {
 	sendCurrentModeUpdate,
 	sendSessionInfoUpdate,
 } from "./session-updates";
+
+const CHAT_MODEL_QUERY_OPTIONS = {
+	filter: "chat",
+} satisfies Llms.GetModelsForProviderOptions;
 
 interface SessionState {
 	id: string;
@@ -100,7 +103,7 @@ interface SessionState {
 	 */
 	fatalError?: Error;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: Message[];
+	pendingInitialMessages?: MessageWithMetadata[];
 }
 
 export class AcpAgent implements Agent {
@@ -108,16 +111,18 @@ export class AcpAgent implements Agent {
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
 	private readonly defaultAutoApproveTools: boolean;
+	private readonly reasoning: ResolvedCliReasoning;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
 	constructor(
 		conn: AgentSideConnection,
-		options?: { autoApproveTools?: boolean },
+		options?: { autoApproveTools?: boolean; reasoning?: ResolvedCliReasoning },
 	) {
 		this.conn = conn;
 		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
+		this.reasoning = options?.reasoning ?? {};
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -185,7 +190,10 @@ export class AcpAgent implements Agent {
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
+		const providerModels = await Llms.getModelsForProvider(
+			providerId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		);
 		// Model ids are provider-scoped, so the default must come from the
 		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
 		// nothing to `cline`, and vice versa.
@@ -226,13 +234,15 @@ export class AcpAgent implements Agent {
 				availableModels,
 				currentModelId: defaultModelId,
 			},
-			configOptions: [
-				await buildProviderConfigOption(providerId),
-				buildModelConfigOption(defaultModelId, providerModels),
-				buildModeConfigOption(defaultMode),
-				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
-				...(organizationOption ? [organizationOption] : []),
-			],
+			configOptions: buildConfigOptions({
+				currentProviderId: providerId,
+				providerOptions: await getProviderOptions(),
+				currentModelId: defaultModelId,
+				providerModels,
+				currentMode: defaultMode,
+				autoApproveTools: this.defaultAutoApproveTools,
+				organizationOption,
+			}),
 		};
 	}
 
@@ -240,7 +250,7 @@ export class AcpAgent implements Agent {
 		this.isSessionReady();
 
 		let session = this.sessions.get(params.sessionId);
-		let messages: Message[];
+		let messages: MessageWithMetadata[];
 
 		if (session?.sessionManager && session.activeSessionId) {
 			// The session is still live in this connection — replay its current
@@ -256,7 +266,10 @@ export class AcpAgent implements Agent {
 				// provider's own catalog just like newSession.
 				const providerId =
 					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-				const providerModels = await Llms.getModelsForProvider(providerId);
+				const providerModels = await Llms.getModelsForProvider(
+					providerId,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session = {
 					id: params.sessionId,
 					cwd: params.cwd,
@@ -289,6 +302,7 @@ export class AcpAgent implements Agent {
 
 		const providerModels = await Llms.getModelsForProvider(
 			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
 		);
 		const availableModels = Object.entries(providerModels).map(
 			([availableModelId, info]) => ({
@@ -473,7 +487,10 @@ export class AcpAgent implements Agent {
 				// current one when it's offered there too, otherwise fall back to the
 				// provider's declared default rather than whichever model happens to
 				// be listed first (for cline-pass that is an unrelated free model).
-				const providerModels = await Llms.getModelsForProvider(value);
+				const providerModels = await Llms.getModelsForProvider(
+					value,
+					CHAT_MODEL_QUERY_OPTIONS,
+				);
 				session.currentModelId = await resolveDefaultModelId(
 					value,
 					session.currentModelId,
@@ -545,13 +562,13 @@ export class AcpAgent implements Agent {
 				);
 		}
 
-		const configOptions = await buildAllConfigOptions(session);
 		const organizationOption = await this.getOrganizationConfigOption(
 			session.currentProviderId,
 		);
-		if (organizationOption) {
-			configOptions.push(organizationOption);
-		}
+		const configOptions = await buildAllConfigOptions(
+			session,
+			organizationOption,
+		);
 		sendConfigOptionUpdate(this.conn, params.sessionId, configOptions);
 		return { configOptions };
 	}
@@ -676,7 +693,7 @@ export class AcpAgent implements Agent {
 		session: SessionState,
 		acpSessionId: string,
 		options?: { resume?: boolean },
-	): Promise<Message[] | undefined> {
+	): Promise<MessageWithMetadata[] | undefined> {
 		if (session.sessionManager) {
 			return undefined;
 		}
@@ -695,7 +712,7 @@ export class AcpAgent implements Agent {
 			workspaceRoot: config.workspaceRoot,
 		});
 
-		let initialMessages: Message[] | undefined;
+		let initialMessages: MessageWithMetadata[] | undefined;
 		if (options?.resume) {
 			initialMessages = await sessionManager
 				.readMessages(acpSessionId)
@@ -765,7 +782,10 @@ export class AcpAgent implements Agent {
 			execution: undefined,
 			verbose: false,
 			sandbox: false,
-			thinking: false,
+			// From `--thinking`; without the flag ACP sessions keep running without
+			// reasoning, as before.
+			thinking: this.reasoning.thinking ?? false,
+			reasoningEffort: this.reasoning.reasoningEffort,
 			outputMode: "text",
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
@@ -837,10 +857,8 @@ function toAcpPromptError(error: Error): RequestError {
 		: RequestError.internalError({ message }, message);
 }
 
-async function buildProviderConfigOption(
-	currentProviderId: string,
-): Promise<SessionConfigOption> {
-	const options = await Promise.all(
+async function getProviderOptions(): Promise<SessionConfigSelectOption[]> {
+	return Promise.all(
 		ACP_AUTH_METHODS.map(async (m) => {
 			const provider = await Llms.getProvider(m.id);
 			return {
@@ -849,72 +867,28 @@ async function buildProviderConfigOption(
 			};
 		}),
 	);
-	return {
-		type: "select",
-		id: "provider",
-		name: "Provider",
-		description: "The authentication provider to use",
-		category: "model",
-		currentValue: currentProviderId,
-		options,
-	};
-}
-
-function buildModelConfigOption(
-	currentModelId: string,
-	providerModels: Record<string, { name?: string; description?: string }>,
-): SessionConfigOption {
-	return {
-		type: "select",
-		id: "model",
-		name: "Model",
-		category: "model",
-		currentValue: currentModelId,
-		options: Object.entries(providerModels).map(([modelId, info]) => ({
-			value: modelId,
-			name: info.name ?? modelId,
-			description: info.description,
-		})),
-	};
-}
-
-function buildModeConfigOption(currentMode: string): SessionConfigOption {
-	return {
-		type: "select",
-		id: "mode",
-		name: "Session Mode",
-		description: "Controls whether the agent can modify files",
-		category: "mode",
-		currentValue: currentMode,
-		options: [
-			{
-				value: "plan",
-				name: "Plan",
-				description:
-					"Explore the codebase and plan changes without modifying files",
-			},
-			{
-				value: "act",
-				name: "Act",
-				description: "Make changes to the codebase",
-			},
-		],
-	};
 }
 
 async function buildAllConfigOptions(
 	session: SessionState,
+	organizationOption?: SessionConfigOption,
 ): Promise<SessionConfigOption[]> {
-	const [providerOption, providerModels] = await Promise.all([
-		buildProviderConfigOption(session.currentProviderId),
-		Llms.getModelsForProvider(session.currentProviderId),
+	const [providerOptions, providerModels] = await Promise.all([
+		getProviderOptions(),
+		Llms.getModelsForProvider(
+			session.currentProviderId,
+			CHAT_MODEL_QUERY_OPTIONS,
+		),
 	]);
-	return [
-		providerOption,
-		buildModelConfigOption(session.currentModelId, providerModels),
-		buildModeConfigOption(session.currentMode),
-		buildAutoApproveConfigOption(session.autoApproveTools),
-	];
+	return buildConfigOptions({
+		currentProviderId: session.currentProviderId,
+		providerOptions,
+		currentModelId: session.currentModelId,
+		providerModels,
+		currentMode: session.currentMode,
+		autoApproveTools: session.autoApproveTools,
+		organizationOption,
+	});
 }
 
 function extractTextFromContentBlocks(blocks: ContentBlock[]): string {

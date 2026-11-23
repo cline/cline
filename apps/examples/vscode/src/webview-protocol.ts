@@ -3,6 +3,7 @@ import type {
 	ProviderListItem,
 	ProviderModel,
 } from "@cline/core";
+import type { GeneratedMedia } from "@cline/shared";
 
 export type WebviewUsage = {
 	inputTokens?: number;
@@ -31,6 +32,7 @@ export type WebviewToolEvent = {
 export type WebviewChatMessageBlock =
 	| { id: string; type: "text"; text: string }
 	| { id: string; type: "reasoning"; text: string; redacted?: boolean }
+	| { id: string; type: "media"; media: GeneratedMedia }
 	| {
 			id: string;
 			type: "tool";
@@ -128,6 +130,7 @@ export type WebviewOutboundMessage =
 	  }
 	| { type: "assistant_delta"; text: string }
 	| { type: "reasoning_delta"; text: string; redacted?: boolean }
+	| { type: "assistant_media"; media: GeneratedMedia }
 	| { type: "tool_event"; text: string; event?: WebviewToolEvent }
 	| {
 			type: "turn_done";

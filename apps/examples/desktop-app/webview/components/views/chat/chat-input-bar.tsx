@@ -1,18 +1,39 @@
 "use client";
 
+import type { PluginCommandCatalog } from "@cline/core";
+
 import {
+	ANTHROPIC_DEFAULT_MODEL_ID,
 	CLINE_DEFAULT_MODEL_ID,
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+	AgentComposer,
+	AgentComposerActions,
+	AgentComposerAttachments,
+	AgentComposerBody,
+	AgentComposerField,
+	AgentComposerSendButton,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	AgentComposerSettingsGroup,
+	AgentComposerStopButton,
+	AgentComposerTextarea,
+	AgentPromptQueue,
+	SearchCombobox,
+} from "@cline/ui";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cloud,
+	Cpu,
+	Paperclip,
+	Plus,
+	X,
+} from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
 	SelectContent,
@@ -20,23 +41,53 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
-import { formatCostUsd } from "@/hooks/use-session-history";
+import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
-import { desktopClient } from "@/lib/desktop-client";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
+	addKnownMentionPaths,
+	getComposerHighlights,
+	setKnownSlashCommands,
+	useKnownComposerTokens,
+} from "@/lib/composer-tokens";
+import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
+import {
+	buildModelPickerData,
+	type ModelPickerData,
+} from "@/lib/featured-models";
+import {
+	imageAttachmentMediaType,
+	isSupportedImageAttachment,
+} from "@/lib/image-attachments";
+import { isLocalRuntime } from "@/lib/local-models";
+import {
+	MODEL_SELECTION_CHANGED_EVENT,
+	type ModelSelectionChangedDetail,
 	readModelSelectionStorageFromWindow,
+	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
+	writeReasoningSelectionToWindow,
 } from "@/lib/model-selection";
+import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
+	type TranscriptionModelTarget,
+	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
+import type { ProviderModel } from "@/lib/provider-schema";
+import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
+import { LocalModelIndicator } from "./local-model-indicator";
+import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -72,54 +123,78 @@ type UserInstructionConfigResponse = {
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
+		name: "compact",
+		description: "Summarize the conversation to free up context",
+	},
+	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+const CLOUD_HANDOFF_SLASH_COMMAND: SlashCommand = {
+	name: "cloud",
+	description: "Continue this local session in Cline Cloud",
+};
 
-// Last known user commands, kept across composer instances so reopening the
-// slash menu paints instantly (stale-while-revalidate); the fetch that
-// follows still picks up newly installed skills and workflows.
-let cachedSlashCommands: SlashCommand[] | null = null;
+export function withCloudHandoffSlashCommand(
+	commands: SlashCommand[],
+	enabled: boolean,
+): SlashCommand[] {
+	if (!enabled) return commands;
+	return [
+		CLOUD_HANDOFF_SLASH_COMMAND,
+		...commands.filter((command) => command.name !== "cloud"),
+	];
+}
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
-		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
-	});
+	const result: SlashCommand[] = [];
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	for (const command of commands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description:
+				command.description?.trim() ||
+				`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
+		});
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	// Anthropic's own API expects bare ids, so use the Anthropic-format
+	// equivalent of CLINE_DEFAULT_MODEL_ID rather than the prefixed id.
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.5"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-3-pro-latest"],
 };
 
 const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
-	anthropic: ["claude-sonnet-4-6"],
+	anthropic: [ANTHROPIC_DEFAULT_MODEL_ID],
 	"openai-native": ["gpt-5.5"],
-	openrouter: ["anthropic/claude-sonnet-4.6"],
+	openrouter: [CLINE_DEFAULT_MODEL_ID],
 	gemini: ["gemini-3-pro-latest"],
 };
 
@@ -140,12 +215,12 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "Medium", value: "medium" },
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
+	{ label: "Max", value: "max" },
 ];
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
-
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
 	reasoningEffort: ChatSessionConfig["reasoningEffort"],
@@ -214,20 +289,15 @@ function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
 	if (slashIndex === -1) {
 		return null;
 	}
-	// Slash must be at the start or preceded by whitespace.
-	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+	// The sidecar only runs a command that starts the trimmed prompt, so a
+	// mid-sentence slash is plain text.
+	if (left.slice(0, slashIndex).trim() !== "") {
 		return null;
 	}
 	const query = left.slice(slashIndex + 1);
 	// No whitespace allowed inside the query — once the user typed a space
 	// the slash command has been committed.
 	if (/\s/.test(query)) {
-		return null;
-	}
-	// Don't open slash mode if there's already a completed slash command earlier in the input.
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
-	const textBeforeCurrentSlash = input.slice(0, slashIndex);
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
 		return null;
 	}
 	return { slashIndex, query };
@@ -243,9 +313,24 @@ export type PromptDraft = {
 	value: string;
 };
 
+export function buildWorkspaceFileSearchKey(
+	environmentId: string,
+	workspaceRoot: string,
+	query: string,
+): string {
+	return JSON.stringify([environmentId, workspaceRoot, query]);
+}
+
 type ChatInputBarProps = {
+	sessionId?: string | null;
+	environmentId: string;
 	variant?: "conversation" | "welcome";
+	readOnly?: boolean;
+	cloudHandoffAvailable?: boolean;
 	status: ChatSessionStatus;
+	placeholder?: string;
+	isCompacting?: boolean;
+	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
@@ -254,6 +339,10 @@ type ChatInputBarProps = {
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -270,12 +359,15 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
+	onOpenModelSettings?: () => void;
+	/** Opens Settings → Local Models from the local model chip. */
+	onOpenLocalModels?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -285,9 +377,20 @@ type ChatInputBarProps = {
 	};
 };
 
+// Below this composer width the full settings row no longer fits, so the
+// provider/model pickers collapse into a menu.
+const COMPACT_COMPOSER_WIDTH = 512;
+
 function ChatInputBarImpl({
+	sessionId,
+	environmentId,
 	variant = "conversation",
+	readOnly = false,
+	cloudHandoffAvailable = false,
 	status,
+	placeholder,
+	isCompacting = false,
+	hasRunningAgents = false,
 	provider,
 	model,
 	modelContextWindow,
@@ -295,6 +398,10 @@ function ChatInputBarImpl({
 	thinking,
 	reasoningEffort,
 	gitBranch,
+	executionTarget = "local",
+	repoUrl,
+	cloudBranch,
+	hasActiveSession = false,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
@@ -312,8 +419,25 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
+	onOpenModelSettings,
+	onOpenLocalModels,
 	summary,
 }: ChatInputBarProps) {
+	// The composer compacts by its own width rather than the window's: beside
+	// the workspace panel it can be narrow in a wide window, and a container
+	// query would turn the settings row into the containing block for the
+	// compact menu's full-screen click-away layer.
+	const composerRef = useRef<HTMLDivElement | null>(null);
+	const [compact, setCompact] = useState(false);
+	useEffect(() => {
+		const element = composerRef.current;
+		if (!element || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) setCompact(entry.contentRect.width < COMPACT_COMPOSER_WIDTH);
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, []);
 	const {
 		workspaceRoot,
 		workspaces,
@@ -324,9 +448,32 @@ function ChatInputBarImpl({
 	// Keystrokes only update this local state; the parent page tree is not
 	// re-rendered per keypress. External writers push text in via promptDraft.
 	const [promptInput, setPromptInputState] = useState(promptDraft.value);
+	const promptInputValueRef = useRef(promptDraft.value);
 	const appliedDraftVersionRef = useRef(promptDraft.version);
+	const latestDraftVersionRef = useRef(promptDraft.version);
+	latestDraftVersionRef.current = promptDraft.version;
+	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	// The sidebar's "New" action asks the prompt input to grab focus through a
+	// window event (see lib/prompt-input-focus.ts).
+	useEffect(
+		() =>
+			subscribeToPromptInputFocus(() => {
+				promptInputRef.current?.focus();
+			}),
+		[],
+	);
+	const streamingTranscriptRangeRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
+	const transcriptionGenerationRef = useRef(0);
+	const transcriptionTargetIdentityRef = useRef("unconfigured");
 	const setPromptInput = useCallback(
 		(value: string) => {
+			promptInputValueRef.current = value;
 			setPromptInputState(value);
 			onPromptInputChange(value);
 		},
@@ -337,12 +484,17 @@ function ChatInputBarImpl({
 			return;
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
+		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
-	const canAbort = status === "running" || status === "stopping";
+	const localRuntime = normalizeProviderId(provider);
+	const canAbort =
+		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
+	const [speechInputActive, setSpeechInputActive] = useState(false);
+	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
 		provider: string;
@@ -369,14 +521,146 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft;
+	const needsCloudRepository =
+		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const [cloudModelReady, setCloudModelReady] = useState(false);
+	const needsCloudModel =
+		executionTarget === "cloud" && !hasActiveSession && !cloudModelReady;
+	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
+	const cloudContextLabel = useMemo(
+		() =>
+			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
+				.filter(Boolean)
+				.join(" / "),
+		[cloudBranch, repoUrl],
+	);
+	const [imageCapability, setImageCapability] = useState<{
+		provider: string;
+		model: string;
+		supported: boolean | null;
+	} | null>(null);
+	const imagesUnsupported =
+		imageCapability?.provider === provider &&
+		imageCapability.model === model &&
+		imageCapability.supported === false;
+	const handleModelSupportsImagesChange = useCallback(
+		(supported: boolean | null) => {
+			setImageCapability({ provider, model, supported });
+		},
+		[provider, model],
+	);
+	const reportUnsupportedImages = useCallback(() => {
+		toast({
+			title: "This model doesn’t support image input",
+			description:
+				"Choose a model that supports images or remove the images before sending." +
+				(executionTarget === "cloud"
+					? ""
+					: " Other files can still be attached."),
+		});
+	}, [executionTarget]);
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const supportedFiles =
+				executionTarget === "cloud"
+					? files.filter(isSupportedImageAttachment)
+					: files;
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: "Unsupported cloud attachment",
+					description:
+						"Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files.",
+				});
+			}
+			const allowed = imagesUnsupported
+				? supportedFiles.filter((file) => !imageAttachmentMediaType(file))
+				: supportedFiles;
+			if (allowed.length !== supportedFiles.length) reportUnsupportedImages();
+			if (allowed.length > 0) onAttachFiles(allowed);
+		},
+		[
+			executionTarget,
+			imagesUnsupported,
+			onAttachFiles,
+			reportUnsupportedImages,
+		],
+	);
+	const unsupportedDraftImageCount = imagesUnsupported
+		? attachments.filter((attachment) => attachment.isImage).length
+		: 0;
+	const canSend =
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		!needsCloudModel &&
+		!readOnly;
+	const steeringPromptRef = useRef(false);
+	const steerFirstQueuedPrompt = async () => {
+		const firstPrompt = promptsInQueue[0];
+		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
+		steeringPromptRef.current = true;
+		try {
+			if (executionTarget === "cloud") {
+				await onSteerPromptInQueue(firstPrompt.id);
+			} else {
+				await onSteerPromptInQueue();
+			}
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not steer queued message",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			steeringPromptRef.current = false;
+		}
+	};
 	const handleSend = useCallback(() => {
+		if (speechInputActive || readOnly) return;
+		if (unsupportedDraftImageCount > 0) {
+			reportUnsupportedImages();
+			return;
+		}
+		if (needsCloudRepository || needsCloudModel) return;
 		const prompt = promptInput.trim();
+		if (!prompt) {
+			toast({
+				title: "Add a message to go with your attachments",
+				description:
+					"Describe what you want Cline to do with the attached files before sending.",
+			});
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [
+		needsCloudRepository,
+		needsCloudModel,
+		readOnly,
+		onSend,
+		promptInput,
+		setPromptInput,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	const [transcriptionTarget, setTranscriptionTarget] =
+		useState<TranscriptionModelTarget | null>(null);
+	const updateTranscriptionTarget = useCallback(
+		(target: TranscriptionModelTarget | null) => {
+			const identity = target
+				? `${target.providerId}:${target.modelId}`
+				: "unconfigured";
+			if (identity !== transcriptionTargetIdentityRef.current) {
+				transcriptionTargetIdentityRef.current = identity;
+				transcriptionGenerationRef.current += 1;
+				streamingTranscriptRangeRef.current = null;
+			}
+			setTranscriptionTarget(target);
+		},
+		[],
+	);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	// Mention/slash detection is derived synchronously from the input +
@@ -392,12 +676,16 @@ function ChatInputBarImpl({
 	const mentionKey = activeMention
 		? `${activeMention.start}:${activeMention.query}`
 		: null;
-	const mentionOpen = mentionKey !== null && dismissedMentionKey !== mentionKey;
+	const mentionOpen =
+		executionTarget === "local" &&
+		mentionKey !== null &&
+		dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+	const knownTokens = useKnownComposerTokens();
 
 	// ---- Slash command state ----
 	const activeSlash = useMemo(
@@ -410,17 +698,214 @@ function ChatInputBarImpl({
 	const slashKey = activeSlash
 		? `${activeSlash.slashIndex}:${activeSlash.query}`
 		: null;
-	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
-	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
+	// Slash commands resolve against locally installed skills/workflows, which
+	// the cloud sandbox cannot run — gate them like @-mentions.
+	const slashOpen =
+		executionTarget === "local" &&
+		slashKey !== null &&
+		dismissedSlashKey !== slashKey;
+	const [instructionResponse, setInstructionResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		response: UserInstructionConfigResponse;
+	}>();
+	const [pluginResponse, setPluginResponse] = useState<{
+		workspaceRoot: string;
+		environmentId: string;
+		sessionId?: string;
+		commands: SlashCommand[];
+	}>();
+	const slashCommands = useMemo(() => {
+		const current = <
+			T extends { workspaceRoot: string; environmentId: string },
+		>(
+			target: T | undefined,
+		) =>
+			target?.workspaceRoot === workspaceRoot &&
+			target.environmentId === environmentId
+				? target
+				: undefined;
+		return [
+			...BUILTIN_SLASH_COMMANDS,
+			...buildUserInstructionSlashCommands(
+				current(instructionResponse)?.response ?? {},
+				// A session's plugins can differ from the workspace catalog.
+				pluginResponse?.sessionId === (sessionId ?? undefined)
+					? (current(pluginResponse)?.commands ?? [])
+					: [],
+			),
+		];
+	}, [
+		instructionResponse,
+		pluginResponse,
+		workspaceRoot,
+		environmentId,
+		sessionId,
+	]);
+	const [pluginLoading, setPluginLoading] = useState(false);
+	const [instructionLoading, setInstructionLoading] = useState(false);
+	const [pluginError, setPluginError] = useState<string>();
+	const [instructionError, setInstructionError] = useState<string>();
+	const slashLoading = pluginLoading || instructionLoading;
+	const slashError = pluginError ?? instructionError;
+	const visibleSlashCommands = useMemo(
+		() => withCloudHandoffSlashCommand(slashCommands, cloudHandoffAvailable),
+		[cloudHandoffAvailable, slashCommands],
 	);
-	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const loadedCommandCatalogKeyRef = useRef<string | null>(null);
+	useEffect(() => {
+		setKnownSlashCommands(visibleSlashCommands.map((command) => command.name));
+	}, [visibleSlashCommands]);
+	const composerHighlights = useMemo(
+		() =>
+			executionTarget === "local"
+				? getComposerHighlights(promptInput, knownTokens.commandNames, (path) =>
+						knownTokens.mentionPaths.has(path),
+					)
+				: undefined,
+		[executionTarget, promptInput, knownTokens],
+	);
+
+	useEffect(() => {
+		let cancelled = false;
+		let loadId = 0;
+		const loadVoiceInput = () => {
+			const currentLoadId = ++loadId;
+			loadProviderModelCatalog({ includeVoiceInput: true })
+				.then((catalog) => {
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(catalog.voiceInput);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && currentLoadId === loadId) {
+						updateTranscriptionTarget(null);
+					}
+				});
+		};
+		loadVoiceInput();
+		window.addEventListener(VOICE_INPUT_SETTINGS_CHANGED_EVENT, loadVoiceInput);
+		return () => {
+			cancelled = true;
+			loadId += 1;
+			window.removeEventListener(
+				VOICE_INPUT_SETTINGS_CHANGED_EVENT,
+				loadVoiceInput,
+			);
+		};
+	}, [updateTranscriptionTarget]);
+
+	const handleStreamingTranscriptionStart = useCallback(() => {
+		const current = promptInputValueRef.current;
+		const input = promptInputRef.current;
+		const start = input?.selectionStart ?? current.length;
+		const end = input?.selectionEnd ?? start;
+		streamingTranscriptRangeRef.current = {
+			start,
+			end,
+			expectedValue: current,
+			draftVersion: latestDraftVersionRef.current,
+			generation: transcriptionGenerationRef.current,
+		};
+	}, []);
+
+	const handleStreamingTranscriptionChange = useCallback(
+		(transcript: string) => {
+			const text = transcript.trim();
+			const range = streamingTranscriptRangeRef.current;
+			if (!text || !range) return;
+
+			const current = promptInputValueRef.current;
+			// A live transcript range is only valid for the exact draft produced by
+			// its previous update. Refuse to apply stale numeric offsets if another
+			// writer changes the draft while the microphone is active.
+			if (
+				range.generation !== transcriptionGenerationRef.current ||
+				range.draftVersion !== latestDraftVersionRef.current ||
+				current !== range.expectedValue
+			) {
+				streamingTranscriptRangeRef.current = null;
+				return;
+			}
+			const before = current.slice(0, range.start);
+			const after = current.slice(range.end);
+			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
+			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
+			const insertion = `${leadingSpace}${text}${trailingSpace}`;
+			const next = `${before}${insertion}${after}`;
+			const nextEnd = range.start + insertion.length;
+			streamingTranscriptRangeRef.current = {
+				start: range.start,
+				end: nextEnd,
+				expectedValue: next,
+				draftVersion: range.draftVersion,
+				generation: range.generation,
+			};
+			setPromptInput(next);
+
+			requestAnimationFrame(() => {
+				const textarea = promptInputRef.current;
+				textarea?.focus();
+				textarea?.setSelectionRange(nextEnd, nextEnd);
+				setCursorIndex(nextEnd);
+			});
+		},
+		[setPromptInput],
+	);
+
+	const handleStreamingTranscriptionEnd = useCallback(() => {
+		streamingTranscriptRangeRef.current = null;
+	}, []);
+
+	const handleStartStreamingTranscription = useCallback(() => {
+		const generation = transcriptionGenerationRef.current;
+		return startStreamingTranscription({
+			onTranscript: (transcript) => {
+				if (generation === transcriptionGenerationRef.current) {
+					handleStreamingTranscriptionChange(transcript);
+				}
+			},
+		});
+	}, [handleStreamingTranscriptionChange]);
+
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	useEffect(() => {
+		if (
+			executionTarget === "cloud" &&
+			normalizeProviderId(provider) !== "cline"
+		) {
+			onProviderChange("cline");
+		}
+	}, [executionTarget, onProviderChange, provider]);
 	const hasExplicitReasoningSelection =
 		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
@@ -441,20 +926,53 @@ function ChatInputBarImpl({
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
 				onReasoningChange(buildReasoningConfig(nextOption));
+				try {
+					writeReasoningSelectionToWindow(
+						normalizeProviderId(provider),
+						nextOption.value,
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 			}
 		},
-		[modelSupportsReasoning, onReasoningChange],
+		[modelSupportsReasoning, onReasoningChange, provider],
 	);
 
+	const seededReasoningProviderRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (
-			modelSupportsReasoning === true &&
-			thinking === undefined &&
-			reasoningEffort === undefined
-		) {
-			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
+		if (modelSupportsReasoning !== true) {
+			return;
 		}
-	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
+		const normalizedId = normalizeProviderId(provider);
+		const unset = thinking === undefined && reasoningEffort === undefined;
+		if (!unset && seededReasoningProviderRef.current === normalizedId) {
+			return;
+		}
+		seededReasoningProviderRef.current = normalizedId;
+		// The thread's config is rebuilt on every mount (and session hydration
+		// only restores provider/model), so seed the effort from the last value
+		// the user picked for this provider before falling back to the default.
+		// A provider switch re-seeds too, but only when that provider has a
+		// remembered value; otherwise the current choice carries over.
+		const remembered = EFFORT_LEVELS.find(
+			(option) =>
+				option.value ===
+				readReasoningSelectionStorageFromWindow()[normalizedId],
+		);
+		if (!unset && !remembered) {
+			return;
+		}
+		onReasoningChange(
+			buildReasoningConfig(remembered ?? DEFAULT_REASONING_EFFORT),
+		);
+	}, [
+		modelSupportsReasoning,
+		onReasoningChange,
+		provider,
+		reasoningEffort,
+		thinking,
+	]);
 
 	// Focus the composer on mount/variant change and when text is injected
 	// from outside (quick actions, queue undo). Deliberately NOT on every
@@ -485,7 +1003,11 @@ function ChatInputBarImpl({
 			return;
 		}
 
-		const requestKey = `${workspaceRoot}::${activeMention.query}`;
+		const requestKey = buildWorkspaceFileSearchKey(
+			environmentId,
+			workspaceRoot,
+			activeMention.query,
+		);
 		if (mentionLastRequestKeyRef.current === requestKey) {
 			return;
 		}
@@ -507,6 +1029,7 @@ function ChatInputBarImpl({
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
+						environmentId,
 						workspaceRoot,
 						query: activeMention.query,
 						limit: 10,
@@ -518,6 +1041,7 @@ function ChatInputBarImpl({
 				const nextResults = Array.isArray(results) ? results : [];
 				mentionResultsCacheRef.current.set(requestKey, nextResults);
 				setMentionFiles(nextResults);
+				addKnownMentionPaths(nextResults);
 				setMentionSelectedIndex(0);
 			} catch {
 				if (cancelled) {
@@ -537,7 +1061,13 @@ function ChatInputBarImpl({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [activeMention, mentionOpen, workspaceRoot, mentionFiles.length]);
+	}, [
+		activeMention,
+		environmentId,
+		mentionOpen,
+		workspaceRoot,
+		mentionFiles.length,
+	]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {
@@ -573,45 +1103,102 @@ function ChatInputBarImpl({
 		}
 	}, [slashOpen]);
 
-	// Reload user commands whenever the slash menu opens so newly installed or
-	// edited skills and workflows are reflected without remounting the chat UI.
+	// The menus scroll (max-h + overflow-y-auto), so keep the keyboard-selected
+	// option visible as arrow keys move the highlight past the visible rows.
 	useEffect(() => {
-		if (!slashOpen) {
+		if (!slashOpen) return;
+		document
+			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [slashOpen, slashSelectedIndex]);
+
+	useEffect(() => {
+		if (!mentionOpen) return;
+		document
+			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [mentionOpen, mentionSelectedIndex]);
+
+	// Load commands once per workspace/session up front (sent messages chip
+	// them too), then refresh whenever the slash menu opens, keeping the last
+	// results while fetching so suggestions do not flash away. Each request
+	// settles independently so one failure cannot hide the other.
+	useEffect(() => {
+		const catalogKey = `${environmentId}\u0000${workspaceRoot}\u0000${sessionId ?? ""}`;
+		if (!slashOpen && loadedCommandCatalogKeyRef.current === catalogKey) {
+			setInstructionLoading(false);
+			setPluginLoading(false);
 			return;
 		}
 		let cancelled = false;
-		// Only show the loading row when there is nothing cached to show.
-		setSlashLoading(cachedSlashCommands === null);
+		// Marked loaded only once both catalogs arrive: a cancelled (e.g. a
+		// StrictMode effect replay), failed, or half-finished load must be
+		// retried rather than leaving commands unchipped.
+		let pendingCatalogs = 2;
+		const catalogArrived = () => {
+			pendingCatalogs -= 1;
+			if (pendingCatalogs === 0)
+				loadedCommandCatalogKeyRef.current = catalogKey;
+		};
+		setInstructionLoading(true);
+		setPluginLoading(true);
 		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs", {
+				workspacePath: workspaceRoot,
+				environmentId,
+			})
 			.then((response) => {
 				if (cancelled) return;
-				const next = [
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
-				];
-				cachedSlashCommands = next;
-				setSlashCommands(next);
+				catalogArrived();
+				setInstructionResponse({ workspaceRoot, environmentId, response });
+				setInstructionError(undefined);
 			})
 			.catch(() => {
-				// Keep built-in commands on error.
+				if (!cancelled) setInstructionError("Instruction commands unavailable");
 			})
 			.finally(() => {
-				if (!cancelled) setSlashLoading(false);
+				if (!cancelled) setInstructionLoading(false);
+			});
+		desktopClient
+			.invoke<PluginCommandCatalog>("list_plugin_commands", {
+				workspacePath: workspaceRoot,
+				environmentId,
+				sessionId: sessionId ?? undefined,
+			})
+			.then((catalog) => {
+				if (cancelled) return;
+				if (catalog.status !== "error") catalogArrived();
+				setPluginResponse({
+					workspaceRoot,
+					environmentId,
+					sessionId: sessionId ?? undefined,
+					commands: catalog.commands,
+				});
+				setPluginError(
+					catalog.status === "error"
+						? "Plugin commands unavailable"
+						: undefined,
+				);
+			})
+			.catch(() => {
+				if (!cancelled) setPluginError("Plugin commands unavailable");
+			})
+			.finally(() => {
+				if (!cancelled) setPluginLoading(false);
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot, environmentId, sessionId]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashOpen) return [];
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return slashCommands.slice(0, 10);
+			return visibleSlashCommands.slice(0, 10);
 		}
-		return slashCommands
+		return visibleSlashCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -621,12 +1208,16 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands]);
+	}, [slashOpen, activeSlash?.query, visibleSlashCommands]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
 			if (!activeSlash) return;
-			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
+			// Replace only the typed `/query` (slashIndex..cursor) and keep any
+			// text after the cursor.
+			const suffix = promptInput.slice(cursorIndex);
+			const separator = /^\s/.test(suffix) ? "" : " ";
+			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName}${separator}${suffix}`;
 			// Closes via derivation: the trailing space ends the slash command.
 			setPromptInput(nextValue);
 			const nextCursor = activeSlash.slashIndex + commandName.length + 2;
@@ -638,7 +1229,7 @@ function ChatInputBarImpl({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeSlash, promptInput, setPromptInput],
+		[activeSlash, cursorIndex, promptInput, setPromptInput],
 	);
 
 	// Queued prompts are stored in their runtime form (a /team command is
@@ -655,21 +1246,14 @@ function ChatInputBarImpl({
 	);
 
 	return (
-		<div
-			className={cn(
-				"bg-card",
-				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-			)}
+		<AgentComposer
+			className="group/composer"
+			data-compact={compact || undefined}
+			ref={composerRef}
+			variant={variant}
 		>
 			{/* Input area */}
-			<div
-				className={cn(
-					"px-4 py-3",
-					variant === "welcome" ? "pb-2 pt-4" : "py-4",
-				)}
-			>
+			<AgentComposerBody variant={variant} hasQueue={promptsInQueue.length > 0}>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -687,7 +1271,7 @@ function ChatInputBarImpl({
 								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
-										: "No matching commands"}
+										: (slashError ?? "No matching commands")}
 								</div>
 							) : (
 								<>
@@ -762,14 +1346,9 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
-					<div
-						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
-						)}
+					{/* Empty space forwards pointer focus; keyboard users focus the textarea directly. */}
+					<AgentComposerField
+						variant={variant}
 						onMouseDown={(event) => {
 							const target = event.target;
 							if (
@@ -782,7 +1361,16 @@ function ChatInputBarImpl({
 							promptInputRef.current?.focus();
 						}}
 					>
-						<textarea
+						{speechInputProcessing && (
+							<output
+								aria-live="polite"
+								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
+							>
+								<Spinner className="size-3.5" />
+								<span className="sr-only">Transcribing voice input</span>
+							</output>
+						)}
+						<AgentComposerTextarea
 							aria-activedescendant={
 								slashOpen && filteredSlashCommands.length > 0
 									? `slash-command-option-${slashSelectedIndex}`
@@ -800,11 +1388,10 @@ function ChatInputBarImpl({
 							}
 							aria-expanded={slashOpen || mentionOpen}
 							aria-haspopup="listbox"
-							className={cn(
-								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
-								variant === "welcome" && "self-start",
-							)}
+							highlights={composerHighlights}
+							variant={variant}
 							onChange={(e) => {
+								if (speechInputActive) return;
 								setPromptInput(e.target.value);
 								setCursorIndex(
 									e.target.selectionStart ?? e.target.value.length,
@@ -823,10 +1410,16 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									onAttachFiles(images);
+									handleAttachFiles(images);
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -895,6 +1488,15 @@ function ChatInputBarImpl({
 									e.preventDefault();
 									if (canSend) {
 										handleSend();
+									} else if (
+										!hasDraft &&
+										!speechInputActive &&
+										!e.ctrlKey &&
+										!e.metaKey &&
+										!e.altKey &&
+										!e.repeat
+									) {
+										void steerFirstQueuedPrompt();
 									}
 								}
 							}}
@@ -904,12 +1506,24 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
-										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: needsCloudRepository
+										? "Choose a repository"
+										: (placeholder ??
+											(isBusy && variant !== "welcome"
+												? isCompacting
+													? "Compacting... click Stop to cancel"
+													: promptsInQueue.length > 0
+														? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+														: "Agent is working... submit to queue another message"
+												: executionTarget === "cloud"
+													? "Describe what Cline should do in this repository."
+													: variant === "welcome"
+														? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+														: "Enter your question or type / for commands or @ for context"))
 							}
+							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
 							role="combobox"
 							rows={promptInputRows}
@@ -919,48 +1533,79 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div
-							className={cn(
-								"flex shrink-0 items-center gap-2",
-								variant === "conversation" && "self-end",
-							)}
-						>
+						<AgentComposerActions variant={variant}>
+							{needsCloudRepository ? (
+								<span
+									aria-live="polite"
+									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+								>
+									Repository required
+								</span>
+							) : null}
 							{canAbort && (
-								<button
+								<AgentComposerStopButton
 									aria-label="Stop agent"
-									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
-									)}
+									variant={variant}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-3" />
-								</button>
+								</AgentComposerStopButton>
 							)}
+							{/* The mic button only appears once a voice model is
+							    configured in Settings → Voice; unconfigured users
+							    don't get a dead control. Start with the configured provider;
+							    browser recognition is only a fallback for network failures. */}
+							{transcriptionTarget ? (
+								<SpeechInput
+									fallbackOnNetworkError
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
+									onActiveChange={setSpeechInputActive}
+									onError={handleSpeechInputError}
+									onNetworkFallback={() =>
+										toast({
+											title: "Switched to browser speech recognition",
+											description:
+												"The voice provider could not be reached. Click the microphone and repeat any missing speech. Browser recognition may also require internet access.",
+										})
+									}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={handleStartStreamingTranscription}
+									onStreamingEnd={handleStreamingTranscriptionEnd}
+									onStreamingStart={handleStreamingTranscriptionStart}
+									onTranscriptionChange={handleStreamingTranscriptionChange}
+									recordingMode="streaming"
+									title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+								/>
+							) : null}
 							{(!isBusy || canSend) && (
-								<button
+								<AgentComposerSendButton
 									aria-label="Send message"
-									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
-									)}
+									variant={variant}
 									disabled={!canSend}
 									onClick={handleSend}
-									title="Send (Enter)"
+									title={
+										needsCloudRepository
+											? "Choose a repository"
+											: "Send (Enter)"
+									}
 									type="button"
 								>
 									<ArrowUp className="size-3" />
-								</button>
+								</AgentComposerSendButton>
 							)}
-						</div>
-					</div>
+						</AgentComposerActions>
+					</AgentComposerField>
 				</div>
+				{unsupportedDraftImageCount > 0 && (
+					<output className="block px-2 text-sm text-destructive">
+						This model doesn’t support the attached images. Remove them or
+						choose a model that supports images before sending.
+					</output>
+				)}
 				{attachments.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1.5">
+					<AgentComposerAttachments>
 						{attachments.map((attachment) => (
 							<span
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
@@ -977,15 +1622,24 @@ function ChatInputBarImpl({
 								</button>
 							</span>
 						))}
-					</div>
+					</AgentComposerAttachments>
 				)}
-			</div>
+			</AgentComposerBody>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
-				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
+			<AgentComposerSettings>
+				<AgentComposerSettingsGroup className="group-data-[compact]/composer:flex-none">
 					<button
-						aria-label="Attach files"
+						aria-label={
+							executionTarget === "cloud" ? "Attach images" : "Attach files"
+						}
+						title={
+							executionTarget === "cloud"
+								? "Attach images"
+								: imagesUnsupported
+									? "Attach files (this model doesn’t support images)"
+									: "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -993,12 +1647,12 @@ function ChatInputBarImpl({
 						<Paperclip className="size-3" />
 					</button>
 					<input
-						accept="*/*"
+						accept={executionTarget === "cloud" ? "image/*" : "*/*"}
 						className="hidden"
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) onAttachFiles(files);
+							if (files.length > 0) handleAttachFiles(files);
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}
@@ -1036,35 +1690,45 @@ function ChatInputBarImpl({
 							Act
 						</button>
 					</div>
-					<div className="min-w-0 shrink-0">
+					<div className="min-w-0 group-data-[compact]/composer:shrink-0">
 						<ModelSelector
+							key={executionTarget}
+							autoCorrectModel={!cloudSettingsLocked}
+							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
+							onModelReadyChange={setCloudModelReady}
 							onModelChange={onModelChange}
+							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
+							}
+							onOpenModelSettings={
+								executionTarget === "cloud" ? undefined : onOpenModelSettings
 							}
 							onProviderChange={onProviderChange}
 							provider={provider}
 						/>
 					</div>
 					<Select
-						disabled={modelSupportsReasoning !== true}
+						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
 						onValueChange={handleEffortChange}
 						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden group-data-[compact]/composer:size-7 group-data-[compact]/composer:shrink-0 group-data-[compact]/composer:justify-center group-data-[compact]/composer:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
-								modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
+								cloudSettingsLocked
+									? "Thinking level is fixed when a cloud session starts"
+									: modelSupportsReasoning === false
+										? "The selected model does not report reasoning support"
+										: undefined
 							}
 						>
 							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
+							<span className="group-data-[compact]/composer:sr-only">
 								<SelectValue>{effortLabel}</SelectValue>
 							</span>
 						</SelectTrigger>
@@ -1076,23 +1740,46 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+					{/* The chip controls this computer's runtime, which SSH sessions don't use. */}
+					{executionTarget !== "cloud" &&
+					environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+					isLocalRuntime(localRuntime) ? (
+						<LocalModelIndicator
+							isBusy={isBusy}
+							model={model}
+							onOpenLocalModels={onOpenLocalModels}
+							runtime={localRuntime}
+						/>
+					) : null}
+				</AgentComposerSettingsGroup>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				{/* Reserve room for the model and thinking controls so a long
+				    branch name can't squeeze the model name out entirely. */}
+				<AgentComposerSettingsEnd className="max-w-[calc(100%-22rem)] group-data-[compact]/composer:max-w-none">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
-								<WorkspaceSelector
-									currentBranch={gitBranch}
-									disabled
-									onListGitBranches={onListGitBranches}
-									onRefreshWorkspaces={onRefreshWorkspaces}
-									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={onSwitchWorkspace}
-									workspaces={workspaces}
-									workspaceRoot={workspaceRoot}
-								/>
+								{executionTarget === "cloud" ? (
+									<span
+										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+										title={cloudContextLabel}
+									>
+										<Cloud className="size-3 shrink-0" />
+										<span className="truncate">{cloudContextLabel}</span>
+									</span>
+								) : (
+									<WorkspaceSelector
+										currentBranch={gitBranch}
+										disabled
+										onListGitBranches={onListGitBranches}
+										onRefreshWorkspaces={onRefreshWorkspaces}
+										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+										onSwitchGitBranch={onSwitchGitBranch}
+										onSwitchWorkspace={onSwitchWorkspace}
+										workspaces={workspaces}
+										workspaceRoot={workspaceRoot}
+									/>
+								)}
 							</div>
 							<TokenUsageRing
 								usage={{
@@ -1105,9 +1792,9 @@ function ChatInputBarImpl({
 							/>
 						</div>
 					) : null}
-				</div>
-			</div>
-		</div>
+				</AgentComposerSettingsEnd>
+			</AgentComposerSettings>
+		</AgentComposer>
 	);
 }
 
@@ -1118,25 +1805,40 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
+/** Sentinel provider-picker row that opens Settings → Providers instead of selecting. */
+const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
+
 const ModelSelector = memo(function ModelSelector({
+	allowedProviderIds,
+	autoCorrectModel = true,
+	includeCloudModels = false,
 	provider,
 	model,
 	isBusy,
 	onProviderChange,
 	onModelChange,
+	onModelReadyChange,
 	onModelSupportsReasoningChange,
+	onModelSupportsImagesChange,
+	onOpenModelSettings,
 }: {
+	allowedProviderIds?: string[];
+	autoCorrectModel?: boolean;
+	includeCloudModels?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
+	onModelReadyChange: (ready: boolean) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	onModelSupportsImagesChange: (supported: boolean | null) => void;
+	/** Opens Settings → Providers; adds a "set up another provider" row when set. */
+	onOpenModelSettings?: () => void;
 }) {
-	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
-	>(FALLBACK_PROVIDER_MODELS);
+	>(includeCloudModels ? {} : FALLBACK_PROVIDER_MODELS);
 	const [providerReasoningModels, setProviderReasoningModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_REASONING_MODELS);
@@ -1144,17 +1846,104 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	const [modelDetails, setModelDetails] = useState<
+		Record<string, ProviderModel[]>
+	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
-		readModelSelectionStorageFromWindow(),
+		includeCloudModels
+			? { lastProvider: "", lastModelByProvider: {} }
+			: readModelSelectionStorageFromWindow(),
+	);
+	const [catalogRevision, setCatalogRevision] = useState(0);
+	// Remounted per execution target, so this reads the local provider as of entering Cloud.
+	const [localClinePass] = useState(
+		() =>
+			includeCloudModels &&
+			normalizeProviderId(
+				readModelSelectionStorageFromWindow().lastProvider,
+			) === "cline-pass",
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const normalizedProvider = includeCloudModels
+		? (Object.keys(providerModels).find((id) =>
+				providerModels[id]?.includes(model),
+			) ??
+			(model.startsWith("cline-pass/")
+				? "cline-pass"
+				: model.startsWith("cline-cloud/")
+					? "cline-cloud"
+					: "cline"))
+		: normalizeProviderId(provider);
+	useEffect(() => {
+		if (!includeCloudModels) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			setProviderModels({});
+			setEnabledProviderIds([]);
+			setCatalogRevision((current) => current + 1);
+		});
+	}, [includeCloudModels]);
+	useEffect(
+		() =>
+			subscribeToProviderCatalogInvalidation(() =>
+				setCatalogRevision((current) => current + 1),
+			),
+		[],
+	);
+	const applyProviderModels = useCallback(
+		(providerId: string, models: ProviderModel[]) => {
+			setProviderModels((current) => ({
+				...current,
+				[providerId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[providerId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setModelDetails((current) => ({
+				...current,
+				[providerId]: models,
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(providerId) ? current : [...current, providerId],
+			);
+		},
+		[],
+	);
+	// Re-fetch only the live list on picker open so the Recommended/Free tiers
+	// stay current. Re-running the full load would first re-apply the bundled
+	// catalog and briefly flash a stale name in the trigger.
+	const refreshActiveProviderModels = useCallback(() => {
+		if (!normalizedProvider) return;
+		if (includeCloudModels) {
+			setCatalogRevision((current) => current + 1);
+			return;
+		}
+		const loading = loadProviderModels(normalizedProvider);
+		loading
+			.then((models) => {
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
+			})
+			.catch(() => {
+				// Keep the current list when the refresh fails.
+			});
+	}, [applyProviderModels, includeCloudModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
+			if (allowedProviderIds && !allowedProviderIds.includes(providerId)) {
+				continue;
+			}
 			next[providerId] = providerModels[providerId] ?? [];
 		}
 		return next;
-	}, [enabledProviderIds, providerModels]);
+	}, [allowedProviderIds, enabledProviderIds, providerModels]);
 	const providers = useMemo(
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
@@ -1173,52 +1962,196 @@ const ModelSelector = memo(function ModelSelector({
 		}
 		return providers[0] ?? "";
 	}, [normalizedProvider, providers, rememberedLastProvider]);
+	useEffect(() => {
+		onModelReadyChange(
+			providers.includes(normalizedProvider) &&
+				(providerModels[normalizedProvider]?.includes(model) ?? false),
+		);
+	}, [
+		model,
+		normalizedProvider,
+		onModelReadyChange,
+		providerModels,
+		providers,
+	]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
+	const pickerDataForProvider = useCallback(
+		(providerId: string): ModelPickerData => {
+			const detailsById = new Map(
+				(modelDetails[providerId] ?? []).map(
+					(entry) => [entry.id, entry] as const,
+				),
+			);
+			const models = (visibleProviderModels[providerId] ?? []).map(
+				(id) => detailsById.get(id) ?? { id, name: id },
+			);
+			return includeCloudModels
+				? {
+						options: models.map((entry) => ({
+							label: entry.name,
+							value: entry.id,
+						})),
+					}
+				: buildModelPickerData(providerId, models);
+		},
+		[includeCloudModels, modelDetails, visibleProviderModels],
+	);
+	useEffect(() => {
+		const selected = modelDetails[normalizedProvider]?.find(
+			(entry) => entry.id === model,
+		);
+		onModelSupportsImagesChange(
+			selected?.inputModalities !== undefined
+				? selected.inputModalities.includes("image")
+				: (selected?.supportsVision ?? null),
+		);
+	}, [modelDetails, normalizedProvider, model, onModelSupportsImagesChange]);
+
+	const modelPicker = useMemo(
+		() => pickerDataForProvider(resolvedProvider),
+		[pickerDataForProvider, resolvedProvider],
+	);
+	const pickerModelIds = useMemo(
+		() => new Set(modelPicker.options.map((option) => option.value)),
+		[modelPicker],
+	);
 	const resolvedModel = useMemo(() => {
-		if (modelsForProvider.length === 0) {
-			return "";
-		}
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
-			lastSelection.lastModelByProvider[rememberedLastProvider];
-		if (model && modelsForProvider.includes(model)) {
+			(normalizeProviderId(rememberedLastProvider) === resolvedProvider
+				? lastSelection.lastModelByProvider[rememberedLastProvider]
+				: undefined);
+		// Catalogs are discovery data, not validation: the bundled catalog can
+		// omit live ClinePass models, and refreshes can return partial lists.
+		// Keep the configured model for the current provider even if absent;
+		// otherwise loading the catalog silently changes the session's model.
+		if (
+			model &&
+			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model)) &&
+			(!includeCloudModels ||
+				!autoCorrectModel ||
+				modelsForProvider.includes(model))
+		) {
 			return model;
 		}
-		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+		// Missing remembered models may also be live-only. Models present in
+		// the catalog but deliberately hidden from the offer still fall back.
+		if (
+			rememberedModel &&
+			(pickerModelIds.has(rememberedModel) ||
+				!modelsForProvider.includes(rememberedModel))
+		) {
 			return rememberedModel;
 		}
-		return modelsForProvider[0] ?? "";
+		if (includeCloudModels) {
+			const fallback =
+				(localClinePass
+					? visibleProviderModels["cline-pass"]?.[0]
+					: undefined) ??
+				(Object.values(visibleProviderModels).some((ids) =>
+					ids.includes(CLINE_DEFAULT_MODEL_ID),
+				)
+					? CLINE_DEFAULT_MODEL_ID
+					: undefined);
+			if (fallback) return fallback;
+		}
+		return (
+			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
+			modelsForProvider[0] ??
+			""
+		);
 	}, [
+		localClinePass,
+		includeCloudModels,
+		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		normalizedProvider,
+		pickerModelIds,
 		rememberedLastProvider,
+		resolvedProvider,
+		visibleProviderModels,
+	]);
+	// The picker can intentionally hide catalog models (the ClinePass offer
+	// is exactly its subscribed/free tiers), but the active model must stay
+	// visible and selectable — e.g. a hydrated session configured with a
+	// model outside the current offer or missing from the catalog. Surface it
+	// under its own section so the selected value always exists in the list.
+	const visibleModelPicker = useMemo((): ModelPickerData => {
+		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
+			return modelPicker;
+		}
+		const detail = (modelDetails[resolvedProvider] ?? []).find(
+			(entry) => entry.id === resolvedModel,
+		);
+		const hasSections = (modelPicker.sections?.length ?? 0) > 0;
+		return {
+			options: [
+				...modelPicker.options,
+				{
+					label: detail?.name?.trim() || resolvedModel,
+					...(hasSections ? { section: "current" } : {}),
+					value: resolvedModel,
+				},
+			],
+			...(hasSections
+				? {
+						sections: [
+							...(modelPicker.sections ?? []),
+							{ id: "current", label: "Current model" },
+						],
+					}
+				: {}),
+		};
+	}, [
+		modelDetails,
+		modelPicker,
+		pickerModelIds,
+		resolvedModel,
 		resolvedProvider,
 	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
 
 		async function loadCatalogAndActiveModels() {
 			try {
-				const payload = await loadProviderModelCatalog();
+				const payload = await loadProviderModelCatalog(
+					includeCloudModels ? { includeCloudModels: true } : undefined,
+				);
 				if (cancelled) {
 					return;
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setProviderNames((current) => ({
+					...current,
+					...(payload.providerNames ?? {}),
+				}));
+				setModelDetails((current) => ({
+					...current,
+					...(payload.providerModelDetails ?? {}),
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
-					if (normalizedProvider) {
+					if (
+						normalizedProvider &&
+						(!includeCloudModels || !autoCorrectModel)
+					) {
 						nextProviderIds.add(normalizedProvider);
 					}
 					for (const providerId of current) {
-						if (providerId in payload.providerModels) {
+						if (!includeCloudModels && providerId in payload.providerModels) {
 							nextProviderIds.add(providerId);
 						}
 					}
@@ -1228,7 +2161,7 @@ const ModelSelector = memo(function ModelSelector({
 				if (!cancelled) setReasoningCapabilitySource("fallback");
 			}
 
-			if (!normalizedProvider || cancelled) {
+			if (includeCloudModels || !normalizedProvider || cancelled) {
 				return;
 			}
 			try {
@@ -1236,22 +2169,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				setProviderModels((current) => ({
-					...current,
-					[normalizedProvider]: models.map((entry) => entry.id),
-				}));
-				setProviderReasoningModels((current) => ({
-					...current,
-					[normalizedProvider]: models
-						.filter((entry) => entry.supportsReasoning)
-						.map((entry) => entry.id),
-				}));
+				applyProviderModels(normalizedProvider, models);
 				setReasoningCapabilitySource("catalog");
-				setEnabledProviderIds((current) =>
-					current.includes(normalizedProvider)
-						? current
-						: [...current, normalizedProvider],
-				);
 			} catch {
 				// Keep the catalog values when provider-specific loading fails.
 			}
@@ -1261,35 +2180,43 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [
+		applyProviderModels,
+		autoCorrectModel,
+		catalogRevision,
+		includeCloudModels,
+		normalizedProvider,
+	]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
-			setProviderModels((current) => ({
-				...current,
-				[normalizedId]: models.map((entry) => entry.id),
-			}));
-			setProviderReasoningModels((current) => ({
-				...current,
-				[normalizedId]: models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id),
-			}));
-			setEnabledProviderIds((current) =>
-				current.includes(normalizedId) ? current : [...current, normalizedId],
-			);
+			if (includeCloudModels) return;
+			applyProviderModels(normalizedId, models);
 		});
-	}, []);
+	}, [applyProviderModels, includeCloudModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
 	// prop change here would also capture passive changes — most notably
 	// opening an existing session, whose config drives these props — silently
 	// replacing the user's chosen default with whatever model that session
-	// happened to use.
+	// happened to use. It also skips automatic Cloud fallbacks, so the Cloud
+	// default keeps following the local model and ClinePass subscription.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
+			if (includeCloudModels) {
+				if (!modelId) return;
+				try {
+					writeModelSelectionStorageToWindow(
+						{ lastProvider: "cline", lastModelByProvider: { cline: modelId } },
+						"cloud",
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
+				return;
+			}
 			const normalizedId = normalizeProviderId(providerId);
 			if (!normalizedId) {
 				return;
@@ -1312,28 +2239,67 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[],
+		[includeCloudModels],
 	);
 
 	useEffect(() => {
+		if (includeCloudModels) return;
 		try {
 			writeModelSelectionStorageToWindow(lastSelection);
 		} catch {
 			// Ignore localStorage persistence failures.
 		}
-	}, [lastSelection]);
+	}, [includeCloudModels, lastSelection]);
+
+	// A selection made mid-turn waits for the turn to end.
+	const [pendingSelection, setPendingSelection] =
+		useState<ModelSelectionChangedDetail | null>(null);
+	useEffect(() => {
+		if (includeCloudModels) return;
+		const handleSelectionChanged = (event: Event) => {
+			setPendingSelection(
+				(event as CustomEvent<ModelSelectionChangedDetail>).detail,
+			);
+			setLastSelection(readModelSelectionStorageFromWindow());
+		};
+		window.addEventListener(
+			MODEL_SELECTION_CHANGED_EVENT,
+			handleSelectionChanged,
+		);
+		return () =>
+			window.removeEventListener(
+				MODEL_SELECTION_CHANGED_EVENT,
+				handleSelectionChanged,
+			);
+	}, [includeCloudModels]);
+	useEffect(() => {
+		if (isBusy || !pendingSelection) return;
+		setPendingSelection(null);
+		onProviderChange(pendingSelection.providerId);
+		onModelChange(pendingSelection.modelId);
+	}, [isBusy, pendingSelection, onModelChange, onProviderChange]);
 
 	useEffect(() => {
 		if (providers.length === 0) {
 			return;
 		}
-		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
+		if (isBusy) {
+			return;
+		}
+		if (
+			!includeCloudModels &&
+			resolvedProvider &&
+			resolvedProvider !== normalizedProvider
+		) {
 			onProviderChange(resolvedProvider);
 		}
-		if (resolvedModel && resolvedModel !== model) {
+		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
 			onModelChange(resolvedModel);
 		}
 	}, [
+		autoCorrectModel,
+		includeCloudModels,
+		isBusy,
 		model,
 		onModelChange,
 		onProviderChange,
@@ -1371,23 +2337,39 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
-			onProviderChange(value);
+			if (value === ADD_PROVIDER_OPTION_VALUE) {
+				setMobileOpen(false);
+				onOpenModelSettings?.();
+				return;
+			}
+			if (!includeCloudModels) onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
+			// Preserve live-only remembered models missing from the bundled
+			// catalog. Only fall back when a known model is hidden by the offer.
+			const providerOptionIds = new Set(
+				pickerDataForProvider(value).options.map((option) => option.value),
+			);
 			const nextModel =
-				rememberedModel && providerModelIds.includes(rememberedModel)
+				rememberedModel &&
+				(providerOptionIds.has(rememberedModel) ||
+					!providerModelIds.includes(rememberedModel))
 					? rememberedModel
-					: providerModelIds[0];
+					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
+						providerModelIds[0]);
 			rememberSelection(value, nextModel);
 			if (nextModel && nextModel !== model) {
 				onModelChange(nextModel);
 			}
 		},
 		[
+			includeCloudModels,
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
+			onOpenModelSettings,
 			onProviderChange,
+			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
 		],
@@ -1399,6 +2381,29 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// The picker only lists providers with saved settings, so it is also the
+	// natural place to reach the rest of the catalog.
+	const providerOptions = useMemo(
+		() => [
+			...providers.map((value) => ({
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
+			...(onOpenModelSettings
+				? [
+						{
+							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
+							label: "Set up another provider",
+							value: ADD_PROVIDER_OPTION_VALUE,
+						},
+					]
+				: []),
+		],
+		[onOpenModelSettings, providerNames, providers],
+	);
+	const selectedModelLabel =
+		visibleModelPicker.options.find((option) => option.value === resolvedModel)
+			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -1406,7 +2411,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || providers.length === 0}
 			emptyText="No providers found."
 			onValueChange={handleProviderSelect}
-			options={providers.map((value) => ({ label: value, value }))}
+			options={providerOptions}
 			placeholder="Provider"
 			placement="top"
 			searchPlaceholder="Search providers"
@@ -1420,30 +2425,48 @@ const ModelSelector = memo(function ModelSelector({
 		<SearchCombobox
 			ariaLabel="Model"
 			className={triggerClassName}
-			disabled={isBusy || modelsForProvider.length === 0}
+			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
+			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelsForProvider.map((value) => ({ label: value, value }))}
+			options={visibleModelPicker.options}
+			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
+			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
 
+	if (
+		includeCloudModels &&
+		reasoningCapabilitySource === "fallback" &&
+		providers.length === 0
+	) {
+		return (
+			<button
+				className="text-xs text-destructive"
+				onClick={refreshActiveProviderModels}
+				type="button"
+			>
+				Could not load cloud models. Retry
+			</button>
+		);
+	}
 	return (
-		<div className="relative min-w-0 shrink-0 text-sm">
+		<div className="relative min-w-0 text-sm group-data-[compact]/composer:shrink-0">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 group-data-[compact]/composer:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -1453,13 +2476,13 @@ const ModelSelector = memo(function ModelSelector({
 				<>
 					<button
 						aria-label="Close model selector"
-						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
+						className="fixed inset-0 z-40 hidden cursor-default opacity-0 group-data-[compact]/composer:block"
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none group-data-[compact]/composer:block">
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
@@ -1467,7 +2490,7 @@ const ModelSelector = memo(function ModelSelector({
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
@@ -1479,177 +2502,15 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]" />
-				{renderModelSelect("max-w-52")}
+			<div className="flex min-w-0 items-center gap-0.5 group-data-[compact]/composer:hidden">
+				{/* Wide enough for the longest built-in provider names ("Cline
+				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
+				<div className="shrink-0">{renderProviderSelect("max-w-56")}</div>
+				<div className="bg-border-2 h-4 w-[0.1rem] shrink-0" />
+				{/* Uncapped so long model names show in full when the row has
+				    room; the name truncates only once the row runs out of space. */}
+				{renderModelSelect("max-w-full")}
 			</div>
 		</div>
 	);
 });
-
-type TokenUsage = {
-	tokensIn: number;
-	tokensOut: number;
-	cacheReadTokens: number;
-	totalCost?: number;
-	contextWindow?: number;
-};
-
-/** Current model context relative to the selected model's context window. */
-function TokenUsageRing({ usage }: { usage: TokenUsage }) {
-	const contextWindow = usage.contextWindow;
-	const totalTokens = usage.tokensIn + usage.tokensOut;
-	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
-		return null;
-	}
-
-	const ratio = Math.min(
-		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
-		1,
-	);
-	const percent = Math.round(ratio * 100);
-	const ringColorClass =
-		ratio >= 0.75
-			? "stroke-red-500"
-			: ratio >= 0.5
-				? "stroke-orange-500"
-				: "stroke-primary";
-	const cost = formatCostUsd(usage.totalCost);
-	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
-	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
-	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
-	const segmentScale =
-		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
-	const segmentWidth = (tokens: number) =>
-		`${(tokens / contextWindow) * segmentScale * 100}%`;
-	const radius = 8.5;
-	const circumference = 2 * Math.PI * radius;
-
-	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
-					id="token-usage"
-					size="icon-sm"
-					type="button"
-					variant="text"
-				>
-					<svg
-						aria-hidden="true"
-						className="-rotate-90 size-3.5"
-						height="22"
-						viewBox="0 0 22 22"
-						width="22"
-					>
-						<circle
-							className="stroke-muted-foreground/20"
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeWidth="4"
-						/>
-						<circle
-							className={cn("", ringColorClass)}
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeDasharray={circumference}
-							strokeDashoffset={circumference * (1 - ratio)}
-							strokeLinecap="round"
-							strokeWidth="4"
-						/>
-					</svg>
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				className="w-80 p-0"
-				id="token-usage-panel"
-				side="top"
-				sideOffset={8}
-			>
-				<div className="px-3 py-3">
-					<div className="flex items-center justify-between gap-4 text-sm">
-						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-sm text-foreground">
-							{contextUsageLabel}
-						</span>
-					</div>
-					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-120"
-							data-token-kind="uncached-input"
-							style={{ width: segmentWidth(uncachedInputTokens) }}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
-							data-token-kind="cached-input"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
-								width: segmentWidth(cachedTokens),
-							}}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
-							data-token-kind="output"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
-								width: segmentWidth(usage.tokensOut),
-							}}
-						/>
-					</div>
-					<div className="mt-3 space-y-2 text-sm">
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Input tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensIn.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Output tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensOut.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cached tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.cacheReadTokens.toLocaleString()}
-							</span>
-						</div>
-						{cost ? (
-							<div className="flex items-center justify-between gap-4">
-								<span className="text-muted-foreground">Cost</span>
-								<span className="font-mono text-foreground">{cost}</span>
-							</div>
-						) : null}
-					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function formatCompactTokens(value: number): string {
-	if (value >= 1_000_000) {
-		return `${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (value >= 1_000) {
-		return `${formatCompactUnit(value / 1_000)}k`;
-	}
-	return value.toLocaleString();
-}
-
-function formatCompactUnit(value: number): string {
-	return value.toFixed(1).replace(/\.0$/, "");
-}

@@ -1,4 +1,8 @@
 import {
+	type CoreSettingsListInput,
+	type CoreSettingsMutationResult,
+	type CoreSettingsSnapshot,
+	type CoreSettingsToggleInput,
 	createCoreSettingsService,
 	disablePluginMcpServersInSettings,
 	setDisabledPlugin,
@@ -10,6 +14,7 @@ import {
 import {
 	type InteractiveConfigData,
 	type InteractiveConfigItem,
+	isToggleableInteractiveConfigItem,
 	type LoadInteractiveConfigDataOptions,
 	loadInteractiveConfigData,
 } from "../../tui/interactive-config";
@@ -18,6 +23,12 @@ import type { Config } from "../../utils/types";
 export function createInteractiveConfigDataLoader(input: {
 	config: Config;
 	userInstructionService?: UserInstructionConfigService;
+	loadCoreSettings?: (
+		input: CoreSettingsListInput,
+	) => Promise<CoreSettingsSnapshot>;
+	toggleCoreSettings?: (
+		input: CoreSettingsToggleInput,
+	) => Promise<CoreSettingsMutationResult>;
 }) {
 	const workspaceRoot = () =>
 		input.config.workspaceRoot?.trim() || input.config.cwd;
@@ -28,16 +39,36 @@ export function createInteractiveConfigDataLoader(input: {
 		enableSpawnAgent: input.config.enableSpawnAgent,
 		enableAgentTeams: input.config.enableAgentTeams,
 	});
-	const loadConfigData = async (
+	const buildSettingsInput = (
 		options: LoadInteractiveConfigDataOptions = {},
-	): Promise<InteractiveConfigData> =>
-		await loadInteractiveConfigData({
+	): CoreSettingsListInput => ({
+		cwd: input.config.cwd,
+		workspaceRoot: workspaceRoot(),
+		availabilityContext: availabilityContext(),
+		agentPluginPaths: input.config.agentPluginPaths,
+		includePluginTools: options.includePluginTools,
+	});
+	const buildConfigData = async (
+		options: LoadInteractiveConfigDataOptions,
+		agentPluginSettings: CoreSettingsSnapshot | undefined,
+	): Promise<InteractiveConfigData> => {
+		return await loadInteractiveConfigData({
 			userInstructionService: input.userInstructionService,
 			cwd: input.config.cwd,
 			workspaceRoot: workspaceRoot(),
 			availabilityContext: availabilityContext(),
 			includePluginTools: options.includePluginTools,
+			agentPluginSettings,
 		});
+	};
+	const loadConfigData = async (
+		options: LoadInteractiveConfigDataOptions = {},
+	): Promise<InteractiveConfigData> => {
+		const agentPluginSettings = await input
+			.loadCoreSettings?.(buildSettingsInput(options))
+			.catch(() => undefined);
+		return await buildConfigData(options, agentPluginSettings);
+	};
 
 	const refreshUserInstructionConfigs = async (): Promise<void> => {
 		const service = input.userInstructionService;
@@ -55,6 +86,9 @@ export function createInteractiveConfigDataLoader(input: {
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
 	): Promise<InteractiveConfigData | undefined> => {
+		if (!isToggleableInteractiveConfigItem(item)) {
+			return undefined;
+		}
 		const settings = createCoreSettingsService();
 		if (item.kind === "skill" && typeof item.enabled === "boolean") {
 			await settings.toggle({
@@ -72,6 +106,22 @@ export function createInteractiveConfigDataLoader(input: {
 		}
 
 		if (item.kind === "plugin" && typeof item.enabled === "boolean") {
+			if (item.agentPlugin === true) {
+				if (!input.toggleCoreSettings) {
+					throw new Error(
+						"Agent Plugin settings require a connected Cline Hub.",
+					);
+				}
+				const result = await input.toggleCoreSettings({
+					...buildSettingsInput(options),
+					type: "plugins",
+					id: item.id,
+					path: item.path,
+					name: item.name,
+					enabled: !item.enabled,
+				});
+				return await buildConfigData(options, result.snapshot);
+			}
 			if (item.enabled) {
 				disablePluginMcpServersInSettings({ pluginPaths: [item.path] });
 				setDisabledPlugin(item.path, true);
@@ -150,7 +200,11 @@ export function createInteractiveConfigDataLoader(input: {
 		item: InteractiveConfigItem,
 		options: LoadInteractiveConfigDataOptions = {},
 	): Promise<InteractiveConfigData | undefined> => {
-		if (item.kind !== "plugin") {
+		if (
+			item.kind !== "plugin" ||
+			item.agentPlugin === true ||
+			item.deletable === false
+		) {
 			return undefined;
 		}
 		await uninstallPlugin({

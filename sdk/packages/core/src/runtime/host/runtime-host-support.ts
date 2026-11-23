@@ -52,7 +52,7 @@ export class RuntimeHostEventBus {
 // for their own formatting via formatDisplayUserInput.
 export async function readPersistedMessagesFile(
 	messagesPath?: string | null,
-): Promise<LlmsProviders.Message[]> {
+): Promise<LlmsProviders.MessageWithMetadata[]> {
 	const path = messagesPath?.trim();
 	if (!path || !existsSync(path)) return [];
 	try {
@@ -60,12 +60,12 @@ export async function readPersistedMessagesFile(
 		if (!raw) return [];
 		const parsed = JSON.parse(raw) as unknown;
 		if (Array.isArray(parsed)) {
-			return parsed as LlmsProviders.Message[];
+			return parsed as LlmsProviders.MessageWithMetadata[];
 		}
 		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
 			const messages = (parsed as { messages?: unknown }).messages;
 			if (Array.isArray(messages)) {
-				return messages as LlmsProviders.Message[];
+				return messages as LlmsProviders.MessageWithMetadata[];
 			}
 		}
 		return [];

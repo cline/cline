@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import type { GeneratedMedia } from "@cline/shared"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
@@ -9,10 +10,10 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
+import type { CloudTaskTargetView, CurrentCloudTaskInfo } from "./cloud/cloud-sessions"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
-import { OnboardingModelGroup } from "./proto/cline/state"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -35,10 +36,10 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
-	onboardingModels: OnboardingModelGroup | undefined
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -83,6 +84,8 @@ export interface ExtensionState {
 	enableCheckpointsSetting?: boolean
 	platform: Platform
 	environment?: Environment
+	/** The editor Cline runs in, as the host reports it ("Visual Studio Code", "Cursor", "PyCharm Professional"). */
+	hostName?: string
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
@@ -118,6 +121,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
+	webSearchEnabled?: boolean
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	favoritedModelIds: string[]
@@ -132,13 +136,29 @@ export interface ExtensionState {
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
+	remoteConfigRevision?: number
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
+	remoteConfigAvailable?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
+	/** Cline Cloud sessions rollout flag; shows the Settings toggle. */
+	cloudSessionsAvailable?: boolean
+	/** Cline Cloud sessions are available and turned on in Settings. */
+	cloudSessionsEnabled?: boolean
+	/** Where a new task runs, resolved from the user's choice, the account's repositories and the workspace. */
+	cloudTaskTarget?: CloudTaskTargetView
+	/** Present while the displayed task runs in Cline Cloud. */
+	currentCloudTask?: CurrentCloudTaskInfo
+	/** Cline model the displayed cloud task runs on, else the one a new cloud task would use. */
+	cloudModelId?: string
+	/** Cline model a new cloud task would run on; Settings edits this one. */
+	nextCloudModelId?: string
+	/** Whether the account has ClinePass for cloud tasks; unset until checked, or when the check failed. */
+	clinePassSubscribed?: boolean
 	openAiCodexIsAuthenticated?: boolean
 }
 
@@ -178,6 +198,7 @@ export interface ClineMessage {
 	text?: string
 	reasoning?: string
 	images?: string[]
+	media?: GeneratedMedia[]
 	files?: string[]
 	partial?: boolean
 	/**
@@ -251,7 +272,6 @@ export type ClineSay =
 	| "checkpoint_created"
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
-	| "task_progress"
 	| "hook_status"
 	| "hook_output_stream"
 	| "subagent"
@@ -259,6 +279,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "cloud_provisioning" // cloud sandbox start/resume progress
 
 export interface ClineSayTool {
 	tool:
@@ -384,6 +405,16 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+}
+
+/**
+ * JSON payload of a say:"cloud_provisioning" message. The row is updated in
+ * place (same ts) as the sandbox advances through its phases.
+ */
+export interface ClineCloudProvisioningInfo {
+	phase: "starting" | "cloning_repo" | "agent_starting" | "resuming"
+	repo?: string
+	branch?: string
 }
 
 export interface ClineSubagentUsageInfo {

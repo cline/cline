@@ -6,6 +6,10 @@
 //
 // Tests tagged @live require a configured provider and are skipped by default.
 // Run them with:  CLINE_BIN=... npm test -- headless @live
+//
+// Cassette-backed runs pass --act. The cassettes were recorded in act mode,
+// where a text-only reply ends the run. The default yolo mode ends only on a
+// submit_and_exit call, so it sends a follow-up request the cassettes lack.
 // ---------------------------------------------------------------------------
 
 import { test } from "@microsoft/tui-test";
@@ -99,7 +103,7 @@ test.describe("cline -y --json - unauthenticated", () => {
 
 test.describe("cline (headless prompt mode) - authenticated @live", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["--act", "tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
 			CLINE_VCR_CASSETTE: "./fixtures/headless-yolo-basic.json",
@@ -123,7 +127,7 @@ test.describe("piped stdin | cline - authenticated", () => {
 			file: "sh",
 			args: [
 				"-c",
-				`echo "butterfly horse country" | ${CLINE_BIN} "print only the second word I gave you"`,
+				`echo "butterfly horse country" | ${CLINE_BIN} --act "print only the second word I gave you"`,
 			],
 		},
 		...TERMINAL_WIDE,
@@ -147,7 +151,7 @@ test.describe("cline --verbose - authenticated @live", () => {
 	test.use({
 		program: {
 			file: "sh",
-			args: ["-c", `${CLINE_BIN} --verbose "tell me a joke" 2>&1`],
+			args: ["-c", `${CLINE_BIN} --act --verbose "tell me a joke" 2>&1`],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
@@ -170,7 +174,7 @@ test.describe("cline --verbose - authenticated @live", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --json - authenticated @live", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["--act", "--json", "tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
 			CLINE_VCR_CASSETTE: "./fixtures/headless-json.json",
@@ -233,7 +237,7 @@ test.describe("cline -m (model flag in headless) @live", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["-m", "anthropic/claude-sonnet-4", "what model are you"],
+			args: ["--act", "-m", "anthropic/claude-sonnet-4", "what model are you"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {

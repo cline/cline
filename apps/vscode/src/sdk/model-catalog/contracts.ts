@@ -105,6 +105,13 @@ export interface EffectiveProviderConfig {
 	 */
 	readonly contextWindow?: number
 	/**
+	 * The reasoning effort a session started now would request, derived from
+	 * providers.json `reasoning` the same way the session factory reads it.
+	 * Absent when no level is requested and the provider or model default
+	 * applies.
+	 */
+	readonly reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh"
+	/**
 	 * OAuth-style auth bundle (e.g. cline provider's WorkOS token).
 	 * Compatible with `apiKey`; some providers populate both.
 	 */
@@ -201,9 +208,9 @@ export interface ResolvedModelSelection extends ModelSelection {
 	/**
 	 * Where the base `modelInfo` came from, before overrides were applied:
 	 *
-	 *  - "catalog"  — SDK catalog metadata (generated snapshot or registry).
+	 *  - "catalog"  — SDK catalog metadata (generated snapshot, registry, or live host cache).
 	 *  - "state"    — the mode-specific `*ModeModelInfo` snapshot persisted by
-	 *    the picker at selection time. Authoritative for dynamic-list providers
+	 *    the host at selection time. Authoritative for dynamic-list providers
 	 *    (openrouter, litellm, requesty, …) whose models are not in the static
 	 *    catalog.
 	 *  - "fallback" — provider-safe defaults fabricated because nothing better
@@ -263,11 +270,13 @@ export interface Disposable {
 /**
  * SDK-driven hint for how to display per-token / total cost in the UI.
  * Mirrors `ProviderUsageCostDisplay` from `@cline/llms` and the CLI's
- * `shouldShowCliUsageCost` consumer. When `"hide"`, downstream UIs MUST
- * suppress per-token pricing rows (in model info cards) and total-cost
- * lines (in task summaries / status bars).
+ * `shouldShowCliUsageCost` consumer. Anything other than `"show"` means
+ * downstream UIs MUST suppress per-token pricing rows (in model info
+ * cards) and total-cost lines (in task summaries / status bars);
+ * `"subscription"` additionally signals that usage is covered by the
+ * user's subscription (e.g. ClinePass, ChatGPT Plus/Pro).
  */
-export type UsageCostDisplay = "show" | "hide"
+export type UsageCostDisplay = "show" | "hide" | "subscription"
 
 export interface ProviderListing {
 	readonly id: ProviderId
@@ -404,10 +413,15 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	 * Supplying overrides replaces that model's stored override entry; omitting
 	 * them leaves the existing entry unchanged.
 	 *
+	 * `baseModelInfoHint` is the exact host-resolved catalog metadata selected
+	 * by the user. It is authoritative for that commit, including when a
+	 * private/dynamic provider reuses an id from the static SDK registry. It is
+	 * not user-authored and must never be persisted as an override.
+	 *
 	 * I2: refresh handlers do not have access to this method by type, since
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
 	 */
-	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection): void
+	commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection, baseModelInfoHint?: ModelInfo): void
 }
 
 /**

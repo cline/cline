@@ -129,6 +129,7 @@ export type OcaSettings = z.infer<typeof OcaSettingsSchema>;
 
 export const ModelCatalogSettingsSchema = z.object({
 	loadLatestOnInit: z.boolean().optional(),
+	includeClineCloudModels: z.boolean().optional(),
 	loadPrivateOnAuth: z.boolean().optional(),
 	url: z.string().url().optional(),
 	cacheTtlMs: z.number().int().positive().optional(),
@@ -212,12 +213,8 @@ export function toProviderConfig(
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
-	const generatedKnownModels = Object.assign(
-		{},
-		...Llms.resolveProviderModelCatalogKeys(normalizedProviderId).map(
-			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
-		),
-	);
+	const generatedKnownModels =
+		Llms.getGeneratedModelsForRuntimeProvider(normalizedProviderId);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
@@ -225,7 +222,10 @@ export function toProviderConfig(
 	// Qwen/Moonshot/Z.AI "china" vs "international") > provider default.
 	const resolvedBaseUrl =
 		settings.baseUrl ??
-		Llms.resolveProviderApiLineBaseUrl(normalizedProviderId, settings.apiLine) ??
+		Llms.resolveProviderApiLineBaseUrl(
+			normalizedProviderId,
+			settings.apiLine,
+		) ??
 		(normalizedProviderId === "oca"
 			? settings.oca?.mode === "internal"
 				? DEFAULT_INTERNAL_OCA_BASE_URL
@@ -298,6 +298,8 @@ export function toProviderConfig(
 		modelCatalog: settings.modelCatalog
 			? {
 					loadLatestOnInit: settings.modelCatalog.loadLatestOnInit,
+					includeClineCloudModels:
+						settings.modelCatalog.includeClineCloudModels,
 					loadPrivateOnAuth: settings.modelCatalog.loadPrivateOnAuth,
 					url: settings.modelCatalog.url,
 					cacheTtlMs: settings.modelCatalog.cacheTtlMs,

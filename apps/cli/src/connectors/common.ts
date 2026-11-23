@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
 	closeSync,
@@ -13,7 +13,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { HubSessionClient, HubSessionRow } from "@cline/core";
-import { ensureParentDir, resolveClineDataDir } from "@cline/core";
+import {
+	ensureParentDir,
+	getProcessStartToken,
+	resolveClineDataDir,
+} from "@cline/core";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	withResolvedClineBuildEnv,
@@ -84,60 +88,6 @@ type ProcessProbe = {
 	isRunning: (pid: number) => boolean;
 	getStartToken: (pid: number) => string | undefined;
 };
-
-function getProcessStartToken(pid: number): string | undefined {
-	if (!Number.isInteger(pid) || pid <= 0) {
-		return undefined;
-	}
-	try {
-		if (process.platform === "linux") {
-			const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-			const commandEnd = stat.lastIndexOf(")");
-			if (commandEnd < 0) {
-				return undefined;
-			}
-			// Fields after the command name begin at field 3 (state), so field
-			// 22 (starttime) is index 19.
-			const startTime = stat
-				.slice(commandEnd + 1)
-				.trim()
-				.split(/\s+/)[19];
-			const bootId = readFileSync(
-				"/proc/sys/kernel/random/boot_id",
-				"utf8",
-			).trim();
-			return startTime && bootId ? `linux:${bootId}:${startTime}` : undefined;
-		}
-
-		const result =
-			process.platform === "win32"
-				? spawnSync(
-						"powershell.exe",
-						[
-							"-NoLogo",
-							"-NoProfile",
-							"-NonInteractive",
-							"-Command",
-							`(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().Ticks`,
-						],
-						{
-							encoding: "utf8",
-							stdio: ["ignore", "pipe", "ignore"],
-							windowsHide: true,
-						},
-					)
-				: spawnSync("ps", ["-p", String(pid), "-o", "lstart="], {
-						encoding: "utf8",
-						env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
-						stdio: ["ignore", "pipe", "ignore"],
-						windowsHide: true,
-					});
-		const startTime = result.status === 0 ? result.stdout.trim() : "";
-		return startTime ? `${process.platform}:${startTime}` : undefined;
-	} catch {
-		return undefined;
-	}
-}
 
 const defaultProcessProbe: ProcessProbe = {
 	isRunning: isProcessRunning,

@@ -18,6 +18,10 @@ service CheckpointsService {
   // current working tree (0 when no checkpoint exists). Used to enable the
   // "View Changes" button only when there is something to show.
   rpc checkpointLatestChangesCount(EmptyRequest) returns (Int64);
+  // Reports whether Reset Code can restore the workspace from the user
+  // message with the given ts. Asked when the user opens a message for
+  // editing, so the answer reflects the checkpoints that exist right then.
+  rpc checkpointExistsForMessage(Int64Request) returns (Boolean);
 }
 
 message CheckpointRestoreRequest {

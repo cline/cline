@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it } from "vitest";
 import type { SessionThread } from "@/hooks/use-session-history";
 import {
+	groupScheduledThreads,
 	groupThreadsByProject,
+	readSidebarSortModeFromWindow,
+	SIDEBAR_SORT_STORAGE_KEY,
+	scheduleRunLabel,
 	workspaceDisplayName,
+	writeSidebarSortModeToWindow,
 } from "./sidebar-session-organization";
 
 function thread(
@@ -56,5 +63,119 @@ describe("sidebar session organization", () => {
 		expect(groupThreadsByProject([thread("temp", path)])[0]?.label).toBe(
 			"Chat",
 		);
+	});
+
+	it("folds scheduled runs into one group per schedule at the newest run's position", () => {
+		const scheduled = (id: string, runNumber: number) =>
+			thread(id, "/work/acme/repo", {
+				title: "Report today's date",
+				isScheduled: true,
+				scheduleId: "sched_daily",
+				scheduleName: "Daily date report",
+				scheduleRunNumber: runNumber,
+			});
+		const rows = groupScheduledThreads([
+			thread("task-1", "/work/acme/repo"),
+			scheduled("run-3", 3),
+			thread("task-2", "/work/acme/repo"),
+			scheduled("run-2", 2),
+			thread("other-1", "/work/acme/repo", {
+				isScheduled: true,
+				scheduleId: "sched_other",
+				scheduleName: "Other schedule",
+			}),
+			scheduled("run-1", 1),
+		]);
+
+		expect(
+			rows.map((row) =>
+				row.kind === "thread"
+					? row.thread.id
+					: `${row.label}[${row.threads.map((t) => t.id).join(",")}]`,
+			),
+		).toEqual([
+			"task-1",
+			"Daily date report[run-3,run-2,run-1]",
+			"task-2",
+			"Other schedule[other-1]",
+		]);
+		expect(rows[1]).toMatchObject({
+			kind: "schedule",
+			id: "schedule:sched_daily",
+		});
+	});
+
+	it("groups un-stamped scheduled runs by their shared title", () => {
+		const legacy = (id: string) =>
+			thread(id, "/work/acme/repo", {
+				title: "Report today's date to the user.",
+				isScheduled: true,
+			});
+		const rows = groupScheduledThreads([
+			legacy("legacy-2"),
+			thread("named-1", "/work/acme/repo", {
+				title: "Report today's date to the user.",
+				isScheduled: true,
+				scheduleId: "sched_daily",
+				scheduleName: "Daily date report",
+			}),
+			legacy("legacy-1"),
+		]);
+
+		// Runs with a schedule id never merge into the title-keyed group.
+		expect(
+			rows.map((row) =>
+				row.kind === "schedule"
+					? `${row.id}:${row.threads.length}`
+					: row.thread.id,
+			),
+		).toEqual([
+			"title:report today's date to the user.:2",
+			"schedule:sched_daily:1",
+		]);
+		expect(rows[0]).toMatchObject({
+			label: "Report today's date to the user.",
+		});
+	});
+
+	it("labels runs by number and falls back to the start time", () => {
+		expect(
+			scheduleRunLabel(
+				thread("a", "/ws", { isScheduled: true, scheduleRunNumber: 7 }),
+			),
+		).toBe("Run 7");
+		const dated = scheduleRunLabel(
+			thread("b", "/ws", {
+				isScheduled: true,
+				startedAt: "2026-08-31T19:31:40.834Z",
+			}),
+		);
+		expect(dated).toMatch(/Aug 31/);
+		expect(dated).not.toBe("Run");
+		expect(scheduleRunLabel(thread("c", "/ws", { isScheduled: true }))).toBe(
+			"Run",
+		);
+	});
+});
+
+describe("sidebar sort mode persistence", () => {
+	afterEach(() => {
+		window.localStorage.clear();
+	});
+
+	it("defaults to time and falls back to time for unknown values", () => {
+		expect(readSidebarSortModeFromWindow()).toBe("time");
+		window.localStorage.setItem(SIDEBAR_SORT_STORAGE_KEY, "bogus");
+		expect(readSidebarSortModeFromWindow()).toBe("time");
+	});
+
+	it("round-trips the chosen mode through localStorage", () => {
+		writeSidebarSortModeToWindow("project");
+		expect(window.localStorage.getItem(SIDEBAR_SORT_STORAGE_KEY)).toBe(
+			"project",
+		);
+		expect(readSidebarSortModeFromWindow()).toBe("project");
+		writeSidebarSortModeToWindow("time");
+		expect(readSidebarSortModeFromWindow()).toBe("time");
 	});
 });

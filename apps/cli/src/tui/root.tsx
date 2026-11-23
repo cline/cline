@@ -2,6 +2,7 @@ import {
 	getCurrentContextSize,
 	type ManagedHubBuildMismatchEvent,
 	summarizeUsageFromMessages,
+	upgradeManagedHub,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
@@ -14,7 +15,10 @@ import {
 	useDialogState,
 } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
+import {
+	CLINE_PASS_NOTICE_ID,
+	shouldSuppressClineCliMigrationNoticeForActiveProvider,
+} from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import {
 	isSameRepoStatus,
@@ -22,7 +26,9 @@ import {
 	readRepoStatus,
 } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
+import { resolveSlashCommand } from "./commands/slash-command-registry";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
+import { DialogThemeSync } from "./components/dialog-theme-sync";
 import {
 	CheckpointConfirmContent,
 	type CheckpointRestoreMode,
@@ -39,7 +45,10 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
-import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
+import {
+	HubOutdatedContent,
+	HubUpdateRequiredContent,
+} from "./components/dialogs/hub-update-required";
 import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
 import {
 	SKILLS_MARKETPLACE_ACTION,
@@ -54,10 +63,14 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudSessions } from "./hooks/use-cloud-sessions";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
-import { useModelSelector } from "./hooks/use-model-selector";
+import {
+	type OpenModelSelectorOptions,
+	useModelSelector,
+} from "./hooks/use-model-selector";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
@@ -138,6 +151,7 @@ function App(props: TuiProps) {
 	} = useSlashCommands({
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
+		subscribeAdditionalSlashCommands: props.subscribeAdditionalSlashCommands,
 		canFork: canForkSession,
 	});
 
@@ -305,8 +319,48 @@ function App(props: TuiProps) {
 		refocusTextarea: () => refocusTextareaRef.current(),
 	});
 
+	const cloud = useCloudSessions({
+		client: props.cloudSessions,
+		dialog,
+		termHeight,
+		cwd: props.config.cwd,
+		localBranch: repoStatus.branch,
+		providerId: props.config.providerId,
+		modelId: props.config.modelId,
+		hasLocalConversation: session.hasSubmitted || session.entries.length > 0,
+		onEnterCloud: () => {
+			if (session.uiMode === "plan") toggleMode();
+		},
+		loadClineAccount: props.loadClineAccount,
+		onAccountChange: props.onAccountChange,
+		replaceEntries: session.replaceEntries,
+		setIsRunning: session.setIsRunning,
+		showToast,
+		refocusTextarea: () => refocusTextareaRef.current(),
+	});
+	const { reset: resetCloudSession, detach: detachCloudSession } = cloud;
+	const propsOnResumeSession = props.onResumeSession;
+	const resumeSession = useCallback(
+		async (sessionId: string) => {
+			const result = await propsOnResumeSession(sessionId);
+			// A resumed chat is local, so it must not keep sending to Cloud.
+			detachCloudSession();
+			return result;
+		},
+		[detachCloudSession, propsOnResumeSession],
+	);
+	const { active: cloudActive, pickModel: pickCloudModel } = cloud;
+	const openTargetModelSelector = useCallback(
+		(options?: OpenModelSelectorOptions) =>
+			cloudActive && !options?.startWithProviderChange
+				? pickCloudModel()
+				: openModelSelector(options),
+		[cloudActive, openModelSelector, pickCloudModel],
+	);
+
 	const clearConversation = useCallback(async () => {
 		const shouldRestartSession = session.hasSubmitted;
+		resetCloudSession();
 		session.clearEntries();
 		session.setHasSubmitted(false);
 		if (!shouldRestartSession) {
@@ -326,7 +380,7 @@ function App(props: TuiProps) {
 		} finally {
 			refocusTextareaRef.current();
 		}
-	}, [props, session]);
+	}, [props, resetCloudSession, session]);
 
 	const openCheckpointRestore = useCallback(async () => {
 		if (checkpointRestoreInFlightRef.current) {
@@ -547,6 +601,7 @@ function App(props: TuiProps) {
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
 		if (
+			notice.id === CLINE_PASS_NOTICE_ID &&
 			shouldSuppressClineCliMigrationNoticeForActiveProvider(currentProviderId)
 		) {
 			initialNoticeShownRef.current = true;
@@ -584,6 +639,86 @@ function App(props: TuiProps) {
 		if (!hubBuildMismatch) return;
 		setHubBuildMismatch(null);
 		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		if (hubBuildMismatch.reason === "outdated_hub") {
+			// This CLI is already the newer build; the Hub is behind only because
+			// retiring it would kill the sessions it is serving. Left alone it
+			// would stay behind for as long as those sessions run, so put the
+			// choice to the user: replace it now (interrupting that work), or
+			// keep it running and update later. This session itself is safe
+			// either way - a CLI that could not attach to the outdated Hub is
+			// running on the local backend.
+			const details = {
+				hubCoreVersion,
+				activeSessionCount: hubBuildMismatch.activeSessionCount,
+				participantClientCount: hubBuildMismatch.participantClientCount,
+			};
+			void dialog
+				.choice<boolean>({
+					content: (ctx: ChoiceContext<boolean>) => (
+						<HubOutdatedContent {...ctx} {...details} />
+					),
+				})
+				.then(async (update) => {
+					if (!update) {
+						// choice() resolves undefined on Esc; it does not reject.
+						showToast(
+							"The running Cline Hub stays on the older version. Run 'cline hub upgrade' once its sessions finish.",
+							"info",
+						);
+						refocusTextareaRef.current();
+						return;
+					}
+					showToast("Updating the Cline Hub…", "info");
+					try {
+						const result = await upgradeManagedHub({
+							force: true,
+							reason: "cline TUI hub update",
+						});
+						if (result.outcome === "still_busy") {
+							showToast(
+								"The Hub picked up new sessions before it could be replaced. Try again in a moment.",
+								"info",
+							);
+						} else {
+							showToast(
+								result.outcome === "replaced" || result.outcome === "started"
+									? "Cline Hub updated."
+									: "Cline Hub is already up to date.",
+								"success",
+							);
+						}
+					} catch (error) {
+						showToast(
+							error instanceof Error && error.message
+								? error.message
+								: "Updating the Cline Hub failed. Run 'cline doctor fix' and try again.",
+							"error",
+						);
+					}
+					refocusTextareaRef.current();
+				})
+				.catch(() => {
+					refocusTextareaRef.current();
+				});
+			return;
+		}
+		if (hubBuildMismatch.reason === "build_mismatch") {
+			// The Hub is newer but still speaks this CLI's protocol, so the
+			// session keeps working and parity is advisable rather than urgent.
+			// A modal mid-session is too heavy for advice; a toast (once per
+			// observed Hub build, the watcher dedupes) says what changed and
+			// how to catch up without stealing focus.
+			showToast(
+				`The shared Cline Hub was updated${
+					hubCoreVersion ? ` (core ${hubCoreVersion})` : ""
+				}. Run 'cline update' and restart when convenient.`,
+				"info",
+			);
+			return;
+		}
+		// unsupported_protocol: this CLI cannot speak the running Hub's
+		// protocol at all, so nothing hub-backed can work until it updates.
+		// That is worth a blocking prompt.
 		void dialog
 			.choice<boolean>({
 				content: (ctx: ChoiceContext<boolean>) => (
@@ -669,26 +804,39 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	const { handleSlashCommand, openHistory } = useLocalCommandActions({
-		slashCommandRegistry,
-		canForkSession,
-		openAccount,
-		openConfig,
-		openMcpManager,
-		openModelSelector,
-		openSkills,
-		openThemePicker,
-		refocusTextarea: () => refocusTextareaRef.current(),
-		setAppView,
-		onClearConversation: clearConversation,
-		onResumeSession: props.onResumeSession,
-		onExportHistorySession: props.onExportHistorySession,
-		onDeleteHistorySession: props.onDeleteHistorySession,
-		onCompact: props.onCompact,
-		onFork: props.onFork,
-		onUndo: openCheckpointRestore,
-		onExit: exitCline,
-	});
+	const { handleSlashCommand: handleLocalSlashCommand, openHistory } =
+		useLocalCommandActions({
+			slashCommandRegistry,
+			canForkSession,
+			openAccount,
+			openConfig,
+			openMcpManager,
+			openModelSelector: openTargetModelSelector,
+			openSkills,
+			openThemePicker,
+			refocusTextarea: () => refocusTextareaRef.current(),
+			setAppView,
+			onClearConversation: clearConversation,
+			onResumeSession: resumeSession,
+			onExportHistorySession: props.onExportHistorySession,
+			onDeleteHistorySession: props.onDeleteHistorySession,
+			onCompact: props.onCompact,
+			onFork: props.onFork,
+			onUndo: openCheckpointRestore,
+			onExit: exitCline,
+		});
+	const handleSlashCommand = useCallback<typeof handleLocalSlashCommand>(
+		(command, invocation) => {
+			const name = resolveSlashCommand(slashCommandRegistry, command)?.name;
+			// These act on the local session, not the cloud conversation on screen.
+			if (cloudActive && (name === "compact" || name === "fork")) {
+				showToast(`/${name} isn't available in Cline Cloud yet.`);
+				return true;
+			}
+			return handleLocalSlashCommand(command, invocation);
+		},
+		[cloudActive, handleLocalSlashCommand, showToast, slashCommandRegistry],
+	);
 
 	const startupActionsRef = useRef({ openConfig, openHistory });
 	startupActionsRef.current = { openConfig, openHistory };
@@ -707,13 +855,13 @@ function App(props: TuiProps) {
 				return;
 			}
 			if (result.action === "change-model") {
-				await openModelSelector();
+				await openTargetModelSelector();
 				return;
 			}
 
 			await Promise.resolve(handleSlashCommand(result.action));
 		},
-		[handleSlashCommand, openModelSelector],
+		[handleSlashCommand, openModelSelector, openTargetModelSelector],
 	);
 
 	const commandPaletteOpenRef = useRef(false);
@@ -779,7 +927,7 @@ function App(props: TuiProps) {
 		autocomplete,
 		slashCommandRegistry,
 		handleSlashCommand,
-		onSubmit: props.onSubmit,
+		onSubmit: cloud.active ? cloud.submit : props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
 		modelId: props.config.modelId,
@@ -839,8 +987,17 @@ function App(props: TuiProps) {
 			promoteQueuedPrompt(selectedQueuedPromptId);
 			return;
 		}
+		if (
+			cloud.active &&
+			!cloud.hasRepository &&
+			!promptInput.getCurrentInputText().trimStart().startsWith("/")
+		) {
+			void cloud.pickRepository();
+			return;
+		}
 		promptInput.handleSubmit();
 	}, [
+		cloud,
 		editingQueuedPromptId,
 		promoteQueuedPrompt,
 		promptInput,
@@ -898,9 +1055,13 @@ function App(props: TuiProps) {
 		getCurrentInputText: promptInput.getCurrentInputText,
 		setInputKey: promptInput.setInputKey,
 		setInputValue: promptInput.setInputValue,
-		onAbort: props.onAbort,
+		onAbort: cloud.hasSession ? cloud.abort : props.onAbort,
 		onExit: exitCline,
 		onToggleMode: toggleMode,
+		isCloudTarget: cloud.active,
+		onToggleCloudTarget: cloud.toggleTarget,
+		onChangeCloudRepo:
+			cloud.active && !cloud.hasSession ? cloud.pickRepository : undefined,
 		onClearConversation: clearConversation,
 		onRestoreCheckpoint: openCheckpointRestore,
 		onOpenCommandPalette: openCommandPalette,
@@ -929,6 +1090,7 @@ function App(props: TuiProps) {
 		onLargeTextPaste: promptInput.handleLargeTextPaste,
 		onInputFocusRequest: focusPromptInput,
 		repoStatus,
+		cloud: cloud.statusBar,
 		textareaRef: promptInput.textareaRef,
 		transcriptScrollRef,
 		loadIndividualSubscriptionPlans: props.loadIndividualSubscriptionPlans,
@@ -1026,6 +1188,7 @@ export function Root(
 		<TerminalColorsContext value={terminalColors}>
 			<ThemeProvider initialThemeId={props.initialThemeId}>
 				<DialogProvider size="medium">
+					<DialogThemeSync />
 					<SessionProvider
 						config={props.config}
 						initialEntries={initialEntries}

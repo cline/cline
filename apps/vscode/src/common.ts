@@ -5,13 +5,12 @@ import { setSdkLogger } from "@cline/core"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import type { StorageContext } from "@/shared/storage/storage-context"
-import { clearOnboardingModelsCache } from "./core/controller/models/getClineOnboardingModels"
 import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { StateManager } from "./core/storage/StateManager"
-import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
+import { registerClineClientIdentity } from "./services/ClineClientIdentity"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
@@ -62,6 +61,8 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
 		})
 	}
+
+	void registerClineClientIdentity()
 
 	// Register host-only SDK provider handlers (e.g. VS Code Language Model API),
 	// which depend on the `vscode` module and cannot live in the SDK package.
@@ -166,7 +167,6 @@ async function checkWorktreeAutoOpen(stateManager: StateManager): Promise<void> 
  */
 export async function tearDown(): Promise<void> {
 	try {
-		AgentConfigLoader.getInstance()?.dispose()
 		PostHogClientProvider.getInstance().dispose()
 		telemetryService.dispose()
 		ErrorService.get().dispose()
@@ -174,7 +174,6 @@ export async function tearDown(): Promise<void> {
 		// Dispose all webview instances
 		await WebviewProvider.disposeAllInstances()
 		syncWorker().dispose()
-		clearOnboardingModelsCache()
 
 		// Kill any running hook processes to prevent zombies
 		await HookProcessRegistry.terminateAll()

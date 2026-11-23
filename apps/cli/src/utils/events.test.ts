@@ -1,3 +1,5 @@
+import { readFileSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -116,6 +118,41 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
+	});
+
+	it("saves generated images and prints an openable path", () => {
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: {
+						type: "base64",
+						data: Buffer.from("one-shot-image").toString("base64"),
+					},
+				},
+			} as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain("[generated image]");
+		const suffix = "/generated.png";
+		const pathEnd = output.indexOf(suffix);
+		const pathStart = output.lastIndexOf(" ", pathEnd);
+		const path =
+			pathEnd >= 0 && pathStart >= 0
+				? output.slice(pathStart + 1, pathEnd + suffix.length)
+				: undefined;
+		expect(path).toBeDefined();
+		if (!path) throw new Error("Expected generated image path in CLI output");
+		try {
+			expect(readFileSync(path, "utf8")).toBe("one-shot-image");
+		} finally {
+			rmSync(dirname(path), { recursive: true, force: true });
+		}
 	});
 
 	it("does not echo ask_question through the generic tool renderer", () => {

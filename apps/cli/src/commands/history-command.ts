@@ -42,7 +42,6 @@ export function registerHistoryCommand({
 		.description("List session history or manage saved sessions")
 		.option("--json", "Output as JSON")
 		.option("--limit <count>", "Maximum number of sessions to show", "50")
-		.option("--page <number>", "Page number for paginated results")
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();

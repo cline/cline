@@ -82,6 +82,62 @@ describe("ClineCore", () => {
 		createRuntimeHostMock.mockReset();
 	});
 
+	it("keeps raw reads canonical and offers an explicit display projection", async () => {
+		const rawMessages = [
+			{
+				id: "assistant-search",
+				role: "assistant" as const,
+				content: "Found it",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest release" },
+							output: "1.3.14",
+						},
+					],
+				},
+			},
+		];
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
+			restoreSession: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(async () => rawMessages),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		const displayMessages = await core.readDisplayMessages("session-1");
+
+		expect(displayMessages.map(({ message }) => message.role)).toEqual([
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(displayMessages[0]?.message.content).toEqual([
+			expect.objectContaining({
+				type: "tool_use",
+				id: "search-1",
+			}),
+		]);
+		expect(await core.readMessages("session-1")).toBe(rawMessages);
+		expect(rawMessages[0]?.metadata).toHaveProperty("modelToolActivities");
+		await core.dispose();
+	});
+
 	it("compares a checkpoint to the current workspace through the public SDK API", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "cline-core-compare-"));
 		let core: ClineCore | undefined;
@@ -589,7 +645,7 @@ describe("ClineCore", () => {
 		const core = await ClineCore.create();
 		const [row] = await core.list(10);
 
-		expect(host.listSessions).toHaveBeenCalledWith(20);
+		expect(host.listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(host.readSessionMessages).toHaveBeenCalledWith("session-3");
 		expect(row).toMatchObject({
 			sessionId: "session-3",
@@ -647,7 +703,7 @@ describe("ClineCore", () => {
 		// Hydration and default root-session filtering are consumed by
 		// ClineCore/listSessionHistory; the host list contract only receives the
 		// numeric scan limit.
-		expect(host.listSessions.mock.calls).toEqual([[20]]);
+		expect(host.listSessions.mock.calls).toEqual([[20, { rootOnly: true }]]);
 		expect(host.readSessionMessages).not.toHaveBeenCalled();
 		expect(row).toMatchObject({
 			sessionId: "session-lightweight",
@@ -721,6 +777,9 @@ Summarize the local event.
 			expect(result.queuedRuns).toHaveLength(1);
 
 			await core.automation.start();
+			await expect
+				.poll(() => core.automation.listRuns()[0]?.status)
+				.toBe("done");
 			await core.automation.stop();
 			await core.dispose();
 

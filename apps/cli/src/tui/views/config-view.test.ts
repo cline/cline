@@ -5,11 +5,16 @@ import {
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
+	getConfigPluginSections,
+	getConfigTabCountHeading,
+	isDeletableConfigItem,
 	isInlineConfigAction,
 	isToggleableConfigItem,
+	resolveConfigItemDeleteAction,
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
+	shouldRenderConfigItemAsEnabled,
 } from "./config-view-helpers";
 
 function createItem(
@@ -69,6 +74,65 @@ describe("config view helpers", () => {
 				}),
 			),
 		).toBe(false);
+	});
+
+	it("lets users toggle hub-discovered Agent Plugins without deleting them", () => {
+		const plugin = createItem({
+			kind: "plugin",
+			agentPlugin: true,
+			toggleable: true,
+			deletable: false,
+			source: "global-plugin",
+		});
+
+		expect(isToggleableConfigItem(plugin)).toBe(true);
+		expect(isDeletableConfigItem(plugin)).toBe(false);
+		expect(resolveConfigItemToggleAction(plugin)).toEqual({
+			kind: "toggle-item",
+			item: plugin,
+		});
+		expect(resolveConfigItemDeleteAction(plugin)).toBeUndefined();
+		expect(resolveConfigItemSelectAction(plugin)).toEqual({
+			kind: "toggle-item",
+			item: plugin,
+		});
+	});
+
+	it("separates Cline and Agent Plugins into labeled sections", () => {
+		const clinePlugin = createItem({
+			kind: "plugin",
+			name: "cline-plugin",
+			source: "workspace-plugin",
+		});
+		const agentPlugin = createItem({
+			kind: "plugin",
+			name: "portable-plugin",
+			source: "global-plugin",
+			agentPlugin: true,
+		});
+
+		expect(getConfigPluginSections([clinePlugin, agentPlugin])).toEqual([
+			{ label: "Cline Plugins (1)", items: [clinePlugin] },
+			{ label: "Agent Plugins (1)", items: [agentPlugin] },
+		]);
+	});
+
+	it("uses section counts instead of a combined Plugins heading", () => {
+		expect(getConfigTabCountHeading("plugins", 10)).toBeUndefined();
+		expect(getConfigTabCountHeading("skills", 20)).toBe("Skills (20)");
+	});
+
+	it("renders a loaded Agent Plugin as enabled", () => {
+		const agentPlugin = createItem({
+			kind: "plugin",
+			agentPlugin: true,
+			toggleable: true,
+		});
+
+		expect(shouldRenderConfigItemAsEnabled(agentPlugin, "enabled")).toBe(true);
+		expect(shouldRenderConfigItemAsEnabled(agentPlugin, "disabled")).toBe(
+			false,
+		);
 	});
 
 	it("resolves Enter/Tab on a skill row to details", () => {

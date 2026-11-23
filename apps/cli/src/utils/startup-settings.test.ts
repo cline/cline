@@ -49,6 +49,76 @@ describe("resolveStartupMode", () => {
 	});
 });
 
+describe("resolveStartupMode for non-interactive runs", () => {
+	const args = { mode: "act", modeExplicitlySet: false } as const;
+
+	it("defaults to yolo when no mode flag is provided", () => {
+		expect(
+			resolveStartupMode(args, makeSettings(), {
+				nonInteractive: true,
+				toolAutoApprove: true,
+			}),
+		).toBe("yolo");
+		expect(
+			resolveStartupMode(args, makeSettings({ planActMode: "act" }), {
+				nonInteractive: true,
+				toolAutoApprove: true,
+			}),
+		).toBe("yolo");
+	});
+
+	it("stays in act mode when tool auto-approval is disabled", () => {
+		expect(
+			resolveStartupMode(args, makeSettings(), {
+				nonInteractive: true,
+				toolAutoApprove: false,
+			}),
+		).toBe("act");
+	});
+
+	it("keeps an explicit mode flag and a persisted plan mode", () => {
+		expect(
+			resolveStartupMode(
+				{ mode: "act", modeExplicitlySet: true },
+				makeSettings(),
+				{ nonInteractive: true, toolAutoApprove: true },
+			),
+		).toBe("act");
+		expect(
+			resolveStartupMode(args, makeSettings({ planActMode: "plan" }), {
+				nonInteractive: true,
+				toolAutoApprove: true,
+			}),
+		).toBe("plan");
+	});
+
+	it("stays in act mode for a /team prompt", () => {
+		expect(
+			resolveStartupMode(args, makeSettings(), {
+				nonInteractive: true,
+				toolAutoApprove: true,
+				teamPrompt: true,
+			}),
+		).toBe("act");
+		expect(
+			resolveStartupMode(
+				{ mode: "yolo", modeExplicitlySet: true },
+				makeSettings(),
+				{ nonInteractive: true, toolAutoApprove: true, teamPrompt: true },
+			),
+		).toBe("yolo");
+	});
+
+	it("leaves interactive runs in act mode", () => {
+		expect(
+			resolveStartupMode(args, makeSettings(), {
+				nonInteractive: false,
+				toolAutoApprove: true,
+			}),
+		).toBe("act");
+	});
+});
+
 describe("resolveStartupToolAutoApprove", () => {
 	it("falls back to the built-in default when nothing is persisted", () => {
 		expect(resolveStartupToolAutoApprove({}, makeSettings(), true)).toBe(true);

@@ -42,7 +42,19 @@ function isNotFoundError(error: unknown): boolean {
 	);
 }
 
-function sessionRowFromManifest(manifest: SessionManifest): SessionRow {
+function isSafeSessionArtifactId(sessionId: string): boolean {
+	return (
+		sessionId !== "." &&
+		sessionId !== ".." &&
+		!sessionId.includes("/") &&
+		!sessionId.includes("\\")
+	);
+}
+
+function sessionRowFromManifest(
+	manifest: SessionManifest,
+	messagesPath: string,
+): SessionRow {
 	return {
 		sessionId: manifest.session_id,
 		source: manifest.source,
@@ -69,7 +81,7 @@ function sessionRowFromManifest(manifest: SessionManifest): SessionRow {
 		prompt: manifest.prompt ?? null,
 		metadata: manifest.metadata ?? null,
 		hookPath: "",
-		messagesPath: manifest.messages_path ?? null,
+		messagesPath,
 		updatedAt: nowIso(),
 	};
 }
@@ -171,25 +183,35 @@ export class SessionManifestStore {
 		}
 	}
 
-	/**
-	 * Resolve the session row backing a message write, re-adopting it from the
-	 * on-disk manifest when the DB row is missing (session artifacts restored
-	 * or copied while the session DB was rebuilt). Sessions with neither a row
-	 * nor a manifest throw so message writes cannot silently recreate
-	 * orphaned session files.
-	 */
-	private async resolveSessionRow(sessionId: string): Promise<SessionRow> {
-		const row = await this.adapter.getSession(sessionId);
-		if (row) {
-			return row;
+	readSessionRowFromManifest(sessionId: string): SessionRow | undefined {
+		if (!isSafeSessionArtifactId(sessionId)) {
+			return undefined;
 		}
 		const { manifest } = this.readManifestFile(sessionId);
-		if (!manifest) {
+		if (!manifest || manifest.session_id !== sessionId) {
+			return undefined;
+		}
+		return sessionRowFromManifest(
+			manifest,
+			this.artifacts.sessionMessagesPath(sessionId),
+		);
+	}
+
+	/**
+	 * Resolve the session row backing a message write, re-adopting it from the
+	 * on-disk manifest when the index was rebuilt or the artifacts were restored.
+	 */
+	private async resolveSessionRow(sessionId: string): Promise<SessionRow> {
+		const indexed = await this.adapter.getSession(sessionId);
+		if (indexed) {
+			return indexed;
+		}
+		const adopted = this.readSessionRowFromManifest(sessionId);
+		if (!adopted) {
 			throw new Error(
 				`Cannot persist messages for unknown session: ${sessionId}`,
 			);
 		}
-		const adopted = sessionRowFromManifest(manifest);
 		await this.adapter.upsertSession(adopted);
 		this.logger?.debug("Re-adopted session row from manifest", { sessionId });
 		return adopted;
@@ -197,7 +219,7 @@ export class SessionManifestStore {
 
 	async persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.MessageWithMetadata[],
 		systemPrompt?: string,
 	): Promise<void> {
 		const row = await this.resolveSessionRow(sessionId);

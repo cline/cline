@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	buildRemoteConfigSessionBlobUploadMetadata,
+	clearMaterializedRemoteConfigRuntime,
 	prepareRemoteConfigRuntime,
 	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
 	readRemoteConfigSessionBlobUploadMetadata,
@@ -61,6 +62,58 @@ describe("remote-config runtime", () => {
 		expect(prepared.workflowsDirectories).toEqual([
 			prepared.paths.workflowsPath,
 		]);
+	});
+
+	it("removes materialized instructions when an authoritative refresh returns no bundle", async () => {
+		const workspacePath = await createTempWorkspace();
+		const initial = await prepareRemoteConfigRuntime({
+			workspacePath,
+			controlPlane: {
+				name: "test",
+				async fetchBundle() {
+					return {
+						source: "test",
+						version: "1",
+						remoteConfig: {
+							version: "v1",
+							globalRules: [{ name: "rule", contents: "stale rule" }],
+							globalWorkflows: [
+								{ name: "workflow", contents: "stale workflow" },
+							],
+						},
+						managedInstructions: [
+							{
+								id: "skill",
+								kind: "skill",
+								name: "skill",
+								contents: "stale skill",
+							},
+						],
+					};
+				},
+			},
+		});
+
+		await expect(fs.stat(initial.paths.rulesFilePath)).resolves.toBeDefined();
+		await expect(fs.stat(initial.paths.manifestPath)).resolves.toBeDefined();
+		await expect(fs.readdir(initial.paths.workflowsPath)).resolves.toHaveLength(
+			1,
+		);
+		await expect(fs.readdir(initial.paths.skillsPath)).resolves.toHaveLength(1);
+
+		await clearMaterializedRemoteConfigRuntime({ workspacePath });
+
+		await expect(fs.stat(initial.paths.rulesFilePath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
+		await expect(fs.stat(initial.paths.manifestPath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
+		await expect(fs.readdir(initial.paths.workflowsPath)).resolves.toEqual([]);
+		await expect(fs.readdir(initial.paths.skillsPath)).resolves.toEqual([]);
+		await expect(fs.stat(initial.paths.bundleCachePath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
 	});
 
 	it("builds and reads non-secret blob upload metadata", () => {

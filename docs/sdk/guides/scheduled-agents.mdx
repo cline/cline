@@ -11,7 +11,7 @@ The SDK supports running agents on cron schedules. Scheduled agents persist acro
 1. You define a schedule (cron expression + prompt + config)
 2. The SDK stores the schedule and manages execution
 3. At each trigger time a new session is created and the agent is run
-4. Results are stored and can be routed to connectors (Slack, email, etc.)
+4. Results are stored, and the CLI can post them to a chat through a connector (Telegram, Slack, and others)
 
 Scheduled agents rely on the [hub-spoke architecture](/sdk/architecture/hub-spoke) that is part of `ClineCore`. The hub runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
 
@@ -25,16 +25,16 @@ const cline = await ClineCore.create({
   automation: true,
 })
 
-await cline.automation.start()
-
-// Use cline.automation to reconcile specs, ingest events, and list runs.
+// Automation starts with ClineCore. Pass automation: { autoStart: false }
+// to start it later with cline.automation.start().
+const runs = cline.automation.listRuns()
 ```
+
+`cline.automation` reads schedule files from `~/.cline/cron/`, reconciles them, ingests events and lists runs. [`sdk/examples/cron`](https://github.com/cline/cline/tree/main/sdk/examples/cron) has sample schedule files.
 
 ## Schedule Wizard with Cline CLI
 
-An easy way to schedule task is to use Cline CLI for scheduling task, if you've already installed via `npm i -g cline`
-
-Run `cline schedule` to open an interactive menu for creating and managing schedules, browsing execution history, and viewing performance statistics.
+If you have the Cline CLI installed (`npm i -g cline`), run `cline schedule` to open an interactive menu for creating and managing schedules, browsing execution history, and viewing performance statistics.
 
 ## Creating Schedules with Flags
 
@@ -43,8 +43,7 @@ Run `cline schedule` to open an interactive menu for creating and managing sched
 cline schedule create "PR summary" \
   --cron "0 9 * * MON-FRI" \
   --prompt "List all open PRs, their review status, and any that have been open more than 3 days" \
-  --workspace /path/to/repo \
-  --model anthropic/claude-sonnet-4-6
+  --workspace /path/to/repo
 
 # Every 6 hours
 cline schedule create "Health check" \
@@ -55,8 +54,11 @@ cline schedule create "Health check" \
 # Monday mornings
 cline schedule create "Weekly digest" \
   --cron "0 8 * * MON" \
-  --prompt "Summarize last week's commits, PRs merged, and issues closed"
+  --prompt "Summarize last week's commits, PRs merged, and issues closed" \
+  --workspace /path/to/repo
 ```
+
+[Scheduling](/cli/scheduling) lists the other options, such as `--provider` and `--model`.
 
 ## Managing Schedules
 
@@ -77,7 +79,7 @@ cline schedule resume <schedule-id>
 cline schedule delete <schedule-id>
 
 # View execution history
-cline schedule executions <schedule-id>
+cline schedule history <schedule-id>
 ```
 
 ## Cron Expression Reference
@@ -120,24 +122,12 @@ cline schedule create "Code health" \
   --workspace /path/to/project
 ```
 
-## Concurrency and Resource Limits
+## Concurrency Limits
 
-The scheduler enforces limits to prevent resource exhaustion:
-
-- Schedules have configurable concurrency limits
-- If a previous execution is still running when the next trigger fires, the new execution is queued or skipped (configurable)
-- The hub monitors resource usage and can pause schedules if the system is under load
+- Each schedule runs one execution at a time unless you raise `--max-parallel`. An execution that comes due while the schedule is busy waits in the queue.
+- The hub runs at most 10 scheduled executions at once across all schedules. `ClineCore.create({ automation: { globalMaxConcurrency } })` changes this limit for the SDK's own scheduler.
+- If the hub was stopped when a run was due, it queues one catch-up run when it starts again, not one for each missed time.
 
 ## Routing Results
 
-Combine scheduled agents with [connectors](/cli/connectors) in CLI to route results to messaging platforms:
-
-```bash
-# Start a Telegram connector
-cline connect telegram -k $BOT_TOKEN
-
-# Schedule an agent whose output gets sent to Telegram
-cline schedule create "Morning briefing" \
-  --cron "0 8 * * *" \
-  --prompt "Summarize overnight activity in the repo"
-```
+The CLI can post each run's final reply to a chat through a running [connector](/cli/connectors). [Routing Results](/cli/scheduling#routing-results) shows how to set the chat.

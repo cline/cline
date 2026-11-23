@@ -10,6 +10,7 @@ import {
 	resolveModelDisplayName,
 	resolveModelMaxInputTokens,
 	StatusBar,
+	type StatusBarCloud,
 } from "../components/status-bar";
 import { TrackedRobot, useMouseTracker } from "../components/tracked-robot";
 import { useSession } from "../contexts/session-context";
@@ -42,6 +43,7 @@ export function HomeView(props: {
 	textareaRef?: React.MutableRefObject<TextareaHandle | null>;
 	autocomplete?: AutocompleteDropdownProps;
 	onToggleMode: () => void;
+	cloud?: StatusBarCloud;
 }) {
 	const {
 		config,
@@ -153,6 +155,7 @@ export function HomeView(props: {
 								gitDiffStats={repoStatus.diffStats}
 								onToggleMode={props.onToggleMode}
 								variant="home"
+								cloud={props.cloud}
 							/>
 						</box>
 					)}

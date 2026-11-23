@@ -125,12 +125,16 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]> {
 		return Object.values(this.readIndex().sessions)
 			.filter((row) =>
 				options.parentSessionId !== undefined
 					? row.parentSessionId === options.parentSessionId
 					: true,
+			)
+			.filter((row) =>
+				options.rootOnly ? !row.isSubagent && !row.parentSessionId : true,
 			)
 			.filter((row) =>
 				options.status !== undefined ? row.status === options.status : true,
@@ -213,19 +217,23 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	async deleteSession(sessionId: string, cascade: boolean): Promise<boolean> {
 		const index = this.readIndex();
 		const existing = index.sessions[sessionId];
-		if (!existing) {
-			return false;
+		let changed = false;
+		if (existing) {
+			delete index.sessions[sessionId];
+			changed = true;
 		}
-		delete index.sessions[sessionId];
 		if (cascade) {
 			for (const row of Object.values(index.sessions)) {
 				if (row.parentSessionId === sessionId) {
 					delete index.sessions[row.sessionId];
+					changed = true;
 				}
 			}
 		}
-		this.writeIndex(index);
-		return true;
+		if (changed) {
+			this.writeIndex(index);
+		}
+		return existing !== undefined;
 	}
 
 	async enqueueSpawnRequest(input: {

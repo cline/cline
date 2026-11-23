@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { SseError } from "@modelcontextprotocol/sdk/client/sse.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
@@ -15,8 +16,12 @@ function makeSseError(code: number | undefined, message: string): SseError {
 }
 
 const clientState = vi.hoisted(() => ({
+	constructorOptions: undefined as unknown,
 	connectOptions: undefined as unknown,
 	listToolsOptions: undefined as unknown,
+	listedTools: [] as unknown[],
+	readResourceRequest: undefined as unknown,
+	readResourceOptions: undefined as unknown,
 	callToolOptions: undefined as unknown,
 	callToolError: undefined as unknown,
 	connectError: undefined as unknown,
@@ -25,6 +30,10 @@ const clientState = vi.hoisted(() => ({
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 	Client: class {
+		constructor(_info: unknown, options?: unknown) {
+			clientState.constructorOptions = options;
+		}
+
 		async connect(_transport: unknown, options: unknown): Promise<void> {
 			clientState.connectOptions = options;
 			if (clientState.connectError) {
@@ -38,7 +47,13 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 
 		async listTools(_params: unknown, options: unknown) {
 			clientState.listToolsOptions = options;
-			return { tools: [] };
+			return { tools: clientState.listedTools };
+		}
+
+		async readResource(request: unknown, options: unknown) {
+			clientState.readResourceRequest = request;
+			clientState.readResourceOptions = options;
+			return { contents: [] };
 		}
 
 		async callTool(
@@ -57,6 +72,136 @@ vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
 
 import { createDefaultMcpServerClientFactory } from "./client";
 import { listMcpServerOAuthStatuses } from "./config-loader";
+import {
+	createMcpSdkTransport,
+	createOriginBoundMcpHeadersFetch,
+} from "./oauth";
+
+describe("origin-bound MCP headers", () => {
+	it("removes configured headers while following a cross-origin redirect", async () => {
+		const requests: Array<{ url: string; headers: Headers }> = [];
+		const guardedFetch = createOriginBoundMcpHeadersFetch({
+			endpointUrl: "https://mcp.example.test/start",
+			configuredHeaders: { "X-Tenant": "portable" },
+			baseFetch: async (url, init) => {
+				requests.push({
+					url: String(url),
+					headers: new Headers(init?.headers),
+				});
+				return requests.length === 1
+					? new Response(null, {
+							status: 302,
+							headers: { location: "https://other.example.test/mcp" },
+						})
+					: new Response("ok");
+			},
+		});
+
+		await guardedFetch("https://mcp.example.test/start", {
+			headers: {
+				"X-Tenant": "portable",
+				"X-Client-Generated": "keep",
+			},
+		});
+
+		expect(requests).toHaveLength(2);
+		expect(requests[0].headers.get("x-tenant")).toBe("portable");
+		expect(requests[1].headers.get("x-tenant")).toBeNull();
+		expect(requests[1].headers.get("x-client-generated")).toBe("keep");
+	});
+
+	it("does not send configured headers to a cross-origin SSE event endpoint", async () => {
+		let receivedHeaders: Headers | undefined;
+		const guardedFetch = createOriginBoundMcpHeadersFetch({
+			endpointUrl: "https://mcp.example.test/events",
+			configuredHeaders: { Authorization: "visible-package-data" },
+			baseFetch: async (_url, init) => {
+				receivedHeaders = new Headers(init?.headers);
+				return new Response("ok");
+			},
+		});
+
+		await guardedFetch("https://messages.example.test/send", {
+			headers: {
+				Authorization: "visible-package-data",
+				Accept: "application/json",
+			},
+		});
+
+		expect(receivedHeaders?.get("authorization")).toBeNull();
+		expect(receivedHeaders?.get("accept")).toBe("application/json");
+	});
+
+	it("gives client-generated MCP and authorization headers precedence", async () => {
+		const requests: Headers[] = [];
+		const oauthProvider = {
+			tokens: async () => ({
+				access_token: "client-token",
+				token_type: "Bearer",
+			}),
+		} as OAuthClientProvider;
+		const transport = createMcpSdkTransport({
+			registration: {
+				name: "portable.remote",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.example.test/mcp",
+					headers: {
+						Authorization: "plugin-token",
+						"Mcp-Protocol-Version": "plugin-version",
+						"Mcp-Session-Id": "plugin-session",
+						"X-Tenant": "portable",
+					},
+				},
+			},
+			oauthProvider,
+			restrictConfiguredHeadersToOrigin: true,
+			fetch: async (_url, init) => {
+				requests.push(new Headers(init?.headers));
+				if (init?.method === "DELETE") {
+					return new Response(null, { status: 200 });
+				}
+				const request = (await new Response(init?.body).json()) as {
+					id: number;
+				};
+				return new Response(
+					JSON.stringify({ jsonrpc: "2.0", id: request.id, result: {} }),
+					{
+						headers: {
+							"content-type": "application/json",
+							"mcp-session-id": "client-session",
+						},
+					},
+				);
+			},
+		});
+		transport.onmessage = () => {};
+		await transport.start();
+		transport.setProtocolVersion("client-version");
+
+		await transport.send({
+			jsonrpc: "2.0",
+			id: 1,
+			method: "initialize",
+			params: {},
+		});
+		await transport.send({
+			jsonrpc: "2.0",
+			id: 2,
+			method: "tools/list",
+			params: {},
+		});
+
+		expect(requests).toHaveLength(2);
+		expect(requests[0].get("authorization")).toBe("Bearer client-token");
+		expect(requests[0].get("mcp-protocol-version")).toBe("client-version");
+		expect(requests[0].get("mcp-session-id")).toBeNull();
+		expect(requests[0].get("x-tenant")).toBe("portable");
+		expect(requests[1].get("mcp-session-id")).toBe("client-session");
+
+		await transport.close();
+	});
+});
 
 describe("SDK URL MCP client timeout", () => {
 	beforeEach(() => {
@@ -124,6 +269,80 @@ describe("SDK URL MCP client timeout", () => {
 
 		await expect(client.connect()).rejects.toThrow(/timed out after 12s/);
 		expect(clientState.closeCount).toBe(1);
+	});
+});
+
+describe("SDK URL MCP client app support", () => {
+	beforeEach(() => {
+		clientState.constructorOptions = undefined;
+		clientState.listedTools = [];
+		clientState.readResourceRequest = undefined;
+		clientState.readResourceOptions = undefined;
+		clientState.connectError = undefined;
+	});
+
+	const registration = {
+		name: "remote",
+		transport: {
+			type: "streamableHttp" as const,
+			url: "https://mcp.example.test",
+		},
+		timeoutSeconds: 12,
+	};
+
+	it("advertises the MCP Apps extension only when enabled", async () => {
+		await (await createDefaultMcpServerClientFactory()(registration)).connect();
+		expect(clientState.constructorOptions).toBeUndefined();
+
+		await (
+			await createDefaultMcpServerClientFactory({ mcpApps: true })(registration)
+		).connect();
+		expect(clientState.constructorOptions).toEqual({
+			capabilities: {
+				extensions: {
+					"io.modelcontextprotocol/ui": {
+						mimeTypes: ["text/html;profile=mcp-app"],
+					},
+				},
+			},
+		});
+	});
+
+	it("keeps tool _meta and reads resources with the request timeout", async () => {
+		clientState.listedTools = [
+			{
+				name: "show_weather",
+				inputSchema: { type: "object" },
+				_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+			},
+		];
+		const client = await createDefaultMcpServerClientFactory()(registration);
+		const controller = new AbortController();
+
+		expect(await client.listTools()).toEqual([
+			{
+				name: "show_weather",
+				description: undefined,
+				inputSchema: { type: "object" },
+				_meta: { ui: { resourceUri: "ui://weather/view.html" } },
+			},
+		]);
+		await client.readResource?.({
+			uri: "ui://weather/view.html",
+			context: {
+				agentId: "test-agent",
+				iteration: 1,
+				signal: controller.signal,
+			},
+		});
+
+		expect(clientState.readResourceRequest).toEqual({
+			uri: "ui://weather/view.html",
+		});
+		expect(clientState.readResourceOptions).toEqual({
+			timeout: 12_000,
+			signal: controller.signal,
+		});
 	});
 });
 

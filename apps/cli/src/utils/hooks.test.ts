@@ -156,6 +156,51 @@ describe("createRuntimeHooks", () => {
 		);
 	});
 
+	it("does not dispatch prompt_submit for injected hook-context messages", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			verbose: false,
+			dispatchHookEvent,
+		});
+
+		await runtimeHooks.hooks?.onEvent?.({
+			type: "message-added",
+			snapshot: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				runId: "run-1",
+				parentAgentId: null,
+				status: "running",
+				iteration: 0,
+				messages: [],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+			message: {
+				id: "msg-hook-context",
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<hook_context source="RunStart">note</hook_context>',
+					},
+				],
+				createdAt: 0,
+				metadata: { userRunSpan: 0, displayRole: "system" },
+			},
+		});
+
+		expect(dispatchHookEvent).not.toHaveBeenCalled();
+	});
+
 	it("forwards runtime tool timing to tool_result hook payloads", async () => {
 		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
 		const runtimeHooks = createRuntimeHooks({

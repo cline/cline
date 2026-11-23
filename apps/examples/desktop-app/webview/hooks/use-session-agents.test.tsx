@@ -18,15 +18,22 @@ let root: Root;
 let current: SessionAgentsHook;
 
 function HookHarness({
+	environmentId = "local",
 	sessionId,
 	panelOpen = false,
 	sessionActive = false,
 }: {
+	environmentId?: string;
 	sessionId: string | null;
 	panelOpen?: boolean;
 	sessionActive?: boolean;
 }) {
-	current = useSessionAgents({ sessionId, panelOpen, sessionActive });
+	current = useSessionAgents({
+		environmentId,
+		sessionId,
+		panelOpen,
+		sessionActive,
+	});
 	return null;
 }
 
@@ -76,6 +83,7 @@ describe("useSessionAgents", () => {
 		invokeMock.mockResolvedValue([agentRow("a", "one")]);
 		await render({ sessionId: "a" });
 		expect(invokeMock).toHaveBeenCalledWith("list_session_agents", {
+			environmentId: "local",
 			sessionId: "a",
 		});
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["one"]);
@@ -90,6 +98,7 @@ describe("useSessionAgents", () => {
 		invokeMock.mockResolvedValue([agentRow("a", "aged-out")]);
 		await render({ sessionId: "a", panelOpen: false, sessionActive: false });
 		expect(invokeMock).toHaveBeenCalledWith("list_session_agents", {
+			environmentId: "local",
 			sessionId: "a",
 		});
 		expect(current.agents.map((agent) => agent.agentId)).toEqual(["aged-out"]);
@@ -398,6 +407,52 @@ describe("useSessionAgents", () => {
 				vi.advanceTimersByTime(10_000);
 			});
 			expect(invokeMock.mock.calls.length).toBe(afterFirst);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps polling while an idle parent still has a running child", async () => {
+		vi.useFakeTimers();
+		try {
+			invokeMock.mockResolvedValue([runningRow("a", "one")]);
+			await render({ sessionId: "a", sessionActive: false });
+			const afterFirst = invokeMock.mock.calls.length;
+
+			await act(async () => {
+				vi.advanceTimersByTime(2500);
+			});
+			expect(invokeMock.mock.calls.length).toBeGreaterThan(afterFirst);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("lets a slow poll settle an idle parent's completed child", async () => {
+		vi.useFakeTimers();
+		try {
+			let listCount = 0;
+			invokeMock.mockImplementation(async () => {
+				listCount += 1;
+				if (listCount === 1) return [runningRow("a", "one")];
+				return await new Promise((resolve) => {
+					setTimeout(() => resolve([agentRow("a", "one")]), 3000);
+				});
+			});
+
+			await render({ sessionId: "a", sessionActive: false });
+			expect(current.agents[0]?.status).toBe("running");
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(5500);
+			});
+			expect(current.agents[0]?.status).toBe("completed");
+
+			const settledCallCount = invokeMock.mock.calls.length;
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(10_000);
+			});
+			expect(invokeMock).toHaveBeenCalledTimes(settledCallCount);
 		} finally {
 			vi.useRealTimers();
 		}

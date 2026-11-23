@@ -65,3 +65,28 @@ export async function readRepoStatus(cwd: string): Promise<RepoStatus> {
 
 	return { branch, diffStats };
 }
+
+export async function readGitOriginUrl(
+	cwd: string,
+): Promise<string | undefined> {
+	try {
+		const { stdout } = await execFileAsync(
+			"git",
+			["-C", cwd, "remote", "get-url", "origin"],
+			{ encoding: "utf8", windowsHide: true },
+		);
+		return stdout.trim() || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** "owner/name" for GitHub remotes in https, ssh, or scp-like form. */
+export function parseGitHubRepoFullName(
+	remoteUrl: string | undefined,
+): string | undefined {
+	const match = remoteUrl
+		?.trim()
+		.match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i);
+	return match ? `${match[1]}/${match[2]}`.toLowerCase() : undefined;
+}

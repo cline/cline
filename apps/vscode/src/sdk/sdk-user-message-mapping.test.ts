@@ -4,6 +4,7 @@ import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
 	getSdkCheckpointRunCountForMessageIndex,
+	isSyntheticSdkUserMessage,
 	isSyntheticUserPrompt,
 } from "./sdk-user-message-mapping"
 
@@ -27,6 +28,12 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt(wrapped("go ahead and implement step 1"))).toBe(false)
 	})
 
+	it("flags hook-injected context blocks", () => {
+		expect(isSyntheticUserPrompt('<hook_context source="PreToolUse" tool_name="read_files">\nNOTE\n</hook_context>')).toBe(
+			true,
+		)
+	})
+
 	it("flags synthetic prompts that carry a mode-switch notice", () => {
 		// A user-initiated plan -> act toggle stamps a <mode_notice> onto the
 		// canned continuation; the notice must not make the synthetic prompt
@@ -36,6 +43,28 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`)).toBe(true)
 		expect(isSyntheticUserPrompt(wrapped(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`))).toBe(true)
 		expect(isSyntheticUserPrompt(`${notice}\ngo ahead and implement step 1`)).toBe(false)
+	})
+})
+
+describe("isSyntheticSdkUserMessage", () => {
+	it("flags messages stamped with a system display role", () => {
+		expect(
+			isSyntheticSdkUserMessage({
+				role: "user",
+				content: [{ type: "text", text: "compaction summary or hook context" }],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			}),
+		).toBe(true)
+	})
+
+	it("does not flag ordinary user messages", () => {
+		expect(
+			isSyntheticSdkUserMessage({
+				role: "user",
+				content: [{ type: "text", text: wrapped("fix the bug") }],
+				metadata: { userRunSpan: 1 },
+			}),
+		).toBe(false)
 	})
 })
 

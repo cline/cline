@@ -8,6 +8,7 @@ import {
 } from "./cline-core/automation";
 import {
 	createClineCorePendingPromptsApi,
+	createClineCorePluginCommandsApi,
 	createClineCoreSettingsApi,
 	type RuntimeHostServiceExtensions,
 } from "./cline-core/runtime-services";
@@ -29,13 +30,13 @@ import type {
 	RestoreResult,
 	StartSessionBootstrap,
 } from "./cline-core/types";
-
 import { CronService } from "./cron/service/cron-service";
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
+	McpAppsRuntimeService,
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
@@ -49,8 +50,13 @@ import {
 	FeatureFlagsService,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
+import type { PluginCommandsApi } from "./services/plugin-command-api";
 import { resolveCoreDistinctId } from "./services/telemetry/distinct-id";
 import { compareCheckpointToWorkspace } from "./session/checkpoint-diff";
+import {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "./session/display-messages";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionHistoryRecord } from "./types/sessions";
 
@@ -97,6 +103,7 @@ export class ClineCore {
 	readonly runtimeAddress: string | undefined;
 	readonly automation: ClineCoreAutomationApi;
 	readonly settings: ClineCoreSettingsApi;
+	readonly pluginCommands: PluginCommandsApi;
 	readonly featureFlags: FeatureFlagsService;
 	readonly pendingPrompts: PendingPromptsServiceApi;
 	private readonly host: RuntimeHost;
@@ -136,6 +143,7 @@ export class ClineCore {
 		this.distinctId = distinctId;
 		this.featureFlags = featureFlags;
 		this.settings = createClineCoreSettingsApi(host);
+		this.pluginCommands = createClineCorePluginCommandsApi(host);
 		this.pendingPrompts = createClineCorePendingPromptsApi(host);
 		this.automation = new ClineCoreAutomationController(() => {
 			if (!this.automationService) {
@@ -168,6 +176,7 @@ export class ClineCore {
 					}),
 					dbPath: automationOptions.dbPath,
 					logger: automationOptions.logger,
+					telemetry: this.telemetry,
 					pollIntervalMs: automationOptions.pollIntervalMs,
 					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
 					globalMaxConcurrency: automationOptions.globalMaxConcurrency,
@@ -505,10 +514,12 @@ export class ClineCore {
 		...args
 	) => this.host.readSessionCompactionState(...args);
 	/**
-	 * Reads message history for a session.
+	 * Reads the canonical message history for a session.
 	 *
-	 * Retrieves the full message transcript for a specific session, including all
-	 * user messages, agent responses, and tool interactions.
+	 * This is the model/replay representation used by resume, fork, and
+	 * compaction. Provider-owned model-tool activity remains observational
+	 * metadata here. Use {@link readDisplayMessages} for a UI transcript with
+	 * that activity projected into ordinary tool blocks.
 	 *
 	 * @example
 	 * ```ts
@@ -520,6 +531,20 @@ export class ClineCore {
 	 */
 	readMessages: RuntimeHost["readSessionMessages"] = (...args) =>
 		this.host.readSessionMessages(...args);
+
+	/**
+	 * Reads a transcript projected for presentation. Observational model-tool
+	 * activity is represented with the same tool blocks as ordinary local tools.
+	 *
+	 * Use {@link readMessages} for resume, fork, compaction, or model replay.
+	 */
+	async readDisplayMessages(
+		sessionId: string,
+	): Promise<SessionDisplayMessage[]> {
+		return projectSessionMessagesForDisplay(
+			await this.host.readSessionMessages(sessionId),
+		);
+	}
 
 	/**
 	 * Reads message history for a session, preferring the live in-memory
@@ -620,6 +645,17 @@ export class ClineCore {
 		return this.host.subscribe(listener, options);
 	}
 	/**
+	 * Whether this instance is subscribed to a session's live events.
+	 *
+	 * In hub mode ClineCore subscribes to a session when it starts, sends to,
+	 * or lists pending prompts for it, and unsubscribes on stop. A client that
+	 * also observes the hub directly can use this to render one copy of the
+	 * session's events instead of both.
+	 */
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.host.hasSessionSubscription?.(sessionId) ?? false;
+	}
+	/**
 	 * Updates the AI model used by an active session.
 	 *
 	 * Switches the session to use a different AI model while maintaining the session state
@@ -646,4 +682,24 @@ export class ClineCore {
 			const service = this.host as RuntimeHostServiceExtensions;
 			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
 		};
+	resolveMcpAppTool: McpAppsRuntimeService["resolveMcpAppTool"] = (...args) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return service.resolveMcpAppTool?.(...args) ?? Promise.resolve(undefined);
+	};
+	readMcpAppResource: McpAppsRuntimeService["readMcpAppResource"] = (
+		...args
+	) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return (
+			service.readMcpAppResource?.(...args) ??
+			Promise.reject(new Error("This runtime does not support MCP Apps."))
+		);
+	};
+	callMcpAppTool: McpAppsRuntimeService["callMcpAppTool"] = (...args) => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return (
+			service.callMcpAppTool?.(...args) ??
+			Promise.reject(new Error("This runtime does not support MCP Apps."))
+		);
+	};
 }

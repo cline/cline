@@ -72,6 +72,34 @@ afterEach(() => {
 });
 
 describe("compactInteractiveMessages", () => {
+	it("keeps saved errors in history but excludes them from summarization", async () => {
+		const messages = [
+			{ role: "user" as const, content: "first request" },
+			{
+				role: "assistant" as const,
+				content: "provider failed",
+				metadata: { displayOnly: true, displayRole: "error" },
+			},
+			{ role: "user" as const, content: "retry" },
+			{ role: "assistant" as const, content: "answer" },
+		];
+		const config = createConfig();
+		const compact = vi.fn((context: CoreCompactionContext) => {
+			expect(context.messages).toEqual([messages[0], messages[2], messages[3]]);
+			return { messages: [{ role: "user" as const, content: "summary" }] };
+		});
+		config.compaction = { compact };
+		const result = await compactInteractiveMessages({
+			config,
+			providerSettingsManager: createProviderSettingsManager(),
+			sessionId: "session",
+			messages,
+		});
+		expect(compact).toHaveBeenCalledOnce();
+		expect(result.canonicalMessages).toEqual(messages);
+		expect(result.compactionState?.source_message_count).toBe(3);
+	});
+
 	it("resolves manual compaction provider config from persisted OAuth settings", () => {
 		const manager = createProviderSettingsManager();
 		manager.saveProviderSettings({

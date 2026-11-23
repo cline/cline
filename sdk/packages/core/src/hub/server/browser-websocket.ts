@@ -1,3 +1,4 @@
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type {
 	HubClientRegistration,
 	HubEventEnvelope,
@@ -11,10 +12,23 @@ import {
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
 } from "@cline/shared";
-import type { HubCommandTransport } from "./command-transport";
+import type {
+	HubCommandTransport,
+	HubConnectionAuthority,
+} from "./command-transport";
+import { HistoryTransferPool } from "./history-transfer";
 import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
+
+const HUB_EVENT_REPLAY_PAGE_SIZE = 200;
+/**
+ * Hard ceiling on replay pages per subscribe. At the default page size this
+ * covers the event log's full retention cap; a replay source that still has
+ * more after this is misbehaving, and live delivery takes over from wherever
+ * the cursor reached.
+ */
+const HUB_EVENT_REPLAY_MAX_PAGES = 1_000;
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;
@@ -52,15 +66,69 @@ function commandErrorReply(
 	};
 }
 
+function registrationAuthority(
+	frame: HubCommandFrame,
+	serverWorkspaceRoot?: string,
+	tokenAuthenticated = false,
+): HubConnectionAuthority {
+	const registration = (frame.envelope.payload ??
+		{}) as unknown as HubClientRegistration;
+	const envelopeClientId = frame.envelope.clientId?.trim();
+	const clientId = registration.clientId?.trim() || envelopeClientId;
+	if (!clientId || (envelopeClientId && clientId !== envelopeClientId)) {
+		throw new Error("Registration clientId must match the command connection");
+	}
+	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
+	const authorizedRoot = tokenAuthenticated
+		? requestedRoot || serverWorkspaceRoot?.trim()
+		: serverWorkspaceRoot?.trim();
+	const authentication = tokenAuthenticated ? { tokenAuthenticated: true } : {};
+	if (!authorizedRoot) return { clientId, ...authentication };
+	const workspaceRoot = resolve(authorizedRoot);
+	if (
+		!tokenAuthenticated &&
+		requestedRoot &&
+		resolve(requestedRoot) !== workspaceRoot
+	) {
+		throw new Error(
+			"Registration workspace must match the Hub-authorized workspace",
+		);
+	}
+	const cwd = resolve(
+		registration.workspaceContext?.cwd?.trim() || workspaceRoot,
+	);
+	const relativeCwd = relative(workspaceRoot, cwd);
+	if (
+		relativeCwd === ".." ||
+		relativeCwd.startsWith(`..${sep}`) ||
+		isAbsolute(relativeCwd)
+	) {
+		throw new Error("Registration cwd must be inside its workspace");
+	}
+	return {
+		clientId,
+		...authentication,
+		workspaceContext: { workspaceRoot, cwd },
+		...(tokenAuthenticated ? { crossWorkspace: true } : {}),
+	};
+}
+
 export class BrowserWebSocketHubAdapter {
+	private readonly historyTransfers = new HistoryTransferPool();
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
+		private readonly workspaceRoot?: string,
 	) {}
 
-	attach(socket: BrowserHubSocketLike): () => void {
+	attach(
+		socket: BrowserHubSocketLike,
+		options: { tokenAuthenticated?: boolean } = {},
+	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		const historyOwner = {};
+		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
 		const sendFrame = (frame: HubTransportFrame): void => {
@@ -78,6 +146,7 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			if (envelope.event === "cloud.event" && !authority) return;
 			sendFrame({ kind: "event", envelope });
 		};
 
@@ -85,8 +154,83 @@ export class BrowserWebSocketHubAdapter {
 			try {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
+					case "history.cancel": {
+						if (
+							authority &&
+							typeof frame.clientId === "string" &&
+							frame.clientId.trim() === authority.clientId &&
+							typeof frame.requestId === "string" &&
+							frame.requestId.trim() &&
+							typeof frame.sessionId === "string"
+						) {
+							this.historyTransfers.cancel(
+								historyOwner,
+								frame.requestId,
+								frame.sessionId.trim(),
+							);
+						}
+						break;
+					}
 					case "command": {
+						let registration: HubConnectionAuthority | undefined;
+						if (authority && frame.envelope.command === "client.register") {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_already_registered",
+									"This connection already owns a registered client.",
+								),
+							});
+							break;
+						}
+						if (
+							authority &&
+							frame.envelope.clientId?.trim() !== authority.clientId
+						) {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_authority_mismatch",
+									"Command clientId does not belong to this connection.",
+								),
+							});
+							break;
+						}
+						if (frame.envelope.command === "client.register") {
+							try {
+								registration = registrationAuthority(
+									frame,
+									this.workspaceRoot,
+									options.tokenAuthenticated,
+								);
+							} catch (error) {
+								sendFrame({
+									kind: "reply",
+									envelope: commandErrorReply(
+										frame,
+										"invalid_client_registration",
+										error instanceof Error ? error.message : String(error),
+									),
+								});
+								break;
+							}
+						}
+						if (
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.historyCursor !== undefined &&
+							frame.envelope.payload?.chunkHistory !== true
+						) {
+							throw new Error("History cursors require chunkHistory");
+						}
 						const startedAt = performance.now();
+						const historyAbort =
+							authority &&
+							frame.envelope.command === "session.messages" &&
+							frame.envelope.payload?.chunkHistory === true
+								? new AbortController()
+								: undefined;
 						let settled = false;
 						const context = commandLogContext(frame);
 						logHubMessage("info", "command.start", context);
@@ -97,12 +241,24 @@ export class BrowserWebSocketHubAdapter {
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
-						const commandPromise = this.transport.command(frame.envelope);
+						const read = () =>
+							this.transport.command(frame.envelope, authority ?? null);
+						const commandPromise = historyAbort
+							? this.historyTransfers.command(
+									frame.envelope,
+									historyOwner,
+									read,
+									historyAbort.signal,
+								)
+							: read();
 						commandPromise.then(
 							(lateReply) => {
 								if (!settled) return;
 								logHubMessage(
-									lateReply.ok ? "warn" : "error",
+									lateReply.ok ||
+										lateReply.error?.code === "history_transfer_closed"
+										? "warn"
+										: "error",
 									"command.late_end",
 									{
 										...context,
@@ -138,6 +294,7 @@ export class BrowserWebSocketHubAdapter {
 											new Promise<HubReplyEnvelope>((resolve) => {
 												timeoutTimer = setTimeout(() => {
 													timedOut = true;
+													historyAbort?.abort();
 													captureSdkError(this.telemetry, {
 														component: "core",
 														operation: "hub.command_timeout",
@@ -169,6 +326,7 @@ export class BrowserWebSocketHubAdapter {
 						settled = timedOut;
 						clearTimeout(slowTimer);
 						if (timeoutTimer) clearTimeout(timeoutTimer);
+						if (historyAbort && closed) return;
 						const durationMs = Math.round(performance.now() - startedAt);
 						if (timedOut) {
 							logHubMessage("error", "command.timeout", {
@@ -186,13 +344,9 @@ export class BrowserWebSocketHubAdapter {
 							});
 						}
 						if (frame.envelope.command === "client.register" && reply.ok) {
-							const registration = (frame.envelope.payload ??
-								{}) as unknown as HubClientRegistration;
-							const clientId =
-								registration.clientId?.trim() ||
-								frame.envelope.clientId?.trim();
-							if (clientId) {
-								registeredClientIds.add(clientId);
+							if (registration) {
+								registeredClientIds.add(registration.clientId);
+								authority = registration;
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -201,6 +355,8 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								void this.historyTransfers.close(historyOwner);
+								authority = undefined;
 							}
 						}
 						sendFrame({
@@ -214,12 +370,108 @@ export class BrowserWebSocketHubAdapter {
 						if (subscriptions.has(key)) {
 							break;
 						}
+						const sinceSequence =
+							typeof frame.sinceSequence === "number" &&
+							Number.isFinite(frame.sinceSequence) &&
+							frame.sinceSequence >= 0
+								? Math.floor(frame.sinceSequence)
+								: undefined;
+						if (
+							sinceSequence === undefined ||
+							typeof this.transport.replayEventsAfter !== "function"
+						) {
+							// Live-only delivery: the legacy contract, byte-for-byte.
+							const unsubscribe = await this.transport.subscribe(
+								frame.clientId,
+								onEvent,
+								{ sessionId: frame.sessionId },
+							);
+							subscriptions.set(key, unsubscribe);
+							break;
+						}
+						// Replay-then-live: subscribe first and buffer live events while
+						// durable pages stream out, then flush the buffer past the last
+						// replayed sequence — no gap, no duplicates, resumable by cursor.
+						let replayDone = false;
+						let lastDelivered = sinceSequence;
+						const buffered: HubEventEnvelope[] = [];
+						// A pending approval buffered from the live gate (re-issued by
+						// subscribe() sequence-less, since it predates any durable-log
+						// append) and its durable-log replay copy (sequence-stamped by
+						// HubEventLogStore.append, which returns a new object rather than
+						// mutating the original) share the same eventId. The sequence
+						// cursor alone can't catch that: dedupe by eventId too, or the
+						// buffer flush below re-delivers it after replay already did.
+						// The set exists only for that replay/flush window — it is
+						// dropped once the flush completes so it cannot grow for the
+						// lifetime of the socket.
+						let deliveredEventIds: Set<string> | undefined = new Set<string>();
+						const deliver = (envelope: HubEventEnvelope): void => {
+							if (typeof envelope.sequence === "number") {
+								if (envelope.sequence <= lastDelivered) {
+									return;
+								}
+								// Advance the cursor before any eventId dedupe: a skipped
+								// duplicate must still move replay forward, or the next
+								// page refetches it forever.
+								lastDelivered = envelope.sequence;
+							}
+							if (envelope.eventId && deliveredEventIds) {
+								if (deliveredEventIds.has(envelope.eventId)) {
+									return;
+								}
+								deliveredEventIds.add(envelope.eventId);
+							}
+							onEvent(envelope);
+						};
+						const gate = (envelope: HubEventEnvelope): void => {
+							if (!replayDone) {
+								buffered.push(envelope);
+								return;
+							}
+							deliver(envelope);
+						};
 						const unsubscribe = await this.transport.subscribe(
 							frame.clientId,
-							onEvent,
+							gate,
 							{ sessionId: frame.sessionId },
 						);
 						subscriptions.set(key, unsubscribe);
+						try {
+							let pages = 0;
+							while (!closed && pages < HUB_EVENT_REPLAY_MAX_PAGES) {
+								const pageCursor = lastDelivered;
+								const page = this.transport.replayEventsAfter(lastDelivered, {
+									sessionId: frame.sessionId,
+									limit: HUB_EVENT_REPLAY_PAGE_SIZE,
+								});
+								if (page.length === 0) {
+									break;
+								}
+								for (const envelope of page) {
+									deliver(envelope);
+								}
+								if (lastDelivered <= pageCursor) {
+									// The cursor did not move, so the next fetch would return
+									// this same page again. Stop instead of spinning.
+									break;
+								}
+								pages += 1;
+								// Yield between pages so replay never starves the socket.
+								await new Promise<void>((resolveYield) =>
+									setTimeout(resolveYield, 0),
+								);
+							}
+						} finally {
+							replayDone = true;
+							for (const envelope of buffered) {
+								deliver(envelope);
+							}
+							buffered.length = 0;
+							// Replay/flush dedupe is over; from here the subscription is
+							// live-only and must not accumulate per-event state.
+							deliveredEventIds = undefined;
+						}
 						break;
 					}
 					case "stream.unsubscribe": {
@@ -271,16 +523,20 @@ export class BrowserWebSocketHubAdapter {
 				return;
 			}
 			closed = true;
+			void this.historyTransfers.close(historyOwner);
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();
 			}
 			subscriptions.clear();
 			for (const clientId of registeredClientIds) {
-				void this.transport.command({
-					version: "v1",
-					command: "client.unregister",
-					clientId,
-				});
+				void this.transport.command(
+					{
+						version: "v1",
+						command: "client.unregister",
+						clientId,
+					},
+					authority ?? null,
+				);
 			}
 			registeredClientIds.clear();
 			socket.removeEventListener("message", onMessage);

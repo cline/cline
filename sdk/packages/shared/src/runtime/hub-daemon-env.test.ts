@@ -5,13 +5,16 @@ import {
 	CLINE_CONNECTOR_SUPERVISED_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	claimHubDaemonProcess,
+	claimHubLauncherIdentity,
 	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
 	isSupervisedConnectorProcess,
 	readConnectorCliLaunchSpec,
+	readHubLauncherIdentity,
 	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
+	withHubLauncherIdentity,
 } from "./hub-daemon-env";
 
 describe("hub daemon environment helpers", () => {
@@ -186,5 +189,76 @@ describe("supervised connector marker", () => {
 		expect(
 			isSupervisedConnectorProcess({ [CLINE_CONNECTOR_SUPERVISED_ENV]: "1" }),
 		).toBe(true);
+	});
+});
+
+describe("hub launcher identity", () => {
+	it("stamps the launcher onto a daemon environment without overriding an embedding host", () => {
+		const stamped = withHubLauncherIdentity(
+			{ PATH: "/usr/bin" },
+			{ client: "cline-cli", version: "3.0.72" },
+		);
+		expect(stamped).toEqual({
+			PATH: "/usr/bin",
+			CLINE_HUB_LAUNCHER_CLIENT: "cline-cli",
+			CLINE_HUB_LAUNCHER_VERSION: "3.0.72",
+			CLINE_HUB_LAUNCHER_TRANSPORT: "local",
+		});
+		// The desktop app runs `cline-cli hub ensure`; the CLI process that
+		// actually spawns the daemon must not replace the desktop's stamp.
+		const preserved = withHubLauncherIdentity(stamped, {
+			client: "cline-desktop",
+			version: "0.0.46",
+		});
+		expect(preserved).toEqual(stamped);
+		// A host that stamped only its client must not have another build's
+		// version filled in next to its name.
+		const clientOnly = withHubLauncherIdentity(
+			{ CLINE_HUB_LAUNCHER_CLIENT: "cline-desktop" },
+			{ client: "cline-cli", version: "3.0.72" },
+		);
+		expect(clientOnly).toEqual({ CLINE_HUB_LAUNCHER_CLIENT: "cline-desktop" });
+		expect(withHubLauncherIdentity({ A: "1" }, undefined)).toEqual({ A: "1" });
+		expect(withHubLauncherIdentity({ A: "1" }, { client: "  " })).toEqual({
+			A: "1",
+		});
+	});
+
+	it("claims the launcher stamp so hosted sessions do not pass it on", () => {
+		const env: Record<string, string | undefined> = {
+			CLINE_HUB_LAUNCHER_CLIENT: "cline-desktop",
+			CLINE_HUB_LAUNCHER_VERSION: "0.0.46",
+			CLINE_HUB_LAUNCHER_TRANSPORT: "ssh",
+			PATH: "/usr/bin",
+		};
+		expect(claimHubLauncherIdentity(env)).toEqual({
+			client: "cline-desktop",
+			version: "0.0.46",
+			transport: "ssh",
+		});
+		expect(env).toEqual({ PATH: "/usr/bin" });
+		// A hub started by a command inside that session records itself.
+		expect(
+			withHubLauncherIdentity(env, { client: "cline-cli", version: "3.0.72" })
+				.CLINE_HUB_LAUNCHER_CLIENT,
+		).toBe("cline-cli");
+		expect(claimHubLauncherIdentity({})).toBeUndefined();
+	});
+
+	it("reads the launcher back, ignoring unknown transports", () => {
+		expect(readHubLauncherIdentity({})).toBeUndefined();
+		expect(
+			readHubLauncherIdentity({
+				CLINE_HUB_LAUNCHER_CLIENT: " cline-desktop ",
+				CLINE_HUB_LAUNCHER_VERSION: "0.0.46",
+				CLINE_HUB_LAUNCHER_TRANSPORT: "ssh",
+			}),
+		).toEqual({ client: "cline-desktop", version: "0.0.46", transport: "ssh" });
+		expect(
+			readHubLauncherIdentity({
+				CLINE_HUB_LAUNCHER_CLIENT: "cline-cli",
+				CLINE_HUB_LAUNCHER_TRANSPORT: "carrier-pigeon",
+			}),
+		).toEqual({ client: "cline-cli" });
 	});
 });

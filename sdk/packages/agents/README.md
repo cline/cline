@@ -178,6 +178,12 @@ Pass a `hooks` bag (`AgentRuntimeHooks`) to observe or influence the loop.
 All hooks may be async; any that return `{ stop: true, reason }` will halt the
 run with an `aborted` status.
 
+`afterModel` also receives an optional `requestId`: the surfaced response's HTTP
+`X-Request-ID`, when the model adapter exposes it. It is not the provider's
+generation ID or a list of retry IDs. Missing IDs remain undefined, and early
+failure/cancellation may skip `afterModel`. Hooks are awaited, so schedule
+observational work separately (and catch its errors) to avoid delaying inference.
+
 ```ts
 new Agent({
 	providerId,

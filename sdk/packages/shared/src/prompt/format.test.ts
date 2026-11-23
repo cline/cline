@@ -3,11 +3,15 @@ import {
 	createModeSwitchNoticeTracker,
 	formatDisplayUserInput,
 	formatModeSwitchNotice,
+	formatSessionSearchPreview,
+	formatSessionSearchTitle,
 	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
 	parseUserInputMode,
+	SESSION_SEARCH_PREVIEW_MAX_LENGTH,
+	SESSION_SEARCH_TITLE_MAX_LENGTH,
 	stripModeNotices,
 } from "./format";
 
@@ -107,6 +111,27 @@ describe("prompt format helpers", () => {
 		const result = stripModeNotices(hostile);
 		expect(performance.now() - started).toBeLessThan(1_000);
 		expect(result).toBe(hostile);
+	});
+
+	it("bounds and unwraps session search display text", () => {
+		const oversized = "generate ".repeat(10_000);
+		const wrapped = formatUserInputBlock(oversized, "act");
+		const title = formatSessionSearchTitle(wrapped);
+		const preview = formatSessionSearchPreview("session", wrapped);
+
+		expect(title).not.toContain("user_input");
+		expect(preview).not.toContain("user_input");
+		expect(title).toHaveLength(SESSION_SEARCH_TITLE_MAX_LENGTH);
+		expect(preview).toHaveLength(SESSION_SEARCH_PREVIEW_MAX_LENGTH);
+		expect(title.endsWith("…")).toBe(true);
+		expect(preview.endsWith("…")).toBe(true);
+	});
+
+	it("preserves assistant examples while bounding their search previews", () => {
+		const content =
+			'<user_input mode="act">this tag is part of the answer</user_input>';
+
+		expect(formatSessionSearchPreview("assistant", content)).toBe(content);
 	});
 });
 

@@ -1,4 +1,4 @@
-import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
+import type { OnboardingModel, OnboardingModelGroup } from "@shared/cline/onboarding"
 import { describe, expect, it } from "vitest"
 import {
 	CLINEPASS_GROUP,

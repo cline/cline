@@ -6,12 +6,21 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import type {
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+} from "../../extensions/agent-plugin";
 import type { UserInstructionConfigService } from "../../extensions/config";
-import type { ToolExecutors } from "../../extensions/tools";
+import type { McpAppsRuntime } from "../../extensions/mcp";
+import type {
+	RunCommandExecutionController,
+	ToolExecutors,
+} from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
@@ -37,6 +46,7 @@ type LeadAgentHandle = {
 
 export interface BuiltRuntime {
 	tools: AgentTool[];
+	modelTools?: ModelTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -46,11 +56,17 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	mcpApps?: McpAppsRuntime;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 
 export interface RuntimeBuilderInput {
 	config: CoreSessionConfig;
+	/**
+	 * Host-resolved stable end-user identity, forwarded so delegated agents
+	 * (sub-agents / teammates) emit the same telemetry `userId` as the lead.
+	 */
+	distinctId?: string;
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
@@ -61,8 +77,11 @@ export interface RuntimeBuilderInput {
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	pluginSkillDirectories?: ReadonlyArray<string>;
+	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
+	agentPluginMcpServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	runCommandExecutionController?: RunCommandExecutionController;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;

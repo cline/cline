@@ -15,7 +15,11 @@ import {
 	resolveClaudeThinkingEra,
 	resolveModelFamily,
 } from "../model-facts";
-import { createEphemeralCacheControl, toProviderOptionsKey } from "./utils";
+import {
+	createEphemeralCacheControl,
+	toProviderOptionsBucket,
+	toProviderOptionsKey,
+} from "./utils";
 
 const ANTHROPIC_DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const ANTHROPIC_MAX_THINKING_BUDGET_TOKENS = 128000;
@@ -93,11 +97,11 @@ export function createPromptCacheProviderOptions(
 ) {
 	const providerOptions: Record<string, unknown> = {
 		openaiCompatible: createEphemeralCacheControl(),
-		[providerId]: createEphemeralCacheControl(),
+		[toProviderOptionsBucket(providerId)]: createEphemeralCacheControl(),
 	};
 
 	const providerOptionsKey = toProviderOptionsKey(providerId);
-	if (providerOptionsKey !== providerId) {
+	if (providerOptionsKey !== toProviderOptionsBucket(providerId)) {
 		providerOptions[providerOptionsKey] = createEphemeralCacheControl();
 	}
 	if (includeAnthropic) {

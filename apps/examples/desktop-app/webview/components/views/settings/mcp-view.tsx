@@ -1,5 +1,11 @@
 "use client";
 
+import type {
+	McpServerConfigView as McpServer,
+	McpServersResponse,
+	McpServerConfigInput as McpServerUpsertInput,
+} from "@cline/shared";
+import { Switch } from "@cline/ui";
 import {
 	ChevronRight,
 	Circle,
@@ -20,6 +26,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -44,7 +51,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
@@ -55,6 +61,7 @@ import {
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -70,50 +77,9 @@ const TRANSPORT_TYPE_LABELS: Record<McpTransportType, string> = {
 	streamableHttp: "Remote · Streamable HTTP",
 };
 
-interface McpServer {
-	name: string;
-	transportType: McpTransportType;
-	disabled: boolean;
-	command?: string;
-	args?: string[];
-	cwd?: string;
-	env?: Record<string, string>;
-	url?: string;
-	headers?: Record<string, string>;
-	metadata?: unknown;
-	configurationError?: string;
-	oauthStatus?: {
-		supported: boolean;
-		configured: boolean;
-		authorizationRequired: boolean;
-		lastError?: string;
-		lastAuthenticatedAt?: number;
-	};
-}
-
-interface McpServersResponse {
-	settingsPath: string;
-	hasSettingsFile: boolean;
-	servers: McpServer[];
-}
-
-interface McpServerUpsertInput {
-	name: string;
-	previousName?: string;
-	transportType: McpTransportType;
-	command?: string;
-	args?: string[];
-	cwd?: string;
-	env?: Record<string, string>;
-	url?: string;
-	headers?: Record<string, string>;
-	disabled?: boolean;
-	metadata?: unknown;
-}
-
 type McpServerFormState = {
 	name: string;
-	previousName: string;
+	previousName: string | undefined;
 	transportType: McpTransportType;
 	command: string;
 	argsText: string;
@@ -189,7 +155,7 @@ function createEnvEntries(
 function createServerFormState(existing?: McpServer): McpServerFormState {
 	return {
 		name: existing?.name ?? "",
-		previousName: existing?.name ?? "",
+		previousName: existing?.name,
 		transportType: existing?.transportType ?? "stdio",
 		command: existing?.command ?? "",
 		argsText: existing?.args?.join(", ") ?? "",
@@ -205,7 +171,18 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 	};
 }
 
-export function McpServersContent() {
+export function McpServersContent({
+	chrome = "page",
+	marketplaceVariant = "full",
+	onInventoryChanged,
+}: {
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
+	/** Invoked whenever the server list is (re)loaded or mutated. */
+	onInventoryChanged?: () => void;
+} = {}) {
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
@@ -228,11 +205,15 @@ export function McpServersContent() {
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
-	const applyResponse = useCallback((response: McpServersResponse) => {
-		setServers(response.servers);
-		setSettingsPath(response.settingsPath);
-		setHasSettingsFile(response.hasSettingsFile);
-	}, []);
+	const applyResponse = useCallback(
+		(response: McpServersResponse) => {
+			setServers(response.servers);
+			setSettingsPath(response.settingsPath);
+			setHasSettingsFile(response.hasSettingsFile);
+			onInventoryChanged?.();
+		},
+		[onInventoryChanged],
+	);
 
 	const setServerActionError = useCallback(
 		(serverName: string, message?: string) => {
@@ -274,6 +255,17 @@ export function McpServersContent() {
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshServers]);
 
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refreshServers();
+			}),
+		[refreshServers],
+	);
+
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
 		setBusyServerName(server.name);
 		setErrorMessage(null);
@@ -285,6 +277,7 @@ export function McpServersContent() {
 					name: server.name,
 					disabled,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} catch (error) {
@@ -304,6 +297,7 @@ export function McpServersContent() {
 				{
 					input,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} finally {
@@ -321,6 +315,7 @@ export function McpServersContent() {
 				{
 					name: serverName,
 				},
+				{ timeoutMs: null },
 			);
 			applyResponse(response);
 		} catch (error) {
@@ -392,7 +387,7 @@ export function McpServersContent() {
 			const args = splitCsv(form.argsText);
 			return {
 				name,
-				previousName: form.previousName.trim() || undefined,
+				previousName: form.previousName,
 				transportType: form.transportType,
 				command,
 				args: args.length > 0 ? args : undefined,
@@ -408,7 +403,7 @@ export function McpServersContent() {
 		}
 		return {
 			name,
-			previousName: form.previousName.trim() || undefined,
+			previousName: form.previousName,
 			transportType: form.transportType,
 			url,
 			headers: parseKeyValuePairs(form.headersText),
@@ -454,6 +449,8 @@ export function McpServersContent() {
 		try {
 			const openedPath = await desktopClient.invoke<string>(
 				"open_mcp_settings_file",
+				undefined,
+				{ timeoutMs: null },
 			);
 			if (openedPath.trim().length > 0) {
 				setSettingsPath(openedPath);
@@ -599,9 +596,9 @@ export function McpServersContent() {
 		return (
 			<div
 				key={server.name}
-				className="group relative rounded-lg border border-border px-5 py-4 hover:bg-surface-hover"
+				className="group relative rounded-lg border bg-card p-4 transition-colors hover:bg-surface-hover-lighter"
 			>
-				<div className="flex items-center gap-3">
+				<div className="flex min-w-0 items-center gap-2">
 					<Circle
 						className={cn(
 							"h-2.5 w-2.5 shrink-0",
@@ -610,17 +607,17 @@ export function McpServersContent() {
 								: "fill-primary text-primary",
 						)}
 					/>
-					<h3 className="text-sm font-semibold text-foreground">
+					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
 						{server.name}
 					</h3>
-					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+					<Badge variant="outline" className="shrink-0 text-muted-foreground">
 						{TRANSPORT_TYPE_LABELS[server.transportType] ??
 							server.transportType}
-					</span>
+					</Badge>
 					{context?.matchedEntries?.length ? (
-						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+						<Badge variant="outline" className="shrink-0 text-muted-foreground">
 							Marketplace
-						</span>
+						</Badge>
 					) : null}
 					<div className="flex-1" />
 					{renderServerToggle(server)}
@@ -717,42 +714,55 @@ export function McpServersContent() {
 		}),
 	);
 
-	return (
-		<PageFrame>
-			<PageHeader
-				description={
-					hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."
-				}
-				title="MCP Servers"
-				meta={
-					<>
-						<CommandBadge>cline config mcp</CommandBadge>
-						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-							From settings file
-						</span>
-					</>
-				}
-				actions={
-					<>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => void refreshServers()}
-							disabled={isLoading}
-						>
-							<RefreshCw
-								className={cn("h-4 w-4", isLoading && "animate-spin")}
-							/>
-						</Button>
-						<Button size="sm" onClick={openCreateDialog}>
-							<Plus className="h-4 w-4" />
-							Add MCP Server
-						</Button>
-					</>
-				}
-			/>
+	const headerActions = (
+		<>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => void refreshServers()}
+				disabled={isLoading}
+			>
+				<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+			</Button>
+			<Button size="sm" onClick={openCreateDialog}>
+				<Plus className="h-4 w-4" />
+				Add MCP Server
+			</Button>
+		</>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={
+						hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."
+					}
+					title="MCP Servers"
+					meta={
+						<>
+							<CommandBadge>cline config mcp</CommandBadge>
+							<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+								From settings file
+							</span>
+						</>
+					}
+					actions={headerActions}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."}
+					</p>
+					<div className="flex shrink-0 items-center gap-2">
+						{headerActions}
+					</div>
+				</div>
+			)}
 
 			<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span>MCP settings path:</span>
@@ -776,6 +786,7 @@ export function McpServersContent() {
 				installedItems={installedItems}
 				onInstalledItemsChanged={() => refreshServers()}
 				primitive="mcp"
+				variant={marketplaceVariant}
 			/>
 			<Dialog
 				open={editorOpen}
@@ -1144,6 +1155,12 @@ export function McpServersContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }

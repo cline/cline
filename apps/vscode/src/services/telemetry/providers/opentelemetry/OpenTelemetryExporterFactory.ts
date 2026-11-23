@@ -5,8 +5,12 @@ import { OTLPLogExporter as OTLPLogExporterProto } from "@opentelemetry/exporter
 import { OTLPMetricExporter as OTLPMetricExporterGRPC } from "@opentelemetry/exporter-metrics-otlp-grpc"
 import { OTLPMetricExporter as OTLPMetricExporterHTTP } from "@opentelemetry/exporter-metrics-otlp-http"
 import { OTLPMetricExporter as OTLPMetricExporterProto } from "@opentelemetry/exporter-metrics-otlp-proto"
+import { OTLPTraceExporter as OTLPTraceExporterGRPC } from "@opentelemetry/exporter-trace-otlp-grpc"
+import { OTLPTraceExporter as OTLPTraceExporterHTTP } from "@opentelemetry/exporter-trace-otlp-http"
+import { OTLPTraceExporter as OTLPTraceExporterProto } from "@opentelemetry/exporter-trace-otlp-proto"
 import { ConsoleLogRecordExporter, LogRecordExporter } from "@opentelemetry/sdk-logs"
 import { ConsoleMetricExporter, MetricReader, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
+import { SpanExporter } from "@opentelemetry/sdk-trace-node"
 import { Logger } from "@/shared/services/Logger"
 import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
 
@@ -80,6 +84,43 @@ export function createOTLPLogExporter(
 		return exporter
 	} catch (error) {
 		Logger.error("[OTEL] Error creating OTLP log exporter:", error)
+		return null
+	}
+}
+
+export function createOTLPTraceExporter(
+	protocol: string,
+	endpoint: string,
+	insecure: boolean,
+	headers?: Record<string, string>,
+): SpanExporter | null {
+	try {
+		const tracesUrl = new URL(endpoint)
+		ensurePathSuffix(tracesUrl, "/v1/traces")
+
+		switch (protocol) {
+			case "grpc": {
+				const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
+				const credentials = insecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
+
+				return new OTLPTraceExporterGRPC({
+					url: grpcEndpoint,
+					credentials: credentials,
+					headers,
+				})
+			}
+			case "http/json": {
+				return new OTLPTraceExporterHTTP({ url: tracesUrl.toString(), headers })
+			}
+			case "http/protobuf": {
+				return new OTLPTraceExporterProto({ url: tracesUrl.toString(), headers })
+			}
+			default:
+				Logger.warn(`[OTEL] Unknown OTLP protocol for traces: ${protocol}`)
+				return null
+		}
+	} catch (error) {
+		Logger.error("[OTEL] Error creating OTLP trace exporter:", error)
 		return null
 	}
 }

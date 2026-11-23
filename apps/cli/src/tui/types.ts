@@ -5,8 +5,9 @@ import type {
 	ClineSubscriptionPlan,
 	TeamEvent,
 } from "@cline/core";
+import type { HubCloudSessionClient } from "@cline/core/cloud";
 import type {
-	Message,
+	MessageWithMetadata,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
@@ -29,6 +30,13 @@ import type { InteractiveSlashCommand } from "./interactive-welcome";
 export type ChatEntry = (
 	| { kind: "user"; text: string }
 	| { kind: "assistant_text"; text: string; streaming: boolean }
+	| {
+			kind: "assistant_media";
+			modality: "image" | "audio" | "video" | "file";
+			mediaType: string;
+			byteLength: number;
+			location?: string;
+	  }
 	| { kind: "reasoning"; text: string; streaming: boolean }
 	| {
 			kind: "tool_call";
@@ -92,7 +100,7 @@ export interface InteractiveTurnResult {
 }
 
 export interface ResumedSessionResult {
-	messages: Message[];
+	messages: MessageWithMetadata[];
 	totalCost?: number;
 	currentContextSize?: number;
 }
@@ -123,6 +131,18 @@ export interface PendingPromptMutationResult {
 	removed?: boolean;
 }
 
+export type CloudSessionsClient = Pick<
+	HubCloudSessionClient,
+	| "listRepositories"
+	| "listBranches"
+	| "listModels"
+	| "create"
+	| "send"
+	| "abort"
+	| "subscribe"
+	| "getSnapshot"
+>;
+
 export type AppView = "onboarding" | "home" | "chat";
 export type TuiStartupTarget = "chat" | "config" | "history";
 
@@ -145,11 +165,13 @@ export interface TuiProps {
 	initialPrompt?: string;
 	initialNotice?: CliMigrationNotice;
 	onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
-	initialMessages?: Message[];
+	initialMessages?: MessageWithMetadata[];
 	loadDeferredInitialMessages?: () => Promise<ResumedSessionResult>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
+	/** Notifies when additional commands may have changed (the active session changed). */
+	subscribeAdditionalSlashCommands?: (listener: () => void) => () => void;
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadClineAccount: () => Promise<ClineAccountSnapshot>;
 	loadIndividualSubscriptionPlans?: () => Promise<ClineSubscriptionPlan[]>;
@@ -218,12 +240,18 @@ export interface TuiProps {
 		| undefined
 	>;
 	getCheckpointData: () => Promise<
-		{ messages: Message[]; checkpointHistory: CheckpointEntry[] } | undefined
+		| {
+				messages: MessageWithMetadata[];
+				checkpointHistory: CheckpointEntry[];
+		  }
+		| undefined
 	>;
 	onRestoreCheckpoint: (
 		runCount: number,
 		restoreWorkspace: boolean,
-	) => Promise<{ newSessionId: string; messages: Message[] } | undefined>;
+	) => Promise<
+		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+	>;
 	setToolApprover: (
 		approver:
 			| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
@@ -233,6 +261,8 @@ export interface TuiProps {
 		handler: ((question: string, options: string[]) => Promise<string>) | null,
 	) => void;
 	setModeChangeNotifier: (handler: ((mode: AgentMode) => void) | null) => void;
+	/** Omitted when cloud sessions are unavailable. */
+	cloudSessions?: CloudSessionsClient;
 }
 
 export type InlineStream = "text" | "reasoning" | undefined;

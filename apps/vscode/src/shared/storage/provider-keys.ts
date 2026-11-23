@@ -48,7 +48,6 @@ const ProviderKeyMap: Partial<Record<ApiProvider, string>> = {
  */
 const NON_SDK_PROVIDER_DEFAULTS: Partial<Record<ApiProvider, string>> = {
 	openrouter: openRouterDefaultModelId,
-	cline: openRouterDefaultModelId,
 	"cline-pass": clinePassDefaultModelId,
 	together: openRouterDefaultModelId,
 	aihubmix: openRouterDefaultModelId,

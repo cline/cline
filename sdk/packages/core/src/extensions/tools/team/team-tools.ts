@@ -1,3 +1,5 @@
+export { sanitizeTeamName } from "./sanitize-team-name";
+
 import type { AgentResult } from "@cline/shared";
 import {
 	type AgentTool,
@@ -906,11 +908,4 @@ export function reviveTeamStateDates(
 				: undefined,
 		})),
 	};
-}
-
-export function sanitizeTeamName(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9._-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
 }

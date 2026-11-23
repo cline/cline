@@ -1,77 +1,67 @@
 ---
 title: "Cline Telemetry"
 sidebarTitle: "Cline Telemetry"
-description: "Configure usage analytics and event tracking"
+description: "What Cline's usage telemetry collects and how to turn it off"
 ---
 
-Cline includes telemetry to help understand usage patterns and improve the product. Users can control whether to share this data.
+Cline sends usage and error telemetry so that we can see how it's used and fix problems. Telemetry is on by default in the VS Code and JetBrains extensions, Cline Desktop and the CLI, whether you sign in to a Cline account or use your own API keys. You can turn it off at any time.
 
-## What is Cline Telemetry?
+## What telemetry includes
 
-Telemetry captures anonymous usage events such as:
+Telemetry records events such as:
 
-- Features used (which tools and commands)
-- Task completion rates
-- Error occurrences
-- Performance metrics
+- Features used, such as tools, slash commands and skills
+- Tasks started and completed, and switches between Plan and Act
+- Errors, such as API failures and tool errors
+- Token counts, timings, and model and provider names
+- Your Cline version, operating system and editor
 
-<Info>
-All telemetry data is **anonymous** and does not include code content, file contents, or other sensitive information.
-</Info>
+Each installation has a device identifier. When you're signed in to a Cline account, events also identify your account and organization. [OpenTelemetry Events](/enterprise-solutions/monitoring/opentelemetry-events) lists each event.
 
-## User Controls
+## Code and prompts
 
-### Enabling/Disabling Cline Telemetry
+Cline's telemetry doesn't include your code, file contents or prompts, except for requests to the Cline and ClinePass providers.
 
-Individual users can control telemetry through Cline settings:
+Those providers receive your prompts so that they can run the model, and telemetry for these requests can include the prompt and the model's response. With any other provider, your prompts go to that provider, and Cline's telemetry doesn't record them.
 
-1. Open Cline settings
-2. Find "Cline Telemetry" toggle
-3. Enable or disable as preferred
+The [privacy policy](https://cline.bot/privacy) describes how Cline handles the data it receives.
 
-Changes take effect immediately.
+## Turning telemetry off
 
-### What Gets Collected
+These products share one telemetry setting on each computer. Turning it off in one product turns it off in the others.
 
-When telemetry is enabled, Cline captures:
+<Tabs>
+  <Tab title="VS Code and JetBrains">
+    1. In the Cline panel, click the settings (gear) icon.
+    2. Select **General**.
+    3. Clear **Allow error and usage reporting**.
 
-<AccordionGroup>
-  <Accordion title="Feature Usage" icon="cursor-click">
-    - Tools executed (e.g., read_file, execute_command)
-    - Slash commands used
-    - Skills triggered
-    - Settings changed
-  </Accordion>
-  
-  <Accordion title="Task Metrics" icon="tasks">
-    - Task started/completed events
-    - Mode switches (Plan/Act)
-    - Checkpoint usage
-    - Task duration
-  </Accordion>
-  
-  <Accordion title="Error Events" icon="triangle-exclamation">
-    - API failures
-    - Tool execution errors
-    - System errors
-    - Error types and frequencies
-  </Accordion>
-</AccordionGroup>
+    The change takes effect immediately. In VS Code, Cline also stops sending usage events while the editor's own telemetry is off. While the editor's telemetry is on, Cline still sends a few required events, such as the one that records that you turned Cline telemetry off.
+  </Tab>
+  <Tab title="Cline Desktop">
+    1. Open **Settings** and select **General**.
+    2. Turn off **Telemetry**.
+  </Tab>
+  <Tab title="CLI">
+    Set `telemetryOptOut` to `true` in `~/.cline/data/settings/global-settings.json`:
 
-### What Doesn't Get Collected
+    ```json
+    {
+      "telemetryOptOut": true
+    }
+    ```
 
-Cline Telemetry **never** includes:
+    Keep any other settings already in the file. If you run the CLI with `--config <dir>` or set `CLINE_DIR`, the file is in `<dir>/data/settings/` instead.
+  </Tab>
+</Tabs>
 
-- Your code or file contents
-- File paths or names
-- Command arguments or parameters
-- Conversation content
-- Personal information
-- API keys or credentials
+In Cline Desktop and the CLI, Cline stops recording prompts from the next request, but other events continue until Cline and its background hub restart. To apply the change everywhere, quit Cline Desktop and run `cline hub stop`, or restart your computer. Stopping the hub also stops sessions running in it. The hub starts again the next time you use Cline.
 
-## Enterprise Configuration
+With telemetry off, Cline still contacts its servers for other purposes: to sign you in, to check feature flags, and to run requests on the Cline and ClinePass providers.
 
-Administrators can set default telemetry state through remote configuration:
+## Organization settings
+
+Admins can turn telemetry on or off for all members with the **Cline Telemetry** setting in the organization's [remote configuration](/enterprise-solutions/configuration/remote-configuration/overview):
 
 ```json
 {
@@ -79,9 +69,7 @@ Administrators can set default telemetry state through remote configuration:
 }
 ```
 
-<Note>
-Even with enterprise configuration, individual users can still disable Cline Telemetry in their local settings.
-</Note>
+In the VS Code and JetBrains extensions, the setting shows a lock while the organization sets it, and members can't turn telemetry on when the organization turns it off. Cline Desktop and the CLI ignore this setting; see [which products support each control](/enterprise-solutions/configuration/remote-configuration/overview#which-products-support-each-control).
 
 ## Enterprise Monitoring Features
 
@@ -100,31 +88,9 @@ Export detailed metrics and logs to your own observability platforms like Datado
 
 See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup instructions.
 
-## Privacy
-
-Cline's telemetry is designed with privacy in mind:
-
-<CardGroup cols={2}>
-  <Card title="Anonymous" icon="user-secret">
-    No personal information is collected
-  </Card>
-  
-  <Card title="Optional" icon="toggle-on">
-    Users can disable at any time
-  </Card>
-  
-  <Card title="Local First" icon="laptop">
-    Code never leaves your machine
-  </Card>
-  
-  <Card title="Transparent" icon="eye">
-    Open source - see exactly what's collected
-  </Card>
-</CardGroup>
-
 ## Why Telemetry Matters
 
-Anonymous usage data helps:
+Usage data helps us:
 
 - **Identify bugs**: Discover issues affecting users
 - **Prioritize features**: Focus on most-used capabilities

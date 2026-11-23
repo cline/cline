@@ -23,6 +23,14 @@
 	}
 }
 
+/* Streamdown uses text-primary for links; retain the readable text role
+ * without changing the precedence of Markdown layout styles. */
+@layer utilities {
+	:is(.markdown, .cline-markdown) [data-streamdown="link"] {
+		color: var(--accent-foreground);
+	}
+}
+
 ::-webkit-scrollbar {
 	width: 6px;
 	height: 6px;

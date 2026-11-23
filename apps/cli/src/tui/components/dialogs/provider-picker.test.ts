@@ -84,7 +84,7 @@ describe("saveManualProviderApiKey", () => {
 		});
 	}
 
-	it("clears stored OAuth tokens so the manual key takes effect", () => {
+	it("clears stored OAuth tokens so the manual key takes effect", async () => {
 		const manager = createManager();
 		manager.saveProviderSettings({
 			provider: "cline",
@@ -95,7 +95,7 @@ describe("saveManualProviderApiKey", () => {
 			},
 		});
 
-		saveManualProviderApiKey(manager, "cline", "manual-api-key");
+		await saveManualProviderApiKey(manager, "cline", "manual-api-key");
 
 		const settings = manager.getProviderSettings("cline");
 		expect(settings?.apiKey).toBe("manual-api-key");
@@ -108,7 +108,7 @@ describe("saveManualProviderApiKey", () => {
 		expect(isProviderConfigured("cline", settings)).toBe(true);
 	});
 
-	it("saves cline-pass keys to the shared cline auth storage entry", () => {
+	it("saves cline-pass keys to the shared cline auth storage entry", async () => {
 		const manager = createManager();
 		manager.saveProviderSettings({
 			provider: "cline",
@@ -118,7 +118,7 @@ describe("saveManualProviderApiKey", () => {
 			},
 		});
 
-		saveManualProviderApiKey(manager, "cline-pass", "manual-api-key");
+		await saveManualProviderApiKey(manager, "cline-pass", "manual-api-key");
 
 		// cline-pass inherits auth storage from the "cline" entry, so the key
 		// must land there and the stale tokens must be gone for both providers.
@@ -133,7 +133,7 @@ describe("saveManualProviderApiKey", () => {
 		expect(isProviderConfigured("cline-pass", clinePassSettings)).toBe(true);
 	});
 
-	it("clears stale credentials copied into a direct cline-pass entry", () => {
+	it("clears stale credentials copied into a direct cline-pass entry", async () => {
 		const manager = createManager();
 		manager.saveProviderSettings({
 			provider: "cline",
@@ -153,7 +153,7 @@ describe("saveManualProviderApiKey", () => {
 			},
 		});
 
-		saveManualProviderApiKey(manager, "cline-pass", "manual-api-key");
+		await saveManualProviderApiKey(manager, "cline-pass", "manual-api-key");
 
 		const clinePassSettings = manager.getProviderSettings("cline-pass");
 		expect(clinePassSettings?.auth?.accessToken).toBeUndefined();

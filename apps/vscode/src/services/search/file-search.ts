@@ -1,3 +1,4 @@
+import { toPosixSeparators } from "@cline/shared"
 import type { WorkspaceRoot } from "@shared/multi-root/types"
 import * as childProcess from "child_process"
 import * as fs from "fs"
@@ -70,7 +71,7 @@ export async function executeRipgrepForFiles(
 			}
 
 			// Convert absolute path to a relative path from workspace root
-			const relativePath = path.relative(workspacePath, line)
+			const relativePath = toPosixSeparators(path.relative(workspacePath, line))
 
 			// Add file result to array
 			fileResults.push({
@@ -220,7 +221,7 @@ async function executeHostIndexForFiles(
 		const folderPaths = new Set<string>()
 		for (const item of resp.items) {
 			if (item.type === SearchWorkspaceItemsRequest_SearchItemType.FOLDER) {
-				folderPaths.add(item.path)
+				folderPaths.add(toPosixSeparators(item.path))
 			}
 		}
 
@@ -228,13 +229,14 @@ async function executeHostIndexForFiles(
 		const dirSet = new Set<string>()
 		for (const item of resp.items) {
 			const isFolder = item.type === SearchWorkspaceItemsRequest_SearchItemType.FOLDER
+			const itemPath = toPosixSeparators(item.path)
 			fileResults.push({
-				path: item.path,
+				path: itemPath,
 				type: isFolder ? "folder" : "file",
-				label: item.label || path.basename(item.path),
+				label: item.label || path.basename(itemPath),
 			})
 			if (!isFolder) {
-				let dirPath = path.dirname(item.path)
+				let dirPath = path.dirname(itemPath)
 				while (dirPath && dirPath !== "." && dirPath !== "/") {
 					if (!folderPaths.has(dirPath)) {
 						dirSet.add(dirPath)
@@ -287,7 +289,7 @@ export async function searchWorkspaceFiles(
 		for (const filePath of activeFilePaths) {
 			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(workspacePath + "/")) {
 				const relativePath = path.relative(workspacePath, filePath)
-				const normalizedPath = relativePath.replace(/\\/g, "/")
+				const normalizedPath = toPosixSeparators(relativePath)
 				activeFiles.push({
 					path: normalizedPath,
 					type: "file",

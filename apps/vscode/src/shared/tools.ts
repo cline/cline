@@ -22,7 +22,6 @@ export enum ClineDefaultTool {
 	NEW_TASK = "new_task",
 	PLAN_MODE = "plan_mode_respond",
 	ACT_MODE = "act_mode_respond",
-	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
 	WEB_SEARCH = "web_search",
 	CONDENSE = "condense",
@@ -32,10 +31,4 @@ export enum ClineDefaultTool {
 	APPLY_PATCH = "apply_patch",
 	USE_SKILL = "use_skill",
 	USE_SUBAGENTS = "use_subagents",
-}
-
-const dynamicToolUseNamesByNamespace = new Map<string, Set<string>>()
-
-export function setDynamicToolUseNames(namespace: string, names: string[]): void {
-	dynamicToolUseNamesByNamespace.set(namespace, new Set(names.map((name) => name.trim()).filter(Boolean)))
 }

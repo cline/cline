@@ -1,3 +1,4 @@
+import { LangfuseAttributesSpanProcessor } from "@cline/llms";
 import type {
 	BasicLogger,
 	ITelemetryService,
@@ -5,6 +6,7 @@ import type {
 	TelemetryMetadata,
 	TelemetryProperties,
 } from "@cline/shared";
+import { markOtlpTraceRelayProvider } from "@cline/shared";
 import { metrics, type Tracer, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter as OTLPLogExporterHttp } from "@opentelemetry/exporter-logs-otlp-http";
@@ -101,12 +103,20 @@ class OptedOutTelemetryService implements ITelemetryService {
 	private resolveProperties(
 		properties?: TelemetryProperties,
 	): TelemetryProperties {
-		return {
+		const scopedDistinctId =
+			typeof properties?.distinct_id === "string" &&
+			properties.distinct_id.trim()
+				? properties.distinct_id.trim()
+				: this.distinctId;
+		const resolved = {
 			...this.commonProperties,
-			...properties,
 			...this.metadata,
-			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+			...properties,
+			...(scopedDistinctId ? { distinct_id: scopedDistinctId } : {}),
 		};
+		return Object.fromEntries(
+			Object.entries(resolved).filter(([, value]) => value !== undefined),
+		);
 	}
 }
 
@@ -117,6 +127,13 @@ export interface OpenTelemetryProviderOptions
 	> {
 	serviceName?: string;
 	serviceVersion?: string;
+	/**
+	 * Extra OTel resource attributes stamped on every span, log, and metric
+	 * this provider exports (collectors and Langfuse surface them as
+	 * `resourceAttributes.*`). For process-level facts such as which client
+	 * started a shared hub daemon; per-event metadata belongs on the event.
+	 */
+	resourceAttributes?: Record<string, string | number | boolean>;
 	enabled?: boolean;
 	logsExporter?: string | OpenTelemetryExporterKind[];
 	metricsExporter?: string | OpenTelemetryExporterKind[];
@@ -154,6 +171,7 @@ export class OpenTelemetryProvider {
 	constructor(options: OpenTelemetryProviderOptions = {}) {
 		this.options = options;
 		const resource = resourceFromAttributes({
+			...options.resourceAttributes,
 			[ATTR_SERVICE_NAME]: options.serviceName ?? "cline",
 			...(options.serviceVersion
 				? { [ATTR_SERVICE_VERSION]: options.serviceVersion }
@@ -282,6 +300,7 @@ export class OpenTelemetryProvider {
 			this.options.otlpTracesHeaders ?? this.options.otlpHeaders;
 
 		const processors: SpanProcessor[] = [];
+		let hasOtlpProcessor = false;
 		for (const exporter of exporters) {
 			const processor = createSpanProcessor(exporter, {
 				endpoint: traceEndpoint,
@@ -291,13 +310,27 @@ export class OpenTelemetryProvider {
 			});
 			if (processor) {
 				processors.push(processor);
+				if (exporter !== "console") {
+					hasOtlpProcessor = true;
+				}
 			}
 		}
 		if (processors.length === 0) {
 			return null;
 		}
 
-		return new NodeTracerProvider({ resource, spanProcessors: processors });
+		const tracerProvider = new NodeTracerProvider({
+			resource,
+			spanProcessors: hasOtlpProcessor
+				? [new LangfuseAttributesSpanProcessor(), ...processors]
+				: processors,
+		});
+		if (hasOtlpProcessor) {
+			// Console-only tracing must not read as the collector relay
+			// downstream, so only a provider with a real OTLP exporter is marked.
+			markOtlpTraceRelayProvider(tracerProvider);
+		}
+		return tracerProvider;
 	}
 
 	private createLoggerProvider(

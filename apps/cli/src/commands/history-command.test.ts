@@ -80,6 +80,15 @@ describe("registerHistoryCommand", () => {
 		expect(setExitCode).toHaveBeenCalledWith(0);
 	});
 
+	it("rejects --page instead of listing history", async () => {
+		const { program } = createHarness(false);
+
+		await expect(
+			program.parseAsync(["history", "--page", "2"], { from: "user" }),
+		).rejects.toThrow("unknown option '--page'");
+		expect(historyMocks.runHistoryList).not.toHaveBeenCalled();
+	});
+
 	it("returns an error when delete is missing --session-id", async () => {
 		const { program, io, setExitCode } = createHarness(false);
 

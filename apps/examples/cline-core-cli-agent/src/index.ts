@@ -2,13 +2,14 @@ import * as readline from "node:readline";
 import {
 	type AgentEvent,
 	ClineCore,
+	Llms,
 	type ToolApprovalRequest,
 } from "@cline/sdk";
 
 // ClineCore does not choose a model automatically; each session config must provide one.
 // These example defaults use the Cline gateway with Claude Sonnet, and can be overridden with env vars.
 const providerId = process.env.CLINE_PROVIDER_ID ?? "cline";
-const modelId = process.env.CLINE_MODEL_ID ?? "anthropic/claude-sonnet-4.6";
+const modelId = process.env.CLINE_MODEL_ID ?? Llms.CLINE_DEFAULT_MODEL_ID;
 const apiKey = process.env.CLINE_API_KEY;
 const cwd = process.cwd();
 

@@ -7,6 +7,9 @@ const workspaceRoot = path.join(__dirname, "../../../..");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	output: "export",
+	// Turbopack has no metafile; scripts/third-party-notices.ts reads these maps to list the
+	// bundled third-party code, then deletes them from the export.
+	productionBrowserSourceMaps: true,
 	devIndicators: false,
 	outputFileTracingRoot: workspaceRoot,
 	turbopack: {
@@ -17,6 +20,11 @@ const nextConfig = {
 	// legitimate ways to reach a local or port-forwarded dev server.
 	allowedDevOrigins: ["localhost", "127.0.0.1"],
 	reactStrictMode: true,
+	env: {
+		// Read by app/api/changelog at build time; the CLI's cwd differs
+		// between `next dev webview` and `next build` run inside webview/.
+		CLINE_DESKTOP_CHANGELOG_PATH: path.join(__dirname, "../CHANGELOG.md"),
+	},
 	typescript: {
 		ignoreBuildErrors: true,
 	},

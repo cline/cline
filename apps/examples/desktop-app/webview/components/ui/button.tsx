@@ -11,7 +11,7 @@ const buttonVariants = cva(
 			variant: {
 				default: "bg-primary text-primary-foreground hover:bg-primary/90",
 				destructive:
-					"bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+					"bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
 				outline:
 					"border bg-background shadow-xs hover:bg-surface-hover hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
 				secondary:
@@ -19,21 +19,30 @@ const buttonVariants = cva(
 				ghost:
 					"hover:bg-surface-hover hover:text-foreground dark:hover:bg-surface-hover",
 				link: "text-primary underline-offset-4 hover:underline",
+				// Header toggles and menu triggers. Each state is one neutral alpha
+				// step darker (hover a3, selected a4, selected + hovered a5), so a
+				// selected button never reads as merely hovered. Toggles mark
+				// "selected" with aria-pressed, menu triggers with data-state=open.
+				toolbar:
+					"text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground aria-pressed:bg-(--neutral-a4) aria-pressed:text-foreground aria-pressed:hover:bg-(--neutral-a5) data-[state=open]:bg-(--neutral-a4) data-[state=open]:text-foreground data-[state=open]:hover:bg-(--neutral-a5)",
 				sidebar:
 					"w-full text-left gap-2 rounded-none text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground self-start",
 				sidebarItem:
 					"!h-auto w-full justify-start text-left gap-2 rounded-md !px-2 py-2 !text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground",
 				sidebarText:
-					"!h-auto justify-start gap-1 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-sidebar-foreground",
+					"!h-auto justify-start gap-1 px-3 py-1.5 !text-sm font-normal text-muted-foreground hover:text-sidebar-foreground",
 				text: "bg-transparent text-sm font-medium text-muted-foreground hover:text-foreground",
 			},
 			size: {
 				default: "h-9 px-4 py-2 has-[>svg]:pl-2 has-[>svg]:pr-2.5 text-base",
 				sm: "h-8 gap-1.5 px-2.5 py-1.5 has-[>svg]:pl-2.5 has-[>svg]:pr-3 text-sm",
-				xs: "h-7 gap-1.5 px-2.5 py-1.5 has-[>svg]:size-3 text-xs",
+				// (has-[>svg]:size-3 was a leftover from when xs was a 12px micro
+				// button; it collapsed any xs button containing an icon.)
+				xs: "h-7 gap-1.5 px-2.5 py-1.5 has-[>svg]:px-2 text-xs",
 				lg: "h-10 rounded-md px-6 has-[>svg]:px-4 text-lg",
 				icon: "size-5",
 				"icon-sm": "size-3 p-1",
+				"icon-xs": "size-7",
 				"icon-lg": "size-10",
 			},
 		},

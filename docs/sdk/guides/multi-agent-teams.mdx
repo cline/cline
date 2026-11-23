@@ -34,45 +34,29 @@ const session = await cline.start({
 
 ## How Teams Work
 
-When teams are enabled, the coordinator agent gets additional tools:
+When teams are enabled, the coordinator agent gets these tools:
 
-| Tool | Description |
-|------|-------------|
-| `team_spawn_teammate` | Create a new agent with a specific role and task |
-| `team_delegate_task` | Assign a task to an existing teammate |
-| `team_check_status` | Check the status of delegated tasks |
-| `team_get_result` | Retrieve the result of a completed task |
+| Purpose | Tools |
+|---------|-------|
+| Teammates | `team_spawn_teammate`, `team_shutdown_teammate`, `team_status` |
+| Task board | `team_task` (create, list, claim, complete and block tasks) |
+| Running tasks | `team_run_task`, `team_list_runs`, `team_await_runs`, `team_cancel_run` |
+| Messages | `team_send_message`, `team_broadcast`, `team_read_mailbox`, `team_mission_log` |
+| Combined results | `team_create_outcome`, `team_attach_outcome_fragment`, `team_review_outcome_fragment`, `team_finalize_outcome`, `team_list_outcomes` |
+| Clean-up | `team_cleanup` |
 
-The coordinator decides how to split work, which agents to create, and how to combine results.
+Teammates get the same tools except `team_spawn_teammate`, and only the coordinator can shut teammates down or clean up the team. The coordinator decides how to split work, which agents to create, and how to combine results.
 
 ## Team Persistence
 
-Team state persists across sessions:
-
-```
-~/.cline/data/teams/[team-name]/
-  task-board.json      # Current tasks and their status
-  mailbox.json         # Inter-agent messages
-  mission-log.json     # Team activity history
-```
-
-Resume a team's work in a new session:
-
-```bash
-cline --team-name auth-sprint "Continue -- pick up incomplete tasks"
-```
+Team state belongs to the session. Cline saves each team's task board, mailbox, mission log, results and teammates in `~/.cline/data/db/teams.db`, under the session's ID. When the session resumes, its team and teammates come back.
 
 ## Via CLI
 
+Start a prompt with `/team` to start a team, and resume the session with `cline --id <session-id>` to continue its work. [Agent Teams](/cli/agent-teams) has the details.
+
 ```bash
-# Start a new team
-cline --team-name auth-sprint "Plan and implement user auth with tests"
-
-# Resume work
-cline --team-name auth-sprint "What's the status? Continue with unfinished tasks."
-
-# Different team for a different workstream
-cline --team-name perf-sprint "Profile the API endpoints and optimize the slowest 3"
+cline "/team Plan and implement user auth with tests"
 ```
 
 ## Sub-Agents vs Teams
@@ -82,10 +66,10 @@ The SDK offers two levels of multi-agent coordination:
 | Feature | Sub-Agents | Teams |
 |---------|-----------|-------|
 | Enable with | `enableSpawnAgent: true` | `enableAgentTeams: true` |
-| Persistence | Within session only | Across sessions |
+| Persistence | Within session only | Restored when the session resumes |
 | Coordination | Parent-child | Peer-to-peer with task board |
 | Shared state | None | Task board, mailbox, mission log |
-| Best for | One-off delegation | Complex, multi-session projects |
+| Best for | One-off delegation | Complex projects that you resume over time |
 
 Sub-agents are lighter weight. The parent agent spawns a child, waits for its result, and continues. No persistent state, no task board.
 
@@ -100,7 +84,7 @@ const session = await cline.start({
 })
 ```
 
-Teams are for bigger efforts where work spans multiple sessions and agents need to coordinate asynchronously.
+Teams are for bigger efforts that you come back to, where agents need to coordinate asynchronously.
 
 ## When to Use Teams
 
@@ -108,7 +92,7 @@ Teams add overhead. Use them when:
 
 - The task naturally decomposes into independent subtasks
 - Different subtasks benefit from different system prompts or specializations
-- Work spans multiple sessions or days
+- You will resume the session over several days
 - You want a persistent record of task delegation and completion
 
 For simpler cases, a single agent with good tools is usually more efficient than a team.

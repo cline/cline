@@ -10,6 +10,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	ITelemetryService,
 	JsonValue,
+	SessionPluginIssue,
 	ToolApprovalRequest,
 } from "@cline/shared";
 import {
@@ -22,13 +23,22 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
+import type {
+	McpAppResourceReadRequest,
+	McpAppToolBinding,
+	McpAppToolCallRequest,
+	McpResourceReadResult,
+	McpToolCallResult,
+} from "../../extensions/mcp";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
 	RestoreSessionInput,
@@ -44,6 +54,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import type { PluginCommandsApi } from "../../services/plugin-command-api";
 import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
@@ -79,6 +90,7 @@ import {
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
+import { createHubPluginCommandsApi } from "../client/plugin-commands";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -194,10 +206,15 @@ function parseToolContext(value: unknown): AgentToolContext {
 			? (value as Record<string, unknown>)
 			: {};
 	return {
+		sessionId:
+			typeof payload.sessionId === "string" ? payload.sessionId : undefined,
 		agentId: typeof payload.agentId === "string" ? payload.agentId : "",
 		conversationId:
 			typeof payload.conversationId === "string" ? payload.conversationId : "",
+		runId: typeof payload.runId === "string" ? payload.runId : undefined,
 		iteration: typeof payload.iteration === "number" ? payload.iteration : 0,
+		toolCallId:
+			typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
 		metadata:
 			payload.metadata &&
 			typeof payload.metadata === "object" &&
@@ -250,11 +267,14 @@ function buildClientContributionRegistration(
 				executor,
 				capabilityName: `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}${executor}`,
 			},
-			async ({ payload, abortSignal }) => {
+			async ({ payload, abortSignal, progress }) => {
 				const args = Array.isArray(payload.args) ? [...payload.args] : [];
 				const context = {
 					...parseToolContext(payload.context),
 					signal: abortSignal,
+					emitUpdate: (update: unknown) => {
+						progress({ update });
+					},
 				};
 				return { result: await executorFn(...args, context) };
 			},
@@ -269,6 +289,9 @@ function buildClientContributionRegistration(
 				name: tool.name,
 				description: tool.description,
 				inputSchema: toJsonRecord(tool.inputSchema) ?? {},
+				successContext: tool.successContext,
+				policyDependencies: tool.policyDependencies,
+				executionMode: tool.executionMode,
 				...(tool.lifecycle
 					? {
 							lifecycle: toJsonRecord(
@@ -481,11 +504,9 @@ function usageMetric(
 	return finiteNumber(record?.[key]) ?? 0;
 }
 
-function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
-	event: Extract<AgentEvent, { type: "usage" }>;
-	teamAgentId?: string;
-	teamRole?: "lead" | "teammate";
-} {
+function usageEventFromPayload(
+	payload: Record<string, unknown> | undefined,
+): Extract<AgentEvent, { type: "usage" }> {
 	const delta =
 		payload?.delta && typeof payload.delta === "object"
 			? (payload.delta as Record<string, unknown>)
@@ -494,40 +515,19 @@ function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 		payload?.totals && typeof payload.totals === "object"
 			? (payload.totals as Record<string, unknown>)
 			: undefined;
-	const agent =
-		payload?.agent && typeof payload.agent === "object"
-			? (payload.agent as Record<string, unknown>)
-			: undefined;
-	const teamRole =
-		agent?.teamRole === "teammate" || agent?.teamRole === "lead"
-			? agent.teamRole
-			: undefined;
 	return {
-		event: {
-			type: "usage",
-			agentId: typeof agent?.agentId === "string" ? agent.agentId : undefined,
-			conversationId:
-				typeof agent?.conversationId === "string"
-					? agent.conversationId
-					: undefined,
-			parentAgentId:
-				typeof agent?.parentAgentId === "string"
-					? agent.parentAgentId
-					: undefined,
-			inputTokens: usageMetric(delta, "inputTokens"),
-			outputTokens: usageMetric(delta, "outputTokens"),
-			cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
-			cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
-			cost: finiteNumber(delta?.totalCost),
-			totalInputTokens: usageMetric(totals, "inputTokens"),
-			totalOutputTokens: usageMetric(totals, "outputTokens"),
-			totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
-			totalCacheWriteTokens: usageMetric(totals, "cacheWriteTokens"),
-			totalCost: finiteNumber(totals?.totalCost),
-		},
-		teamAgentId:
-			typeof agent?.teamAgentId === "string" ? agent.teamAgentId : undefined,
-		teamRole,
+		type: "usage",
+		inputTokens: usageMetric(delta, "inputTokens"),
+		outputTokens: usageMetric(delta, "outputTokens"),
+		cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
+		cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
+		cost: finiteNumber(delta?.totalCost),
+		reasoningTokenCount: finiteNumber(delta?.reasoningTokenCount),
+		totalInputTokens: usageMetric(totals, "inputTokens"),
+		totalOutputTokens: usageMetric(totals, "outputTokens"),
+		totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
+		totalCacheWriteTokens: usageMetric(totals, "cacheWriteTokens"),
+		totalCost: finiteNumber(totals?.totalCost),
 	};
 }
 
@@ -576,6 +576,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -751,6 +753,7 @@ function buildManifestFromSnapshot(
 export class HubRuntimeHost implements RuntimeHost {
 	public runtimeAddress: string;
 	public readonly pendingPrompts: PendingPromptsServiceApi;
+	public readonly pluginCommands: PluginCommandsApi;
 	private client: NodeHubClient;
 	private readonly clientOptions: Omit<HubClientOptions, "url">;
 	private readonly clientContext?: { workspaceRoot?: string; cwd?: string };
@@ -777,6 +780,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
@@ -787,11 +791,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.telemetry = options.telemetry;
 		this.runtimeAddress = options.url;
 		this.pendingPrompts = {
+			steerFirst: (input) => this.requestSteerFirstPendingPrompt(input),
 			list: (input) => this.requestPendingPromptsList(input),
 			update: (input) => this.requestPendingPromptUpdate(input),
 			delete: (input) => this.requestPendingPromptDelete(input),
 		};
 		this.client = this.createClient(options.url);
+		this.pluginCommands = createHubPluginCommandsApi({
+			command: (...args) => this.client.command(...args),
+		});
 	}
 
 	private createClient(url: string): NodeHubClient {
@@ -859,6 +867,12 @@ export class HubRuntimeHost implements RuntimeHost {
 			input.localRuntime,
 			capabilities,
 		);
+		const clientContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.client,
+		);
+		const userContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.user,
+		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
 		const sendCreateCommand = () =>
@@ -870,6 +884,8 @@ export class HubRuntimeHost implements RuntimeHost {
 				),
 				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
+					...(clientContext ? { clientContext } : {}),
+					...(userContext ? { userContext } : {}),
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
 						: {}),
@@ -880,6 +896,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				toolPolicies: toJsonRecord(
 					input.toolPolicies as Record<string, unknown> | undefined,
 				),
+				...(input.plugins
+					? {
+							plugins: toJsonRecord(input.plugins as Record<string, unknown>),
+						}
+					: {}),
 				initialMessages: input.initialMessages,
 				...(input.initialCompactionState
 					? { initialCompactionState: input.initialCompactionState }
@@ -936,12 +957,16 @@ export class HubRuntimeHost implements RuntimeHost {
 			);
 		}
 
+		const pluginIssues = Array.isArray(reply.payload?.pluginIssues)
+			? (reply.payload.pluginIssues as SessionPluginIssue[])
+			: undefined;
 		return {
 			sessionId,
 			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
+			...(pluginIssues?.length ? { pluginIssues } : {}),
 		};
 	}
 
@@ -969,6 +994,12 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
+		const clientContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.client)
+			: undefined;
+		const userContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.user)
+			: undefined;
 		let plannedSessionId: string | undefined;
 		let startSessionConfig: Record<string, unknown> | undefined;
 		if (startConfig) {
@@ -1006,6 +1037,8 @@ export class HubRuntimeHost implements RuntimeHost {
 								sessionConfig: toJsonRecord(startSessionConfig),
 								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
+									...(clientContext ? { clientContext } : {}),
+									...(userContext ? { userContext } : {}),
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }
 										: {}),
@@ -1021,6 +1054,13 @@ export class HubRuntimeHost implements RuntimeHost {
 										| Record<string, unknown>
 										| undefined,
 								),
+								...(startConfig.plugins
+									? {
+											plugins: toJsonRecord(
+												startConfig.plugins as Record<string, unknown>,
+											),
+										}
+									: {}),
 								...(startConfig.initialCompactionState
 									? {
 											initialCompactionState:
@@ -1173,6 +1213,25 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
+	private async requestSteerFirstPendingPrompt(
+		input: Parameters<PendingPromptsServiceApi["steerFirst"]>[0],
+	): Promise<PendingPromptMutationResult> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.steer_first_pending_prompt",
+			{ ...input },
+			input.sessionId,
+		);
+		return {
+			sessionId: input.sessionId,
+			prompts: Array.isArray(reply.payload?.prompts)
+				? (reply.payload.prompts as SessionPendingPrompt[])
+				: [],
+			prompt: reply.payload?.prompt as SessionPendingPrompt | undefined,
+			updated: reply.payload?.updated === true,
+		};
+	}
+
 	private async requestPendingPromptUpdate(
 		input: Parameters<PendingPromptsServiceApi["update"]>[0],
 	): Promise<PendingPromptMutationResult> {
@@ -1241,6 +1300,76 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	async resolveMcpAppTool(
+		sessionId: string,
+		toolName: string,
+	): Promise<McpAppToolBinding | undefined> {
+		try {
+			const reply = await this.client.command(
+				"session.mcp_apps.resolve_tool",
+				{ sessionId, toolName },
+				sessionId,
+				{ timeoutMs: null },
+			);
+			return reply.payload?.binding as McpAppToolBinding | undefined;
+		} catch (error) {
+			if ((error as { code?: unknown })?.code === "unsupported_command") {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	async readMcpAppResource(
+		sessionId: string,
+		request: McpAppResourceReadRequest,
+	): Promise<McpResourceReadResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.read_resource",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.read_resource"),
+			);
+		}
+		return reply.payload?.result as McpResourceReadResult;
+	}
+
+	async callMcpAppTool(
+		sessionId: string,
+		request: McpAppToolCallRequest,
+	): Promise<McpToolCallResult> {
+		const reply = await this.client.command(
+			"session.mcp_apps.call_tool",
+			{ sessionId, ...request },
+			sessionId,
+			{ timeoutMs: null, retryAfterDispatch: false },
+		);
+		if (!reply.ok) {
+			throw new Error(
+				hubReplyErrorMessage(reply, "session.mcp_apps.call_tool"),
+			);
+		}
+		return reply.payload?.result;
+	}
+
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		const reply = await this.client.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		return typeof reply.payload?.detachedCount === "number"
+			? reply.payload.detachedCount
+			: 0;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
@@ -1279,8 +1408,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		return sessionRecordFromPayload(reply.payload);
 	}
 
-	async listSessions(limit = 100): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+	async listSessions(
+		limit = 100,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const reply = await this.client.command("session.list", {
+			limit,
+			...(options.rootOnly ? { rootOnly: true } : {}),
+		});
 		const snapshots = Array.isArray(reply.payload?.snapshots)
 			? reply.payload.snapshots.flatMap((value) => {
 					const snapshot = parseCoreSessionSnapshot(value);
@@ -1328,11 +1463,11 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async deleteSession(sessionId: string): Promise<boolean> {
-		this.sessionCapabilities.delete(sessionId);
-		this.disposeSessionSubscription(sessionId);
 		const reply = await this.client.command("session.delete", {
 			sessionId,
 		});
+		this.sessionCapabilities.delete(sessionId);
+		this.disposeSessionSubscription(sessionId);
 		return reply.payload?.deleted === true;
 	}
 
@@ -1344,18 +1479,18 @@ export class HubRuntimeHost implements RuntimeHost {
 			title?: string | null;
 		},
 	): Promise<{ updated: boolean }> {
-		const metadata: Record<string, unknown> = {
-			...(updates.metadata ?? {}),
-		};
-		if (typeof updates.prompt === "string") {
-			metadata.prompt = updates.prompt;
-		}
-		if (typeof updates.title === "string") {
-			metadata.title = updates.title;
-		}
+		// Forward prompt/title as their own fields: the persistence layer only
+		// treats an explicit `title` as a rename and otherwise keeps the stored
+		// one, so folding it into `metadata.title` would silently drop renames.
+		// A `null` metadata clear is sent as `{}` because the daemon decodes
+		// non-record payload values as "omitted".
 		const reply = await this.client.command("session.update", {
 			sessionId,
-			metadata,
+			...(updates.prompt !== undefined ? { prompt: updates.prompt } : {}),
+			...(updates.metadata !== undefined
+				? { metadata: updates.metadata ?? {} }
+				: {}),
+			...(updates.title !== undefined ? { title: updates.title } : {}),
 		});
 		return { updated: reply.ok };
 	}
@@ -1431,7 +1566,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@cline/llms").MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1459,7 +1594,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@cline/llms").MessageWithMetadata[])
 			: [];
 	}
 
@@ -1472,6 +1607,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		options?: RuntimeHostSubscribeOptions,
 	): () => void {
 		return this.events.subscribe(listener, options);
+	}
+
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.sessionSubscriptions.has(sessionId.trim());
 	}
 
 	private ensureSessionSubscription(sessionId: string): void {
@@ -1515,44 +1654,101 @@ export class HubRuntimeHost implements RuntimeHost {
 		toolCallId?: string;
 		toolName?: string;
 		toolInput?: unknown;
+		hubPayload?: Record<string, unknown>;
 	}): void {
-		this.events.emit({
-			type: "agent_event",
-			payload: {
-				sessionId: input.sessionId,
-				event: {
-					type: "content_start",
-					contentType: "tool",
-					toolCallId: input.toolCallId,
-					toolName: input.toolName,
-					input: input.toolInput,
+		this.emitProjectedEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: input.sessionId,
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolCallId: input.toolCallId,
+						toolName: input.toolName,
+						input: input.toolInput,
+					},
 				},
 			},
-		});
+			input.hubPayload,
+		);
 	}
 
 	private emitAgentDoneIfNeeded(input: {
 		sessionId: string;
 		payload: Record<string, unknown> | undefined;
 	}): void {
+		const agent = input.payload?.agent as Record<string, unknown> | undefined;
+		const isChild =
+			typeof agent?.parentAgentId === "string" || agent?.kind === "teammate";
+		// Only lead completion shares a deduplication marker with run.completed.
+		// A worker finishing must not consume the parent's marker.
 		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
 			input.sessionId,
 		);
-		if (alreadyEmitted) {
+		if (!isChild && alreadyEmitted) {
 			return;
 		}
-		this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
+		if (!isChild)
+			this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
+		this.emitProjectedEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: input.sessionId,
+					event: doneEventFromPayload(input.payload),
+				},
+			},
+			input.payload,
+		);
+	}
+
+	private emitProjectedEvent(
+		event: CoreSessionEvent,
+		hubPayload?: Record<string, unknown>,
+	): void {
+		const agent = hubPayload?.agent;
+		if (
+			event.type !== "agent_event" ||
+			!agent ||
+			typeof agent !== "object" ||
+			Array.isArray(agent)
+		) {
+			this.events.emit(event);
+			return;
+		}
+		const identity = agent as Record<string, unknown>;
 		this.events.emit({
-			type: "agent_event",
+			...event,
 			payload: {
-				sessionId: input.sessionId,
-				event: doneEventFromPayload(input.payload),
+				...event.payload,
+				...(identity.teamRole === "lead" || identity.teamRole === "teammate"
+					? { teamRole: identity.teamRole }
+					: {}),
+				...(typeof identity.teamAgentId === "string"
+					? { teamAgentId: identity.teamAgentId }
+					: {}),
+				event: {
+					...event.payload.event,
+					...(typeof identity.agentId === "string"
+						? { agentId: identity.agentId }
+						: {}),
+					...(typeof identity.conversationId === "string"
+						? { conversationId: identity.conversationId }
+						: {}),
+					...(typeof identity.parentAgentId === "string" ||
+					identity.parentAgentId === null
+						? { parentAgentId: identity.parentAgentId }
+						: {}),
+				},
 			},
 		});
 	}
 
 	private handleHubEvent(event: HubEventEnvelope): void {
 		const sessionId = event.sessionId?.trim();
+		const emit = (projected: CoreSessionEvent) =>
+			this.emitProjectedEvent(projected, event.payload);
 		if (event.event === "capability.requested") {
 			void this.handleCapabilityRequest(event).catch((error) => {
 				this.captureDetachedHubEventError(
@@ -1587,12 +1783,12 @@ export class HubRuntimeHost implements RuntimeHost {
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
 				if (snapshot) {
-					this.events.emit({
+					emit({
 						type: "session_snapshot",
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
+				emit({
 					type: "status",
 					payload: {
 						sessionId,
@@ -1602,7 +1798,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "iteration.started": {
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1618,7 +1814,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "iteration.finished": {
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1642,33 +1838,12 @@ export class HubRuntimeHost implements RuntimeHost {
 				const noticeType = event.payload?.noticeType;
 				const displayRole = event.payload?.displayRole;
 				const reason = event.payload?.reason;
-				const agent =
-					event.payload?.agent && typeof event.payload.agent === "object"
-						? (event.payload.agent as Record<string, unknown>)
-						: undefined;
-				const teamRole =
-					agent?.teamRole === "lead" || agent?.teamRole === "teammate"
-						? agent.teamRole
-						: undefined;
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
-						...(teamRole ? { teamRole } : {}),
-						...(typeof agent?.teamAgentId === "string"
-							? { teamAgentId: agent.teamAgentId }
-							: {}),
 						event: {
 							type: "notice",
-							...(typeof agent?.agentId === "string"
-								? { agentId: agent.agentId }
-								: {}),
-							...(typeof agent?.conversationId === "string"
-								? { conversationId: agent.conversationId }
-								: {}),
-							...(typeof agent?.parentAgentId === "string"
-								? { parentAgentId: agent.parentAgentId }
-								: {}),
 							noticeType:
 								noticeType === "recovery" || noticeType === "stop"
 									? noticeType
@@ -1700,7 +1875,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				if (!text) {
 					return;
 				}
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1713,8 +1888,31 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.media": {
+				const media =
+					event.payload?.media &&
+					typeof event.payload.media === "object" &&
+					!Array.isArray(event.payload.media)
+						? (event.payload.media as Record<string, unknown>)
+						: undefined;
+				if (!isGeneratedMedia(media)) {
+					return;
+				}
+				emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media,
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1737,7 +1935,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				if (!text && !redacted) {
 					return;
 				}
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1752,7 +1950,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "reasoning.finished": {
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1776,14 +1974,11 @@ export class HubRuntimeHost implements RuntimeHost {
 				return;
 			}
 			case "usage.updated": {
-				const usage = usageEventFromPayload(event.payload);
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
-						event: usage.event,
-						teamAgentId: usage.teamAgentId,
-						teamRole: usage.teamRole,
+						event: usageEventFromPayload(event.payload),
 					},
 				});
 				return;
@@ -1804,6 +1999,29 @@ export class HubRuntimeHost implements RuntimeHost {
 							? event.payload.toolName
 							: undefined,
 					toolInput: event.payload?.input,
+					hubPayload: event.payload,
+				});
+				return;
+			}
+			case "tool.updated": {
+				emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_update",
+							contentType: "tool",
+							toolCallId:
+								typeof event.payload?.toolCallId === "string"
+									? event.payload.toolCallId
+									: undefined,
+							toolName:
+								typeof event.payload?.toolName === "string"
+									? event.payload.toolName
+									: undefined,
+							update: event.payload?.update,
+						},
+					},
 				});
 				return;
 			}
@@ -1815,7 +2033,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				if (toolCallId) {
 					this.pendingApprovalToolCallIds.delete(toolCallId);
 				}
-				this.events.emit({
+				emit({
 					type: "agent_event",
 					payload: {
 						sessionId,
@@ -1844,22 +2062,29 @@ export class HubRuntimeHost implements RuntimeHost {
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
 				if (snapshot) {
-					this.events.emit({
+					emit({
 						type: "session_snapshot",
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
+				const status = session?.status ?? snapshot?.status;
+				if (status) {
+					emit({
+						type: "status",
+						payload: { sessionId, status },
+					});
+				}
 				return;
 			}
 			case "session.pending_prompts": {
-				this.events.emit({
+				emit({
 					type: "pending_prompts",
 					payload: {
 						sessionId,
@@ -1877,7 +2102,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				if (!prompt) {
 					return;
 				}
-				this.events.emit({
+				emit({
 					type: "pending_prompt_submitted",
 					payload: {
 						sessionId,
@@ -1916,7 +2141,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				) {
 					return;
 				}
-				this.events.emit({
+				emit({
 					type: "ended",
 					payload: {
 						sessionId,

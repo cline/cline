@@ -65,16 +65,11 @@ export function toolApprovalDir(): string {
 	);
 }
 
-// ---------------------------------------------------------------------------
-// MCP settings
-// ---------------------------------------------------------------------------
-
-export function resolveMcpSettingsPath(): string {
-	return (
-		process.env.CLINE_MCP_SETTINGS_PATH?.trim() ||
-		join(homedir(), ".cline", "data", "settings", "cline_mcp_settings.json")
-	);
-}
+// MCP settings intentionally have no resolver here: every reader and writer
+// must share @cline/shared/storage `resolveMcpSettingsPath()` so the sidecar,
+// the hub runtime, and the CLI all agree on one canonical file. A local
+// duplicate silently diverged under CLINE_DIR/CLINE_DATA_DIR overrides
+// (cline/cline#14152).
 
 // ---------------------------------------------------------------------------
 // Session log paths (kanban-style)

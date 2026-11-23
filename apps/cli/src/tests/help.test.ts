@@ -69,7 +69,7 @@ test.describe("cline history --help", () => {
 	});
 
 	test("shows history usage and all flags", async ({ terminal }) => {
-		await expectVisible(terminal, ["Usage:", "--limit", "--page", "--config"]);
+		await expectVisible(terminal, ["Usage:", "--limit", "--config"]);
 	});
 });
 

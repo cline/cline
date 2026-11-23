@@ -1,6 +1,7 @@
 import {
 	diffPalettes,
 	getDefaultForeground,
+	getDialogSurfaceBackground,
 	getTerminalTheme,
 	hexToOklab,
 	oklabToHex,
@@ -565,6 +566,53 @@ export function getThemeModeAccent(theme: ResolvedTheme, mode: string): string {
  */
 export function getDialogAccents(theme: ResolvedTheme): ThemeAccents {
 	return theme.variant === "dark" ? theme.accents : baseAccents.dark;
+}
+
+/** Neutral dark panel used when no theme background is available to derive
+ * a surface from (auto theme on an undetected terminal, light themes). */
+export const DEFAULT_DIALOG_SURFACE = "#262626";
+
+/**
+ * Background for dialog panels. Dark themes get their own background lifted
+ * one perceptual step (OKLAB), so the panel keeps the theme's hue and reads
+ * as a raised surface of the same world. Light themes and undetectable
+ * backgrounds keep the neutral dark panel that matches the dark accent
+ * fallback in getDialogAccents.
+ */
+export function getDialogSurface(theme: ResolvedTheme): string {
+	if (theme.variant !== "dark" || !theme.background) {
+		return DEFAULT_DIALOG_SURFACE;
+	}
+	return getDialogSurfaceBackground(theme.background);
+}
+
+/**
+ * Colors for content rendered on the always-dark dialog surface, following
+ * the active theme's accents (see getDialogAccents). Mirrors the shape of
+ * the static `palette` so dialog components can consume it as a drop-in
+ * replacement that re-resolves on every theme change (including previews).
+ */
+export interface DialogPalette extends ThemeAccents {
+	selection: string;
+	textOnSelection: string;
+	muted: string;
+	/** Panel background the dialog content is rendered on. */
+	surface: string;
+}
+
+export function getDialogPalette(theme: ResolvedTheme): DialogPalette {
+	const accents = getDialogAccents(theme);
+	const selection = accents.act;
+	return {
+		...accents,
+		selection,
+		textOnSelection:
+			relativeLuminance(selection) > WHITE_TEXT_LUMINANCE_CUTOFF
+				? "#000000"
+				: "#ffffff",
+		muted: "gray",
+		surface: getDialogSurface(theme),
+	};
 }
 
 /** Small color strip rendered next to each entry in the theme picker. */

@@ -3,12 +3,13 @@ import type { ClineAccountOrganization } from "@cline/core";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import open from "../../../utils/open";
 import {
 	type ClineAccountSnapshot,
 	formatClineCredits,
 	isClineAccountAuthErrorMessage,
 } from "../../cline-account";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export type AccountDialogAction =
 	| "change-model"
@@ -38,7 +39,8 @@ interface AccountAction {
 		| "change-account"
 		| "change-provider"
 		| "learn-more"
-		| "login";
+		| "login"
+		| "privacy-settings";
 	label: string;
 	description: string;
 	enabled: boolean;
@@ -121,6 +123,7 @@ function AccountActionRow(props: {
 	selected: boolean;
 	onSelect: () => void;
 }) {
+	const palette = useDialogPalette();
 	const fg = props.selected ? palette.textOnSelection : undefined;
 	return (
 		<box
@@ -138,7 +141,7 @@ function AccountActionRow(props: {
 					fg={props.selected ? palette.textOnSelection : "gray"}
 					flexShrink={0}
 				>
-					{props.selected ? ">" : " "}
+					{props.selected ? "❯" : " "}
 				</text>
 				<text fg={fg} flexShrink={0}>
 					{props.action.label}
@@ -161,6 +164,7 @@ function OrganizationRow(props: {
 	selected: boolean;
 	onSelect: () => void;
 }) {
+	const palette = useDialogPalette();
 	return (
 		<box
 			flexDirection="row"
@@ -177,7 +181,7 @@ function OrganizationRow(props: {
 					fg={props.selected ? palette.textOnSelection : "gray"}
 					flexShrink={0}
 				>
-					{props.selected ? ">" : " "}
+					{props.selected ? "❯" : " "}
 				</text>
 				<text
 					fg={props.selected ? palette.textOnSelection : undefined}
@@ -201,7 +205,7 @@ function OrganizationRow(props: {
 }
 
 function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
-	return LOADED_ACTIONS.map((action) => {
+	const actions = LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;
 		}
@@ -212,6 +216,15 @@ function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
 				Boolean(snapshot.activeOrganization),
 		};
 	});
+	if (snapshot.privacySettingsUrl) {
+		actions.push({
+			id: "privacy-settings",
+			label: "Privacy settings",
+			description: "Manage data sharing in the Cline web app",
+			enabled: true,
+		});
+	}
+	return actions;
 }
 
 function organizationDescription(org: ClineAccountOrganization): string {
@@ -234,6 +247,7 @@ export function AccountDialogContent(
 		switchAccount,
 		onAccountChange,
 	} = props;
+	const palette = useDialogPalette();
 	const [state, setState] = useState<AccountState>({
 		status: "loading",
 		message: "Loading account details...",
@@ -362,11 +376,15 @@ export function AccountDialogContent(
 				resolve("change-provider");
 				return;
 			}
+			if (action.id === "privacy-settings" && snapshot?.privacySettingsUrl) {
+				void open(snapshot.privacySettingsUrl, { wait: false }).catch(() => {});
+				return;
+			}
 			if (action.id === "change-account") {
 				openOrganizationView();
 			}
 		},
-		[openOrganizationView, resolve],
+		[openOrganizationView, resolve, snapshot],
 	);
 
 	const runSelectedAction = useCallback(() => {

@@ -21,6 +21,8 @@ export type TrackedClient = {
 	displayName?: string;
 	clientType: string;
 	connectedAt: number;
+	version?: string;
+	pid?: number;
 };
 
 export type TrackedSession = {

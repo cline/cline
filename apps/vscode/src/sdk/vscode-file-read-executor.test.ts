@@ -2,7 +2,7 @@ import type { AgentToolContext } from "@cline/core"
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 
 const context: AgentToolContext = { agentId: "agent", iteration: 1 }
@@ -32,6 +32,15 @@ describe("createWorkspaceFileReadExecutor", () => {
 	it("passes absolute paths through unchanged", async () => {
 		const content = await readFile({ path: path.join(workspaceRoot, "src", "app.ts") }, context)
 		expect(content).toContain("line two")
+	})
+
+	it("passes cache URIs to the SDK reader without resolving a workspace path", async () => {
+		const getWorkspaceRoot = vi.fn(async () => workspaceRoot)
+		const reader = createWorkspaceFileReadExecutor(getWorkspaceRoot)
+		await expect(
+			reader({ path: "cline://cache/session/missing.result.txt", start_line: 2, end_line: 3 }, context),
+		).rejects.toThrow("Cache not found")
+		expect(getWorkspaceRoot).not.toHaveBeenCalled()
 	})
 
 	it("preserves line-range options on resolved relative reads", async () => {

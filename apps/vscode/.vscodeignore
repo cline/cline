@@ -92,9 +92,11 @@ old_docs/**
 # Include icons
 !assets/icons/**
 
+# Bundler input lists consumed when generating dist/THIRD_PARTY_NOTICES.txt
+dist/.third-party/**
+
 # Ignore E2E build files
 e2e-build.mjs
-e2e.vsix
 test-results/
 coverage/**
 webview-ui/coverage/**

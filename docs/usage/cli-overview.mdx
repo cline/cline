@@ -40,8 +40,8 @@ Headless is triggered when using flags like `--json`, when stdin is piped, or wh
 # CI/script style execution
 git diff | cline "review these changes"
 
-# JSON for parsing
-cline --json "summarize this changelog" | jq -r '.text'
+# JSON for parsing: print only the final answer
+cline --json "summarize this changelog" | jq -r 'select(.type == "run_result") | .text'
 ```
 
 See: [Headless Mode](#headless-mode)
@@ -79,13 +79,13 @@ cline <command> --help
 |---|---|
 | `cline` | Start interactive mode or run a prompt |
 | `cline auth` | Authenticate and set provider/model |
-| `cline config` | Open the interactive config view |
+| `cline config` | Show the current configuration |
 | `cline mcp` | Manage MCP servers |
 | `cline doctor` | Diagnose/fix configuration issues |
 | `cline history` | Show and manage task history |
 | `cline schedule` | Manage scheduled tasks |
 | `cline hub` | Manage local hub daemon |
-| `cline kanban` | Launch Kanban app |
+| `cline kanban` | Run the Kanban app |
 
 ## Most-Used Global Flags
 
@@ -101,7 +101,7 @@ Source of truth: [CLI Reference](/cli/cli-reference)
 | `--config <dir>` | Use config directory |
 | `--data-dir <dir>` | Use isolated local state |
 | `--json` | Output newline-delimited JSON messages |
-| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh` (default `medium`) |
+| `--thinking <level>` | Set reasoning effort: `none\|low\|medium\|high\|xhigh`. Bare `--thinking` uses `medium`. Without the flag, Cline uses the level you last chose with `/model`, or else the provider's default |
 | `-t, --timeout <seconds>` | Set task timeout |
 
 ## Automation Patterns
@@ -121,16 +121,13 @@ git diff | cline "explain these changes" | cline "write a commit message"
 
 ### Restrict command execution
 
-```bash
-export CLINE_COMMAND_PERMISSIONS='{"allow": ["npm *", "git *"], "deny": ["rm -rf *", "sudo *"]}'
-```
+The CLI has no allow or deny list for shell commands. To block commands, use a `PreToolUse` hook that cancels `run_commands` calls you don't allow, like the [.clineignore hook](/customization/clineignore#enforcing-clineignore-with-a-hook).
 
 ### Include images in tasks
 
-```bash
-cline -i "fix the layout issue shown in @./screenshot.png"
+Mention an image file with `@` and the CLI attaches it to the prompt:
 
-# or reference inline
+```bash
 cline "fix the UI shown in @./design-mockup.png"
 ```
 
@@ -142,21 +139,7 @@ cline --timeout 600 "run full test suite"
 
 ## JSON Output Schema
 
-When using `--json`, each line is a JSON message object.
-
-```json
-{"type":"say","text":"I'll create the file now.","ts":1760501486669,"say":"text"}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `type` | `"ask"` or `"say"` | Message category |
-| `text` | `string` | Message content |
-| `ts` | `number` | Unix timestamp in milliseconds |
-| `say` | `string` | Subtype when `type` is `"say"` |
-| `ask` | `string` | Subtype when `type` is `"ask"` |
-| `reasoning` | `string` | Optional model reasoning |
-| `partial` | `boolean` | Streaming flag |
+When you give Cline a task with `--json`, each line is a JSON object with a `type`. Agent events arrive as `agent_event` lines, and a `run_result` line holds the final `text` when the run finishes. The [CLI Reference](/cli/cli-reference#json-output-for-agent-runs) describes the line types.
 
 ## Next Steps
 

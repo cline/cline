@@ -2,7 +2,8 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
+import type { DialogPalette } from "../../themes";
 import {
 	CLINE_MODEL_PICKER_TIER_LABELS,
 	type ClineModelPickerEntry,
@@ -18,7 +19,7 @@ type ClineModelEntriesState =
 	| { status: "loaded"; entries: ClineModelPickerEntry[] }
 	| { status: "error"; message: string };
 
-function tagColor(tag: string): string {
+function tagColor(tag: string, palette: DialogPalette): string {
 	if (tag === "FREE") return palette.success;
 	if (tag === "BEST") return "magenta";
 	return palette.act;
@@ -39,6 +40,7 @@ export function ClineModelSelectorContent(
 		currentProviderName,
 		entries,
 	} = props;
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(0);
 	const [onProvider, setOnProvider] = useState(false);
 
@@ -188,7 +190,7 @@ export function ClineModelSelectorContent(
 							{row.tags.map((t) => (
 								<text
 									key={t}
-									fg={isSel ? palette.textOnSelection : tagColor(t)}
+									fg={isSel ? palette.textOnSelection : tagColor(t, palette)}
 									flexShrink={0}
 								>
 									{t}
@@ -222,6 +224,7 @@ export function ClineModelSelectorDialogContent(
 	},
 ) {
 	const { dismiss, dialogId, loadEntries } = props;
+	const palette = useDialogPalette();
 	const [state, setState] = useState<ClineModelEntriesState>({
 		status: "loading",
 		message: "Loading Cline models...",

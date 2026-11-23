@@ -60,6 +60,8 @@ export function hubStatusPayload(ctx: HubContext) {
 			clientId: client.clientId,
 			displayName: client.displayName,
 			clientType: client.clientType,
+			version: client.version,
+			pid: client.pid,
 			connectedAt: new Date(client.connectedAt).toISOString(),
 		})),
 		activeSessions: sessionSummaries.length,

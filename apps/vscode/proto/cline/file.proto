@@ -58,6 +58,9 @@ service FileService {
   // Opens a task's conversation history file on disk
   rpc openDiskConversationHistory(StringRequest) returns (Empty);
 
+  // Opens the third-party notices file bundled with the extension
+  rpc openThirdPartyNotices(EmptyRequest) returns (Empty);
+
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
@@ -66,9 +69,6 @@ service FileService {
 
   // Open a file in editor by a relative path
   rpc openFileRelativePath(StringRequest) returns (Empty);
-
-  // Opens or creates a focus chain checklist markdown file for editing
-  rpc openFocusChainFile(StringRequest) returns (Empty);
 
   // Refreshes all hook toggles (discovers hooks and their enabled state)
   rpc refreshHooks(EmptyRequest) returns (HooksToggles);

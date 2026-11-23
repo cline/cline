@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { resolveWorkspaceRoot } from "./helpers";
 
 export type ChatCommandState = {
+	sessionId?: string;
 	enableTools: boolean;
 	autoApproveTools: boolean;
 	cwd: string;
@@ -69,6 +70,7 @@ type ParsedChatCommand = {
 	trimmed: string;
 	command: string;
 	args: string[];
+	argumentsText: string;
 	state: ChatCommandState;
 };
 
@@ -83,6 +85,19 @@ export type ChatCommandDefinition = {
 
 export class ChatCommandHost {
 	private readonly definitions: ChatCommandDefinition[];
+	private fallback?: (
+		parsed: ParsedChatCommand,
+		context: ChatCommandContext,
+	) => Promise<boolean>;
+	setFallback(
+		handler: (
+			parsed: ParsedChatCommand,
+			context: ChatCommandContext,
+		) => Promise<boolean>,
+	): this {
+		this.fallback = handler;
+		return this;
+	}
 
 	constructor(definitions: ChatCommandDefinition[] = []) {
 		this.definitions = [...definitions];
@@ -101,7 +116,9 @@ export class ChatCommandHost {
 	}
 
 	clone(): ChatCommandHost {
-		return new ChatCommandHost(this.definitions);
+		const host = new ChatCommandHost(this.definitions);
+		host.fallback = this.fallback;
+		return host;
 	}
 
 	async handle(input: string, context: ChatCommandContext): Promise<boolean> {
@@ -130,13 +147,14 @@ export class ChatCommandHost {
 			trimmed,
 			command,
 			args,
+			argumentsText: trimmed.slice(commandRaw.length),
 			state: await context.getState(),
 		};
 		const matched = this.definitions.find((definition) =>
 			definition.names.includes(parsed.command),
 		);
 		if (!matched) {
-			return false;
+			return (await this.fallback?.(parsed, context)) ?? false;
 		}
 		if (matched.isAvailable && !matched.isAvailable(context)) {
 			return false;

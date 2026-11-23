@@ -74,7 +74,7 @@ export function AgentApprovalCard({
 			) : null}
 			<div className="cline-ui-agent-approval-card__actions">
 				<button
-					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-cline-ui-md border-0 bg-cline-ui-primary px-3 font-cline-ui-medium text-cline-ui-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-cline-ui-primary/90 focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50"
+					className="cline-ui-agent-approval-card__button cline-ui-agent-approval-card__button--approve inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-cline-ui-md border-0 bg-cline-ui-primary px-3 font-cline-ui-medium text-cline-ui-primary-foreground transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [&:hover]:bg-cline-ui-primary-emphasis focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50"
 					disabled={isPending}
 					onClick={onApprove}
 					type="button"

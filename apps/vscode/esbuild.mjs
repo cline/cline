@@ -1,10 +1,13 @@
 import fs from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
+import { generateNotices, PLUGIN_RUNTIME_INPUTS } from "../../scripts/third-party-notices/index.ts"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
 
 const production = process.argv.includes("--production") || process.env["IS_DEBUG_BUILD"] === "false"
 const watch = process.argv.includes("--watch")
@@ -120,6 +123,15 @@ if (process.env.OTEL_LOGS_EXPORTER) {
 if (process.env.OTEL_METRICS_EXPORTER) {
 	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
 }
+if (process.env.OTEL_TRACES_EXPORTER) {
+	buildEnvVars["process.env.OTEL_TRACES_EXPORTER"] = JSON.stringify(process.env.OTEL_TRACES_EXPORTER)
+}
+if (process.env.CLINE_TRACE_SAMPLE_PERCENT) {
+	buildEnvVars["process.env.CLINE_TRACE_SAMPLE_PERCENT"] = JSON.stringify(process.env.CLINE_TRACE_SAMPLE_PERCENT)
+}
+if (process.env.CLINE_TRACE_RECORD_CONTENT) {
+	buildEnvVars["process.env.CLINE_TRACE_RECORD_CONTENT"] = JSON.stringify(process.env.CLINE_TRACE_RECORD_CONTENT)
+}
 if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
 	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
 }
@@ -154,12 +166,39 @@ const baseConfig = {
 	},
 }
 
+// Watch mode writes the notices once; regenerating them adds ~0.5s to every rebuild.
+const thirdPartyNoticesPlugin = {
+	name: "third-party-notices",
+	setup(build) {
+		let written = false
+		build.onEnd((result) => {
+			if (written || result.errors.length > 0 || !result.metafile) return
+			generateNotices({
+				product: "Cline for Visual Studio Code",
+				inputs: Object.keys(result.metafile.inputs),
+				baseDir: __dirname,
+				inputLists: {
+					webview: path.resolve(__dirname, "dist/.third-party/webview-inputs.json"),
+					"plugin runtime": PLUGIN_RUNTIME_INPUTS,
+				},
+				// Dev builds may run before the webview is built; releases must list everything.
+				allowMissingInputLists: !production,
+				extraPackageDirs: [path.dirname(require.resolve("@vscode/codicons/package.json"))],
+				outFile: path.join(__dirname, destDir, "THIRD_PARTY_NOTICES.txt"),
+			})
+			written = true
+		})
+	},
+}
+
 // Extension-specific configuration
 const extensionConfig = {
 	...baseConfig,
+	plugins: [aliasResolverPlugin, thirdPartyNoticesPlugin, esbuildProblemMatcherPlugin],
 	entryPoints: ["src/extension.ts"],
 	outfile: `${destDir}/extension.js`,
 	external: ["vscode"],
+	metafile: true,
 }
 
 // Standalone-specific configuration
@@ -182,8 +221,20 @@ const e2eBuildConfig = {
 	plugins: [aliasResolverPlugin, esbuildProblemMatcherPlugin],
 }
 
+/** Copy core's complete plugin runtime; its own package.json provides ESM scope. */
+function copyPluginRuntime() {
+	const source = path.resolve(__dirname, "../../sdk/packages/core/dist/plugin-runtime")
+	if (!fs.existsSync(path.join(source, "plugin-sandbox-bootstrap.js"))) {
+		throw new Error(`[esbuild] ${source} not found; run bun run build:sdk first`)
+	}
+	const destination = path.join(destDir, "plugin-runtime")
+	fs.rmSync(destination, { recursive: true, force: true })
+	fs.cpSync(source, destination, { recursive: true })
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
+	if (!e2eBuild) copyPluginRuntime()
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()

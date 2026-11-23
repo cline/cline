@@ -1,7 +1,7 @@
 /**
  * Unit tests for `RuntimeEventAdapter` and `toLegacyAgentEvent`.
  *
- * Covers every one of the 13 `AgentRuntimeEvent` variants enumerated
+ * Covers the `AgentRuntimeEvent` variants enumerated
  * in `@cline/shared/src/agent.ts:390-468`. For each variant the
  * test asserts the mapping described in PLAN.md §3.3.2 (with the
  * text/reasoning-delta correction documented at the top of
@@ -100,6 +100,64 @@ function makeResult(overrides: Partial<AgentRunResult> = {}): AgentRunResult {
 		...overrides,
 	};
 }
+
+describe("RuntimeEventAdapter — model tools", () => {
+	it("streams model tools as observational content events", () => {
+		const adapter = new RuntimeEventAdapter();
+		const toolCall = {
+			type: "tool-call" as const,
+			toolCallId: "search_1",
+			toolName: "web_search",
+			execution: "provider" as const,
+			input: { query: "Cline" },
+		};
+
+		expect(
+			adapter.translate({
+				type: "tool-started",
+				snapshot: makeSnapshot(),
+				iteration: 1,
+				toolCall,
+			}),
+		).toEqual([
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "web_search",
+				toolCallId: "search_1",
+				input: { query: "Cline" },
+				execution: "provider",
+			},
+		]);
+		expect(
+			adapter.translate({
+				type: "tool-finished",
+				snapshot: makeSnapshot(),
+				iteration: 1,
+				toolCall,
+				message: makeMessage({ role: "tool" }, [
+					{
+						type: "tool-result",
+						toolCallId: "search_1",
+						toolName: "web_search",
+						output: { results: [] },
+						execution: "provider",
+					},
+				]),
+			}),
+		).toEqual([
+			expect.objectContaining({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "web_search",
+				toolCallId: "search_1",
+				output: { results: [] },
+				error: undefined,
+				execution: "provider",
+			}),
+		]);
+	});
+});
 
 // ---------------------------------------------------------------------------
 // Suppressed events
@@ -380,7 +438,33 @@ describe("RuntimeEventAdapter — assistant-message → content_end", () => {
 		});
 	});
 
-	it("fires NO content_end events when the message has no text/reasoning", () => {
+	it("forwards generated media at its stream position", () => {
+		const out = adapter.translate({
+			type: "assistant-media",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			media: {
+				id: "generated-1",
+				modality: "image",
+				mediaType: "image/webp",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
+		});
+		expect(out).toEqual([
+			{
+				type: "content_end",
+				contentType: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/webp",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		]);
+	});
+
+	it("fires NO content_end events when the message has no renderable content", () => {
 		const out = adapter.translate({
 			type: "assistant-message",
 			snapshot: makeSnapshot(),
@@ -595,6 +679,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 				inputTokens: 100,
 				outputTokens: 40,
 				cacheReadTokens: 5,
+				reasoningTokenCount: 15,
 				totalCost: 0.01,
 			}),
 		});
@@ -605,6 +690,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			cacheReadTokens: 5,
 			cacheWriteTokens: undefined,
 			cost: 0.01,
+			reasoningTokenCount: 15,
 			totalInputTokens: 100,
 			totalOutputTokens: 40,
 			totalCacheReadTokens: 5,
@@ -620,6 +706,7 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			usage: makeUsage({
 				inputTokens: 100,
 				outputTokens: 40,
+				reasoningTokenCount: 15,
 				totalCost: 0.01,
 			}),
 		});
@@ -629,18 +716,37 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 			usage: makeUsage({
 				inputTokens: 150,
 				outputTokens: 60,
+				reasoningTokenCount: 25,
 				totalCost: 0.03,
 			}),
 		});
 		expect(out[0]).toMatchObject({
 			inputTokens: 50,
 			outputTokens: 20,
+			reasoningTokenCount: 10,
 			totalInputTokens: 150,
 			totalOutputTokens: 60,
 			totalCost: 0.03,
 		});
 		// Floating-point-safe: 0.03 - 0.01 ≠ exactly 0.02 in IEEE-754.
 		expect((out[0] as { cost?: number }).cost).toBeCloseTo(0.02, 10);
+	});
+
+	it("does not repeat reasoning tokens when the cumulative count is unchanged", () => {
+		adapter.translate({
+			type: "usage-updated",
+			snapshot: makeSnapshot(),
+			usage: makeUsage({ outputTokens: 40, reasoningTokenCount: 15 }),
+		});
+		const out = adapter.translate({
+			type: "usage-updated",
+			snapshot: makeSnapshot(),
+			usage: makeUsage({ outputTokens: 60, reasoningTokenCount: 15 }),
+		});
+		expect(out[0]).toMatchObject({
+			outputTokens: 20,
+			reasoningTokenCount: undefined,
+		});
 	});
 
 	it("omits cost when the totalCost delta is zero", () => {
@@ -661,31 +767,40 @@ describe("RuntimeEventAdapter — usage rolling totals", () => {
 		adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 100 }),
+			usage: makeUsage({ inputTokens: 100, reasoningTokenCount: 15 }),
 		});
 		const out = adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 50 }),
+			usage: makeUsage({ inputTokens: 50, reasoningTokenCount: 5 }),
 		});
-		expect(out[0]).toMatchObject({ inputTokens: 0 });
+		expect(out[0]).toMatchObject({ inputTokens: 0, reasoningTokenCount: 0 });
 	});
 
 	it("resets rolling totals via reset()", () => {
 		adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 100, outputTokens: 50 }),
+			usage: makeUsage({
+				inputTokens: 100,
+				outputTokens: 50,
+				reasoningTokenCount: 15,
+			}),
 		});
 		adapter.reset();
 		const out = adapter.translate({
 			type: "usage-updated",
 			snapshot: makeSnapshot(),
-			usage: makeUsage({ inputTokens: 10, outputTokens: 5 }),
+			usage: makeUsage({
+				inputTokens: 10,
+				outputTokens: 5,
+				reasoningTokenCount: 3,
+			}),
 		});
 		expect(out[0]).toMatchObject({
 			inputTokens: 10,
 			outputTokens: 5,
+			reasoningTokenCount: 3,
 			totalInputTokens: 10,
 			totalOutputTokens: 5,
 		});
@@ -853,7 +968,7 @@ describe("toLegacyAgentEvent — stateless helper", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Exhaustiveness — all 13 AgentRuntimeEvent variants
+// Exhaustiveness — AgentRuntimeEvent variants
 // ---------------------------------------------------------------------------
 
 describe("RuntimeEventAdapter — exhaustiveness", () => {

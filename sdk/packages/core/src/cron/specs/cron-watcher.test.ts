@@ -2,16 +2,23 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	realpathSync,
 	rmSync,
+	watch,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CronMaterializer } from "../runner/cron-materializer";
 import { SqliteCronStore } from "../store/sqlite-cron-store";
 import { CronReconciler } from "./cron-reconciler";
 import { CronWatcher } from "./cron-watcher";
+
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return { ...actual, watch: vi.fn(actual.watch) };
+});
 
 describe("CronWatcher", () => {
 	let root: string;
@@ -21,6 +28,7 @@ describe("CronWatcher", () => {
 	let materializer: CronMaterializer;
 
 	beforeEach(() => {
+		vi.mocked(watch).mockClear();
 		root = mkdtempSync(join(tmpdir(), "cline-watcher-"));
 		cronDir = join(root, "cron-specs");
 		mkdirSync(cronDir, { recursive: true });
@@ -33,6 +41,7 @@ describe("CronWatcher", () => {
 	});
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		store.close();
 		rmSync(root, { recursive: true, force: true });
 	});
@@ -69,6 +78,39 @@ describe("CronWatcher", () => {
 		const runs = store.listRuns({ specId: spec.specId });
 		expect(runs).toHaveLength(1);
 		expect(runs[0]?.status).toBe("queued");
+	});
+
+	it("watches the native canonical path rather than a Windows short-path alias", () => {
+		const canonicalDir = realpathSync.native(cronDir);
+		const resolvePath = vi.spyOn(realpathSync, "native");
+		const watcher = new CronWatcher({ reconciler });
+		try {
+			watcher.start();
+			expect(resolvePath).toHaveBeenCalledWith(cronDir);
+			expect(watch).toHaveBeenCalledExactlyOnceWith(
+				canonicalDir,
+				{ recursive: true },
+				expect.any(Function),
+			);
+		} finally {
+			watcher.dispose();
+		}
+	});
+
+	it("reports resolution failure without watching the unresolved path", () => {
+		const error = new Error("Cannot resolve watcher directory");
+		vi.spyOn(realpathSync, "native").mockImplementationOnce(() => {
+			throw error;
+		});
+		const onError = vi.fn();
+		const watcher = new CronWatcher({ reconciler, onError });
+		try {
+			watcher.start();
+			expect(onError).toHaveBeenCalledExactlyOnceWith(error);
+			expect(watch).not.toHaveBeenCalled();
+		} finally {
+			watcher.dispose();
+		}
 	});
 
 	it("creates the cron directory before starting the watcher", () => {

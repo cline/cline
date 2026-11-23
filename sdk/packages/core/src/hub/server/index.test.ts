@@ -18,6 +18,7 @@ import {
 	toHubHealthUrl,
 	writeHubDiscovery,
 } from "../discovery";
+import { HubInstanceLock } from "../discovery/instance-lock";
 import {
 	ensureHubWebSocketServer,
 	type HubWebSocketServer,
@@ -343,12 +344,13 @@ describe("hub server startup", () => {
 		}
 	});
 
-	it("releases the listener when discovery publication fails", async () => {
+	it("releases the listener and instance lock when discovery publication fails", async () => {
 		const root = await mkdtemp(join(tmpdir(), "cline-hub-publish-test-"));
 		const discoveryPath = join(root, "discovery.json");
 		// A directory at the destination makes atomic file replacement fail.
 		await mkdir(discoveryPath);
 		const port = await reservePort();
+		const acquireLock = vi.spyOn(HubInstanceLock, "acquire");
 		try {
 			await expect(
 				startHubWebSocketServer({
@@ -375,7 +377,19 @@ describe("hub server startup", () => {
 				});
 			});
 		} finally {
-			await rm(root, { recursive: true, force: true });
+			try {
+				// Startup rejection is bounded, but rollback can still be draining.
+				// Windows cannot unlink SQLite files until the instance lock closes.
+				const acquired = acquireLock.mock.results[0];
+				const lock = acquired?.type === "return" ? acquired.value : undefined;
+				expect(lock).toBeDefined();
+				await vi.waitFor(() => expect(lock?.held).toBe(false), {
+					timeout: 10_000,
+				});
+				await rm(root, { recursive: true, force: true });
+			} finally {
+				acquireLock.mockRestore();
+			}
 		}
 	});
 
@@ -438,7 +452,7 @@ describe("hub server startup", () => {
 		}
 	});
 
-	it("reports its build identity on the unauthenticated health endpoint", async () => {
+	it("reports its build and instance identity on the unauthenticated health endpoint", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-health-build");
 		const result = await ensureHubWebSocketServer({
 			owner,
@@ -451,13 +465,21 @@ describe("hub server startup", () => {
 
 		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
 		expect(health.status).toBe(200);
-		const payload = (await health.json()) as { buildId?: string };
+		const payload = (await health.json()) as {
+			buildId?: string;
+			hubId?: string;
+		};
 		expect(payload.buildId).toBe(resolveHubBuildId());
+		expect(payload.hubId).toBe(
+			(await readHubDiscovery(owner.discoveryPath))?.hubId,
+		);
+		expect(payload.hubId).toEqual(expect.any(String));
 	});
 
-	it("does not reuse managed discovery from a different build", async () => {
+	it("does not reuse managed discovery from an older build", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-stale-build");
 		vi.stubEnv("CLINE_HUB_BUILD_ID", "old-build");
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
 		try {
 			const stale = await startHubWebSocketServer({
 				owner,
@@ -469,6 +491,7 @@ describe("hub server startup", () => {
 			servers.add(stale);
 
 			vi.stubEnv("CLINE_HUB_BUILD_ID", "new-build");
+			vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "2000");
 			const result = await ensureHubWebSocketServer({
 				owner,
 				host: "127.0.0.1",
@@ -481,6 +504,43 @@ describe("hub server startup", () => {
 			expect(result.action).toBe("started");
 			expect(result.url).not.toBe(stale.url);
 			servers.add(requireServer(result.server));
+		} finally {
+			vi.unstubAllEnvs();
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
+	/**
+	 * Two builds that differ only by an opaque id carry nothing that says which
+	 * came first. Retiring on that basis is what let two installations shut each
+	 * other's Hub down in a loop, so an unorderable peer is attached to and the
+	 * build-mismatch watcher raises it with the user instead.
+	 */
+	it("reuses managed discovery from a build it cannot order itself against", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-unordered");
+		vi.stubEnv("CLINE_HUB_BUILD_ID", "other-build");
+		try {
+			const other = await startHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			servers.add(other);
+
+			vi.stubEnv("CLINE_HUB_BUILD_ID", "current-build");
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("reuse");
+			expect(result.url).toBe(other.url);
 		} finally {
 			vi.unstubAllEnvs();
 			await clearHubDiscovery(owner.discoveryPath);

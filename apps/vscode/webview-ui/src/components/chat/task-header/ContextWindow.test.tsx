@@ -1,21 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import type { ButtonHTMLAttributes, PropsWithChildren } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import ContextWindow from "./ContextWindow"
-
-const condense = vi.fn().mockResolvedValue(undefined)
-
-vi.mock("@/services/grpc-client", () => ({
-	SlashServiceClient: {
-		condense: (request: unknown) => condense(request),
-	},
-}))
-
-vi.mock("@shared/proto/cline/common", () => ({
-	StringRequest: {
-		create: (request: unknown) => request,
-	},
-}))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeButton: ({ children, ...props }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
@@ -50,15 +36,16 @@ vi.mock("@/components/ui/button", () => ({
 }))
 
 describe("ContextWindow compact button", () => {
-	beforeEach(() => {
-		condense.mockClear()
-	})
+	beforeEach(() => vi.clearAllMocks())
 
-	it("runs the compact RPC after confirmation instead of sending /compact as a message", async () => {
+	it("runs the shared compact handler after confirmation instead of sending /compact as a message", () => {
+		const compactTask = vi.fn().mockResolvedValue(true)
 		const onSendMessage = vi.fn()
 
 		render(
 			<ContextWindow
+				compactDisabled={false}
+				compactTask={compactTask}
 				contextWindow={200_000}
 				lastApiReqTotalTokens={120_000}
 				onSendMessage={onSendMessage}
@@ -69,7 +56,21 @@ describe("ContextWindow compact button", () => {
 		fireEvent.click(screen.getByRole("button", { name: /compact task/i }))
 		fireEvent.click(screen.getByRole("button", { name: /^compact$/i }))
 
-		await waitFor(() => expect(condense).toHaveBeenCalledWith({ value: "compact" }))
+		expect(compactTask).toHaveBeenCalledTimes(1)
 		expect(onSendMessage).not.toHaveBeenCalled()
+	})
+
+	it("disables compaction during API error recovery", () => {
+		render(
+			<ContextWindow
+				compactDisabled={true}
+				compactTask={vi.fn()}
+				contextWindow={200_000}
+				lastApiReqTotalTokens={120_000}
+				useAutoCondense={false}
+			/>,
+		)
+
+		expect(screen.getByRole("button", { name: /compact task/i })).toBeDisabled()
 	})
 })

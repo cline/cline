@@ -111,18 +111,19 @@ describe("hub discovery", () => {
 		expect(resolveHubBuildEpochMs()).toBe(12345);
 	});
 
-	it("reuses managed Hubs only for the same build or a strictly newer one", () => {
+	it("retires a managed Hub only when this build is strictly newer", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
-		const reuseOptions = {
-			expectedBuildId: "current-build",
-			expectedBuildEpochMs: 1_000,
+		const self = {
+			buildId: "current-build",
+			buildEpochMs: 1_000,
+			coreVersion: "0.0.70",
 		};
 		// Same build: reusable regardless of epoch.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "current-build" },
-				reuseOptions,
+				{ self },
 			),
 		).toBe(true);
 		// Different build with a newer epoch: another install upgraded the Hub.
@@ -133,24 +134,37 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				reuseOptions,
+				{ self },
 			),
 		).toBe(true);
 		// Different build that is older: retire and replace.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "other-build", buildEpochMs: 500 },
-				reuseOptions,
+				{ self },
 			),
 		).toBe(false);
-		// Different build with no ordering information: replace (safe default).
+		// No epoch, but an older core version still orders the two builds.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "other-build",
+					coreVersion: "0.0.64",
+				},
+				{ self },
+			),
+		).toBe(false);
+		// Different build with no ordering information at all: attach rather
+		// than replace. Retiring an unordered peer is what let two installs
+		// shut each other's daemon down in a loop.
 		expect(
 			isManagedHubReusable(
 				{ protocolVersion: "v1", buildId: "other-build" },
-				reuseOptions,
+				{ self },
 			),
-		).toBe(false);
-		// Own epoch unknown (unbundled sources): replace.
+		).toBe(true);
+		// Own epoch unknown (unbundled sources): attach, never downgrade.
 		expect(
 			isManagedHubReusable(
 				{
@@ -158,12 +172,13 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				{ expectedBuildId: "current-build" },
+				{ self: { buildId: "current-build" } },
 			),
-		).toBe(false);
-		// Legacy hub without build metadata: replace.
-		expect(isManagedHubReusable({ protocolVersion: "v1" }, reuseOptions)).toBe(
-			false,
+		).toBe(true);
+		// Legacy hub without build metadata: attach and let the build-mismatch
+		// watcher prompt instead of killing a daemon we cannot order.
+		expect(isManagedHubReusable({ protocolVersion: "v1" }, { self })).toBe(
+			true,
 		);
 		// Protocol mismatch is never reusable, newer or not.
 		expect(
@@ -173,7 +188,7 @@ describe("hub discovery", () => {
 					buildId: "other-build",
 					buildEpochMs: 2_000,
 				},
-				reuseOptions,
+				{ self },
 			),
 		).toBe(false);
 	});
@@ -231,7 +246,43 @@ describe("hub discovery", () => {
 			"utf8",
 		);
 
-		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+		await expect(
+			readHubDiscovery(discoveryPath, { onError: "throw" }),
+		).rejects.toThrow("Invalid Hub discovery record");
+	});
+
+	it("ignores invalid records for recovery but rejects them for shutdown", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		const discoveryPath =
+			resolveHubOwnerContext("invalid-record").discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		for (const raw of ["{ invalid json", "null", "{}", "[]"]) {
+			await writeFile(discoveryPath, raw, "utf8");
+			await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+			await expect(
+				readHubDiscovery(discoveryPath, { onError: "throw" }),
+			).rejects.toThrow("Hub discovery record");
+		}
+		await clearHubDiscovery(discoveryPath);
+	});
+
+	it("propagates discovery read errors instead of reporting absence", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		const discoveryPath = resolveHubOwnerContext(
+			"directory-read-error",
+		).discoveryPath;
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		// Opening the parent directory as a file fails on every supported OS.
+		await expect(
+			readHubDiscovery(dirname(discoveryPath)),
+		).resolves.toBeUndefined();
+		await expect(
+			readHubDiscovery(dirname(discoveryPath), { onError: "throw" }),
+		).rejects.toThrow();
 	});
 
 	it("serializes generation cleanup with replacement publication", async () => {
@@ -308,6 +359,57 @@ describe("hub discovery", () => {
 			expect(record?.updatedAt).toBeUndefined();
 		} finally {
 			globalThis.fetch = originalFetch;
+		}
+	});
+
+	// Bun's fetch honors HTTP(S)_PROXY with no localhost bypass, so on proxy
+	// machines every loopback hub probe went to the proxy and the healthy hub
+	// looked unreachable (cline/cline#14265, #14292). The probe must exempt
+	// loopback before dialing.
+	it("exempts loopback from a configured proxy before probing", async () => {
+		const previous = {
+			HTTP_PROXY: process.env.HTTP_PROXY,
+			http_proxy: process.env.http_proxy,
+			NO_PROXY: process.env.NO_PROXY,
+			no_proxy: process.env.no_proxy,
+		};
+		// Clear before setting: on Windows process.env is case-insensitive, so
+		// deleting http_proxy after assigning HTTP_PROXY would remove the
+		// variable that was just set and the bypass would correctly do nothing.
+		delete process.env.http_proxy;
+		delete process.env.NO_PROXY;
+		delete process.env.no_proxy;
+		process.env.HTTP_PROXY = "http://127.0.0.1:59999";
+		const fetchMock = async () =>
+			({
+				ok: true,
+				json: async () => ({
+					ok: true,
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 25463,
+					url: "ws://127.0.0.1:25463/hub",
+				}),
+			}) as Response;
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = fetchMock as typeof fetch;
+		try {
+			await probeHubServer("ws://127.0.0.1:25463/hub");
+			for (const key of ["NO_PROXY", "no_proxy"] as const) {
+				const value = process.env[key] ?? "";
+				expect(value).toContain("127.0.0.1");
+				expect(value).toContain("localhost");
+				expect(value).toContain("::1");
+			}
+		} finally {
+			globalThis.fetch = originalFetch;
+			for (const [key, value] of Object.entries(previous)) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
 		}
 	});
 });

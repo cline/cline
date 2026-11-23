@@ -65,6 +65,7 @@
 									"!@cline/agents/node",
 									"!@cline/agents/browser",
 									"!@cline/core/hub",
+									"!@cline/core/cloud",
 									"!@cline/core/telemetry",
 									"!@cline/core/rpc",
 									"!@cline/shared/browser",

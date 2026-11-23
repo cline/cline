@@ -119,6 +119,43 @@ describe("createCliCore", () => {
 		expect(featureFlagsPoll).toHaveBeenCalledTimes(1);
 	});
 
+	it("returns the core while the feature flag refresh is still pending", async () => {
+		let resolvePoll!: () => void;
+		featureFlagsPoll.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolvePoll = resolve;
+			}),
+		);
+		const pendingCore = sessionModule.createCliCore();
+		try {
+			const core = await Promise.race([
+				pendingCore,
+				new Promise<null>((resolve) => setImmediate(() => resolve(null))),
+			]);
+			expect(core).not.toBeNull();
+			expect(featureFlagsPoll).toHaveBeenCalledTimes(1);
+		} finally {
+			resolvePoll();
+			await pendingCore;
+		}
+	});
+
+	it("logs a failed background feature flag refresh without failing startup", async () => {
+		const error = new Error("offline");
+		featureFlagsPoll.mockRejectedValueOnce(error);
+		const logger = { debug: vi.fn(), log: vi.fn(), error: vi.fn() };
+
+		await expect(
+			sessionModule.createCliCore({ logger }),
+		).resolves.toBeDefined();
+		expect(logger.error).toHaveBeenCalledWith(
+			"Error polling CLI feature flags",
+			{
+				error,
+			},
+		);
+	});
+
 	it("forces the local backend when requested by the caller", async () => {
 		await sessionModule.createCliCore({ forceLocalBackend: true });
 

@@ -386,6 +386,15 @@ describe("McpHub.callTool", () => {
 			should(successArgKeys).be.undefined()
 		})
 
+		it("should stamp the session mode on started and success events", async () => {
+			const { hub, telemetryService } = createMcpHub()
+
+			await hub.callTool("test-server", "list_pages", undefined, "ulid-015", undefined, "plan")
+
+			telemetryService.captureMcpToolCall.firstCall.args[7].should.equal("plan")
+			telemetryService.captureMcpToolCall.secondCall.args[7].should.equal("plan")
+		})
+
 		it("should report argument keys when toolArguments is provided", async () => {
 			const { hub, telemetryService } = createMcpHub()
 

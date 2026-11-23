@@ -5,17 +5,23 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
+	isAgentPluginDisabledGlobally,
+	isModelToolEnabledGlobally,
+	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	readTuiThemeGlobally,
 	setAutoUpdateEnabledGlobally,
+	setCloudModelIdGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
-	readTuiThemeGlobally,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -33,11 +39,13 @@ describe("global-settings", () => {
 	it("defines the global settings file schema", () => {
 		expect(
 			GlobalSettingsSchema.parse({
+				disabledAgentPlugins: [" portable ", "portable"],
 				disabledTools: [" read_files ", "read_files", "editor"],
 				disabledPlugins: ["/plugins/example.js", "/plugins/example.js"],
 			}),
 		).toEqual({
 			autoUpdateEnabled: true,
+			disabledAgentPlugins: ["portable"],
 			disabledPlugins: ["/plugins/example.js"],
 			disabledTools: ["editor", "read_files"],
 			telemetryOptOut: false,
@@ -137,28 +145,74 @@ describe("global-settings", () => {
 		}
 	});
 
-	it("preserves disabled tools and plugins across targeted updates", async () => {
+	it("preserves disabled tools and both plugin formats across targeted updates", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
 			const settingsPath = join(root, "global-settings.json");
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 
 			setDisabledPlugin("/plugins/example.js", true);
+			setDisabledAgentPlugin("portable-review", true);
 			setDisabledTools(["read_files", "editor"], true);
 			setDisabledTools(["editor"], false);
 
 			expect(readGlobalSettings()).toEqual({
 				autoUpdateEnabled: true,
+				disabledAgentPlugins: ["portable-review"],
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
 			});
 			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
 				autoUpdateEnabled: true,
+				disabledAgentPlugins: ["portable-review"],
 				disabledPlugins: ["/plugins/example.js"],
 				disabledTools: ["read_files"],
 				telemetryOptOut: false,
 			});
+
+			setDisabledAgentPlugin("portable-review", false);
+			expect(isAgentPluginDisabledGlobally("portable-review")).toBe(false);
+			expect(readGlobalSettings().disabledAgentPlugins).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("stores provider-executed tool preferences in the scalable tools map", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+
+			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			setModelToolEnabledGlobally("web_search", false);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: false },
+			});
+
+			setDisabledTools(["web_search"], false);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("fails closed for web search when persisted settings cannot be loaded", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const malformedSettingsPath = join(root, "malformed.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = malformedSettingsPath;
+			await writeFile(malformedSettingsPath, "{not json");
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -312,6 +366,22 @@ describe("global-settings", () => {
 		}
 	});
 
+	it("reads and writes the cloud model globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readCloudModelIdGlobally()).toBeUndefined();
+			setCloudModelIdGlobally("cline-pass/kimi-k3.1-pro");
+			expect(readCloudModelIdGlobally()).toBe("cline-pass/kimi-k3.1-pro");
+			writeGlobalSettings({ cloudModelId: "  " });
+			expect(readCloudModelIdGlobally()).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("round-trips the compaction mode including the off state", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
@@ -451,6 +521,7 @@ describe("global-settings", () => {
 				const settingsPath = join(root, "global-settings.json");
 				process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
 				writeGlobalSettings({
+					disabledAgentPlugins: ["portable-review"],
 					disabledTools: ["editor"],
 					disabledPlugins: ["/plugins/example.js"],
 				});
@@ -458,6 +529,7 @@ describe("global-settings", () => {
 				const settings = readGlobalSettings();
 
 				expect(Object.isFrozen(settings)).toBe(true);
+				expect(Object.isFrozen(settings.disabledAgentPlugins)).toBe(true);
 				expect(Object.isFrozen(settings.disabledTools)).toBe(true);
 				expect(Object.isFrozen(settings.disabledPlugins)).toBe(true);
 				expect(() => {
@@ -466,6 +538,7 @@ describe("global-settings", () => {
 				expect(() => {
 					settings.disabledTools?.push("malicious");
 				}).toThrow();
+				expect(isAgentPluginDisabledGlobally("portable-review")).toBe(true);
 			} finally {
 				await rm(root, { recursive: true, force: true });
 			}

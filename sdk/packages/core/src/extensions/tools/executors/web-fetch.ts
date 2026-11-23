@@ -183,7 +183,9 @@ export function createWebFetchExecutor(
 
 				totalSize += value.length;
 				if (totalSize > maxResponseBytes) {
-					reader.cancel();
+					// Bun 1.4 rejects cancel() on an already-errored stream; that
+					// rejection must not surface as an unhandled rejection.
+					reader.cancel().catch(() => {});
 					throw new Error(
 						`Response too large: exceeded ${maxResponseBytes} bytes`,
 					);

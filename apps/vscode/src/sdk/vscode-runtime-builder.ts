@@ -1,5 +1,5 @@
-import { createMcpTools } from "@cline/core"
-import type { AgentTool, AgentToolContext } from "@cline/shared"
+import { createMcpTools, type McpResourceReadResult, type McpToolAnnotations } from "@cline/core"
+import type { AgentMode, AgentTool, AgentToolContext } from "@cline/shared"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
@@ -11,10 +11,20 @@ interface McpToolDescriptor {
 	name: string
 	description?: string
 	inputSchema: Record<string, unknown>
+	annotations?: McpToolAnnotations
+	_meta?: Record<string, unknown>
+}
+
+export interface McpHubToolProviderOptions {
+	/** Session mode the tools are built for; stamped on tool-call telemetry. */
+	mode?: AgentMode
 }
 
 export class McpHubToolProvider {
-	constructor(private readonly mcpHub: McpHub) {}
+	constructor(
+		private readonly mcpHub: McpHub,
+		private readonly options: McpHubToolProviderOptions = {},
+	) {}
 
 	async listTools(serverName: string): Promise<readonly McpToolDescriptor[]> {
 		const servers = this.mcpHub.getServers()
@@ -31,6 +41,8 @@ export class McpHubToolProvider {
 				type: "object",
 				properties: {},
 			},
+			...(tool.annotations ? { annotations: tool.annotations } : {}),
+			...(tool._meta ? { _meta: tool._meta } : {}),
 		}))
 	}
 
@@ -41,12 +53,25 @@ export class McpHubToolProvider {
 		context?: AgentToolContext
 	}): Promise<unknown> {
 		const ulid = `sdk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-		return this.mcpHub.callTool(request.serverName, request.toolName, request.arguments ?? {}, ulid, request.context?.signal)
+		return this.mcpHub.callTool(
+			request.serverName,
+			request.toolName,
+			request.arguments ?? {},
+			ulid,
+			request.context?.signal,
+			this.options.mode,
+		)
+	}
+
+	async readResource(request: { serverName: string; uri: string; context?: AgentToolContext }): Promise<McpResourceReadResult> {
+		return this.mcpHub.readResource(request.serverName, request.uri, request.context?.signal)
 	}
 }
 
 export interface VscodeExtraToolsOptions {
 	cwd?: string
+	/** Session mode the tools are built for; a mode switch rebuilds the session. */
+	mode?: AgentMode
 	/**
 	 * Lazy factory for the VscodeTerminalManager.
 	 * When provided, the custom `run_commands` tool replaces the SDK's
@@ -59,8 +84,8 @@ export interface VscodeExtraToolsOptions {
 	foregroundCommands?: SdkForegroundCommandCoordinator
 }
 
-export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExtraToolsOptions): Promise<AgentTool[]> {
-	const provider = new McpHubToolProvider(mcpHub)
+export async function createVscodeExtraTools(mcpHub: McpHub, options: VscodeExtraToolsOptions): Promise<AgentTool[]> {
+	const provider = new McpHubToolProvider(mcpHub, { mode: options.mode })
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
 			try {
@@ -90,7 +115,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options?: VscodeExt
 	// Add the custom run_commands tool when a terminal manager is available.
 	// This replaces the SDK's built-in run_commands, which is suppressed via
 	// tool executor capabilities in VscodeSessionHost.
-	if (options?.getTerminalManager) {
+	if (options.getTerminalManager) {
 		const executionMode = options.vscodeTerminalExecutionMode ?? "vscodeTerminal"
 		tools.push(
 			createVscodeRunCommandsTool({

@@ -292,36 +292,6 @@ export const NoCost: Story = {
 	},
 }
 
-export const WithProgressMessage: Story = {
-	args: {
-		task: createTask("Build a REST API with Express and MongoDB"),
-		tokensIn: 3500,
-		tokensOut: 2100,
-		cacheWrites: 520,
-		cacheReads: 280,
-		totalCost: 0.145,
-		doesModelSupportPromptCache: true,
-		onClose: () => console.log("Close clicked"),
-	},
-	decorators: [
-		createStorybookDecorator({
-			expandTaskHeader: true,
-			apiConfiguration: {
-				actModeApiProvider: "anthropic",
-				actModeApiModelId: "claude-3-5-sonnet-20241022",
-			},
-			clineMessages: createMessages(),
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "TaskHeader with progress checklist displayed in FocusChain component.",
-			},
-		},
-	},
-}
-
 export const LocalEnvironment: Story = {
 	args: {
 		task: createTask("Test feature in local environment"),

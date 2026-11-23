@@ -1,49 +1,31 @@
 #!/usr/bin/env bun
 
 import {
-	cpSync,
 	existsSync,
 	mkdirSync,
-	readdirSync,
+	mkdtempSync,
 	readFileSync,
-	realpathSync,
-	statSync,
+	rmSync,
+	writeFileSync,
 } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { type AddressInfo, createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { $ } from "bun";
 import {
 	parseBuildOptions,
 	shouldInstallNativeVariants,
 	validateBuildOptions,
 } from "./build-options";
+import {
+	compileCliBinary,
+	installOpenTuiNativeVariants,
+} from "./compile-binary";
+import { writeCliThirdPartyNotices } from "./third-party-notices";
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
 process.chdir(cliDir);
-
-// Telemetry / OTEL environment variables that should be baked into the
-// compiled binary at build time. Mirrors the list of secrets injected by the
-// `cli-publish` GitHub Actions workflow. These are inlined via Bun's `define`
-// so the CLI ships with the production telemetry configuration without
-// requiring the end user to set any env vars.
-const BUILD_TIME_INLINED_ENV_VARS = [
-	"TELEMETRY_SERVICE_API_KEY",
-	"ERROR_SERVICE_API_KEY",
-	"OTEL_TELEMETRY_ENABLED",
-	"OTEL_LOGS_EXPORTER",
-	"OTEL_METRICS_EXPORTER",
-	"OTEL_EXPORTER_OTLP_PROTOCOL",
-	"OTEL_EXPORTER_OTLP_ENDPOINT",
-	"OTEL_EXPORTER_OTLP_HEADERS",
-] as const;
-
-function buildInlinedEnvDefines(): Record<string, string> {
-	const defines: Record<string, string> = {};
-	for (const name of BUILD_TIME_INLINED_ENV_VARS) {
-		defines[`process.env.${name}`] = JSON.stringify(process.env[name] ?? "");
-	}
-	return defines;
-}
 
 const pkg = JSON.parse(readFileSync(join(cliDir, "package.json"), "utf-8"));
 const version: string = pkg.version;
@@ -82,16 +64,13 @@ if (optionsError) {
 	process.exit(1);
 }
 
-await $`rm -rf dist`;
+rmSync(join(cliDir, "dist"), { recursive: true, force: true });
 
 // Pre-install all platform variants of native packages so cross-compilation
 // can resolve them. Without this, Bun only has the host platform's native
 // binary and cross-compiled builds fail to resolve @opentui/core's FFI layer.
 if (shouldInstallNativeVariants({ options: buildOptions, opentuiVersion })) {
-	console.log(
-		`Installing all platform variants of @opentui/core@${opentuiVersion}...`,
-	);
-	await $`bun install --os="*" --cpu="*" @opentui/core@${opentuiVersion}`;
+	await installOpenTuiNativeVariants();
 }
 
 // Build the SDK first (the CLI bundles workspace packages)
@@ -103,61 +82,77 @@ if (!buildOptions.skipSdkBuild) {
 	await $`bun -F @cline/cli build`.cwd(rootDir);
 }
 
-const hubWebviewSource = join(cliDir, "../cline-hub/src/webview");
-const hubWebviewDist = join(cliDir, "../cline-hub/dist/webview");
-const hubWebviewIndex = join(hubWebviewDist, "index.html");
-
-function newestFileMtimeMs(dir: string): number {
-	let newest = 0;
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (
-			entry.name === "node_modules" ||
-			entry.name === "dist" ||
-			entry.name === ".turbo"
-		) {
-			continue;
-		}
-		const path = join(dir, entry.name);
-		if (entry.isDirectory()) {
-			newest = Math.max(newest, newestFileMtimeMs(path));
-		} else if (entry.isFile()) {
-			newest = Math.max(newest, statSync(path).mtimeMs);
-		}
-	}
-	return newest;
-}
-
-function shouldBuildHubWebview(): boolean {
-	if (!existsSync(hubWebviewIndex)) {
-		return true;
-	}
-	try {
-		return (
-			newestFileMtimeMs(hubWebviewSource) > statSync(hubWebviewIndex).mtimeMs
-		);
-	} catch {
-		return true;
-	}
-}
-
-if (shouldBuildHubWebview()) {
-	console.log("Building Cline Hub webview...");
-	await $`bun -F @cline/cline-hub build:webview`.cwd(rootDir);
-}
-
 const binaries: Record<string, string> = {};
 
-function findOpenTuiParserWorker(): string {
-	const localPath = resolve(
-		cliDir,
-		"node_modules/@opentui/core/parser.worker.js",
-	);
-	const rootPath = resolve(
-		rootDir,
-		"node_modules/@opentui/core/parser.worker.js",
-	);
-	const parserWorkerPath = existsSync(localPath) ? localPath : rootPath;
-	return realpathSync(parserWorkerPath);
+function findFreePort(): Promise<number> {
+	return new Promise((resolvePort, reject) => {
+		const server = createServer();
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			const { port } = server.address() as AddressInfo;
+			server.close(() => resolvePort(port));
+		});
+	});
+}
+
+/**
+ * The binary must take no configuration from the directory it is launched in.
+ * Run it in a directory holding a `bunfig.toml` preload and a `.env` that
+ * redirects the MCP settings file, and fail the build if either is honoured.
+ */
+async function assertIgnoresLaunchDirectoryConfig(
+	binary: string,
+): Promise<void> {
+	const dir = mkdtempSync(join(tmpdir(), "cline-smoke-launch-dir-"));
+	try {
+		const home = join(dir, "home");
+		const launchDir = join(dir, "project");
+		mkdirSync(home);
+		mkdirSync(launchDir);
+		const preloadMarker = join(launchDir, "preload-ran");
+		writeFileSync(
+			join(launchDir, "bunfig.toml"),
+			'preload = ["./preload.js"]\n',
+		);
+		writeFileSync(
+			join(launchDir, "preload.js"),
+			`require("node:fs").writeFileSync(${JSON.stringify(preloadMarker)}, "");\n`,
+		);
+		const envFileServer = "launch-dir-env-file";
+		for (const name of [".env", ".env.local"]) {
+			writeFileSync(
+				join(launchDir, name),
+				"CLINE_MCP_SETTINGS_PATH=./mcp.json\n",
+			);
+		}
+		writeFileSync(
+			join(launchDir, "mcp.json"),
+			JSON.stringify({ mcpServers: { [envFileServer]: { command: "true" } } }),
+		);
+
+		const env: Record<string, string | undefined> = {
+			...process.env,
+			HOME: home,
+			USERPROFILE: home,
+			CLINE_DIR: join(home, ".cline"),
+			CLINE_DATA_DIR: join(home, "data"),
+		};
+		delete env.CLINE_MCP_SETTINGS_PATH;
+
+		// `config mcp` only reads the settings file; bare `config` would start
+		// a background hub.
+		const servers = JSON.parse(
+			await $`${binary} config mcp --json`.cwd(launchDir).env(env).text(),
+		) as { name?: string }[];
+		if (existsSync(preloadMarker)) {
+			throw new Error("The binary ran a bunfig.toml preload from its cwd");
+		}
+		if (servers.some((server) => server.name === envFileServer)) {
+			throw new Error("The binary loaded a .env file from its cwd");
+		}
+	} finally {
+		rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
+	}
 }
 
 function getBunTarget(
@@ -165,61 +160,6 @@ function getBunTarget(
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
 	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
-}
-
-async function buildCompiledBinary(input: {
-	bunTarget: Bun.Build.CompileTarget;
-	dirName: string;
-	outfile: string;
-}): Promise<void> {
-	const parserWorker = findOpenTuiParserWorker();
-	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
-	const bunfsRoot = targetOs === "windows" ? "B:/~BUN/root/" : "/$bunfs/root/";
-	const parserWorkerPath = relative(rootDir, parserWorker).replaceAll(
-		"\\",
-		"/",
-	);
-
-	// Build to /tmp first so Bun's temp-file rename stays on one filesystem
-	// layer in containerized environments (virtiofs, overlayfs).
-	const entrypoint = join(cliDir, "src/index.ts");
-	const tmpDir = join("/tmp", `cline-build-${input.dirName}`);
-	const tmpOutfile = join(
-		tmpDir,
-		input.outfile.endsWith(".exe") ? "cline.exe" : "cline",
-	);
-	mkdirSync(tmpDir, { recursive: true });
-
-	process.chdir("/tmp");
-	const result = await Bun.build({
-		entrypoints: [entrypoint, parserWorker],
-		splitting: true,
-		compile: {
-			target: input.bunTarget,
-			outfile: tmpOutfile,
-		},
-		minify: true,
-		external: ["@anthropic-ai/vertex-sdk"],
-		define: {
-			OTUI_TREE_SITTER_WORKER_PATH: bunfsRoot + parserWorkerPath,
-			// Inline telemetry/OTEL env vars at build time so the compiled
-			// binary ships with production telemetry configuration baked in.
-			...buildInlinedEnvDefines(),
-		},
-		throw: false,
-	});
-	process.chdir(cliDir);
-
-	if (!result.success) {
-		console.error(`Build failed for ${input.dirName}:`);
-		for (const log of result.logs) {
-			console.error(log);
-		}
-		process.exit(1);
-	}
-
-	await $`cp ${tmpOutfile} ${input.outfile} && chmod 755 ${input.outfile}`;
-	await $`rm -rf ${tmpDir}`;
 }
 
 for (const item of targets) {
@@ -236,7 +176,17 @@ for (const item of targets) {
 
 	const outfile = join(outDir, binaryName);
 
-	await buildCompiledBinary({ bunTarget, dirName, outfile });
+	try {
+		const { bundleInputs } = await compileCliBinary({ bunTarget, outfile });
+		writeCliThirdPartyNotices({
+			product: "Cline CLI",
+			bundleInputs,
+			outFile: join(cliDir, `dist/${dirName}/THIRD_PARTY_NOTICES.txt`),
+		});
+	} catch (error) {
+		console.error(`Build failed for ${dirName}:`, error);
+		process.exit(1);
+	}
 
 	// Smoke test: only run on current platform
 	if (item.os === process.platform && item.arch === process.arch) {
@@ -250,30 +200,59 @@ for (const item of targets) {
 				);
 			}
 			console.log(`  Passed: ${actualVersion}`);
+
+			await assertIgnoresLaunchDirectoryConfig(outfile);
+
+			// `--version` only proves the binary launches. Bun's bundler has had
+			// compile-time regressions (chunk ordering with `splitting: true`)
+			// that only surface once real modules load, so also boot the hub
+			// daemon from this binary in an isolated data dir and confirm it
+			// answers a health probe before shipping.
+			console.log(`  Smoke test: ${outfile} hub start/status/stop`);
+			const smokeHome = mkdtempSync(join(tmpdir(), "cline-smoke-"));
+			const smokeEnv = {
+				...process.env,
+				HOME: smokeHome,
+				USERPROFILE: smokeHome,
+				CLINE_DIR: join(smokeHome, ".cline"),
+				CLINE_DATA_DIR: join(smokeHome, "data"),
+				// Keep clear of a developer's real hub: its discovery record
+				// (which CLINE_HUB_DISCOVERY_PATH can point anywhere) and the
+				// default port.
+				CLINE_HUB_DISCOVERY_PATH: join(smokeHome, "hub-discovery.json"),
+				CLINE_HUB_PORT: String(await findFreePort()),
+			};
+			try {
+				await $`${outfile} hub start`.env(smokeEnv).quiet();
+				const status = JSON.parse(
+					await $`${outfile} hub status`.env(smokeEnv).text(),
+				) as { running?: boolean; coreVersion?: string };
+				if (!status.running || !status.coreVersion) {
+					throw new Error(
+						`Expected a healthy hub, got ${JSON.stringify(status)}`,
+					);
+				}
+				console.log(`  Passed: hub core ${status.coreVersion}`);
+			} finally {
+				await $`${outfile} hub stop`.env(smokeEnv).quiet().nothrow();
+				try {
+					rmSync(smokeHome, {
+						recursive: true,
+						force: true,
+						maxRetries: 10,
+						retryDelay: 100,
+					});
+				} catch (cleanupError) {
+					console.warn(
+						`  Warning: failed to remove smoke test dir ${smokeHome}:`,
+						cleanupError,
+					);
+				}
+			}
 		} catch (e) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
 			process.exit(1);
 		}
-	}
-
-	// Copy plugin sandbox bootstrap if it exists
-	const bootstrapSrc = join(
-		rootDir,
-		"sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
-	);
-	if (existsSync(bootstrapSrc)) {
-		const bootstrapDir = join(cliDir, `dist/${dirName}/extensions`);
-		mkdirSync(bootstrapDir, { recursive: true });
-		const content = readFileSync(bootstrapSrc);
-		await Bun.write(join(bootstrapDir, "plugin-sandbox-bootstrap.js"), content);
-	}
-
-	if (existsSync(hubWebviewDist)) {
-		const hubWebviewDest = join(cliDir, `dist/${dirName}/cline-hub/webview`);
-		mkdirSync(join(cliDir, `dist/${dirName}/cline-hub`), {
-			recursive: true,
-		});
-		cpSync(hubWebviewDist, hubWebviewDest, { recursive: true });
 	}
 
 	// Generate platform package.json

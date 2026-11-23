@@ -1,0 +1,52 @@
+import type { CloudSessionStatus } from "@shared/cloud/cloud-sessions"
+import { CloudIcon, LoaderCircleIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const LABELS: Record<CloudSessionStatus, string> = {
+	provisioning: "Starting",
+	running: "Running",
+	idle: "Cloud",
+	completed: "Done",
+	failed: "Failed",
+	cancelled: "Cancelled",
+	unknown: "Unconfirmed",
+	expired: "Archived",
+}
+
+const TITLES: Partial<Record<CloudSessionStatus, string>> = {
+	unknown: "Cloud session: status could not be confirmed",
+	expired:
+		"Cloud session: the sandbox was retired after 24 hours without activity; open it to see whether a conversation was saved",
+}
+
+export function isCloudStatusActive(status: string | undefined): boolean {
+	return status === "provisioning" || status === "running"
+}
+
+function labelFor(status: string | undefined): string {
+	return status && status in LABELS ? LABELS[status as CloudSessionStatus] : "Cloud"
+}
+
+/**
+ * Compact cloud marker for history rows: a cloud icon plus the session's state.
+ * Only active states animate; a status the extension could not confirm is
+ * shown as Unconfirmed rather than as a check that never ends.
+ */
+export function CloudStatusPill({ status, className }: { status: string | undefined; className?: string }) {
+	const active = isCloudStatusActive(status)
+	const label = labelFor(status)
+	return (
+		<span
+			className={cn(
+				"inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide leading-none",
+				active && "bg-[color-mix(in_srgb,var(--vscode-charts-green)_18%,transparent)] text-[var(--vscode-charts-green)]",
+				status === "failed" && "bg-[color-mix(in_srgb,var(--vscode-errorForeground)_18%,transparent)] text-error",
+				!active && status !== "failed" && "bg-badge-background text-badge-foreground",
+				className,
+			)}
+			title={(status && TITLES[status as CloudSessionStatus]) || `Cloud session: ${label.toLowerCase()}`}>
+			{active ? <LoaderCircleIcon className="size-2.5 animate-spin" /> : <CloudIcon className="size-2.5" />}
+			{label}
+		</span>
+	)
+}

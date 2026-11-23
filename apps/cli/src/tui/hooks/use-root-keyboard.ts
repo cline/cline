@@ -56,6 +56,11 @@ export function useRootKeyboard(input: {
 	onAbort: () => boolean;
 	onExit: () => void;
 	onToggleMode: () => void;
+	/** Plan/Act and auto-approve are hidden while Cloud is selected. */
+	isCloudTarget?: boolean;
+	/** Omitted when cloud sessions are unavailable. */
+	onToggleCloudTarget?: () => void;
+	onChangeCloudRepo?: () => void;
 	onClearConversation: () => Promise<void>;
 	onRestoreCheckpoint: () => Promise<void>;
 	onOpenCommandPalette: () => Promise<void>;
@@ -209,6 +214,22 @@ export function useRootKeyboard(input: {
 			return;
 		}
 
+		if (
+			!hasInputText &&
+			hasQueuedPrompts &&
+			!key.shift &&
+			!key.ctrl &&
+			!key.meta &&
+			(key.name === "enter" || key.name === "return")
+		) {
+			key.preventDefault();
+			const firstPrompt = queuedSelection.items[0];
+			if (firstPrompt && !firstPrompt.steer && !key.repeated) {
+				queuedSelection.promote(firstPrompt.id);
+			}
+			return;
+		}
+
 		if (key.name === "up" && canHandleInputHistory) {
 			if (
 				input.inputHistory.navigateHistory("up", input.inputValueRef.current)
@@ -256,6 +277,22 @@ export function useRootKeyboard(input: {
 			if (!session.isRunning && !hasInputText) {
 				input.onExit();
 			}
+			return;
+		}
+
+		if (key.ctrl && key.name === "o" && input.onToggleCloudTarget) {
+			key.preventDefault();
+			input.onToggleCloudTarget();
+			return;
+		}
+
+		if (key.ctrl && key.name === "k" && input.onChangeCloudRepo) {
+			key.preventDefault();
+			input.onChangeCloudRepo();
+			return;
+		}
+
+		if (key.name === "tab" && input.isCloudTarget) {
 			return;
 		}
 

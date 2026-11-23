@@ -10,5 +10,8 @@ export interface LockRow {
 
 export interface SqliteLockManagerOptions {
 	dbPath: string
-	instanceAddress: string // cline core address
+	// Opaque identity that owns this instance's rows (held_by). A spawned core
+	// uses its per-spawn instance ID; the CLI-harness core uses its listener
+	// address. No query may interpret it as an address.
+	instanceOwner: string
 }

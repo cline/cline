@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	createClineProvider,
 	createOpenAICompatibleProvider,
 	createOpenAIProvider,
 	createSapAiCoreProvider,
@@ -35,7 +36,7 @@ describe("provider-ids", () => {
 		}
 	});
 
-	it("registers v0 as a built-in provider with generated catalog models", async () => {
+	it("registers v0 as a built-in provider", async () => {
 		await expect(getProvider("v0")).resolves.toMatchObject({
 			id: "v0",
 			baseUrl: "https://api.v0.dev/v1",
@@ -43,12 +44,9 @@ describe("provider-ids", () => {
 			client: "openai-compatible",
 		});
 
+		// models.dev no longer lists v0, so only the built-in default remains.
 		const models = await getModelsForProvider("v0");
-		expect(Object.keys(models).sort()).toEqual([
-			"v0-1.0-md",
-			"v0-1.5-lg",
-			"v0-1.5-md",
-		]);
+		expect(Object.keys(models)).toEqual(["v0-1.5-md"]);
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "v0",
@@ -117,12 +115,14 @@ describe("provider-ids", () => {
 		});
 		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
 
-		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
-			(item) => item.manifest.id === "cline-pass",
-		);
-		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
-			createProvider: createOpenAICompatibleProvider,
-		});
+		for (const providerId of ["cline", "cline-pass"]) {
+			const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+				(item) => item.manifest.id === providerId,
+			);
+			await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+				createProvider: createClineProvider,
+			});
+		}
 	});
 
 	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
@@ -228,12 +228,12 @@ describe("provider-ids", () => {
 		await expect(getProvider("zai-coding-plan")).resolves.toMatchObject({
 			id: "zai-coding-plan",
 			baseUrl: "https://api.z.ai/api/coding/paas/v4",
-			defaultModelId: "glm-5.2",
+			defaultModelId: "glm-5.3",
 			client: "openai-compatible",
 		});
 
 		const models = await getModelsForProvider("zai-coding-plan");
-		expect(Object.hasOwn(models, "glm-5.2")).toBe(true);
+		expect(Object.hasOwn(models, "glm-5.3")).toBe(true);
 	});
 
 	it("routes SAP AI Core through the SAP AI SDK provider factory", async () => {

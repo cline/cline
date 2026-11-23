@@ -9,7 +9,6 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 import { getDocumentsPath } from "./documents-path"
-import { StateManager } from "./StateManager"
 
 export { getDocumentsPath } from "./documents-path"
 
@@ -298,7 +297,7 @@ export function setRuntimeHooksDir(dir: string | undefined): void {
  * A workspace may not use hooks, and the resulting array will be empty. A
  * multi-root workspace may have multiple hooks directories.
  */
-export async function getAllHooksDirs(): Promise<string[]> {
+export async function getAllHooksDirs(workspaceRootPaths?: string[]): Promise<string[]> {
 	const hooksDirs: string[] = []
 
 	// Add runtime hooks directory (set by --hooks-dir CLI flag)
@@ -313,10 +312,29 @@ export async function getAllHooksDirs(): Promise<string[]> {
 	}
 
 	// Add workspace hooks directories
-	const workspaceHooksDirs = await getWorkspaceHooksDirs()
+	const workspaceHooksDirs = await getWorkspaceHooksDirs(workspaceRootPaths)
 	hooksDirs.push(...workspaceHooksDirs)
 
 	return hooksDirs
+}
+
+/**
+ * Resolves this window's workspace root paths for hook discovery. Workspace
+ * identity must come from the window's host, not global state: ~/.cline global
+ * state is shared across every Cline instance, so a persisted value can point
+ * at another window's project.
+ *
+ * Blank entries are filtered out, and a host lookup failure degrades to no
+ * workspace roots (global and runtime hooks don't depend on them).
+ */
+export async function getWindowWorkspaceRoots(): Promise<string[]> {
+	try {
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		return paths.filter((workspacePath) => workspacePath.trim().length > 0)
+	} catch (error) {
+		Logger.error("Failed to resolve workspace paths for hooks", error)
+		return []
+	}
 }
 
 /**
@@ -324,11 +342,8 @@ export async function getAllHooksDirs(): Promise<string[]> {
  * hooks. A workspace may not use hooks, and the resulting array will be empty. A
  * multi-root workspace may have multiple hooks directories.
  */
-export async function getWorkspaceHooksDirs(): Promise<string[]> {
-	const workspaceRootPaths =
-		StateManager.get()
-			.getGlobalStateKey("workspaceRoots")
-			?.map((root) => root.path) || []
+export async function getWorkspaceHooksDirs(workspaceRootPaths?: string[]): Promise<string[]> {
+	workspaceRootPaths ??= await getWindowWorkspaceRoots()
 
 	return (
 		await Promise.all(
