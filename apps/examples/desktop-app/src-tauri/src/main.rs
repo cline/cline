@@ -7,6 +7,7 @@ mod linux_webview;
 #[cfg(target_os = "macos")]
 mod macos_notification;
 mod terminal;
+mod third_party_notices;
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -1706,6 +1707,7 @@ fn main() {
             get_desktop_backend_endpoint,
             pick_workspace_directory,
             open_mcp_settings_file,
+            third_party_notices::open_third_party_notices,
             get_update_status,
             restart_to_apply_update,
             check_for_update_now,

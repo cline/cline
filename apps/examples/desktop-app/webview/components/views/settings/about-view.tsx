@@ -1,6 +1,13 @@
 "use client";
 
-import { Bug, ExternalLink, Loader2, Rss, Sparkles } from "lucide-react";
+import {
+	Bug,
+	ExternalLink,
+	FileText,
+	Loader2,
+	Rss,
+	Sparkles,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +26,11 @@ import {
 	ISSUES_URL,
 	releaseUrl,
 } from "@/lib/changelog";
-import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import {
+	desktopClient,
+	isTauriAvailable,
+	openExternalUrl,
+} from "@/lib/desktop-client";
 import { latestWhatsNew } from "@/lib/whats-new";
 import { PageFrame, PageHeader } from "../page-layout";
 
@@ -47,6 +58,41 @@ function useAppVersion(): string | null {
 		};
 	}, []);
 	return appVersion;
+}
+
+// The notices ship as a Tauri resource; web mode has no file to open.
+function ThirdPartyNoticesRow() {
+	const [available, setAvailable] = useState(false);
+	useEffect(() => setAvailable(isTauriAvailable()), []);
+	if (!available) return null;
+	return (
+		<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+			<div className="flex flex-col gap-1">
+				<p className="text-base font-semibold text-foreground">
+					Third-party notices
+				</p>
+				<p className="text-sm text-muted-foreground">
+					Licenses for the open source software included in Cline.
+				</p>
+			</div>
+			<Button
+				className="shrink-0"
+				onClick={() =>
+					void desktopClient
+						.invoke("open_third_party_notices")
+						.catch((error: unknown) =>
+							console.error("Failed to open third-party notices", error),
+						)
+				}
+				size="sm"
+				type="button"
+				variant="outline"
+			>
+				<FileText className="size-3" />
+				View notices
+			</Button>
+		</div>
+	);
 }
 
 function UpdateAction() {
@@ -269,6 +315,7 @@ export function AboutContent({
 						Open GitHub issues
 					</Button>
 				</div>
+				<ThirdPartyNoticesRow />
 				<div className="pt-6">
 					<div className="flex items-center justify-between gap-4">
 						<h2 className="text-lg font-semibold text-foreground">

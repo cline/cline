@@ -92,6 +92,23 @@ describe("resolveStartupMode for non-interactive runs", () => {
 		).toBe("plan");
 	});
 
+	it("stays in act mode for a /team prompt", () => {
+		expect(
+			resolveStartupMode(args, makeSettings(), {
+				nonInteractive: true,
+				toolAutoApprove: true,
+				teamPrompt: true,
+			}),
+		).toBe("act");
+		expect(
+			resolveStartupMode(
+				{ mode: "yolo", modeExplicitlySet: true },
+				makeSettings(),
+				{ nonInteractive: true, toolAutoApprove: true, teamPrompt: true },
+			),
+		).toBe("yolo");
+	});
+
 	it("leaves interactive runs in act mode", () => {
 		expect(
 			resolveStartupMode(args, makeSettings(), {

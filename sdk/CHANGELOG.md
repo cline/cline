@@ -1,5 +1,36 @@
 # Cline SDK Changelog
 
+## 0.2.1
+
+- `read_files` results are no longer re-cut to the 8k tool-result cap on the way to the provider. They use the 50k file-content cap, so a read the tool reported in full arrives in full. Command, search, MCP and custom tool results keep the 8k cap, and an explicit tool-result cap still applies
+- Models that need interleaved reasoning get a placeholder `reasoning_content` on assistant messages that have none. This fixes Reflection Beam's `400 Missing required parameter: 'messages[n].reasoning_content'` after compaction or a model switch. The fact is carried as `ModelInfo.metadata.interleavedReasoningField`
+- The summarizer now states a preference to go without reasoning instead of disabling it outright. The gateway disables it only for models whose catalog entry advertises an off option. Before, uncatalogued models got `reasoning_effort: "none"`, which some endpoints reject, and compaction fell back to basic
+- A custom model with saved overrides now has `reasoning` seeded into its capability list unless it sets `supportsReasoning: false`, so an explicit reasoning disable reaches the provider. Before, gpt-5.6 and gpt-6 chat-completions endpoints rejected every tool call
+- The native OpenAI adapter fits the reasoning level to the model's advertised effort ladder, so `max` and Extra High are no longer sent verbatim to GPT-5.x and o-series models that reject them
+- LiteLLM: the legacy `max_tokens` is no longer used as the input budget when `max_output_tokens` is set. Null limits are treated as missing
+- The `cline` provider's bundled default is now the first bundled free model. `resolveClineDefaultModelId()` in `@cline/core` returns the first free model from the live recommended feed, then the bundled one, then `CLINE_DEFAULT_MODEL_ID`
+- `CLINE_DEFAULT_MODEL_ID` is now `anthropic/claude-sonnet-5.5`, and the remaining hardcoded default-model literals use it. `@cline/shared` adds `ANTHROPIC_DEFAULT_MODEL_ID` for Anthropic's bare id format
+- A running compaction can be stopped, and cancellations are counted in telemetry
+- Session config and the hub RPC schema accept the `max` reasoning effort
+- With tools and spawning enabled, core registers `ux_verifier`, which delegates an ordered checklist to a subagent through the host's `spawn_agent` executor. Disabling `spawn_agent` disables it too
+- `createUxVerificationReportTool()` creates the opt-in `report_ux_verification` tool for structured reports with captions, pass/fail/blocked results and screenshot references
+- `createPublishArtifactsTool({ publish })` creates the opt-in `publish_artifacts` tool. `createArtifactPublisher` from `@cline/core/cloud` publishes to cloud sessions through signed upload policies. Artifact IDs default to the source filename
+- `McpToolDescriptor.annotations` carries a server's tool hints (`readOnlyHint` and friends) through the stdio and URL clients and the manager cache. `task.tool_used` telemetry gains `mode`
+- `session.resume` starts a runtime for a saved session ID and reads history on the hub, instead of requiring `initialMessages`
+- Cloud task creation accepts `initialMessage` to create and send in one call, and `localGit` to launch from a captured Git snapshot
+- `HubCloudSessionClient.getArtifactDownloadUrl(sessionId, artifactId)` returns a signed URL without starting the sandbox
+- Provider, model, MCP and MCP OAuth management are available as hub commands, with token authentication required for provider management
+- The hub can return session history in bounded chunks and archived cloud history
+- The hub validates caller accounts for cloud commands, and no longer re-sends a rejected Cline refresh token on every cloud poll
+- Hub cloud requests no longer duplicate the API prefix
+- Hub session handlers are retained when a session deletion fails
+- Confirmed cloud handoff publication is exported from `@cline/core/cloud` for direct hosts
+- `@cline/shared` adds `resolveClineAppUrl`, and the account response carries `dataPrivacyPath` for the web app's privacy settings page
+- `@cline/ui` adds `SectionHeading`, `Banner`, `ItemCard`, `DetailList`, controlled `Dialog` components and a UX verification report carousel with screenshot downloads. Buttons, badges and switches are refreshed (loading and pending states, a small switch size), along with the colour tokens and a new `text-xxs` step
+- Removed the `CLINE_CAPTURE_*` provider request capture, which wrote full request bodies to disk
+- Every SDK package now includes its license file
+- Refreshed the model catalog (6,457 → 7,621 models). Adds 94 providers from models.dev and drops Lilac and Tempr. The Cline recommended list adds Muse Ember. The Cline free list drops Reflection Beam, Laguna S 2.1 and Solar Mini 4, so the `cline` provider's bundled default is Nemotron 3.5 Super VL. ClinePass drops DeepSeek V4.1 Flash, Mimo V2.6 Flash, Mimo V2.6 Pro, MiniMax M3, Qwen3.7 Plus and Qwen3.7 Max. Default models change for 67 other providers, mostly to Kimi K3.1 Pro, Gemini 4 Neon (including the `gemini` and `vertex` providers) or DeepSeek V4.1 Flash 1017. Qwen models now report tiered families such as `qwen-plus` and `qwen-max`
+
 ## 0.2.0
 
 - Starting a session that already has a run in progress now reattaches to the live session instead of replacing its runtime. Before, the original run kept going but couldn't be reached, and its transcript writes landed on a stale snapshot. A start that includes a prompt while a run is in progress is rejected

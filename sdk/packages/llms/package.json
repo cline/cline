@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -29,6 +29,7 @@
 	"files": [
 		"dist"
 	],
+	"license": "Apache-2.0",
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",

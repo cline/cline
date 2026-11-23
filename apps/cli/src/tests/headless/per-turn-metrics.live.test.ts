@@ -13,6 +13,9 @@
 // If the bug regresses (session total stamped on terminal message instead of
 // per-turn values), turn 2's metrics will equal 2500/65/80/1100 instead of
 // 1500/40/30/900, and the assertions will catch it.
+//
+// The run passes --act because the cassette was recorded in act mode; the
+// default yolo mode sends a follow-up request the cassette lacks.
 // ---------------------------------------------------------------------------
 
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
@@ -53,7 +56,7 @@ test.describe("per-turn metrics in messages.json — multi-iteration @live", () 
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["--json", "run echo hello then summarize"],
+			args: ["--act", "--json", "run echo hello then summarize"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default", {
