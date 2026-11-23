@@ -2338,6 +2338,8 @@ export async function handleCommand(
 			environmentId: binding.environmentId,
 			workspaceRoot: binding.workspaceRoot,
 			cwd: binding.workspaceRoot,
+			workspaceTrusted:
+				binding.kind !== "local" || isWorkspaceTrusted(binding.workspaceRoot),
 			homeDir: binding.remote?.homeDir ?? homedir(),
 			taskWorktreeRoot:
 				binding.kind === "local" ? taskWorktreesRoot() : undefined,

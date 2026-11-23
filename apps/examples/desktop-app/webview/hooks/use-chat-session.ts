@@ -1510,7 +1510,11 @@ export function useChatSession(environmentId: string) {
 					? currentWorkspace
 					: validation.valid === true
 						? rememberedWorkspace
-						: ctx.workspaceRoot || ctx.cwd;
+						: // Nobody picked the launch folder, so an untrusted one
+							// starts in chat instead of asking to trust it.
+							ctx.workspaceTrusted === false
+							? ""
+							: ctx.workspaceRoot || ctx.cwd;
 				return {
 					...prev,
 					environmentId,
