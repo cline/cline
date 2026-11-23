@@ -67,3 +67,8 @@ export {
 	type TaskSpecsScope,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./paths";
+export {
+	isWorkspaceTrusted,
+	resolveTrustedWorkspacesPath,
+	trustWorkspace,
+} from "./workspace-trust";
