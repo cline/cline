@@ -819,6 +819,17 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
+	// Ask before loading anything from a folder the user has not trusted yet.
+	// Only when someone is there to answer: piped and CI runs proceed.
+	if (isFullTTY) {
+		const { ensureWorkspaceTrusted } = await import("./utils/workspace-trust");
+		const launchRoot = resolveWorkspaceRoot(args.cwd ?? process.cwd());
+		if (!(await ensureWorkspaceTrusted(launchRoot))) {
+			process.exitCode = 1;
+			return;
+		}
+	}
+
 	if (args.worktree) {
 		if (
 			!args.prompt &&

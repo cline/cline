@@ -7,13 +7,26 @@
 //   test.use({ env: clineEnv("/absolute/path/to/config") });
 // ---------------------------------------------------------------------------
 
-import { cpSync, mkdirSync, mkdtempSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 export const TEST_SUITE_ROOT = new URL("../", import.meta.url).pathname;
 
 let envCounter = 0;
+
+/**
+ * Trusts every folder so the workspace trust prompt stays out of tests that
+ * launch the CLI in a terminal.
+ */
+export function trustAllWorkspaces(dataDir: string): void {
+	const settingsDir = path.join(dataDir, "settings");
+	mkdirSync(settingsDir, { recursive: true });
+	writeFileSync(
+		path.join(settingsDir, "trusted-workspaces.json"),
+		JSON.stringify({ trustedWorkspaces: [path.parse(dataDir).root] }),
+	);
+}
 
 function createIsolatedClineDir(sourceDir: string): string {
 	const tempRoot = mkdtempSync(path.join(os.tmpdir(), "cline-tui-test-"));
@@ -48,6 +61,7 @@ export function clineEnv(
 		: path.join(TEST_SUITE_ROOT, "configs", configDir);
 	const isolatedClinePath = createIsolatedClineDir(clinePath);
 	const dataDir = path.join(isolatedClinePath, "data");
+	trustAllWorkspaces(dataDir);
 
 	// Determine effective VCR mode: extra overrides > parent env > default "playback"
 	const effectiveVcrMode =

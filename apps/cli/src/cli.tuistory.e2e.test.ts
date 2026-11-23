@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
 import { afterEach, describe, expect, it } from "vitest";
+import { trustAllWorkspaces } from "./tests/helpers/env";
 
 const cliRoot = path.resolve(__dirname, "..");
 const cliEntry = path.join(cliRoot, "src", "index.ts");
@@ -33,6 +34,7 @@ function createCliEnv(
 ): Record<string, string | undefined> {
 	const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-home-"));
 	const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-data-"));
+	trustAllWorkspaces(dataDir);
 	const sessionDir = mkdtempSync(
 		path.join(os.tmpdir(), "cli-tuistory-sessions-"),
 	);
@@ -240,5 +242,30 @@ describe("cli tuistory e2e", () => {
 		expect(readFileSync(markerPath, "utf8")).toContain(
 			'"cline-cli-cline-pass-intro": true',
 		);
+	});
+
+	it("asks once before starting in a folder that is not trusted yet", async () => {
+		const env = createCliEnv();
+		const trustPath = path.join(
+			env.CLINE_DATA_DIR as string,
+			"settings",
+			"trusted-workspaces.json",
+		);
+		rmSync(trustPath);
+		const session = await launchCli([], env);
+
+		await session.waitForText("Do you trust the files in this folder?", {
+			timeout: LAUNCH_TIMEOUT_MS,
+		});
+		expect(await session.text()).not.toContain("What can I do for you?");
+		await session.press("enter");
+		await waitForChatView(session);
+		expect(readFileSync(trustPath, "utf8")).toContain(
+			path.resolve(cliRoot, "..", ".."),
+		);
+
+		const relaunched = await launchCli([], env);
+		await waitForChatView(relaunched);
+		expect(await relaunched.read()).not.toContain("Do you trust");
 	});
 });
