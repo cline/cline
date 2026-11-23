@@ -80,7 +80,11 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-import { resolveClineDir } from "@cline/shared/storage";
+import {
+	isWorkspaceTrusted,
+	resolveClineDir,
+	trustWorkspace,
+} from "@cline/shared/storage";
 import { z } from "zod";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
@@ -3853,6 +3857,17 @@ export async function handleCommand(
 				path: resolved,
 			};
 		}
+	}
+	if (command === "is_workspace_trusted") {
+		return isWorkspaceTrusted(String(args?.path ?? ""));
+	}
+	if (command === "trust_workspace") {
+		const workspacePath = String(args?.path ?? "").trim();
+		if (!workspacePath) {
+			throw new Error("workspace path is required");
+		}
+		trustWorkspace(workspacePath);
+		return true;
 	}
 	if (command === "pick_workspace_directory") {
 		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") return null;
