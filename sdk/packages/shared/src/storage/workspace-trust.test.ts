@@ -27,14 +27,14 @@ describe("workspace trust", () => {
 		rmSync(dataDir, { recursive: true, force: true });
 	});
 
-	it("trusts a folder and everything inside it once allowed", () => {
+	it("trusts only the folders that were allowed", () => {
 		const repo = join(tmpdir(), "repo");
 		expect(isWorkspaceTrusted(repo)).toBe(false);
 
 		trustWorkspace(repo);
 
 		expect(isWorkspaceTrusted(repo)).toBe(true);
-		expect(isWorkspaceTrusted(join(repo, "packages", "app"))).toBe(true);
+		expect(isWorkspaceTrusted(join(repo, "packages", "app"))).toBe(false);
 		expect(isWorkspaceTrusted(`${repo}-other`)).toBe(false);
 		expect(isWorkspaceTrusted(tmpdir())).toBe(false);
 	});
@@ -43,7 +43,6 @@ describe("workspace trust", () => {
 		const repo = join(tmpdir(), "repo");
 		trustWorkspace(repo);
 		trustWorkspace(repo);
-		trustWorkspace(join(repo, "nested"));
 
 		expect(
 			JSON.parse(readFileSync(resolveTrustedWorkspacesPath(), "utf8")),

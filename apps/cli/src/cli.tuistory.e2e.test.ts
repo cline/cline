@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { launchTerminal, type Session } from "tuistory";
 import { afterEach, describe, expect, it } from "vitest";
-import { trustAllWorkspaces } from "./tests/helpers/env";
+import { trustTestWorkspaces } from "./tests/helpers/env";
 
 const cliRoot = path.resolve(__dirname, "..");
 const cliEntry = path.join(cliRoot, "src", "index.ts");
@@ -34,7 +34,7 @@ function createCliEnv(
 ): Record<string, string | undefined> {
 	const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-home-"));
 	const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-tuistory-data-"));
-	trustAllWorkspaces(dataDir);
+	trustTestWorkspaces(dataDir);
 	const sessionDir = mkdtempSync(
 		path.join(os.tmpdir(), "cli-tuistory-sessions-"),
 	);

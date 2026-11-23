@@ -387,11 +387,11 @@ export const e2e = test
 				// Create isolated Cline data directory for this test
 				const clineTestDir = mkdtempSync(path.join(os.tmpdir(), "cline-e2e-"))
 				const clineDataDir = path.join(clineTestDir, "data")
-				// Trust the fixture workspaces so the trust prompt stays out of the way.
+				// Trust the fixture workspace so the trust prompt stays out of the way.
 				mkdirSync(path.join(clineDataDir, "settings"), { recursive: true })
 				writeFileSync(
 					path.join(clineDataDir, "settings", "trusted-workspaces.json"),
-					JSON.stringify({ trustedWorkspaces: [path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures")] }),
+					JSON.stringify({ trustedWorkspaces: [path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace")] }),
 				)
 
 				const app = await _electron.launch({

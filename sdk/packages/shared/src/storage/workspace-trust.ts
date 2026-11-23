@@ -32,19 +32,18 @@ function readTrustedWorkspaces(): string[] {
 }
 
 /**
- * True when the folder, or a folder containing it, is on the allow list.
- * Cline's own directories (the no-project chat workspace, task worktrees cut
- * from an already trusted repo) never need a prompt.
+ * True when the folder is on the allow list. Folders inside Cline's own
+ * directories (the no-project chat workspace, task worktrees cut from an
+ * already trusted repo) never need a prompt.
  */
 export function isWorkspaceTrusted(workspacePath: string): boolean {
 	const target = normalize(workspacePath);
-	return [resolveClineDir(), resolveClineDataDir(), ...readTrustedWorkspaces()]
-		.map(normalize)
-		.some(
-			(root) =>
-				target === root ||
-				target.startsWith(root.endsWith(sep) ? root : root + sep),
-		);
+	return (
+		readTrustedWorkspaces().some((entry) => normalize(entry) === target) ||
+		[resolveClineDir(), resolveClineDataDir()]
+			.map(normalize)
+			.some((root) => target === root || target.startsWith(root + sep))
+	);
 }
 
 export function trustWorkspace(workspacePath: string): void {
