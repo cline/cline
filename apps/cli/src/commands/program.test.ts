@@ -6,7 +6,7 @@ import {
 } from "@cline/shared/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CLI_DEFAULT_MAX_CONSECUTIVE_MISTAKES } from "../runtime/defaults";
-import { createProgram } from "./program";
+import { commanderToParsedArgs, createProgram } from "./program";
 
 /** Render an absolute path under `home` the way help text does: `~/...`. */
 function tildePath(absolutePath: string, home: string): string {
@@ -76,5 +76,36 @@ describe("root option help text", () => {
 		expect(() => program.parse(["--retries"], { from: "user" })).toThrow(
 			/argument missing/,
 		);
+	});
+});
+
+describe("numeric root options", () => {
+	function parse(args: string[]) {
+		const program = createProgram().configureOutput({ writeErr: () => {} });
+		program.parse(args, { from: "user" });
+		return commanderToParsedArgs(program);
+	}
+
+	it.each(["10m", "1.5", "1e3"])(
+		"rejects --timeout %j instead of reading its leading digits",
+		(raw) => {
+			const args = parse(["--timeout", raw]);
+			expect(args.timeoutSeconds).toBeUndefined();
+			expect(args.invalidTimeoutSeconds).toBe(raw);
+		},
+	);
+
+	it("rejects --retries with trailing characters", () => {
+		const args = parse(["--retries", "3x"]);
+		expect(args.retries).toBeUndefined();
+		expect(args.invalidRetries).toBe("3x");
+	});
+
+	it("accepts whole-number --timeout and --retries", () => {
+		const args = parse(["--timeout", "600", "--retries", "3"]);
+		expect(args.timeoutSeconds).toBe(600);
+		expect(args.retries).toBe(3);
+		expect(args.invalidTimeoutSeconds).toBeUndefined();
+		expect(args.invalidRetries).toBeUndefined();
 	});
 });

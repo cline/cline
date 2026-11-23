@@ -312,12 +312,12 @@ export function registerScheduleUpdateCommand(
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
 					timeoutSeconds: opts.timeout
-						? toPositiveInt(opts.timeout, 1)
+						? toPositiveInt(opts.timeout, 1, "--timeout")
 						: opts.clearTimeout
 							? null
 							: undefined,
 					maxParallel: opts.maxParallel
-						? toPositiveInt(opts.maxParallel, 1)
+						? toPositiveInt(opts.maxParallel, 1, "--max-parallel")
 						: undefined,
 					enabled: opts.enabled ? true : opts.disabled ? false : undefined,
 					tags: opts.tags ? parseList(opts.tags) : undefined,
