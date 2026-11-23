@@ -46,6 +46,76 @@ describe("auth/utils", () => {
 		});
 	});
 
+	it("parses auth input from absolute and relative URLs with fragment parameters", () => {
+		expect(
+			parseAuthorizationInput(
+				"http://localhost:8080/callback#code=abc&state=xyz",
+			),
+		).toEqual({
+			code: "abc",
+			state: "xyz",
+			provider: undefined,
+		});
+		expect(
+			parseAuthorizationInput(
+				"http://localhost:8080/callback#code=abc&state=xyz&provider=google",
+				{
+					allowHashCodeState: true,
+					includeProvider: true,
+				},
+			),
+		).toEqual({
+			code: "abc",
+			state: "xyz",
+			provider: "google",
+		});
+		expect(parseAuthorizationInput("/callback#code=abc&state=xyz")).toEqual({
+			code: "abc",
+			state: "xyz",
+			provider: undefined,
+		});
+	});
+
+	it("returns undefined code for bare paths and error redirects", () => {
+		expect(parseAuthorizationInput("/callback")).toEqual({
+			code: undefined,
+			state: undefined,
+			provider: undefined,
+		});
+		expect(parseAuthorizationInput("/callback?error=access_denied")).toEqual({
+			code: undefined,
+			state: undefined,
+			provider: undefined,
+		});
+		expect(
+			parseAuthorizationInput(
+				"http://localhost:8080/callback?error=access_denied",
+			),
+		).toEqual({
+			code: undefined,
+			state: undefined,
+			provider: undefined,
+		});
+		expect(
+			parseAuthorizationInput(
+				"http://localhost:8080/callback#error=access_denied",
+			),
+		).toEqual({
+			code: undefined,
+			state: undefined,
+			provider: undefined,
+		});
+	});
+
+	it("falls back to raw authorization codes", () => {
+		expect(parseAuthorizationInput("raw-auth-code")).toEqual({
+			code: "raw-auth-code",
+		});
+		expect(parseAuthorizationInput("4/0AfJohXn==")).toEqual({
+			code: "4/0AfJohXn==",
+		});
+	});
+
 	it("builds resolved URLs from base + path", () => {
 		expect(resolveUrl("https://example.com/", "/token")).toBe(
 			"https://example.com/token",
