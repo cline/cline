@@ -1,4 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
+import { ArrowRightIcon, ClockIcon, StarIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 import { CloudStatusPill } from "@/components/cloud/CloudStatusPill"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -12,7 +13,7 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
-	const previewItems = useMemo(() => taskHistory.filter((item) => item.ts && item.task).slice(0, 3), [taskHistory])
+	const previewItems = useMemo(() => taskHistory.filter((item) => item.ts && item.task).slice(0, 4), [taskHistory])
 	const resolvedCloudStatuses = useResolvedCloudStatuses(previewItems)
 	const isCostVisible = useUsageCostVisibility()
 	const handleHistorySelect = (id: string) => {
@@ -30,168 +31,69 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	}
 
 	return (
-		<div style={{ flexShrink: 0 }}>
-			<style>
-				{`
-					.history-preview-item {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
-						border-radius: 4px;
-						position: relative;
-						overflow: hidden;
-						cursor: pointer;
-						margin-bottom: 8px;
-						padding: 10px 12px;
-						display: flex;
-						align-items: flex-start;
-						gap: 12px;
-					}
-					.history-preview-item:hover {
-						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
-						pointer-events: auto;
-					}
-					.history-task-content {
-						flex: 1;
-						display: flex;
-						align-items: flex-start;
-						gap: 8px;
-						min-width: 0;
-					}
-					.history-task-description {
-						flex: 1;
-						overflow: hidden;
-						display: -webkit-box;
-						-webkit-line-clamp: 2;
-						-webkit-box-orient: vertical;
-						color: var(--vscode-foreground);
-						font-size: var(--vscode-font-size);
-						line-height: 1.4;
-					}
-					.history-meta-stack {
-						display: flex;
-						flex-direction: column;
-						align-items: center;
-						gap: 4px;
-						flex-shrink: 0;
-					}
-					.history-date {
-						color: var(--vscode-descriptionForeground);
-						font-size: 0.85em;
-						white-space: nowrap;
-					}
-					.history-cost-chip {
-						background-color: var(--vscode-badge-background);
-						color: var(--vscode-badge-foreground);
-						padding: 2px 8px;
-						border-radius: 12px;
-						font-size: 0.85em;
-						font-weight: 500;
-						white-space: nowrap;
-					}
-					.history-view-all-btn {
-						background: none;
-						border: none;
-						padding: 4px 0 4px 8px;
-						cursor: pointer;
-						font-size: 0.85em;
-						font-weight: 500;
-						color: var(--vscode-descriptionForeground);
-						white-space: nowrap;
-						display: flex;
-						align-items: center;
-						gap: 2px;
-					}
-					.history-view-all-btn .codicon {
-						font-size: 1.2em;
-					}
-					.history-view-all-btn:hover {
-						color: var(--vscode-foreground);
-					}
-				`}
-			</style>
-
-			<div
-				className="history-header"
-				style={{
-					color: "var(--vscode-descriptionForeground)",
-					margin: "10px 16px 10px 16px",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-				}}>
-				<div style={{ display: "flex", alignItems: "center" }}>
-					<span
-						className="codicon codicon-comment-discussion"
-						style={{
-							marginRight: "4px",
-							transform: "scale(0.9)",
-						}}
-					/>
-					<span
-						style={{
-							fontWeight: 500,
-							fontSize: "0.85em",
-							textTransform: "uppercase",
-						}}>
-						Recent
-					</span>
+		<div className="shrink-0 w-full mt-2">
+			<div className="flex items-center justify-between mb-2.5 px-0.5 select-none">
+				<div className="flex items-center gap-1.5 text-[#70767f]">
+					<ClockIcon size={12} strokeWidth={1.8} />
+					<span className="text-[11px] font-medium uppercase tracking-[0.09em]">Recent Sessions</span>
 				</div>
 				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
 					<button
 						aria-label="View all history"
-						className="history-view-all-btn"
+						className="inline-flex items-center gap-1 bg-transparent border-0 p-1 cursor-pointer text-[11.5px] font-medium text-[#7c828b] hover:text-[#eceef0] transition-colors"
 						onClick={() => showHistoryView()}
 						type="button">
 						View All
-						<span className="codicon codicon-chevron-right" />
+						<ArrowRightIcon size={12} strokeWidth={1.8} />
 					</button>
 				)}
 			</div>
 
-			{
-				<div className="px-4">
-					{previewItems.length > 0 ? (
-						previewItems.map((item) => (
-							<div className="history-preview-item" key={item.id} onClick={() => handleHistorySelect(item.id)}>
-								<div className="history-task-content">
-									{item.isFavorited && (
-										<span
-											aria-label="Favorited"
-											className="codicon codicon-star-full"
-											style={{
-												color: "var(--vscode-button-background)",
-												flexShrink: 0,
-											}}
-										/>
-									)}
-									<div className="history-task-description ph-no-capture">{item.task}</div>
-									{item.isLegacy && <span className="history-cost-chip">Legacy</span>}
-									{item.executionTarget === "cloud" && (
-										<CloudStatusPill status={resolvedCloudStatuses.get(item.id) ?? item.cloudStatus} />
-									)}
-								</div>
-								<div className="history-meta-stack">
-									<span className="history-date">{formatDate(item.ts)}</span>
-									{item.totalCost != null &&
-										item.executionTarget !== "cloud" &&
-										isCostVisible(item.apiProvider) && (
-											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
-										)}
-								</div>
-							</div>
-						))
-					) : (
+			<div className="flex flex-col gap-2">
+				{previewItems.length > 0 ? (
+					previewItems.map((item) => (
 						<div
-							style={{
-								textAlign: "center",
-								color: "var(--vscode-descriptionForeground)",
-								fontSize: "var(--vscode-font-size)",
-								padding: "10px 0",
-							}}>
-							No recent tasks
+							className="group relative flex items-start justify-between gap-4 px-4 py-3 rounded-xl bg-[#151618] hover:bg-[#1b1d20] border border-white/[0.06] hover:border-white/[0.12] cursor-pointer transition-all duration-150"
+							key={item.id}
+							onClick={() => handleHistorySelect(item.id)}>
+							<div className="flex-1 flex items-start gap-2.5 min-w-0">
+								{item.isFavorited && (
+									<StarIcon
+										aria-label="Favorited"
+										className="shrink-0 mt-0.5 text-[#c8cdd4] fill-[#c8cdd4]"
+										size={13}
+									/>
+								)}
+								<div className="flex-1 text-[13.5px] leading-[1.5] text-[#d6d9dd] group-hover:text-[#f2f4f7] line-clamp-2 overflow-hidden ph-no-capture transition-colors">
+									{item.task}
+								</div>
+								{item.isLegacy && (
+									<span className="shrink-0 px-2 py-0.5 rounded-md bg-white/[0.05] text-[#8f959e] font-geist-mono text-[10.5px]">
+										Legacy
+									</span>
+								)}
+								{item.executionTarget === "cloud" && (
+									<CloudStatusPill status={resolvedCloudStatuses.get(item.id) ?? item.cloudStatus} />
+								)}
+							</div>
+							<div className="flex flex-col items-end gap-1 shrink-0">
+								<span className="font-geist-mono text-[11px] text-[#6d737c] whitespace-nowrap">
+									{formatDate(item.ts)}
+								</span>
+								{item.totalCost != null &&
+									item.executionTarget !== "cloud" &&
+									isCostVisible(item.apiProvider) && (
+										<span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.06] text-[#9ea4ad] font-geist-mono text-[10.5px] tabular-nums whitespace-nowrap">
+											${item.totalCost.toFixed(2)}
+										</span>
+									)}
+							</div>
 						</div>
-					)}
-				</div>
-			}
+					))
+				) : (
+					<div className="text-center text-[#6d737c] text-[13px] py-4">No recent tasks</div>
+				)}
+			</div>
 		</div>
 	)
 }

@@ -17,8 +17,7 @@ import { getEnvironmentColor } from "../utils/environmentColors"
 const ClineLogoVariable = (props: SVGProps<SVGSVGElement> & { environment?: Environment }) => {
 	const { environment, ...svgProps } = props
 
-	// Determine fill color based on environment
-	const fillColor = environment ? getEnvironmentColor(environment) : "var(--vscode-icon-foreground)"
+	const fillColor = "#eceef0"
 
 	return (
 		<svg fill="none" height="50" role="img" viewBox="0 0 113 113" width="50" xmlns="http://www.w3.org/2000/svg" {...svgProps}>

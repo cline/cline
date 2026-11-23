@@ -19,8 +19,10 @@ import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" // New type for gRPC responses
+	type: "grpc_response" | "studio_workspace_panes_state" | "studio_prompt_progress" // New type for gRPC responses & Studio layout sync
 	grpc_response?: GrpcResponse
+	showExplorerAndEditor?: boolean
+	promptProgress?: number | null
 }
 
 export type GrpcResponse = {
@@ -389,6 +391,10 @@ export interface ClineApiReqInfo {
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
+	durationMs?: number
+	ttftMs?: number
+	tokensPerSecond?: number
+	modelId?: string
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
 }
@@ -405,6 +411,8 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+	triggerTokens?: number
+	currentTokens?: number
 }
 
 /**

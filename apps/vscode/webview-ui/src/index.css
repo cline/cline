@@ -1,5 +1,6 @@
 /* Import external CSS files */
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
+@import url("../node_modules/@fontsource-variable/inter/index.css");
 @import url("../node_modules/@fontsource-variable/geist-mono/index.css");
 
 /* Tailwind CSS */
@@ -9,60 +10,74 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * The default styles for each defined element.
- * This ensures all the elements are rendered with the expected styles consistently without affecting by the parent element / host.
+ * Monochrome Office Minimal Dark — Base Typography & Element Defaults
  */
 @layer base {
 	* {
-		@apply border-border outline-ring/50 text-base;
+		@apply border-border outline-ring/40 text-base;
+		box-sizing: border-box;
+	}
+	html,
+	body {
+		font-family: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+		font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
 	}
 	body {
 		@apply bg-background text-foreground;
 	}
 	p {
-		@apply my-0 py-0 text-inherit leading-5 block line-clamp-3;
-		margin-block-start: 1em;
-		margin-block-end: 1em;
+		@apply my-0 py-0 text-inherit leading-relaxed block;
+		margin-block-start: 0.65em;
+		margin-block-end: 0.65em;
 		margin-inline-start: 0px;
 		margin-inline-end: 0px;
 		unicode-bidi: isolate;
 	}
 	span {
-		@apply leading-5;
+		@apply leading-normal;
 		font-size: inherit;
 		color: inherit;
 	}
 	pre {
 		@apply bg-code;
+		font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	}
 	code {
 		@apply bg-code;
+		font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	}
 	h1 {
 		font-size: var(--text-lg);
-		font-weight: var(--font-weight-semibold);
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	h2 {
 		font-size: var(--text-md);
-		font-weight: var(--font-weight-semibold);
+		font-weight: 600;
+		letter-spacing: -0.015em;
 	}
 	h3 {
 		font-size: var(--text-sm);
-		font-weight: var(--font-weight-semibold);
+		font-weight: 600;
+		letter-spacing: -0.01em;
 	}
 	h4 {
 		font-size: var(--text-base);
-		font-weight: var(--font-weight-bold);
+		font-weight: 600;
 	}
 	a {
 		@apply text-link hover:text-link-hover;
 		font-size: inherit;
+		transition: color 0.15s ease;
 	}
 	ol {
-		@apply list-decimal pl-3;
+		@apply list-decimal pl-5;
 	}
 	ul {
-		@apply list-disc pl-3;
+		@apply list-disc pl-5;
 	}
 	[role="radio"],
 	[role="checkbox"] {

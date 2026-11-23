@@ -4,25 +4,25 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 cursor-pointer [&_svg]:size-2 overflow-hidden",
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 cursor-pointer [&_svg]:size-2 overflow-hidden transition-colors",
 	{
 		variants: {
 			variant: {
-				default: "bg-button-background text-primary-foreground hover:bg-button-hover",
+				default: "bg-[#eceef0] text-[#0e0f10] hover:bg-white font-medium",
 				secondary:
-					"bg-button-secondary-background text-button-secondary-foreground hover:bg-button-secondary-background-hover shadow-sm shadow-button-secondary-background/50",
-				error: "bg-error text-background hover:bg-error/90 shadow-sm shadow-error/50",
-				outline: "hover:bg-accent/10 border border-accent/20 shadow-sm shadow-accent/50",
+					"bg-[#1e2024] text-[#e4e6e9] border border-white/[0.08] hover:bg-[#282b30]",
+				error: "bg-[#c45c5c] text-[#ffffff] hover:bg-[#b24d4d]",
+				outline: "hover:bg-white/[0.06] border border-white/[0.12]",
 				"outline-primary":
-					"!bg-transparent !border-[var(--vscode-button-background)] !border-[1px] !border-solid !text-[var(--vscode-button-background)] !hover:bg-[color-mix(in_srgb,var(--vscode-button-background)_15%,transparent)] !active:bg-[color-mix(in_srgb,var(--vscode-button-background)_25%,transparent)]",
-				ghost: "hover:bg-accent/10",
+					"!bg-transparent !border-white/25 !border-[1px] !border-solid !text-[#eceef0] hover:!bg-white/[0.08]",
+				ghost: "hover:bg-white/[0.06]",
 				link: "text-link underline-offset-4 hover:underline p-0 m-0 cursor-text select-text hover:text-link-hover",
 				text: "text-foreground cursor-text select-text p-0 m-0",
 				icon: "hover:opacity-80 p-0 m-0 border-0 cursor-pointer hover:shadow-none focus:ring-0 focus:ring-offset-0",
-				cline: "bg-cline border-foreground/20 text-cline-foreground",
+				cline: "bg-[#24262b] border border-white/[0.1] text-[#eceef0] hover:bg-[#2d3036]",
 				success:
-					"bg-success/10 text-success border-[#176f2c] text-white hover:bg-[#197f31] hover:border-[#197f31] active:bg-[#156528] active:border-[#156528] hover:text-white",
-				danger: "bg-[#c42b2b] border-[#c42b2b]! text-white! hover:bg-[#a82424]! hover:border-[#a82424]! active:bg-[#8f1f1f]! active:border-[#8f1f1f]!",
+					"bg-[#1f3327] text-[#9ad1ae] border border-[#2f4d3b] hover:bg-[#284232] hover:text-[#b8e6c8]",
+				danger: "bg-[#3a1f21] border border-[#592c30]! text-[#e69e9e]! hover:bg-[#4a2629]!",
 			},
 			size: {
 				default: "py-1.5 px-4 [&_svg]:size-3",

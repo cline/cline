@@ -132,24 +132,24 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	const opacity = canInteract || isStreaming ? 1 : 0.5
 
 	return (
-		<div className="flex px-3.5" style={{ opacity }}>
+		<div className="flex gap-2 pb-2.5" style={{ opacity }}>
 			{primaryText && primaryAction && (
-				<VSCodeButton
-					appearance="primary"
-					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
+				<button
+					className="flex-1 h-9 px-4 rounded-xl bg-[#eceef0] hover:bg-white text-[#0e0f10] border-0 text-[13px] font-medium tracking-[-0.01em] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 					disabled={!canInteract}
-					onClick={() => handleActionClick(createActionInvocation(primaryAction, getDraftSnapshot))}>
+					onClick={() => handleActionClick(createActionInvocation(primaryAction, getDraftSnapshot))}
+					type="button">
 					{primaryText}
-				</VSCodeButton>
+				</button>
 			)}
 			{secondaryText && secondaryAction && (
-				<VSCodeButton
-					appearance="secondary"
-					className={primaryText ? "flex-1" : "flex-2"}
+				<button
+					className="flex-1 h-9 px-4 rounded-xl bg-[#1a1c1f] hover:bg-[#24272c] text-[#e4e6e9] border border-white/[0.1] text-[13px] font-medium tracking-[-0.01em] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 					disabled={!canInteract}
-					onClick={() => handleActionClick(createActionInvocation(secondaryAction, getDraftSnapshot))}>
+					onClick={() => handleActionClick(createActionInvocation(secondaryAction, getDraftSnapshot))}
+					type="button">
 					{secondaryText}
-				</VSCodeButton>
+				</button>
 			)}
 		</div>
 	)

@@ -20,30 +20,41 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	public static readonly SIDEBAR_ID = ExtensionRegistryInfo.views.Sidebar
 
 	private webview?: vscode.WebviewView
+	private panel?: vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
 	private hasResolvedView = false
 
+	public get activeWebviewContainer(): vscode.WebviewView | vscode.WebviewPanel | undefined {
+		return this.panel || this.webview
+	}
+
 	override getWebviewUrl(path: string) {
-		if (!this.webview) {
+		const container = this.activeWebviewContainer
+		if (!container) {
 			throw new Error("Webview not initialized")
 		}
-		const uri = this.webview.webview.asWebviewUri(vscode.Uri.file(path))
+		const uri = container.webview.asWebviewUri(vscode.Uri.file(path))
 		return uri.toString()
 	}
 
 	override getCspSource() {
-		if (!this.webview) {
+		const container = this.activeWebviewContainer
+		if (!container) {
 			throw new Error("Webview not initialized")
 		}
-		return this.webview.webview.cspSource
+		return container.webview.cspSource
 	}
 
 	override isVisible() {
-		return this.webview?.visible || false
+		return this.activeWebviewContainer?.visible || false
 	}
 
 	public getWebview(): vscode.WebviewView | undefined {
 		return this.webview
+	}
+
+	public getPanel(): vscode.WebviewPanel | undefined {
+		return this.panel
 	}
 
 	/**
@@ -184,10 +195,85 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				}
 				break
 			}
+			case "studio_get_workspace_panes": {
+				const showExplorerAndEditor = vscode.workspace
+					.getConfiguration("cline")
+					.get<boolean>("showExplorerAndEditor", true)
+				await this.postMessageToWebview({
+					type: "studio_workspace_panes_state",
+					showExplorerAndEditor,
+				})
+				break
+			}
+			case "studio_set_workspace_panes": {
+				const show = message.showExplorerAndEditor !== false
+				await vscode.workspace
+					.getConfiguration("cline")
+					.update("showExplorerAndEditor", show, vscode.ConfigurationTarget.Global)
+				await vscode.commands.executeCommand("cline.applyStudioLayout", show)
+				await this.postMessageToWebview({
+					type: "studio_workspace_panes_state",
+					showExplorerAndEditor: show,
+				})
+				break
+			}
 			default: {
 				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
 		}
+	}
+
+	/**
+	 * Initializes and sets up a full-screen WebviewPanel in an editor tab.
+	 *
+	 * @param panel - The WebviewPanel instance created via vscode.window.createWebviewPanel
+	 * @returns A promise that resolves when the webview panel has been fully initialized
+	 */
+	public async resolveWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
+		this.disposeView()
+		this.panel = panel
+
+		panel.webview.options = {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
+		}
+
+		panel.webview.html =
+			this.context.extensionMode === vscode.ExtensionMode.Development
+				? await this.getHMRHtmlContent()
+				: this.getHtmlContent()
+
+		this.setWebviewMessageListener(panel.webview)
+		telemetryService.capturePanelOpened("sidebar_resolved")
+
+		panel.onDidChangeViewState(
+			async (e) => {
+				if (e.webviewPanel.visible) {
+					telemetryService.capturePanelOpened("sidebar_visible")
+					await sendShowWebviewEvent(true)
+				}
+			},
+			null,
+			this.disposables,
+		)
+
+		panel.onDidDispose(
+			() => {
+				if (this.panel === panel) {
+					this.panel = undefined
+					this.disposeView()
+				}
+			},
+			null,
+			this.disposables,
+		)
+
+		if (!this.hasResolvedView) {
+			this.hasResolvedView = true
+			this.controller.clearTask()
+		}
+
+		Logger.log("[VscodeWebviewProvider] Webview panel resolved (Full Screen Mode)")
 	}
 
 	/**
@@ -197,7 +283,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @returns A thenable that resolves to a boolean indicating success, or undefined if the webview is not available
 	 */
 	private async postMessageToWebview(message: ExtensionMessage): Promise<boolean | undefined> {
-		return this.webview?.webview.postMessage(message)
+		return this.activeWebviewContainer?.webview.postMessage(message)
 	}
 
 	/**
@@ -206,8 +292,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * when the user moves the view to the other sidebar).
 	 */
 	private disposeView() {
-		// WebviewView doesn't have a dispose method, it's managed by VSCode
-		// We just need to clean up our disposables
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
 			if (x) {
@@ -215,6 +299,13 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			}
 		}
 		this.webview = undefined
+		if (this.panel) {
+			const p = this.panel
+			this.panel = undefined
+			try {
+				p.dispose()
+			} catch {}
+		}
 	}
 
 	override async dispose() {

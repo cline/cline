@@ -89,7 +89,7 @@ export const ThinkingRow = memo(
 				{isExpanded && (
 					<Button
 						className={cn(
-							"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left !p-0 !pl-0",
+							"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left !p-0 !pl-0 mt-1",
 							"disabled:cursor-text disabled:opacity-100",
 							{
 								"max-h-[200px] opacity-100": isVisible,
@@ -100,14 +100,14 @@ export const ThinkingRow = memo(
 						disabled={!showTitle}
 						onClick={onToggle}
 						variant="text">
-						<div className="relative flex-1">
+						<div className="relative flex-1 border-l border-white/[0.12] pl-3">
 							<div
 								className={cn(
-									"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words pl-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
+									"flex max-h-[160px] overflow-y-auto text-[#848a94] leading-relaxed truncated whitespace-pre-wrap break-words pl-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
 								)}
 								onScroll={checkScrollable}
 								ref={scrollRef}>
-								<span className="pb-2 block text-sm">{reasoningContent}</span>
+								<span className="pb-2 block text-[12.5px]">{reasoningContent}</span>
 							</div>
 							{canScrollUp && (
 								<div className="absolute top-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-b from-background to-transparent" />

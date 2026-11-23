@@ -148,6 +148,81 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openFullScreen", async (targetColumn?: vscode.ViewColumn) => {
+			const showPanes = vscode.workspace.getConfiguration("cline").get<boolean>("showExplorerAndEditor", true)
+			const column = targetColumn ?? (showPanes ? vscode.ViewColumn.Two : vscode.ViewColumn.One)
+			const existingPanel = webview.getPanel()
+			if (existingPanel) {
+				existingPanel.reveal(column)
+				return
+			}
+
+			const panel = vscode.window.createWebviewPanel(
+				"cline.fullScreenView",
+				"Cline Agent Studio",
+				column,
+				{
+					enableScripts: true,
+					retainContextWhenHidden: true,
+					localResourceRoots: [vscode.Uri.file(context.extensionPath)],
+				},
+			)
+			try {
+				panel.iconPath = vscode.Uri.file(path.join(context.extensionPath, "assets", "icons", "icon.png"))
+			} catch {}
+			await webview.resolveWebviewPanel(panel)
+			if (showPanes) {
+				try {
+					// Lock the Cline editor group so clicking files in Explorer opens them in Group 1 without replacing Cline
+					await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+				} catch {}
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.applyStudioLayout", async (showExplorerAndEditor?: boolean) => {
+			const show =
+				typeof showExplorerAndEditor === "boolean"
+					? showExplorerAndEditor
+					: vscode.workspace.getConfiguration("cline").get<boolean>("showExplorerAndEditor", true)
+			try {
+				await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar")
+				if (show) {
+					await vscode.commands.executeCommand("workbench.view.explorer")
+					await vscode.commands.executeCommand("workbench.action.setEditorLayout", {
+						orientation: 0,
+						groups: [{ size: 0.45 }, { size: 0.55 }],
+					})
+					const existingPanel = webview.getPanel()
+					if (existingPanel) {
+						existingPanel.reveal(vscode.ViewColumn.Two)
+						await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+					} else {
+						await vscode.commands.executeCommand("cline.openFullScreen", vscode.ViewColumn.Two)
+					}
+				} else {
+					await vscode.commands.executeCommand("workbench.action.closeSidebar")
+					const existingPanel = webview.getPanel()
+					if (existingPanel) {
+						existingPanel.reveal(vscode.ViewColumn.One)
+					} else {
+						await vscode.commands.executeCommand("cline.openFullScreen", vscode.ViewColumn.One)
+					}
+					await vscode.commands.executeCommand("workbench.action.unlockEditorGroup")
+					await vscode.commands.executeCommand("workbench.action.closeEditorsInOtherGroups")
+					await vscode.commands.executeCommand("workbench.action.setEditorLayout", {
+						orientation: 0,
+						groups: [{ size: 1 }],
+					})
+				}
+			} catch (err) {
+				Logger.error("Failed to apply Cline Studio layout:", err)
+			}
+		}),
+	)
+
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	// Edit previews use a separate, mutable provider (content set programmatically and
@@ -186,7 +261,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// globalThis so the harness can deliver simulated OAuth callbacks via
 	// `ext.evaluate`. Gated on CLINE_CAPTURE_BROWSER so it never ships in prod.
 	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
-		;(globalThis as Record<string, unknown>).__clineHandleUri = (url: string) => SharedUriHandler.handleUri(url)
+		; (globalThis as Record<string, unknown>).__clineHandleUri = (url: string) => SharedUriHandler.handleUri(url)
 	}
 
 	// Register size testing commands in development mode
@@ -516,6 +591,19 @@ ${ctx.cellJson || "{}"}
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
+	// Auto-launch Studio Layout respecting cline.showExplorerAndEditor preference
+	const config = vscode.workspace.getConfiguration("cline")
+	if (config.get<boolean>("autoLaunchFullScreen", false)) {
+		const showPanes = config.get<boolean>("showExplorerAndEditor", true)
+		setTimeout(async () => {
+			try {
+				await vscode.commands.executeCommand("cline.applyStudioLayout", showPanes)
+			} catch (err) {
+				Logger.error("Failed to auto-launch Cline Studio layout:", err)
+			}
+		}, 400)
+	}
+
 	return createClineAPI(webview.controller)
 }
 
@@ -593,7 +681,7 @@ function setupHostProvider(context: ExtensionContext) {
 		createEditPreview,
 		createCommentReview,
 		vscodeHostBridgeClient,
-		() => {}, // No-op logger, logging is handled via HostProvider.env.debugLog
+		() => { }, // No-op logger, logging is handled via HostProvider.env.debugLog
 		getCallbackUrl,
 		getBinaryLocation,
 		context.extensionUri.fsPath,

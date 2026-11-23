@@ -228,6 +228,12 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.openFullScreen",
+				"title": "Open Full Screen (Kiosk Mode)",
+				"category": "Cline",
+				"icon": "$(screen-full)"
 			}
 		],
 		"keybindings": [
@@ -337,11 +343,22 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"cline.autoLaunchFullScreen": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically opens Cline in Studio layout on launch."
+				},
+				"cline.showExplorerAndEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show the File Explorer and single-file Editor alongside Cline Studio. Disable for Cline-only mode."
+				}
+			}
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "bun run package",
+		"vscode:prepublish": "node -e \"console.log('Using prebuilt assets')\"",
 		"compile": "bun run check-types && bun run lint && bun esbuild.mjs",
 		"compile-standalone": "bun run check-types && bun run lint && bun esbuild.mjs --standalone",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",

@@ -44,23 +44,18 @@ export const StickyUserMessage: React.FC<StickyUserMessageProps> = memo(
 			<div
 				aria-label={`Scroll to your message: ${messageText}`}
 				className={cn(
-					"relative flex items-center px-2.5 pt-2 pb-2 cursor-pointer select-none",
-					"backdrop-blur-sm",
-					"hover:brightness-110",
+					"relative flex items-center px-3.5 py-2 cursor-pointer select-none rounded-lg",
+					"bg-[#17191c]/95 border border-white/[0.08] hover:border-white/[0.15] backdrop-blur-md transition-colors",
 				)}
 				onClick={handleClick}
 				onKeyDown={handleKeyDown}
 				role="button"
-				style={{
-					backgroundColor: "var(--vscode-badge-background)",
-					borderRadius: "3px",
-				}}
 				tabIndex={0}
 				title="Click to scroll to your message">
 				{/* Message text (truncated via CSS text-ellipsis) */}
 				<div
 					className={cn(
-						"flex-1 min-w-0 text-sm text-badge-foreground",
+						"flex-1 min-w-0 text-[13px] text-[#d8dbe0]",
 						"overflow-hidden text-ellipsis whitespace-nowrap",
 						"ph-no-capture",
 					)}>

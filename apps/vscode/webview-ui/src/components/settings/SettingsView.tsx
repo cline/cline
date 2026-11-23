@@ -35,13 +35,13 @@ import { getNextSettingsNavigationRequestId, resolveSettingsTarget, type Setting
 
 const IS_DEV = process.env.IS_DEV
 
-// Tab definitions
-type SettingsTabID = "api-config" | "features" | "terminal" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "api-config" | "general" | "features" | "terminal" | "remote-config" | "about" | "debug"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
 	tooltipText: string
 	headerText: string
+	description: string
 	icon: LucideIcon
 	hidden?: (params?: { user: ClineUser | null; activeOrganization: UserOrganization | null }) => boolean
 }
@@ -49,37 +49,42 @@ interface SettingsTab {
 const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "api-config",
-		name: "API Configuration",
-		tooltipText: "API Configuration",
-		headerText: "API Configuration",
+		name: "API & Models",
+		tooltipText: "Provider, API keys, model & context settings",
+		headerText: "API & Models",
+		description: "Configure your AI provider, model selection, and generation parameters.",
 		icon: SlidersHorizontal,
+	},
+	{
+		id: "general",
+		name: "General & Layout",
+		tooltipText: "Workspace layout, language & privacy",
+		headerText: "General & Layout",
+		description: "Manage workspace panes (Explorer & Editor), preferred language, and privacy.",
+		icon: Wrench,
 	},
 	{
 		id: "features",
 		name: "Features",
-		tooltipText: "Feature Settings",
-		headerText: "Feature Settings",
+		tooltipText: "Agent, editor & advanced features",
+		headerText: "Features",
+		description: "Control autonomous agent capabilities, checkpoints, compaction, and MCP display.",
 		icon: CheckCheck,
 	},
 	{
 		id: "terminal",
 		name: "Terminal",
-		tooltipText: "Terminal Settings",
-		headerText: "Terminal Settings",
+		tooltipText: "Terminal execution & shell integration",
+		headerText: "Terminal",
+		description: "Configure how Cline executes shell commands and interacts with your terminal.",
 		icon: SquareTerminal,
-	},
-	{
-		id: "general",
-		name: "General",
-		tooltipText: "General Settings",
-		headerText: "General Settings",
-		icon: Wrench,
 	},
 	{
 		id: "remote-config",
 		name: "Remote Config",
 		tooltipText: "Remotely configured fields",
 		headerText: "Remote Config",
+		description: "Organization-managed remote configuration settings.",
 		icon: HardDriveDownload,
 		hidden: ({ activeOrganization } = { user: null, activeOrganization: null }) =>
 			!activeOrganization || !isAdminOrOwner(activeOrganization),
@@ -87,16 +92,17 @@ const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "about",
 		name: "About",
-		tooltipText: "About Cline",
+		tooltipText: "Version & resources",
 		headerText: "About",
+		description: "Application version, documentation, and links.",
 		icon: Info,
 	},
-	// Only show in dev mode
 	{
 		id: "debug",
 		name: "Debug",
 		tooltipText: "Debug Tools",
 		headerText: "Debug",
+		description: "Developer diagnostic and state reset tools.",
 		icon: FlaskConical,
 		hidden: ({ user } = { user: null, activeOrganization: null }) => !IS_DEV && !isClineInternalTester(user?.email || ""),
 	},
@@ -107,7 +113,6 @@ type SettingsViewProps = {
 	navigationRequest?: SettingsNavigationRequest
 }
 
-// Helper to render section header - moved outside component for better performance
 const renderSectionHeader = (tabId: string) => {
 	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
 	if (!tab) {
@@ -115,10 +120,10 @@ const renderSectionHeader = (tabId: string) => {
 	}
 
 	return (
-		<SectionHeader>
-			<div className="flex items-center gap-2">
-				<tab.icon className="w-4" />
-				<div>{tab.headerText}</div>
+		<SectionHeader description={tab.description}>
+			<div className="flex items-center gap-2.5">
+				<tab.icon className="w-4 h-4 text-[#9aa0a8]" strokeWidth={1.8} />
+				<span>{tab.headerText}</span>
 			</div>
 		</SectionHeader>
 	)
@@ -126,7 +131,6 @@ const renderSectionHeader = (tabId: string) => {
 
 const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 	const initialTarget = resolveSettingsTarget(navigationRequest?.target)
-	// Memoize to avoid recreation
 	const TAB_CONTENT_MAP: Record<SettingsTabID, React.FC<any>> = useMemo(
 		() => ({
 			"api-config": ApiConfigurationSection,
@@ -138,7 +142,7 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 			debug: DebugSection,
 		}),
 		[],
-	) // Empty deps - these imports never change
+	)
 
 	const { version, extensionVariant, environment, settingsInitialModelTab } = useExtensionState()
 	const { activeOrganization, clineUser } = useClineAuth()
@@ -160,7 +164,6 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 		setPendingTarget((current) => (current?.requestId === requestId ? undefined : current))
 	}, [])
 
-	// Optimized message handler with early returns
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
@@ -184,7 +187,6 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 
 	useEvent("message", handleMessage)
 
-	// Memoized reset state handler
 	const handleResetState = useCallback(async (resetGlobalState?: boolean) => {
 		try {
 			await StateServiceClient.resetState(ResetStateRequest.create({ global: resetGlobalState }))
@@ -193,33 +195,37 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 		}
 	}, [])
 
-	// Update active tab and restart target emphasis for every navigation request.
 	useEffect(() => {
 		if (navigationRequest) {
 			selectSettingsTarget(navigationRequest.target, navigationRequest.requestId)
 		}
 	}, [navigationRequest, selectSettingsTarget])
 
-	// Memoized tab item renderer
 	const renderTabItem = useCallback(
 		(tab: (typeof SETTINGS_TABS)[0]) => {
+			const isActive = activeTab === tab.id
 			return (
-				<TabTrigger className="flex justify-baseline" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
+				<TabTrigger
+					className="w-full text-left bg-transparent border-0 p-0"
+					data-testid={`tab-${tab.id}`}
+					key={tab.id}
+					value={tab.id}>
 					<Tooltip key={tab.id}>
-						<TooltipTrigger>
+						<TooltipTrigger asChild>
 							<div
 								className={cn(
-									"whitespace-nowrap overflow-hidden h-12 sm:py-3 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover p-4 cursor-pointer gap-2",
-									{
-										"opacity-100 border-l-2 border-l-foreground border-t-0 border-r-0 border-b-0 bg-selection":
-											activeTab === tab.id,
-									},
+									"w-full whitespace-nowrap overflow-hidden rounded-lg px-3 py-2 flex items-center gap-2.5 cursor-pointer text-[13px] transition-colors",
+									isActive
+										? "bg-white/[0.08] text-[#f2f4f7] font-medium"
+										: "text-[#8c929b] hover:text-[#eceef0] hover:bg-white/[0.04]",
 								)}>
-								<tab.icon className="w-4 h-4" />
-								<span className="hidden sm:block">{tab.name}</span>
+								<tab.icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2 : 1.75} />
+								<span className="hidden sm:block truncate">{tab.name}</span>
 							</div>
 						</TooltipTrigger>
-						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
+						<TooltipContent className="sm:hidden" side="right">
+							{tab.tooltipText}
+						</TooltipContent>
 					</Tooltip>
 				</TabTrigger>
 			)
@@ -227,14 +233,12 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 		[activeTab],
 	)
 
-	// Memoized active content component
 	const ActiveContent = useMemo(() => {
 		const Component = TAB_CONTENT_MAP[activeTab as keyof typeof TAB_CONTENT_MAP]
 		if (!Component) {
 			return null
 		}
 
-		// Special props for specific components
 		const props: any = { renderSectionHeader }
 		if (activeTab === "debug") {
 			props.onResetState = handleResetState
@@ -249,19 +253,24 @@ const SettingsView = ({ navigationRequest, onDone }: SettingsViewProps) => {
 	}, [activeTab, handleResetState, settingsInitialModelTab, version, extensionVariant, TAB_CONTENT_MAP])
 
 	return (
-		<Tab>
+		<Tab className="bg-[#0e0f10]">
 			<ViewHeader environment={environment} onDone={onDone} title="Settings" />
 
-			<div className="flex flex-1 overflow-hidden">
+			<div className="flex flex-1 overflow-hidden -mt-3">
 				<TabList
-					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
+					className="shrink-0 w-14 sm:w-52 flex flex-col gap-1 overflow-y-auto bg-[#111214] border-r border-white/[0.07] p-2 sm:p-3 select-none"
 					onValueChange={setActiveTab}
 					value={activeTab}>
+					<div className="hidden sm:block text-[10px] font-geist-mono uppercase tracking-[0.12em] text-[#5e646e] px-3 pt-1 pb-2">
+						Preferences
+					</div>
 					{SETTINGS_TABS.filter((tab) => !tab.hidden?.({ user: clineUser, activeOrganization })).map(renderTabItem)}
 				</TabList>
 
-				<TabContent className="flex-1 overflow-auto">
-					{ActiveContent}
+				<TabContent className="flex-1 overflow-y-auto bg-[#0e0f10]">
+					<div className="w-full max-w-[740px] mx-auto px-5 sm:px-8 py-6">
+						{ActiveContent}
+					</div>
 					{pendingTarget &&
 						(() => {
 							const resolved = resolveSettingsTarget(pendingTarget.target)

@@ -1,13 +1,80 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import type React from "react"
 import { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
+import { MessageMetricsBar } from "@/components/chat/MessageMetricsBar"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
 import { findReasoningForApiReq, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
+
+function parseApiReqUsage(msg: ClineMessage): ClineApiReqInfo | undefined {
+	if (msg.type !== "say" || msg.say !== "api_req_started" || !msg.text) {
+		return undefined
+	}
+	try {
+		const info = JSON.parse(msg.text) as ClineApiReqInfo
+		if (
+			info.tokensIn !== undefined ||
+			info.tokensOut !== undefined ||
+			info.tokensPerSecond !== undefined ||
+			info.durationMs !== undefined
+		) {
+			return info
+		}
+	} catch {
+		// ignore malformed json
+	}
+	return undefined
+}
+
+function findMetricsForAssistantMessage(message: ClineMessage, modifiedMessages: ClineMessage[]): ClineApiReqInfo | undefined {
+	if (
+		message.partial === true ||
+		message.type !== "say" ||
+		(message.say !== "text" && message.say !== "completion_result" && message.say !== "plan_completion_result")
+	) {
+		return undefined
+	}
+	const idx = modifiedMessages.findIndex((m) => m.ts === message.ts)
+	if (idx === -1) {
+		return undefined
+	}
+
+	// SDK emits the usage api_req_started right after the iteration's messages
+	for (let i = idx + 1; i < modifiedMessages.length; i++) {
+		const candidate = modifiedMessages[i]
+		if (candidate.say === "user_feedback" || candidate.say === "task") {
+			break
+		}
+		if (
+			candidate.type === "say" &&
+			(candidate.say === "text" || candidate.say === "completion_result" || candidate.say === "plan_completion_result")
+		) {
+			break
+		}
+		const usage = parseApiReqUsage(candidate)
+		if (usage) {
+			return usage
+		}
+	}
+
+	// Fallback for classic combined api_req_started placed before the assistant message
+	for (let i = idx - 1; i >= 0; i--) {
+		const candidate = modifiedMessages[i]
+		if (candidate.say === "user_feedback" || candidate.say === "task") {
+			break
+		}
+		const usage = parseApiReqUsage(candidate)
+		if (usage) {
+			return usage
+		}
+	}
+	return undefined
+}
 
 interface MessageRendererProps {
 	index: number
@@ -43,6 +110,14 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	footerActive,
 }) => {
 	const { mode } = useExtensionState()
+	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
+
+	const messageMetrics = useMemo(() => {
+		if (Array.isArray(messageOrGroup)) {
+			return undefined
+		}
+		return findMetricsForAssistantMessage(messageOrGroup, modifiedMessages)
+	}, [messageOrGroup, modifiedMessages])
 
 	const isLastMessage = useMemo(() => index === groupedMessages?.length - 1, [groupedMessages, index])
 
@@ -71,30 +146,36 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	}, [messageOrGroup, groupedMessages, index])
 
 	if (isToolGroup(messageOrGroup)) {
-		return <ToolGroupRenderer allMessages={modifiedMessages} isLastGroup={isLastToolGroup} messages={messageOrGroup} />
+		return (
+			<div className="w-full max-w-[820px] mx-auto px-4 sm:px-6">
+				<ToolGroupRenderer allMessages={modifiedMessages} isLastGroup={isLastToolGroup} messages={messageOrGroup} />
+			</div>
+		)
 	}
 
 	// Browser session group
 	if (Array.isArray(messageOrGroup)) {
 		return (
-			<BrowserSessionRow
-				expandedRows={expandedRows}
-				isLast={isLastMessage}
-				key={messageOrGroup[0]?.ts}
-				lastModifiedMessage={modifiedMessages.at(-1)}
-				messages={messageOrGroup}
-				onHeightChange={onHeightChange}
-				onSetQuote={onSetQuote}
-				onToggleExpand={onToggleExpand}
-			/>
+			<div className="w-full max-w-[820px] mx-auto px-4 sm:px-6">
+				<BrowserSessionRow
+					expandedRows={expandedRows}
+					isLast={isLastMessage}
+					key={messageOrGroup[0]?.ts}
+					lastModifiedMessage={modifiedMessages.at(-1)}
+					messages={messageOrGroup}
+					onHeightChange={onHeightChange}
+					onSetQuote={onSetQuote}
+					onToggleExpand={onToggleExpand}
+				/>
+			</div>
 		)
 	}
 
 	// Regular message
 	return (
 		<div
-			className={cn({
-				"pb-2.5": isLastMessage && !footerActive,
+			className={cn("w-full max-w-[820px] mx-auto px-4 sm:px-6", {
+				"pb-4": isLastMessage && !footerActive,
 			})}
 			data-message-ts={messageOrGroup.ts}>
 			<ChatRow
@@ -115,6 +196,9 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				retryFailedRequest={messageHandlers.retryFailedRequest}
 				sendMessageFromChatRow={messageHandlers.handleSendMessage}
 			/>
+			{messageMetrics && (
+				<MessageMetricsBar contextWindow={selectedModelInfo?.contextWindow} metrics={messageMetrics} />
+			)}
 		</div>
 	)
 }

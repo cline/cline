@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowUpIcon, AtSignIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -44,6 +44,7 @@ import {
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import { getModeToggleDraftAction } from "./chat-textarea-mode-toggle"
+import { QuickModelContextControls } from "./QuickModelContextControls"
 import ServersToggleModal from "./ServersToggleModal"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
@@ -93,31 +94,37 @@ interface GitCommit {
 	description: string
 }
 
-const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
-const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
+const PLAN_MODE_COLOR = "#34322e"
+const ACT_MODE_COLOR = "#2a2d33"
 
 const SwitchContainer = styled.div`
+	position: relative;
 	display: flex;
 	align-items: center;
-	background-color: transparent;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 12px;
+	background-color: #0e0f10;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 8px;
+	padding: 2px;
 	overflow: hidden;
 	cursor: pointer;
 	transform: scale(1);
 	transform-origin: right center;
 	margin-left: 0;
-	user-select: none; // Prevent text selection
+	user-select: none;
 `
 
 const Slider = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
 })<{ isAct: boolean; isPlan?: boolean }>`
 	position: absolute;
-	height: 100%;
-	width: 50%;
+	top: 2px;
+	bottom: 2px;
+	left: 2px;
+	width: calc(50% - 2px);
+	border-radius: 6px;
 	background-color: ${(props) => (props.isPlan ? PLAN_MODE_COLOR : ACT_MODE_COLOR)};
-	transition: transform 0.2s ease;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
 
@@ -133,7 +140,7 @@ const ButtonContainer = styled.div`
 	display: flex;
 	align-items: center;
 	gap: 3px;
-	font-size: 10px;
+	font-size: 11px;
 	white-space: nowrap;
 	min-width: 0;
 	width: 100%;
@@ -144,40 +151,48 @@ const ModelContainer = styled.div`
 	display: flex;
 	flex: 1;
 	min-width: 0;
+	margin-left: 4px;
 `
 
 const ModelButtonWrapper = styled.div`
-	display: inline-flex; // Make it shrink to content
-	min-width: 0; // Allow shrinking
-	max-width: 100%; // Don't overflow parent
+	display: inline-flex;
+	min-width: 0;
+	max-width: 100%;
 `
 
 const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
-	padding: 0px 0px;
-	height: 20px;
+	padding: 2px 8px;
+	height: 22px;
 	width: 100%;
 	min-width: 0;
 	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-	text-decoration: ${(props) => (props.isActive ? "underline" : "none")};
-	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	text-decoration: none;
+	color: ${(props) => (props.isActive ? "#eceef0" : "#9aa0a8")};
+	background-color: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	border-radius: 6px;
 	display: flex;
 	align-items: center;
-	font-size: 10px;
+	font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
 	outline: none;
 	user-select: none;
 	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 	pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
 	&:hover,
 	&:focus {
-		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
-		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		color: ${(props) => (props.disabled ? "#9aa0a8" : "#f2f4f7")};
+		background-color: ${(props) => (props.disabled ? "rgba(255, 255, 255, 0.04)" : "rgba(255, 255, 255, 0.08)")};
+		border-color: ${(props) => (props.disabled ? "rgba(255, 255, 255, 0.06)" : "rgba(255, 255, 255, 0.14)")};
+		text-decoration: none;
 		outline: none;
 	}
 
 	&:active {
-		color: ${(props) => (props.disabled ? "var(--vscode-descriptionForeground)" : "var(--vscode-foreground)")};
-		text-decoration: ${(props) => (props.disabled ? "none" : "underline")};
+		color: #f2f4f7;
+		text-decoration: none;
 		outline: none;
 	}
 
@@ -1432,21 +1447,29 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			.replace(/.$/, (match) => match.toUpperCase())
 
 		return (
-			<div>
+			<div
+				className={cn(
+					"rounded-2xl bg-[#151618] border transition-all duration-150 shadow-[0_8px_32px_rgba(0,0,0,0.35)]",
+					isDraggingOver && !showUnsupportedFileError
+						? "border-dashed border-white/40 bg-[#181a1d]"
+						: isTextAreaFocused
+							? "border-white/[0.24] bg-[#17181b]"
+							: "border-white/[0.09] hover:border-white/[0.14]",
+				)}>
 				<div
-					className="relative flex transition-colors ease-in-out duration-100 px-3.5 py-2.5"
+					className="relative flex transition-colors ease-in-out duration-100 px-3.5 pt-3 pb-2.5"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
 					onDrop={onDrop}>
 					{showDimensionError && (
-						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
+						<div className="absolute inset-2 bg-[#2b1717]/90 border border-[#d98282]/50 rounded-xl flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-medium text-xs text-center">Image dimensions exceed 7500px</span>
 						</div>
 					)}
 					{showUnsupportedFileError && (
-						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
+						<div className="absolute inset-2 bg-[#2b1717]/90 border border-[#d98282]/50 rounded-xl flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-medium text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
 					{showSlashCommandsMenu && (
@@ -1482,10 +1505,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					)}
 					<div
-						className={cn(
-							"absolute bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs overflow-hidden bg-input-background",
-							isTextAreaFocused ? "left-3.5 right-3.5" : "left-3.5 right-3.5 border border-input-border",
-						)}
+						className="absolute top-3 bottom-2.5 left-3.5 right-3.5 whitespace-pre-wrap break-words overflow-hidden bg-transparent"
 						ref={highlightLayerRef}
 						style={{
 							position: "absolute",
@@ -1494,22 +1514,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							wordWrap: "break-word",
 							color: "transparent",
 							overflow: "hidden",
-							fontFamily: "var(--vscode-font-family)",
-							fontSize: "var(--vscode-editor-font-size)",
-							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 2,
-							borderLeft: isTextAreaFocused ? 0 : undefined,
-							borderRight: isTextAreaFocused ? 0 : undefined,
-							borderTop: isTextAreaFocused ? 0 : undefined,
-							borderBottom: isTextAreaFocused ? 0 : undefined,
-							padding: `9px 28px ${9 + thumbnailsHeight}px 9px`,
+							fontFamily: '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+							fontSize: "14px",
+							lineHeight: "22px",
+							padding: `4px 40px ${4 + thumbnailsHeight}px 2px`,
 						}}
 					/>
 					<DynamicTextArea
 						autoFocus={true}
 						data-testid="chat-input"
 						maxRows={10}
-						minRows={3}
+						minRows={2}
 						onBlur={handleBlur}
 						onChange={(e) => {
 							handleInputChange(e)
@@ -1517,7 +1532,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}}
 						onFocus={() => {
 							setIsTextAreaFocused(true)
-							onFocusChange?.(true) // Call prop on focus
+							onFocusChange?.(true)
 						}}
 						onHeightChange={(height) => {
 							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
@@ -1544,48 +1559,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							width: "100%",
 							boxSizing: "border-box",
 							backgroundColor: "transparent",
-							color: "var(--vscode-input-foreground)",
-							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
-							fontFamily: "var(--vscode-font-family)",
-							fontSize: "var(--vscode-editor-font-size)",
-							lineHeight: "var(--vscode-editor-line-height)",
+							color: "#eceef0",
+							borderRadius: 0,
+							fontFamily: '"Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+							fontSize: "14px",
+							lineHeight: "22px",
 							resize: "none",
 							overflowX: "hidden",
 							overflowY: "scroll",
 							scrollbarWidth: "none",
-							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-							// borderTop: "9px solid transparent",
 							borderLeft: 0,
 							borderRight: 0,
 							borderTop: 0,
 							borderBottom: `${thumbnailsHeight}px solid transparent`,
 							borderColor: "transparent",
-							// borderRight: "54px solid transparent",
-							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 9px 9px",
+							padding: "4px 40px 4px 2px",
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
-							outline:
-								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
-									? "2px dashed var(--vscode-focusBorder)"
-									: isTextAreaFocused
-										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-										: "none",
-							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
+							outline: "none",
 						}}
 						value={inputValue}
 					/>
-					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							{cloudActOnly
-								? "Type / for slash commands & workflows, hold shift to drag in images"
-								: "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images"}
-						</div>
-					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
 						<Thumbnails
 							files={selectedFiles}
@@ -1597,32 +1592,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							style={{
 								position: "absolute",
 								paddingTop: 4,
-								bottom: 14,
-								left: 22,
-								right: 47, // (54 + 9) + 4 extra padding
+								bottom: 10,
+								left: 16,
+								right: 52,
 								zIndex: 2,
 							}}
 						/>
 					)}
-					<div
-						className="absolute flex items-end bottom-4.5 right-5 z-10 h-8 text-xs"
-						style={{ height: textAreaBaseHeight }}>
-						<div className="flex flex-row items-center">
-							<div
-								className={cn("input-icon-button", { disabled: sendingDisabled }, "codicon codicon-send text-sm")}
-								data-testid="send-button"
-								onClick={() => {
-									if (!sendingDisabled) {
-										onSend()
-									}
-								}}
-							/>
-						</div>
+					<div className="absolute flex items-end bottom-2.5 right-3.5 z-10">
+						<button
+							aria-label="Send message"
+							className={cn(
+								"size-7 rounded-lg flex items-center justify-center border-0 transition-all duration-150",
+								sendingDisabled
+									? "bg-white/[0.05] text-[#525760] cursor-not-allowed"
+									: "bg-[#eceef0] hover:bg-white text-[#0e0f10] cursor-pointer shadow-sm",
+							)}
+							data-testid="send-button"
+							disabled={sendingDisabled}
+							onClick={() => {
+								if (!sendingDisabled) {
+									onSend()
+								}
+							}}
+							type="button">
+							<ArrowUpIcon size={15} strokeWidth={2.2} />
+						</button>
 					</div>
 				</div>
 				{unsupportedImagesAttached && (
 					<div
-						className="flex items-center gap-1.5 px-3.5 pb-1.5 text-xs"
+						className="flex items-center gap-1.5 px-3.5 pb-2 text-xs"
 						data-testid="images-unsupported-notice"
 						role="status"
 						style={{ color: "var(--vscode-editorWarning-foreground)" }}>
@@ -1642,14 +1642,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</span>
 					</div>
 				)}
-				<div className="flex justify-between items-center -mt-[2px] px-3 pb-2">
+				<div className="flex justify-between items-center px-3 py-2 border-t border-white/[0.06] gap-2">
 					{/* Always render both components, but control visibility with CSS */}
-					<div className="relative flex-1 min-w-0 h-5">
+					<div className="relative flex-1 min-w-0 h-6 flex items-center">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
-						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
+						<ButtonGroup className="w-full h-6 z-10 flex items-center">
 							{!cloudActOnly && (
 								<Tooltip>
-									<TooltipContent>Add Context</TooltipContent>
+									<TooltipContent>Add Context (@)</TooltipContent>
 									<TooltipTrigger>
 										<VSCodeButton
 											appearance="icon"
@@ -1658,7 +1658,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											data-testid="context-button"
 											onClick={handleContextButtonClick}>
 											<ButtonContainer>
-												<AtSignIcon size={12} />
+												<AtSignIcon size={13} />
 											</ButtonContainer>
 										</VSCodeButton>
 									</TooltipTrigger>
@@ -1680,7 +1680,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											}
 										}}>
 										<ButtonContainer>
-											<PlusIcon size={13} />
+											<PlusIcon size={14} />
 										</ButtonContainer>
 									</VSCodeButton>
 								</TooltipTrigger>
@@ -1694,18 +1694,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</>
 							)}
 
-							<ModelContainer>
-								<ModelButtonWrapper>
-									<ModelDisplayButton
-										disabled={false}
-										onClick={handleModelButtonClick}
-										role="button"
-										tabIndex={0}
-										title="Open API Settings">
-										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
-									</ModelDisplayButton>
-								</ModelButtonWrapper>
-							</ModelContainer>
+							{cloudActOnly ? (
+								<ModelContainer>
+									<ModelButtonWrapper>
+										<ModelDisplayButton
+											disabled={false}
+											onClick={handleModelButtonClick}
+											role="button"
+											tabIndex={0}
+											title="Open API Settings">
+											<ModelButtonContent className="text-[11px]">{modelDisplayName}</ModelButtonContent>
+										</ModelDisplayButton>
+									</ModelButtonWrapper>
+								</ModelContainer>
+							) : (
+								<QuickModelContextControls
+									cloudActOnly={cloudActOnly}
+									mode={mode}
+									onOpenApiSettings={handleModelButtonClick}
+								/>
+							)}
 						</ButtonGroup>
 					</div>
 					{!cloudActOnly && (
@@ -1714,7 +1722,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								className="text-xs px-2 flex flex-col gap-1"
 								hidden={shownTooltipMode === null}
 								side="top">
-								{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+								{`In ${shownTooltipMode === "act" ? "Act" : "Plan"} mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 								<p className="text-description/80 text-xs mb-0">
 									Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 								</p>
@@ -1726,8 +1734,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										<div
 											aria-checked={mode === m.toLowerCase()}
 											className={cn(
-												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-												mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+												"py-0.5 px-2.5 z-10 text-[11.5px] font-medium w-1/2 text-center bg-transparent transition-colors",
+												mode === m.toLowerCase() ? "text-[#f2f4f7]" : "text-[#747a84]",
 											)}
 											key={m}
 											onMouseLeave={() => setShownTooltipMode(null)}
