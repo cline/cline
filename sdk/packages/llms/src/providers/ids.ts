@@ -39,7 +39,6 @@ export enum BUILT_IN_PROVIDER {
 	SAMBANOVA = "sambanova",
 	NEBIUS = "nebius",
 	CRUSOE = "crusoe",
-	OPENUNCENSORED = "openuncensored",
 	BASETEN = "baseten",
 	REQUESTY = "requesty",
 	LITELLM = "litellm",
