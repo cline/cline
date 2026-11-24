@@ -1,5 +1,22 @@
 # Cline Desktop Changelog
 
+## 0.0.50
+
+- The thinking picker offers **Max** reasoning effort, for models whose top level is max
+- A manual `/compact` can be stopped. Before, it could sit on "Thinking…" with no Stop button when the summarizer stalled
+- With no saved model, the Cline provider now starts on the first free model instead of Claude Sonnet 5.5. Saved selections are untouched
+- The Account view has a Privacy settings link to the Cline web app's data-use preferences
+- Settings → About has a **Third-party notices** entry with the licenses for the open source software included in Cline
+- On macOS, Check for Updates from the menu runs once instead of twice
+- Refreshed colours and typography across the app
+- `read_files` results are no longer cut to 8k characters on the way to the model. A read now arrives in full, up to the tool's own limit of 2000 lines or about 48k characters
+- Reflection Beam no longer fails every turn with `400 Missing required parameter: 'messages[n].reasoning_content'` after a compaction or a model switch
+- Compaction no longer falls back to the basic summary on models the catalog doesn't describe. The summarizer was sending `reasoning_effort: "none"`, which some endpoints reject
+- Turning reasoning off now reaches custom models that have saved Model Configuration overrides. Before, gpt-5.6 and gpt-6 chat-completions endpoints rejected every tool call
+- On the native OpenAI provider, the reasoning level is fitted to what each model supports, so `max` and Extra High are no longer rejected by GPT-5.x and o-series models
+- LiteLLM: the legacy `max_tokens` field is no longer used as the input budget when the model reports `max_output_tokens`
+- Refreshed the model catalog. Adds 94 providers from models.dev and drops Lilac and Tempr. The Cline recommended list adds Muse Ember. The Cline free list drops Reflection Beam, Laguna S 2.1 and Solar Mini 4. ClinePass drops DeepSeek V4.1 Flash, Mimo V2.6 Flash, Mimo V2.6 Pro, MiniMax M3, Qwen3.7 Plus and Qwen3.7 Max. Default models change for 67 other providers, mostly to Kimi K3.1 Pro, Gemini 4 Neon (including the `gemini` and `vertex` providers) or DeepSeek V4.1 Flash 1017
+
 ## 0.0.49
 
 - A new **Changes** button in the session header shows the session's line counts and opens a pane listing the files changed in the last turn or across the whole session, with a diff of each. When a turn finishes, a summary under it lists the files it changed; click it to open the pane on that turn

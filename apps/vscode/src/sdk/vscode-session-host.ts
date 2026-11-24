@@ -149,6 +149,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 			const extraTools = await createVscodeExtraTools(options.mcpHub, {
 				cwd: inputWithRemoteConfig.config.cwd,
+				mode: inputWithRemoteConfig.config.mode,
 				getTerminalManager: options.getTerminalManager,
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 				foregroundCommands: options.foregroundCommands,

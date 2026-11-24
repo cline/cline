@@ -1127,7 +1127,9 @@ describe("sdk-gateway", () => {
 		const openrouterQwen = gateway
 			.listModels("openrouter")
 			.find((model) => model.id === "qwen/qwen3.6-plus");
-		expect(openrouterQwen?.metadata?.family).toBe("qwen");
+		// models.dev splits the Qwen lineage into tiers (qwen-plus, qwen-max, ...);
+		// the route matches any of them.
+		expect(openrouterQwen?.metadata?.family).toMatch(/^qwen(-|$)/);
 		expect(openrouterQwen?.capabilities).toContain("prompt-cache");
 
 		const directQwen = gateway

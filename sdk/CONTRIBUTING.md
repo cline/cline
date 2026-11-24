@@ -79,7 +79,7 @@ If you touch hub/bootstrap/session flows, prefer both unit coverage and an end-t
 
 ### SDK Release
 
-The `bun release sdk` script automates the SDK publish flow: versioning, lockfile regeneration, verification, and publishing.
+The `bun release sdk` script automates the SDK publish flow: versioning, lockfile update, verification, and publishing.
 
 ```sh
 bun release sdk              # auto-increment patch version
@@ -92,7 +92,7 @@ Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
-The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core → sdk → ui) → optional `sdk-v{VERSION}` tag creation.
+The SDK flow runs: tests → version bump → lockfile update → tarball verification → publish (shared → llms → agents → core → sdk → ui) → optional `sdk-v{VERSION}` tag creation.
 
 ### CLI Release
 
@@ -152,7 +152,7 @@ If you need fine-grained control over individual steps:
 
 1. `bun run test`
 2. `bun version <version>` — updates all workspace package versions, regenerates models, formats, and builds.
-3. `rm bun.lock && bun install --lockfile-only` — regenerate the lockfile so `bun pm pack` resolves `workspace:*` to the new versions.
+3. `bun install --lockfile-only` — update the lockfile so `bun pm pack` resolves `workspace:*` to the new versions. Keep the existing `bun.lock` so third-party versions stay pinned to what CI tested.
 4. `bun scripts/check-publish.ts` — pack tarballs, verify dependency alignment, test isolated install and module resolution.
 5. `npm login` — ensure you're authenticated with the npm registry.
 6. Publish in dependency order:

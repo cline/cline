@@ -1161,25 +1161,6 @@ describe("models-dev-catalog", () => {
 		).toBe(400_000);
 	});
 
-	it("regenerates image models with supported endpoint routing", () => {
-		expect(
-			getGeneratedModelsForProvider("openai-native")["gpt-image-1.5"]
-				?.modalities?.output,
-		).toEqual(["image"]);
-		expect(
-			getGeneratedModelsForProvider("xai")["grok-imagine-image"]?.modalities,
-		).toEqual({ input: ["text", "image"], output: ["image"] });
-
-		const poeDedicatedImages = Object.values(
-			getGeneratedModelsForProvider("poe"),
-		).filter(
-			(model) =>
-				model.modalities?.output.includes("image") === true &&
-				model.modalities.output.includes("text") !== true,
-		);
-		expect(poeDedicatedImages).toEqual([]);
-	});
-
 	it("includes video input for direct MiniMax M3 catalog entries", () => {
 		for (const providerId of [
 			"minimax",

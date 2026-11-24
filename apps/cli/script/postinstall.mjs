@@ -64,9 +64,10 @@ function main() {
 	const binaryName = "cline";
 
 	let binaryPath;
+	let packageDir;
 	try {
 		const packageJsonPath = require.resolve(`${packageName}/package.json`);
-		const packageDir = path.dirname(packageJsonPath);
+		packageDir = path.dirname(packageJsonPath);
 		binaryPath = path.join(packageDir, "bin", binaryName);
 
 		if (!fs.existsSync(binaryPath)) {
@@ -106,6 +107,13 @@ function main() {
 
 	fs.chmodSync(target, 0o755);
 	console.log(`Cached cline binary at ${target}`);
+
+	// The cached binary embeds third-party code, so its notices go with it.
+	const notices = "THIRD_PARTY_NOTICES.txt";
+	fs.copyFileSync(
+		path.join(packageDir, notices),
+		path.join(path.dirname(binDir), notices),
+	);
 }
 
 try {

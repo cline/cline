@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
 import { defineConfig, loadEnv, type Plugin, ViteDevServer } from "vite"
+import { recordBundleInputs } from "../../../scripts/third-party-notices/vite"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -47,7 +48,13 @@ console.log("Building webview for", platform)
 
 export default defineConfig({
 	base: "./",
-	plugins: [react(), tailwindcss(), writePortToFile()],
+	plugins: [
+		react(),
+		tailwindcss(),
+		writePortToFile(),
+		// The extension build lists the webview's third-party code in its notices from this file.
+		recordBundleInputs(resolve(__dirname, "../dist/.third-party/webview-inputs.json")),
+	],
 	test: {
 		environment: "jsdom",
 		globals: true,

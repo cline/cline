@@ -1,4 +1,7 @@
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { PLATFORM_CONFIG } from "@/config/platform.config"
+import { FileServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
 
 interface AboutSectionProps {
@@ -58,6 +61,19 @@ const AboutSection = ({ version, extensionVariant, renderSectionHeader }: AboutS
 						<VSCodeLink href="https://docs.cline.bot/">Documentation</VSCodeLink>
 						{" • "}
 						<VSCodeLink href="https://cline.bot/">https://cline.bot</VSCodeLink>
+						{PLATFORM_CONFIG.supportsThirdPartyNotices && (
+							<>
+								{" • "}
+								<VSCodeLink
+									href="#"
+									onClick={(e) => {
+										e.preventDefault()
+										FileServiceClient.openThirdPartyNotices(EmptyRequest.create()).catch(console.error)
+									}}>
+									Third-Party Notices
+								</VSCodeLink>
+							</>
+						)}
 					</p>
 				</div>
 			</Section>

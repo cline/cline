@@ -7,6 +7,9 @@ const workspaceRoot = path.join(__dirname, "../../../..");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	output: "export",
+	// Turbopack has no metafile; scripts/third-party-notices.ts reads these maps to list the
+	// bundled third-party code, then deletes them from the export.
+	productionBrowserSourceMaps: true,
 	devIndicators: false,
 	outputFileTracingRoot: workspaceRoot,
 	turbopack: {
