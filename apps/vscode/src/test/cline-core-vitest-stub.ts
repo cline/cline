@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { GENERATED_CLINE_RECOMMENDED_MODELS, getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
-import { CLINE_DEFAULT_MODEL_ID, type CoreSpawnReason } from "@cline/shared"
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	type CoreSpawnReason,
+	type HostIdeMode,
+	type HostTerminalShellKind,
+	type HostWorkspacePathKind,
+} from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
@@ -253,6 +259,10 @@ export interface TelemetryMetadata {
 	is_dev?: string
 	core_spawn_ordinal?: number
 	core_spawn_reason?: CoreSpawnReason
+	host_workspace_path_kind?: HostWorkspacePathKind
+	host_terminal_shell_kind?: HostTerminalShellKind
+	host_ide_mode?: HostIdeMode
+	host_in_wsl?: boolean
 }
 
 export interface ITelemetryService {
