@@ -509,6 +509,23 @@ describe("network interruption retry", () => {
 		expect(error).toBe(failure);
 	});
 
+	it("ends cleanly when the connection dies after an error part was forwarded", async () => {
+		// The consumer (the AI SDK's stream retry) must see the error part as
+		// the attempt's outcome, not a stream failure racing it (vercel/ai#23762).
+		const providerError = { type: "error", error: { message: "overloaded" } };
+		const doStream = vi.fn(async () =>
+			streamThatDies(
+				[streamStart, providerError as LanguageModelV4StreamPart],
+				undiciSocketClosed(),
+			),
+		);
+		const { parts, error } = await collectWithError(await run(doStream));
+
+		expect(doStream).toHaveBeenCalledTimes(1);
+		expect(error).toBeUndefined();
+		expect(parts.at(-1)).toEqual(providerError);
+	});
+
 	it("does not retry non-network stream failures", async () => {
 		const failure = new Error("401 Unauthorized: invalid API key");
 		const doStream = vi.fn(async () => streamThatDies([streamStart], failure));
