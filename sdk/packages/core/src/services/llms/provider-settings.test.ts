@@ -97,4 +97,23 @@ describe("provider settings", () => {
 			baseUrl: "https://api.moonshot.ai/v1",
 		});
 	});
+
+	it("routes openai-compatible with protocol openai-responses via openai-native preserving baseUrl and reasoning", () => {
+		const config = toProviderConfig({
+			provider: "openai-compatible",
+			model: "gpt-6-astra",
+			baseUrl: "https://proxy.example.com/v1",
+			protocol: "openai-responses",
+			reasoning: { enabled: true, effort: "high" },
+		});
+
+		expect(config).toMatchObject({
+			providerId: "openai-compatible",
+			routingProviderId: "openai-native",
+			modelId: "gpt-6-astra",
+			baseUrl: "https://proxy.example.com/v1",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+	});
 });

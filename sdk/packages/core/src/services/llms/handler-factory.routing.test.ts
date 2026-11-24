@@ -68,6 +68,38 @@ describe("core agent per-model protocol routing", () => {
 			inputField,
 		);
 	});
+
+	it.each([
+		{
+			protocol: "openai-responses" as const,
+			endpoint: "responses",
+			inputField: "input",
+		},
+		{
+			protocol: "openai-chat" as const,
+			endpoint: "chat/completions",
+			inputField: "messages",
+		},
+		{
+			protocol: undefined,
+			endpoint: "chat/completions",
+			inputField: "messages",
+		},
+	])("routes openai-compatible with protocol $protocol to custom baseUrl/$endpoint", async ({
+		protocol,
+		endpoint,
+		inputField,
+	}) => {
+		const providerConfig = toProviderConfig({
+			provider: "openai-compatible",
+			model: "gpt-6-astra",
+			apiKey: "test-key",
+			baseUrl: "https://proxy.example.com/v1",
+			...(protocol ? { protocol } : {}),
+			reasoning: { enabled: true, effort: "high" },
+		});
+		await expectEndpoint(providerConfig, endpoint, inputField);
+	});
 });
 
 async function expectEndpoint(
@@ -113,7 +145,9 @@ async function expectEndpoint(
 	);
 	expect(fetchMock).toHaveBeenCalledTimes(1);
 	const [url, init] = fetchMock.mock.calls[0];
-	expect(String(url)).toBe(`https://opencode.ai/inference/go/v1/${endpoint}`);
+	expect(String(url)).toBe(
+		`${providerConfig.baseUrl ?? "https://opencode.ai/inference/go/v1"}/${endpoint}`,
+	);
 	const body = JSON.parse(String(init?.body));
 	expect(body[inputField]).toBeDefined();
 	if (inputField !== "contents") {

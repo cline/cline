@@ -5,6 +5,7 @@ export type ProviderConfigFieldKey =
 	| "apiKey"
 	| "baseUrl"
 	| "azureApiVersion"
+	| "apiProtocol"
 	| "awsRegion"
 	| "awsProfile"
 	| "gcpProjectId"
@@ -20,6 +21,7 @@ export interface ProviderConfigFieldRequirement {
 	label?: string;
 	note?: string;
 	placeholder?: string;
+	options?: string[];
 	optional?: boolean;
 }
 
@@ -37,6 +39,7 @@ const FIELD_KEYS: ProviderConfigFieldKey[] = [
 	"apiKey",
 	"baseUrl",
 	"azureApiVersion",
+	"apiProtocol",
 	"awsRegion",
 	"awsProfile",
 	"gcpProjectId",
@@ -67,6 +70,14 @@ const PROVIDER_CONFIG_FIELD_METADATA: Partial<
 				label: "Azure API Version (optional)",
 				placeholder: "2025-01-01-preview",
 				note: "Required for Azure AI Foundry deployment URLs.",
+				optional: true,
+			},
+			apiProtocol: {
+				label: "API Protocol (optional)",
+				placeholder: "openai-chat",
+				defaultValue: "openai-chat",
+				note: "Use openai-responses for models that require /responses (e.g. reasoning effort with tools).",
+				options: ["openai-chat", "openai-responses"],
 				optional: true,
 			},
 		},

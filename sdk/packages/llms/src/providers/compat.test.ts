@@ -391,6 +391,42 @@ describe("createGatewayApiHandler.createMessage", () => {
 		});
 	});
 
+	it("routes openai-compatible with routingProviderId openai-native through the openai responses family", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+		});
+
+		for (const handler of [
+			createGatewayApiHandler({
+				providerId: "openai-compatible",
+				routingProviderId: "openai-native",
+				modelId: "gpt-6-astra",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example.com/v1",
+			}),
+			await createGatewayApiHandlerAsync({
+				providerId: "openai-compatible",
+				routingProviderId: "openai-native",
+				modelId: "gpt-6-astra",
+				apiKey: "test-key",
+				baseUrl: "https://proxy.example.com/v1",
+			}),
+		]) {
+			for await (const _chunk of handler.createMessage("", [
+				{ role: "user", content: "Hello" },
+			])) {
+				// Consume stream to trigger provider resolution.
+			}
+			expect(streamTextSpy.mock.calls.at(-1)?.[0].model).toMatchObject({
+				modelId: "gpt-6-astra",
+				family: "openai",
+			});
+		}
+		expect(openaiCompatibleFactorySpy).not.toHaveBeenCalled();
+	});
+
 	it("defaults maxOutputTokens to a fraction of the catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {

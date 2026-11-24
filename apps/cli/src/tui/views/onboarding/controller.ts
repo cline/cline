@@ -45,6 +45,7 @@ import {
 	type ProviderConfigValues,
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -553,6 +554,12 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				initialValues.azureApiVersion =
 					existing?.azure?.apiVersion?.trim() ?? "";
 			}
+			if (config.fields.apiProtocol) {
+				initialValues.apiProtocol =
+					existing?.protocol?.trim() ||
+					config.fields.apiProtocol.defaultValue ||
+					"";
+			}
 			if (config.fields.awsRegion) {
 				const existingProfile = existing?.aws?.profile?.trim() ?? "";
 				initialValues.awsRegion =
@@ -648,6 +655,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				azure: hasAzureFields
 					? resolveProviderConfigAzure(byoValues)
 					: undefined,
+				...(byoFields.apiProtocol
+					? { protocol: resolveProviderConfigProtocol(byoValues) }
+					: {}),
 				aws: hasAwsFields
 					? {
 							region: resolveProviderConfigAwsRegion(byoValues),

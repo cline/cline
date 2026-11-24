@@ -62,6 +62,21 @@ export function resolveProviderConfigAzure(values: ProviderConfigValues): {
 	return { apiVersion: values.azureApiVersion?.trim() ?? "" };
 }
 
+export function resolveProviderConfigProtocol(
+	values: ProviderConfigValues,
+): "openai-responses" | undefined {
+	const protocol = values.apiProtocol?.trim();
+	if (!protocol || protocol === "openai-chat") {
+		return undefined;
+	}
+	if (protocol === "openai-responses") {
+		return "openai-responses";
+	}
+	throw new Error(
+		`Invalid API protocol "${protocol}". Expected "openai-chat" or "openai-responses".`,
+	);
+}
+
 export function updateProviderConfigValue(
 	previous: ProviderConfigValues,
 	field: ProviderConfigFieldKey,

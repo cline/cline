@@ -14,6 +14,7 @@ describe("getProviderConfigFields", () => {
 		expect(result.authMethod).toBe("api-key");
 		expect(result.fields.apiKey).toEqual({});
 		expect(result.fields.baseUrl).toBeUndefined();
+		expect(result.fields.apiProtocol).toBeUndefined();
 	});
 
 	it("returns api-key auth with apiKey + baseUrl for ollama", () => {
@@ -101,6 +102,13 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.azureApiVersion).toMatchObject({
 			label: "Azure API Version (optional)",
 			placeholder: "2025-01-01-preview",
+			optional: true,
+		});
+		expect(result.fields.apiProtocol).toMatchObject({
+			label: "API Protocol (optional)",
+			placeholder: "openai-chat",
+			defaultValue: "openai-chat",
+			options: ["openai-chat", "openai-responses"],
 			optional: true,
 		});
 	});

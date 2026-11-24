@@ -203,6 +203,10 @@ export async function runCli(): Promise<void> {
 		.option("-m, --modelid <id>", "Model ID")
 		.option("-b, --baseurl <url>", "Base URL")
 		.option("--azure-api-version <version>", "Azure API version")
+		.option(
+			"--protocol <protocol>",
+			"API protocol for OpenAI-compatible (openai-chat | openai-responses)",
+		)
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
 		.option(
@@ -217,6 +221,7 @@ export async function runCli(): Promise<void> {
 				modelid?: string;
 				baseurl?: string;
 				azureApiVersion?: string;
+				protocol?: string;
 				config?: string;
 				cwd?: string;
 				dataDir?: string;
@@ -248,6 +253,7 @@ export async function runCli(): Promise<void> {
 				modelid: opts.modelid,
 				baseurl: opts.baseurl,
 				azureApiVersion: opts.azureApiVersion,
+				protocol: opts.protocol,
 				io,
 			});
 		});
