@@ -892,7 +892,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "openuncensored",
-		name: "Open Uncensored",
+		name: "OpenUncensored",
 		description: "Uncensored and abliterated open-weight models",
 		family: "openai-compatible",
 		defaultModelId: "deepseek-v4.1-flash-1017-uncensored",
