@@ -1,8 +1,8 @@
 "use client";
 
+import { Banner } from "@cline/ui";
 import { FolderLock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 
@@ -71,33 +71,28 @@ export function WorkspaceTrustGate({
 	onDecline?: () => void;
 }) {
 	return (
-		<div className="flex h-full flex-1 items-center justify-center bg-background p-6 text-foreground">
-			<div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-sm">
-				<span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-					<FolderLock className="size-4.5" />
-				</span>
-				<h2 className="mt-4 text-base font-semibold">
-					Do you trust the files in this folder?
-				</h2>
-				<p className="mt-2 break-all rounded-md bg-muted px-2.5 py-1.5 font-mono text-xs text-muted-foreground">
-					{path}
-				</p>
-				<p className="mt-3 text-sm text-muted-foreground">
-					Cline automatically loads rules, skills, hooks, and plugins from this
-					folder, and can read, edit, and run its files. Only continue if you
-					trust where it came from.
-				</p>
-				<div className="mt-5 flex justify-end gap-2">
-					{onDecline ? (
-						<Button onClick={onDecline} size="sm" type="button" variant="ghost">
-							Don't trust
-						</Button>
-					) : null}
-					<Button onClick={onTrust} size="sm" type="button">
-						Trust folder
-					</Button>
-				</div>
-			</div>
+		<div className="flex h-full flex-1 items-center justify-center bg-background p-6">
+			<Banner
+				actions={[
+					...(onDecline
+						? [{ id: "decline", label: "Don't trust", onClick: onDecline }]
+						: []),
+					{ id: "trust", label: "Trust folder", onClick: onTrust },
+				]}
+				className="max-w-xl"
+				description={
+					<>
+						<span className="break-all font-mono text-xs">{path}</span>
+						<br />
+						Cline automatically loads rules, skills, hooks, and plugins from
+						this folder, and can read, edit, and run its files. Only continue if
+						you trust where it came from.
+					</>
+				}
+				icon={<FolderLock aria-hidden="true" />}
+				title="Do you trust the files in this folder?"
+				tone="warning"
+			/>
 		</div>
 	);
 }
