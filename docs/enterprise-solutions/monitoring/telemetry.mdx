@@ -36,7 +36,7 @@ These products share one telemetry setting on each computer. Turning it off in o
     2. Select **General**.
     3. Clear **Allow error and usage reporting**.
 
-    The change takes effect immediately. In VS Code, Cline also stops sending usage events while the editor's own telemetry is off. While the editor's telemetry is on, Cline still sends a few required events, such as the one that records that you turned Cline telemetry off.
+    The change takes effect immediately. In VS Code, Cline also sends no telemetry while the editor's own telemetry is off.
   </Tab>
   <Tab title="Cline Desktop">
     1. Open **Settings** and select **General**.
@@ -56,6 +56,8 @@ These products share one telemetry setting on each computer. Turning it off in o
 </Tabs>
 
 In Cline Desktop and the CLI, Cline stops recording prompts from the next request, but other events continue until Cline and its background hub restart. To apply the change everywhere, quit Cline Desktop and run `cline hub stop`, or restart your computer. Stopping the hub also stops sessions running in it. The hub starts again the next time you use Cline.
+
+Cline also treats telemetry as off when `DO_NOT_TRACK` or `CLINE_TELEMETRY_DISABLED` is set to `1` in its environment. It reads them when it starts, so the same restart applies.
 
 With telemetry off, Cline still contacts its servers for other purposes: to sign you in, to check feature flags, and to run requests on the Cline and ClinePass providers.
 

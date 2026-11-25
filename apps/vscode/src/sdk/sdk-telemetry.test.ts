@@ -157,17 +157,18 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledWith({ event: "session.started", properties: { sessionId: "s1" } })
 	})
 
-	it("drops ordinary events when Cline telemetry is disabled but allows required events while host telemetry is enabled", async () => {
+	it("drops ordinary and required events when Cline telemetry is disabled", async () => {
 		telemetryState.clineTelemetrySetting = "disabled"
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
 		await settlePromises()
 
 		service.capture({ event: "task.created" })
-		service.captureRequired("user.opt_out", { explicit: true })
+		service.captureRequired("required.event")
 
 		expect(handle.telemetry.capture).not.toHaveBeenCalled()
-		expect(handle.telemetry.captureRequired).toHaveBeenCalledWith("user.opt_out", { explicit: true })
+		expect(handle.telemetry.captureRequired).not.toHaveBeenCalled()
+		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
 	})
 
 	it("drops ordinary and required events when host telemetry is disabled", async () => {
@@ -177,10 +178,11 @@ describe("VscodeTelemetryPolicyService", () => {
 		await settlePromises()
 
 		service.capture({ event: "task.created" })
-		service.captureRequired("user.opt_out")
+		service.captureRequired("required.event")
 
 		expect(handle.telemetry.capture).not.toHaveBeenCalled()
 		expect(handle.telemetry.captureRequired).not.toHaveBeenCalled()
+		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
 	})
 
 	it("uses host telemetry subscription updates for later events", async () => {
@@ -198,7 +200,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
 	})
 
-	it("gates metrics with the same ordinary/required policy", async () => {
+	it("drops ordinary and required metrics when Cline telemetry is disabled", async () => {
 		telemetryState.clineTelemetrySetting = "disabled"
 		const handle = createHandle()
 		const service = new VscodeTelemetryPolicyService(handle)
@@ -207,8 +209,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		service.recordCounter("ordinary", 1)
 		service.recordCounter("required", 1, undefined, undefined, true)
 
-		expect(handle.telemetry.recordCounter).toHaveBeenCalledTimes(1)
-		expect(handle.telemetry.recordCounter).toHaveBeenCalledWith("required", 1, undefined, undefined, true)
+		expect(handle.telemetry.recordCounter).not.toHaveBeenCalled()
 	})
 
 	it("applies the full host identity metadata before enabling events", async () => {
@@ -303,7 +304,7 @@ describe("VscodeTelemetryPolicyService", () => {
 		expect(handle.telemetry.capture).toHaveBeenCalledTimes(1)
 	})
 
-	it("emits provider_created on dispose when the host version lookup is still pending", async () => {
+	it("never emits provider_created when disposed before the host telemetry setting is known", async () => {
 		let releaseHostVersion!: () => void
 		telemetryState.hostVersionGate = new Promise((resolve) => {
 			releaseHostVersion = resolve
@@ -313,15 +314,12 @@ describe("VscodeTelemetryPolicyService", () => {
 		await settlePromises()
 
 		await service.dispose()
-		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
-		const providerCreatedOrder = handle.emitProviderCreated.mock.invocationCallOrder[0]
-		const disposeOrder = handle.dispose.mock.invocationCallOrder[0]
-		expect(providerCreatedOrder).toBeLessThan(disposeOrder)
+		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
 
-		// The late continuation must not emit a second event.
+		// The late continuation must not emit on the disposed handle.
 		releaseHostVersion()
 		await settlePromises()
-		expect(handle.emitProviderCreated).toHaveBeenCalledTimes(1)
+		expect(handle.emitProviderCreated).not.toHaveBeenCalled()
 	})
 
 	it("always forwards metadata mutators and cleans up on dispose", async () => {

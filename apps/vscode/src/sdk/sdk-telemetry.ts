@@ -97,32 +97,32 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	}
 
 	isEnabled(): boolean {
-		return this.isOrdinaryTelemetryAllowed() && this.handle.telemetry.isEnabled()
+		return this.isTelemetryAllowed() && this.handle.telemetry.isEnabled()
 	}
 
 	capture(input: { event: string; properties?: TelemetryProperties }): void {
-		if (!this.isOrdinaryTelemetryAllowed()) {
+		if (!this.isTelemetryAllowed()) {
 			return
 		}
 		this.handle.telemetry.capture(input)
 	}
 
 	captureRequired(event: string, properties?: TelemetryProperties): void {
-		if (!this.isRequiredTelemetryAllowed()) {
+		if (!this.isTelemetryAllowed()) {
 			return
 		}
 		this.handle.telemetry.captureRequired(event, properties)
 	}
 
 	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required = false): void {
-		if (!this.isMetricAllowed(required)) {
+		if (!this.isTelemetryAllowed()) {
 			return
 		}
 		this.handle.telemetry.recordCounter(name, value, attributes, description, required)
 	}
 
 	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required = false): void {
-		if (!this.isMetricAllowed(required)) {
+		if (!this.isTelemetryAllowed()) {
 			return
 		}
 		this.handle.telemetry.recordHistogram(name, value, attributes, description, required)
@@ -135,7 +135,7 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		description?: string,
 		required = false,
 	): void {
-		if (!this.isMetricAllowed(required)) {
+		if (!this.isTelemetryAllowed()) {
 			return
 		}
 		this.handle.telemetry.recordGauge(name, value, attributes, description, required)
@@ -153,15 +153,11 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		this.disposed = true
 		this.unsubscribeHostTelemetrySettings?.()
 		this.unsubscribeHostTelemetrySettings = undefined
-		// If the host-version lookup is still pending, emit the deferred
-		// provider_created now (with the construction-time fallback identity, as the
-		// undeferred event always did) so disposal never swallows the required event.
-		this.emitProviderCreatedOnce()
 		await this.handle.dispose()
 	}
 
 	private emitProviderCreatedOnce(): void {
-		if (this.providerCreatedEmitted) {
+		if (this.providerCreatedEmitted || this.disposed || !this.isTelemetryAllowed()) {
 			return
 		}
 		this.providerCreatedEmitted = true
@@ -177,7 +173,6 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 			if (Object.keys(hostMetadata).length > 0) {
 				this.handle.telemetry.updateMetadata(hostMetadata)
 			}
-			this.emitProviderCreatedOnce()
 		})
 
 		Promise.all([hostMetadataApplied, HostProvider.env.getTelemetrySettings({})])
@@ -233,17 +228,12 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 
 	private applyHostTelemetrySetting(setting: Setting): void {
 		this.hostTelemetryEnabled = setting === Setting.ENABLED || setting === Setting.UNSUPPORTED
+		this.emitProviderCreatedOnce()
 	}
 
-	private isOrdinaryTelemetryAllowed(): boolean {
+	// One rule for every event and metric, required or not: nothing is
+	// sent unless both the editor's telemetry and Cline's own setting allow it.
+	private isTelemetryAllowed(): boolean {
 		return this.hostTelemetryEnabled && StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled"
-	}
-
-	private isRequiredTelemetryAllowed(): boolean {
-		return this.hostTelemetryEnabled
-	}
-
-	private isMetricAllowed(required: boolean): boolean {
-		return required ? this.isRequiredTelemetryAllowed() : this.isOrdinaryTelemetryAllowed()
 	}
 }

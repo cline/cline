@@ -12,12 +12,12 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock("@cline/core", () => ({
-	readGlobalSettings: () => {
+	isTelemetryOptedOutGlobally: () => {
 		const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 		if (!filePath || !existsSync(filePath)) {
-			return { autoUpdateEnabled: true, telemetryOptOut: false }
+			return false
 		}
-		return { autoUpdateEnabled: true, telemetryOptOut: false, ...JSON.parse(readFileSync(filePath, "utf8")) }
+		return JSON.parse(readFileSync(filePath, "utf8")).telemetryOptOut === true
 	},
 	setTelemetryOptOutGlobally: (telemetryOptOut: boolean) => {
 		const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
