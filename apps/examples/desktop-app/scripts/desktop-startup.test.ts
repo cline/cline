@@ -407,10 +407,12 @@ test.each([
 					),
 			),
 		);
-		const result = spawnSync(cli, ["config", "tools", "--json"], {
+		// Keep the runner's event loop live while the compiled CLI starts and exits.
+		const child = Bun.spawn([cli, "config", "tools", "--json"], {
 			cwd: root,
-			encoding: "utf8",
-			timeout: 30000,
+			stdin: "ignore",
+			stdout: "pipe",
+			stderr: "pipe",
 			env: {
 				...env,
 				HOME: root,
@@ -427,12 +429,31 @@ test.each([
 				CLINE_NO_AUTO_UPDATE: "1",
 			},
 		});
-		expect(result.status, result.stderr || String(result.error)).toBe(0);
-		expect(
-			JSON.parse(result.stdout).some(
-				(tool: { name: string }) => tool.name === "embedded_ping",
-			),
-		).toBe(true);
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			child.kill("SIGKILL");
+		}, 30_000);
+		try {
+			const [status, stdout, stderr] = await Promise.all([
+				child.exited,
+				new Response(child.stdout).text(),
+				new Response(child.stderr).text(),
+			]);
+			expect(timedOut, `CLI tools probe exceeded 30 seconds: ${stderr}`).toBe(
+				false,
+			);
+			expect(status, stderr).toBe(0);
+			expect(
+				JSON.parse(stdout).some(
+					(tool: { name: string }) => tool.name === "embedded_ping",
+				),
+			).toBe(true);
+		} finally {
+			clearTimeout(timer);
+			if (child.exitCode === null) child.kill("SIGKILL");
+			await child.exited;
+		}
 		expect(readFileSync(join(root, ".cline", "runtime"), "utf8")).toBe(
 			"no extraction",
 		);
