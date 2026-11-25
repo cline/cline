@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -48,6 +48,7 @@ type EnvSnapshot = {
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
 	CLINE_TEAM_DATA_DIR: string | undefined;
+	CLINE_HOOKS_DIR: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
@@ -62,6 +63,7 @@ function captureEnv(): EnvSnapshot {
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
 		CLINE_TEAM_DATA_DIR: process.env.CLINE_TEAM_DATA_DIR,
+		CLINE_HOOKS_DIR: process.env.CLINE_HOOKS_DIR,
 	};
 }
 
@@ -78,6 +80,7 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
 	process.env.CLINE_SESSION_DATA_DIR = snapshot.CLINE_SESSION_DATA_DIR;
 	process.env.CLINE_TEAM_DATA_DIR = snapshot.CLINE_TEAM_DATA_DIR;
+	process.env.CLINE_HOOKS_DIR = snapshot.CLINE_HOOKS_DIR;
 }
 
 describe("storage path resolution", () => {
@@ -214,6 +217,15 @@ describe("storage path resolution", () => {
 		);
 		expect(resolveHooksConfigSearchPaths()).not.toContain(
 			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
+		);
+	});
+
+	it("includes CLINE_HOOKS_DIR in hook config search paths when set", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_HOOKS_DIR = "/tmp/custom-hooks";
+
+		expect(resolveHooksConfigSearchPaths()).toEqual(
+			expect.arrayContaining([resolve("/tmp/custom-hooks")]),
 		);
 	});
 
