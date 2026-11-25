@@ -1111,6 +1111,10 @@
 			"destination": "/provider-config/other-30-plus-providers#sap-ai-core"
 		},
 		{
+			"source": "/provider-config/straitly",
+			"destination": "/provider-config/other-30-plus-providers#straitly"
+		},
+		{
 			"source": "/provider-config/together",
 			"destination": "/provider-config/other-30-plus-providers#together"
 		},
