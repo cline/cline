@@ -3,6 +3,7 @@
 import { FolderLock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 
 // Folders confirmed trusted during this run, so returning to one renders
@@ -41,7 +42,13 @@ export function useWorkspaceTrust(path: string) {
 				trustedPaths.add(path);
 				setChecked({ path, trusted: true });
 			})
-			.catch(() => {});
+			.catch((error) =>
+				toast({
+					title: "Couldn't trust this folder",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				}),
+			);
 	}, [path]);
 
 	const status: "trusted" | "untrusted" | "checking" =
