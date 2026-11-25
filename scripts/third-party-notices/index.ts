@@ -7,7 +7,16 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
+import { BUNDLE_INPUTS } from "./bundle-inputs";
 
 export interface NoticeEntry {
 	name: string;
@@ -202,19 +211,72 @@ export function readPackageEntry(packageDir: string): NoticeEntry {
 	};
 }
 
+// Source maps chain to a package's original sources (src/*.tsx), which its published files
+// may not include; resolve symlinks through the part of the path that exists.
+function realpathOfExisting(file: string): string {
+	const parent = dirname(file);
+	if (existsSync(file) || parent === file) return realpathSync(file);
+	return join(realpathOfExisting(parent), basename(file));
+}
+
+// Workspace packages whose dist bundles third-party code record what it bundled; see bundle-inputs.ts.
+function workspaceBundleList(file: string): string | undefined {
+	for (let dir = dirname(file); dir !== dirname(dir); dir = dirname(dir)) {
+		if (!existsSync(join(dir, "package.json"))) continue;
+		const list = join(dir, "dist", BUNDLE_INPUTS);
+		const inDist = !relative(join(dir, "dist"), file).startsWith("..");
+		return inDist && existsSync(list) ? list : undefined;
+	}
+	return undefined;
+}
+
+// Bundlers compile CSS @import/@plugin targets themselves, so they never appear as modules.
+function cssImports(file: string): string[] {
+	const css = readFileSync(file, "utf8");
+	const specifiers = [
+		...css.matchAll(/^\s*@(?:import|plugin)\s+(?:url\(\s*)?["']([^"']+)["']/gm),
+	].map((m) => m[1]);
+	return specifiers.flatMap((specifier) => {
+		if (/^[./]/.test(specifier)) return [resolve(dirname(file), specifier)];
+		if (/^[a-z]+:/i.test(specifier)) return [];
+		const name = specifier
+			.split("/")
+			.slice(0, specifier.startsWith("@") ? 2 : 1)
+			.join("/");
+		for (let dir = dirname(file); dir !== dirname(dir); dir = dirname(dir)) {
+			const pkg = join(dir, "node_modules", name, "package.json");
+			if (existsSync(pkg)) return [pkg];
+		}
+		return [];
+	});
+}
+
 export function collectPackageEntries(
 	inputs: string[],
 	baseDir: string,
 ): NoticeEntry[] {
 	const dirs = new Set<string>();
-	for (const input of inputs) {
+	const seen = new Set<string>();
+	const queue = [...inputs];
+	while (queue.length > 0) {
+		const input = queue.pop() as string;
 		// Bundlers report virtual modules ("\0commonjsHelpers", "<runtime>") alongside real files.
 		if (input.startsWith("\0") || input.startsWith("<")) continue;
 		const path = input.split("?")[0];
-		const file = isAbsolute(path) ? path : resolve(baseDir, path);
-		if (!existsSync(file)) continue;
-		const dir = findPackageDir(realpathSync(file));
+		const file = realpathOfExisting(
+			isAbsolute(path) ? path : resolve(baseDir, path),
+		);
+		if (seen.has(file)) continue;
+		seen.add(file);
+		const dir = findPackageDir(file);
+		const list = dir ? undefined : workspaceBundleList(file);
 		if (dir) dirs.add(dir);
+		else if (list && !seen.has(list)) {
+			seen.add(list);
+			queue.push(...JSON.parse(readFileSync(list, "utf8")));
+		}
+		if (file.endsWith(".css") && existsSync(file))
+			queue.push(...cssImports(file));
 	}
 	return [...dirs].map(readPackageEntry);
 }
@@ -233,6 +295,7 @@ const OPEN_SOURCE_IDS = new Set(
 		"MIT/X11",
 		"MIT-0",
 		"MPL-2.0",
+		"OFL-1.1",
 		"Python-2.0",
 		"Unicode-3.0",
 		"Unlicense",
