@@ -4695,6 +4695,82 @@ describe("AgentRuntime", () => {
 		}
 	});
 
+	it("does not debug-log per-token stream deltas", async () => {
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking" },
+				{ type: "text-delta", text: "calling" },
+				{ type: "text-delta", text: " tool" },
+				{
+					type: "tool-call-delta",
+					toolCallId: "stream_call",
+					toolName: "streamer",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const observed: string[] = [];
+		const runtime = new AgentRuntime({
+			model,
+			logger,
+			tools: [
+				{
+					name: "streamer",
+					description: "streams progress updates",
+					inputSchema: { type: "object" },
+					async execute(_input, context) {
+						context.emitUpdate?.({ progress: 1 });
+						return { done: true };
+					},
+				},
+			],
+		});
+		runtime.subscribe((event) => {
+			observed.push(event.type);
+		});
+
+		const result = await runtime.run("Stream");
+
+		expect(result.status).toBe("completed");
+		// Listeners still receive every delta/chunk event.
+		expect(observed).toContain("assistant-reasoning-delta");
+		expect(observed).toContain("assistant-text-delta");
+		expect(observed).toContain("tool-updated");
+
+		const loggedEventTypes = logger.debug.mock.calls
+			.filter(([message]) => message === "Agent event")
+			.map(([, metadata]) => (metadata as { eventType?: string })?.eventType);
+		// Per-token/per-chunk events must not be logged one line each.
+		for (const perChunk of [
+			"assistant-text-delta",
+			"assistant-reasoning-delta",
+			"tool-call-delta",
+			"tool-updated",
+		]) {
+			expect(loggedEventTypes).not.toContain(perChunk);
+		}
+		// Lifecycle and per-message events are still logged.
+		for (const expected of [
+			"turn-started",
+			"assistant-message",
+			"tool-started",
+			"turn-finished",
+			"run-finished",
+		]) {
+			expect(loggedEventTypes).toContain(expected);
+		}
+	});
+
 	it("propagates agent identity including role through snapshots and plugin setup", async () => {
 		const setup = vi.fn(() => undefined);
 		const plugin: AgentRuntimePlugin = {
