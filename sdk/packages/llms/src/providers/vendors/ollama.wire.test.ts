@@ -13,7 +13,9 @@
 //      clean finish;
 //   3. an attachment-only user turn must serialize `content` as a string
 //      (Ollama declares `Message.content` as a string), never `[]`;
-//   4. tool results must carry the documented `tool_name` field.
+//   4. tool results must carry the documented `tool_name` field;
+//   5. assistant reasoning in history must be sent as `thinking` without a
+//      warning claiming reasoning is unsupported.
 import type {
 	LanguageModelV4CallOptions,
 	LanguageModelV4Prompt,
@@ -217,6 +219,34 @@ describe("ollama wire contract (real provider package)", () => {
 			tool_name: "read_file",
 			content: "file contents",
 		});
+	});
+
+	it("sends assistant reasoning as thinking without an unsupported warning", async () => {
+		const { requests, parts } = await streamThroughVendor({
+			responseLines: [textChunk("ok"), DONE_CHUNK],
+			prompt: [
+				...userText("hi"),
+				{
+					role: "assistant",
+					content: [
+						{ type: "reasoning", text: "The user said hi." },
+						{ type: "text", text: "Hello!" },
+					],
+				},
+				...userText("again"),
+			],
+		});
+
+		expect(requests[0].messages[1]).toMatchObject({
+			role: "assistant",
+			content: "Hello!",
+			thinking: "The user said hi.",
+		});
+		// The request builder also runs the dependency's unused Responses-style
+		// converter for its warnings, which flagged reasoning as unsupported
+		// even though the body above forwards it.
+		const streamStart = parts.find((part) => part.type === "stream-start");
+		expect(streamStart).toMatchObject({ type: "stream-start", warnings: [] });
 	});
 
 	it("surfaces a mid-stream error object as an error part, not a clean finish", async () => {

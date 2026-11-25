@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244c0c03be1 100644
+index aafa72c4167302af45db22e41a227cbaf02f792f..f52803f0b8a2d14afbed6e7d7328889b551dd163 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -154,7 +154,7 @@ function resolveOllamaThinkFlag({
@@ -82,8 +82,21 @@ index aafa72c4167302af45db22e41a227cbaf02f792f..091d1a62fd4f40c1ed9f72f846969244
                  content: formatOllamaToolResultOutput(toolResponse.output)
                });
                break;
+@@ -1061,10 +1078,8 @@ function convertToOllamaResponsesMessages({
+               break;
+             }
+             case "reasoning": {
+-              warnings.push({
+-                type: "other",
+-                message: "reasoning parts in assistant messages are not supported for Ollama responses"
+-              });
++              // Forwarded as `thinking` by convertToOllamaChatMessages, which
++              // builds the request body; this converter only collects warnings.
+               break;
+             }
+             case "file":
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1fcd29838e 100644
+index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..f3cb296b9a56ef75923f75b4c869c39e8367804c 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -143,7 +143,7 @@ function resolveOllamaThinkFlag({
@@ -166,3 +179,16 @@ index 5aa396bef7354dcd523cfeabc69fe7d8ada7d4c6..77e695b555d4772d0e8de3c0df247b1f
                  content: formatOllamaToolResultOutput(toolResponse.output)
                });
                break;
+@@ -1067,10 +1084,8 @@ function convertToOllamaResponsesMessages({
+               break;
+             }
+             case "reasoning": {
+-              warnings.push({
+-                type: "other",
+-                message: "reasoning parts in assistant messages are not supported for Ollama responses"
+-              });
++              // Forwarded as `thinking` by convertToOllamaChatMessages, which
++              // builds the request body; this converter only collects warnings.
+               break;
+             }
+             case "file":
