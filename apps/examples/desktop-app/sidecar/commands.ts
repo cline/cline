@@ -82,6 +82,7 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import {
 	isWorkspaceTrusted,
+	resolveChatWorkspacePath,
 	resolveClineDir,
 	trustWorkspace,
 } from "@cline/shared/storage";
@@ -1496,9 +1497,19 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
 }
 
+/**
+ * Workspace for a request that names none. Nobody picked the launch folder,
+ * so until it is trusted the chat workspace stands in for it.
+ */
+function defaultWorkspaceRoot(ctx: SidecarContext): string {
+	return isWorkspaceTrusted(ctx.localWorkspaceRoot)
+		? ctx.localWorkspaceRoot
+		: resolveChatWorkspacePath();
+}
+
 async function listHubSettings(
 	ctx: SidecarContext,
-	workspaceRoot: string = ctx.localWorkspaceRoot,
+	workspaceRoot: string = defaultWorkspaceRoot(ctx),
 ): Promise<CoreSettingsSnapshot> {
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
@@ -1525,8 +1536,8 @@ async function toggleHubSetting(
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.toggle", {
 		...input,
-		workspaceRoot: ctx.localWorkspaceRoot,
-		cwd: ctx.localWorkspaceRoot,
+		workspaceRoot: defaultWorkspaceRoot(ctx),
+		cwd: defaultWorkspaceRoot(ctx),
 	});
 	if (!reply.ok) {
 		throw new Error(
@@ -1539,7 +1550,7 @@ async function toggleHubSetting(
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
-	workspaceRoot: string = ctx.localWorkspaceRoot,
+	workspaceRoot: string = defaultWorkspaceRoot(ctx),
 ): Promise<JsonRecord> {
 	const hubSettings =
 		settingsSnapshot ?? (await listHubSettings(ctx, workspaceRoot));
@@ -3723,14 +3734,14 @@ export async function handleCommand(
 		return await listUserInstructionConfigs(
 			ctx,
 			undefined,
-			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot,
+			String(args?.workspacePath ?? "").trim() || defaultWorkspaceRoot(ctx),
 		);
 	}
 	if (command === "list_plugin_commands") {
 		// Same workspace the session will execute in (handleSend), so the menu
 		// only offers commands that can actually run there.
 		const workspacePath =
-			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
+			String(args?.workspacePath ?? "").trim() || defaultWorkspaceRoot(ctx);
 		return await listPluginCommands(
 			ctx,
 			workspacePath,
