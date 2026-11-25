@@ -155,6 +155,15 @@ export async function runCli(): Promise<void> {
 	const cliArgs = process.argv.slice(2);
 	const isFullTTY =
 		process.stdin.isTTY === true && process.stdout.isTTY === true;
+	// Ask before loading anything from a folder the user has not trusted yet.
+	// Only when someone is there to answer: piped and CI runs proceed.
+	const confirmWorkspaceTrust = async (cwd?: string): Promise<boolean> => {
+		if (!isFullTTY) {
+			return true;
+		}
+		const { ensureWorkspaceTrusted } = await import("./utils/workspace-trust");
+		return ensureWorkspaceTrusted(resolveWorkspaceRoot(cwd ?? process.cwd()));
+	};
 	const configDir = resolveConfigDirArg(cliArgs);
 	const { setClineDir, setHomeDir } = await import("@cline/shared/storage");
 	if (configDir) {
@@ -285,6 +294,11 @@ export async function runCli(): Promise<void> {
 		.allowExcessArguments()
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
+			// `config tools` imports the workspace's plugins to list their tools.
+			if (!(await confirmWorkspaceTrust(program.opts().cwd))) {
+				ctx.exitCode = 1;
+				return;
+			}
 			const realCmd = await createConfigRuntimeCommand();
 			realCmd.setOptionValue("json", cmd.opts().json);
 			await realCmd.parseAsync(cmd.args, { from: "user" });
@@ -819,15 +833,9 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
-	// Ask before loading anything from a folder the user has not trusted yet.
-	// Only when someone is there to answer: piped and CI runs proceed.
-	if (isFullTTY) {
-		const { ensureWorkspaceTrusted } = await import("./utils/workspace-trust");
-		const launchRoot = resolveWorkspaceRoot(args.cwd ?? process.cwd());
-		if (!(await ensureWorkspaceTrusted(launchRoot))) {
-			process.exitCode = 1;
-			return;
-		}
+	if (!(await confirmWorkspaceTrust(args.cwd))) {
+		process.exitCode = 1;
+		return;
 	}
 
 	if (args.worktree) {
