@@ -31,7 +31,8 @@
 		"node": ">=22"
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/bundle-inputs.json"
 	],
 	"license": "Apache-2.0"
 }

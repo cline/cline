@@ -1,5 +1,5 @@
 /// <reference types="@types/bun" />
-export {};
+import { writeBundleInputs } from "../../../scripts/third-party-notices/bundle-inputs";
 
 type BuildMode = "package" | "bundle" | "dev";
 const rawMode = Bun.env.BUILD_MODE ?? "bundle";
@@ -17,6 +17,7 @@ const runBuild = async (
 ) => {
 	const result = await Bun.build({
 		...options,
+		metafile: true,
 		throw: false,
 	});
 
@@ -30,9 +31,10 @@ const runBuild = async (
 			console.warn(log);
 		}
 	}
+	return result;
 };
 
-await runBuild("node", {
+const nodeBuild = await runBuild("node", {
 	entrypoints: [
 		"./src/index.ts",
 		"./src/types/index.ts",
@@ -48,7 +50,7 @@ await runBuild("node", {
 	sourcemap,
 });
 
-await runBuild("browser", {
+const browserBuild = await runBuild("browser", {
 	entrypoints: ["./src/index.browser.ts"],
 	outdir: "./dist",
 	target: "browser",
@@ -57,6 +59,8 @@ await runBuild("browser", {
 	packages: "bundle",
 	external: ["zod"],
 });
+
+writeBundleInputs("./dist", [nodeBuild, browserBuild]);
 
 if (shouldEmitTypes) {
 	const tsc = Bun.spawn(
