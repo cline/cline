@@ -1720,7 +1720,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								</p>
 							</TooltipContent>
 							<TooltipTrigger>
-								<SwitchContainer data-testid="mode-switch" onClick={onModeToggle}>
+								<SwitchContainer
+									aria-label="Mode"
+									data-testid="mode-switch"
+									onClick={onModeToggle}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " " || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+											e.preventDefault()
+											onModeToggle()
+										}
+									}}
+									role="radiogroup"
+									tabIndex={0}>
 									<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 									{["Plan", "Act"].map((m) => (
 										<div
@@ -1732,7 +1743,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											key={m}
 											onMouseLeave={() => setShownTooltipMode(null)}
 											onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-											role="switch">
+											role="radio">
 											{m}
 										</div>
 									))}

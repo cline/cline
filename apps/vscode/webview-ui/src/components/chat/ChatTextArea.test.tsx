@@ -185,4 +185,17 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 
 		expect(screen.queryByTestId("images-unsupported-notice")).not.toBeInTheDocument()
 	})
+
+	it("exposes Plan and Act mode options with radio roles and checked state for screen readers", () => {
+		renderTextArea()
+
+		const radioGroup = screen.getByRole("radiogroup", { name: "Mode" })
+		expect(radioGroup).toBeInTheDocument()
+
+		const planRadio = screen.getByRole("radio", { name: "Plan" })
+		const actRadio = screen.getByRole("radio", { name: "Act" })
+
+		expect(planRadio).toHaveAttribute("aria-checked", "false")
+		expect(actRadio).toHaveAttribute("aria-checked", "true")
+	})
 })
