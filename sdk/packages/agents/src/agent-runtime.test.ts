@@ -1926,6 +1926,56 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("recovers a later context overflow after a completed tool step", async () => {
+		const overflow = (): AgentModelEvent[] => [
+			{
+				type: "finish",
+				reason: "error",
+				error: "prompt is too long",
+				errorClass: "context_window_exceeded",
+			},
+		];
+		const model = new ScriptedModel([
+			overflow,
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "echo-1",
+					toolName: "echo",
+					input: { text: "tool result ".repeat(300) },
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			overflow,
+			() => [
+				{ type: "text-delta", text: "Finished" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let recoveries = 0;
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			prepareTurn: async (context) => {
+				if (!context.overflowRecovery) return;
+				recoveries++;
+				return {
+					messages: [
+						{
+							role: "user",
+							content: [{ type: "text", text: `checkpoint ${recoveries}` }],
+						},
+					],
+				};
+			},
+		});
+		const result = await runtime.run("Large original task ".repeat(200));
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Finished");
+		expect(recoveries).toBe(2);
+		expect(model.requests).toHaveLength(4);
+	});
+
 	it("does not retry a second consecutive overflow in the same run", async () => {
 		const overflow = (): AgentModelEvent[] => [
 			{
