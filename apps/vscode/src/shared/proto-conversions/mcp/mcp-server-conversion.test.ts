@@ -48,3 +48,22 @@ describe("MCP tool annotations over the proto boundary", () => {
 		should(server.tools?.[0].annotations).be.undefined()
 	})
 })
+
+describe("Plan-mode overrides over the proto boundary", () => {
+	it("survive a round trip to the webview", () => {
+		const [server] = convertProtoMcpServersToMcpServers(
+			convertMcpServersToProtoMcpServers([
+				{
+					...serverWithTools([
+						{ name: "rename", inputSchema: { type: "object" }, allowInPlanMode: true },
+						{ name: "delete", inputSchema: { type: "object" }, allowInPlanMode: false },
+					]),
+					allowAllInPlanMode: true,
+				},
+			]),
+		)
+
+		should(server.allowAllInPlanMode).be.true()
+		should(server.tools?.map((tool) => tool.allowInPlanMode)).deepEqual([true, false])
+	})
+})

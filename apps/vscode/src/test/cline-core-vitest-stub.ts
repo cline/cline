@@ -133,7 +133,10 @@ export function createShellExecutor() {
 	return async () => ""
 }
 
+// The real name transform and tool factory, so tests see the names a session registers MCP tools under.
+export { defaultMcpToolNameTransform } from "../../../../sdk/packages/core/src/extensions/mcp/name-transform"
 export { augmentMcpTimeoutError } from "../../../../sdk/packages/core/src/extensions/mcp/timeout"
+export { createMcpTools } from "../../../../sdk/packages/core/src/extensions/mcp/tools"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that
 // would have to duplicate those invariants.

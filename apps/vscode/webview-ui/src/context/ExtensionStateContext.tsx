@@ -304,6 +304,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
 		cloudSessionsAvailable: false,
+		planModeMcpLimitsEnabled: false,
 		cloudSessionsEnabled: false,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,

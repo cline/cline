@@ -135,6 +135,9 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 |-------|-------------|----------------|
 | `task.tool_used` | Tool invocation and outcome telemetry | tool_name, success, duration_ms, auto_approved |
 | `task.mcp_tool_called` | MCP tool call lifecycle event | status (started/success/error), tool_name, server_name |
+| `task.mcp_plan_mode_tools_hidden` | A Plan-mode session was built without some of a server's MCP tools | serverName, hiddenCount, toolCount |
+| `task.mcp_plan_mode_approval` | User's answer when Plan mode asked before an MCP tool with no read-only hint | serverName, toolName, approved |
+| `task.mcp_plan_mode_override` | User allowed or disallowed MCP tools in Plan mode | serverName, scope (tool/server), allowed |
 | `task.browser_tool_start` | Browser tool/session started | url, action |
 | `task.browser_tool_end` | Browser tool/session ended with stats | duration_ms, actions_count, success |
 | `task.browser_error` | Browser tool error event | error_type, url |

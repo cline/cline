@@ -38,6 +38,7 @@ export function convertMcpServersToProtoMcpServers(mcpServers: McpServer[]): Pro
 		timeout: server.timeout,
 		oauthRequired: server.oauthRequired,
 		oauthAuthStatus: server.oauthAuthStatus,
+		allowAllInPlanMode: server.allowAllInPlanMode,
 	}))
 	return protoServers
 }
@@ -58,6 +59,7 @@ function convertTool(tool: McpTool): ProtoMcpTool {
 		inputSchema: inputSchemaString,
 		autoApprove: tool.autoApprove,
 		annotations: tool.annotations,
+		allowInPlanMode: tool.allowInPlanMode,
 	}
 }
 
@@ -139,6 +141,7 @@ export function convertProtoMcpServersToMcpServers(protoServers: ProtoMcpServer[
 			timeout: protoServer.timeout,
 			oauthRequired: protoServer.oauthRequired,
 			oauthAuthStatus: protoServer.oauthAuthStatus === "" ? undefined : (protoServer.oauthAuthStatus as McpOAuthAuthStatus),
+			allowAllInPlanMode: protoServer.allowAllInPlanMode,
 		}
 	})
 	return mcpServers
@@ -157,6 +160,7 @@ function convertProtoTool(protoTool: ProtoMcpTool): McpTool {
 				: protoTool.inputSchema
 			: undefined,
 		autoApprove: protoTool.autoApprove,
+		allowInPlanMode: protoTool.allowInPlanMode,
 		// A server may send an empty title; the webview treats that as none.
 		annotations: protoTool.annotations
 			? { ...protoTool.annotations, title: protoTool.annotations.title || undefined }

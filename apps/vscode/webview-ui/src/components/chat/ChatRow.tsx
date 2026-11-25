@@ -56,6 +56,7 @@ import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
 import HookMessage from "./HookMessage"
 import { MarkdownRow } from "./MarkdownRow"
+import McpPlanModeNotice from "./McpPlanModeNotice"
 import NewTaskPreview from "./NewTaskPreview"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
 import QuoteButton from "./QuoteButton"
@@ -819,6 +820,7 @@ export const ChatRowContent = memo(
 										/>
 									</div>
 								)}
+								<McpPlanModeNotice useMcpServer={useMcpServer} />
 							</div>
 						)}
 					</div>

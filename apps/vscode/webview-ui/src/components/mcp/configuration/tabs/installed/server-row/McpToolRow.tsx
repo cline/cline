@@ -4,10 +4,13 @@ import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mc
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
+import PlanModeAccessCheckbox from "./PlanModeAccessCheckbox"
 
 type McpToolRowProps = {
 	tool: McpTool
 	serverName?: string
+	/** Offer the Plan-mode override. Set where `tool` carries the server's hints. */
+	showPlanModeAccess?: boolean
 }
 
 // Per-tool MCP auto-approve checkboxes are hidden for now: the SDK approval
@@ -16,11 +19,6 @@ type McpToolRowProps = {
 // SDK ever gains per-tool approval granularity.
 export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
 
-/**
- * Shows the server's own read-only claim next to the tool name. Only a declared
- * hint is shown: an undeclared tool gets no badge, since absence of a hint is
- * not a statement about the tool.
- */
 // Only a declared read-only tool gets a badge: that is the set Plan mode can
 // run without asking. Labelling the rest either marks undeclared tools as
 // read-write, which is wrong for an old server's getters, or needs a noisy
@@ -39,7 +37,7 @@ const ToolHintBadge = ({ tool }: { tool: McpTool }) => {
 	)
 }
 
-const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName, showPlanModeAccess }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
 	const { setMcpServers } = useExtensionState()
@@ -90,6 +88,12 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 						style={{ fontSize: "11px" }}>
 						Auto-approve
 					</VSCodeCheckbox>
+				)}
+				{/* A declared read-only tool is already available in Plan mode. */}
+				{showPlanModeAccess && serverName && tool.annotations?.readOnlyHint !== true && (
+					<PlanModeAccessCheckbox serverName={serverName} toolName={tool.name}>
+						Allow in Plan mode
+					</PlanModeAccessCheckbox>
 				)}
 			</div>
 			{tool.description && (

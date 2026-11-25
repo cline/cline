@@ -51,6 +51,7 @@ import { CloudSessionsService } from "@/services/cloud/CloudSessionsService"
 import { isCloudSessionsFeatureAvailable, isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
 import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
+import { isPlanModeMcpLimitsEnabled } from "@/services/mcp/planModeMcpLimitsFeature"
 import { telemetryService } from "@/services/telemetry"
 import type { ClineExtensionContext } from "@/shared/cline"
 import { toLegacyApiProvider } from "@/shared/model-catalog/provider-helpers"
@@ -64,6 +65,7 @@ import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
+import { findMcpTool } from "./mcp-sdk-tool-name"
 import { MessageTranslatorState, reshapeErrorForWebview } from "./message-translator"
 import { createProviderCatalog } from "./model-catalog/catalog"
 import type { Disposable, ProviderCatalog, ProviderConfigChange, ProviderConfigStore } from "./model-catalog/contracts"
@@ -102,7 +104,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
-import { isToolAutoApproved } from "./sdk-tool-policies"
+import { getPlanModeApproval, isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
@@ -376,6 +378,7 @@ export class Controller {
 			// The shim starts as "unknown" (filtered out by getTaskModelId), so
 			// fresh sessions still resolve through their start metadata.
 			() => this.getTaskModelId() ?? this.getSessionModelId(),
+			(sdkToolName) => this.findMcpTool(sdkToolName),
 		)
 		// Warm the synchronous workspace-root snapshot used for display-path
 		// relativization (getWorkspaceRoot never rejects — it falls back internally).
@@ -417,8 +420,21 @@ export class Controller {
 			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
+				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			getPlanModeApproval: (request) =>
+				isPlanModeMcpLimitsEnabled()
+					? getPlanModeApproval(request.toolName, this.sessions.getActiveSession()?.mode, this.mcpHub)
+					: undefined,
+			recordPlanModeReadOnlyTool: (toolCallId) => this.messageTranslatorState.recordPlanModeReadOnlyTool(toolCallId),
+			onPlanModeApprovalDecision: (toolName, approved) => {
+				const match = this.findMcpTool(toolName)
+				const sessionId = this.sessions.getActiveSession()?.sessionId
+				if (match && sessionId) {
+					telemetryService.captureMcpPlanModeApproval(sessionId, match.server.name, match.tool.name, approved)
+				}
+			},
+			resolveMcpTool: (sdkToolName) => this.findMcpTool(sdkToolName),
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
@@ -1311,6 +1327,10 @@ export class Controller {
 		} catch {
 			return undefined
 		}
+	}
+
+	private findMcpTool(sdkToolName: string) {
+		return findMcpTool(sdkToolName, this.mcpHub.getServers())
 	}
 
 	private getTaskModelId(): string | undefined {
@@ -2710,6 +2730,7 @@ export class Controller {
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
 				cloudSessionsAvailable: isCloudSessionsFeatureAvailable(),
+				planModeMcpLimitsEnabled: isPlanModeMcpLimitsEnabled(),
 				cloudSessionsEnabled: isCloudSessionsFeatureEnabled(),
 				cloudTaskTarget: isCloudSessionsFeatureEnabled() ? this.cloudTaskTarget.view() : undefined,
 				currentCloudTask,

@@ -26,6 +26,8 @@ export type McpServer = {
 	timeout?: number
 	oauthRequired?: boolean
 	oauthAuthStatus?: McpOAuthAuthStatus
+	/** The user allowed every tool of this server in Plan mode. */
+	allowAllInPlanMode?: boolean
 }
 
 export type McpOAuthAuthStatus = "authenticated" | "unauthenticated" | "pending"
@@ -47,6 +49,8 @@ export type McpTool = {
 	description?: string
 	inputSchema?: object
 	autoApprove?: boolean
+	/** The user allowed this tool in Plan mode, whatever the server declares. */
+	allowInPlanMode?: boolean
 	annotations?: McpToolAnnotations
 	_meta?: Record<string, unknown>
 }

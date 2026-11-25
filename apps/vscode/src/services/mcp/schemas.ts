@@ -14,8 +14,15 @@ const AutoApproveSchema = z.array(z.string()).default([])
 const ReadTimeoutSchema = z.preprocess(resolveMcpTimeoutSeconds, z.number()).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS)
 export const McpTimeoutSecondsSchema = z.number().finite().min(MIN_MCP_TIMEOUT_SECONDS).max(MAX_MCP_TIMEOUT_SECONDS)
 
+// Plan-mode overrides: tools the user allowed by name, or the whole server.
+const PlanModeOverridesSchema = {
+	allowInPlanMode: z.array(z.string()).optional(),
+	allowAllInPlanMode: z.boolean().optional(),
+}
+
 export const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
+	...PlanModeOverridesSchema,
 	disabled: z.boolean().optional(),
 	timeout: ReadTimeoutSchema,
 	// Marker for servers that were added by remote config sync.
@@ -72,6 +79,7 @@ const nestedTransportConfigSchema = z
 		]),
 		disabled: z.boolean().optional(),
 		autoApprove: AutoApproveSchema.optional(),
+		...PlanModeOverridesSchema,
 		timeout: ReadTimeoutSchema,
 		remoteConfigured: z.boolean().optional(),
 		oauth: z.unknown().optional(),

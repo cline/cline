@@ -27,6 +27,7 @@ import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow, { SHOW_MCP_PER_TOOL_AUTO_APPROVE } from "./McpToolRow"
+import PlanModeAccessCheckbox from "./PlanModeAccessCheckbox"
 
 // constant JSX.Elements
 const TimeoutOptions = [
@@ -53,7 +54,7 @@ const ServerRow = ({
 	hasTrashIcon?: boolean
 	marketplaceMetadata?: MarketplaceMcpMetadata
 }) => {
-	const { autoApprovalSettings, setMcpServers, remoteConfigSettings } = useExtensionState()
+	const { autoApprovalSettings, setMcpServers, remoteConfigSettings, planModeMcpLimitsEnabled } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -337,8 +338,21 @@ const ServerRow = ({
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
+										{planModeMcpLimitsEnabled &&
+											server.name &&
+											(server.allowAllInPlanMode ||
+												server.tools.some((tool) => tool.annotations?.readOnlyHint !== true)) && (
+												<PlanModeAccessCheckbox serverName={server.name}>
+													Allow all tools in Plan mode
+												</PlanModeAccessCheckbox>
+											)}
 										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
+											<McpToolRow
+												key={tool.name}
+												serverName={server.name}
+												showPlanModeAccess={planModeMcpLimitsEnabled}
+												tool={tool}
+											/>
 										))}
 									</div>
 								) : (

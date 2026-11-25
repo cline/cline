@@ -25,7 +25,14 @@ interface MinimalConnection {
 		config: string
 		status: string
 		disabled?: boolean
-		tools?: Array<{ name: string; description?: string; inputSchema?: object; annotations?: object }>
+		tools?: Array<{
+			name: string
+			description?: string
+			inputSchema?: object
+			annotations?: object
+			allowInPlanMode?: boolean
+		}>
+		allowAllInPlanMode?: boolean
 	}
 }
 
@@ -98,8 +105,8 @@ describe("McpHub tool list change detection", () => {
 			const connections = [makeConnection("server-a", "connected", ["tool1", "tool2"])]
 			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
 			entries.should.deepEqual([
-				["server-a", "tool1", null, {}, null, 60_000],
-				["server-a", "tool2", null, {}, null, 60_000],
+				["server-a", "tool1", null, {}, null, 60_000, false],
+				["server-a", "tool2", null, {}, null, 60_000, false],
 			])
 		})
 
@@ -109,7 +116,7 @@ describe("McpHub tool list change detection", () => {
 				makeConnection("server-b", "disconnected", ["tool2"]),
 			]
 			const entries = JSON.parse(computeToolFingerprint(connections)).map((entry: string) => JSON.parse(entry))
-			entries.should.deepEqual([["server-a", "tool1", null, {}, null, 60_000]])
+			entries.should.deepEqual([["server-a", "tool1", null, {}, null, 60_000, false]])
 		})
 
 		it("should exclude tools from disabled servers", () => {
@@ -159,6 +166,30 @@ describe("McpHub tool list change detection", () => {
 			readOnly.should.not.equal(writable)
 			readOnly.should.not.equal(readOnlyTitled)
 			withTool({ readOnlyHint: true }).should.equal(readOnly)
+		})
+
+		it("should change only when a Plan-mode override changes whether the tool is hidden", () => {
+			const fingerprint = (annotations: object | undefined, override: "none" | "tool" | "server") => {
+				const connection = makeConnection(
+					"s1",
+					"connected",
+					["tool1"],
+					false,
+					60,
+					annotations ? { tool1: { annotations } } : {},
+				)
+				connection.server.tools![0].allowInPlanMode = override === "tool"
+				connection.server.allowAllInPlanMode = override === "server"
+				return computeToolFingerprint([connection])
+			}
+			// A declared-modifying tool is hidden until the user allows it.
+			const hidden = fingerprint({ readOnlyHint: false }, "none")
+			fingerprint({ readOnlyHint: false }, "tool").should.not.equal(hidden)
+			fingerprint({ readOnlyHint: false }, "server").should.not.equal(hidden)
+			// An undeclared tool is offered either way, so allowing it must not
+			// rebuild the session: the user does it from a pending approval.
+			fingerprint(undefined, "tool").should.equal(fingerprint(undefined, "none"))
+			fingerprint(undefined, "server").should.equal(fingerprint(undefined, "none"))
 		})
 
 		it("should produce different fingerprints for different descriptions", () => {
