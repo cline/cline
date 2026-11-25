@@ -43,6 +43,7 @@ import {
 } from "@/services/cloud/CloudSessionsService"
 import { ClineError } from "@/services/error/ClineError"
 import { Logger } from "@/shared/services/Logger"
+import type { ActiveSession } from "./cline-session-factory"
 import { PendingStartJournal, type PendingStartRecord } from "./cloud-pending-starts"
 import { CloudSessionHost } from "./cloud-session-host"
 import type { MessageIdMinter } from "./message-id-minter"
@@ -181,6 +182,8 @@ export interface SdkCloudSessionCoordinatorOptions {
 	isSignedIn: () => boolean
 	isEnabled: () => boolean
 	resetMessageTranslator: () => void
+	getTurnPhase: () => TurnPhase
+	getPreparingFollowupTask: () => TaskProxy | undefined
 	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	/** Forgets the previous turn's completion signal so a new cloud turn's phase is computed fresh. */
 	clearTurnOutcome: () => void
@@ -209,9 +212,10 @@ interface CloudSessionEntry {
 	/** Live connection, when this extension instance is attached to the sandbox. */
 	host?: CloudSessionHost
 	connection?: Promise<CloudSessionHost>
+	transportGeneration: number
 	/**
-	 * Number of openCloudTask calls currently reading from or attaching to the
-	 * host. Status resolution and the idle sweep leave a pinned host open.
+	 * Calls reading from or attaching to the host. Pinning prevents idle cleanup;
+	 * confirmed sandbox unavailability still retires the transport.
 	 */
 	pinned: number
 	/**
@@ -233,7 +237,10 @@ export class SdkCloudSessionCoordinator {
 	private pollTimer: NodeJS.Timeout | undefined
 	private disposed = false
 	private scopeGeneration = 0
+	private scopeAbort = new AbortController()
+	private readonly taskCanonicalIds = new WeakMap<TaskProxy, string | undefined>()
 	private startGeneration = 0
+	private pendingFollowup = new AbortController()
 	/** Set while a cloud start is provisioning; aborted by cancelPendingStart. */
 	private pendingStart: AbortController | undefined
 	/** The sandbox the pending start created, once the control plane has named it. */
@@ -608,6 +615,7 @@ export class SdkCloudSessionCoordinator {
 			return this.listPromise
 		}
 		const generation = this.scopeGeneration
+		const listedRecords = new Map([...this.entries].map(([id, entry]) => [id, entry.record]))
 		let listPromise!: Promise<void>
 		listPromise = (async () => {
 			try {
@@ -619,6 +627,9 @@ export class SdkCloudSessionCoordinator {
 				const seen = new Set<string>()
 				for (const record of records) {
 					seen.add(record.id)
+					const current = this.entries.get(record.id)
+					// A wake or live status lookup supersedes a list that started earlier.
+					if (current && current.record !== listedRecords.get(record.id)) continue
 					this.upsertRecord(record)
 				}
 				// A record that left the account's list was deleted elsewhere (for
@@ -665,7 +676,11 @@ export class SdkCloudSessionCoordinator {
 	private upsertRecord(record: CloudSessionRecord): CloudSessionEntry {
 		const existing = this.entries.get(record.id)
 		if (existing) {
+			const taskChanged = existing.record.metadata.taskId?.trim() !== record.metadata.taskId?.trim()
 			existing.record = record
+			const status = record.status?.toLowerCase()
+			if (taskChanged || status === "suspended" || status === "failed" || isCloudSessionExpired(record))
+				this.retireTransport(existing)
 			// A retained host is not proof of continuous observation. Revalidate
 			// settled outcomes against the record just as we do after restart.
 			if (existing.agentStatus && isSettled(existing.agentStatus)) {
@@ -675,6 +690,7 @@ export class SdkCloudSessionCoordinator {
 		}
 		const entry: CloudSessionEntry = {
 			record,
+			transportGeneration: 0,
 			pinned: 0,
 			agentStatus: this.rememberedStatusOf(record),
 			lastActivityAt: Date.parse(record.updatedAt) || Date.now(),
@@ -688,6 +704,9 @@ export class SdkCloudSessionCoordinator {
 		// A provisioning start belongs to the old account. Stop its readiness poll
 		// so the drain below waits for its DELETE, not for the sandbox to boot.
 		this.cancelPendingStart()
+		this.cancelPendingFollowup()
+		this.scopeAbort.abort()
+		this.scopeAbort = new AbortController()
 		this.scopeGeneration++
 		this.statusResolutionAttempts.clear()
 		this.cancelAbandonedStartsRecheck()
@@ -763,7 +782,62 @@ export class SdkCloudSessionCoordinator {
 
 	// ---- Connections ----
 
+	private retireTransport(entry: CloudSessionEntry): void {
+		const host = entry.host
+		const connection = entry.connection
+		if (!host && !connection) return
+		entry.host = undefined
+		entry.connection = undefined
+		entry.transportGeneration++
+		if (connection) void this.trackScopeOperation(() => connection).catch(() => undefined)
+		if (host) {
+			const active = this.options.sessions.getActiveSession()
+			const task = this.options.getTask()
+			const settlesDisplayedTurn =
+				active?.sdkHost === host &&
+				active.isRunning &&
+				task?.taskId === entry.record.id &&
+				this.options.getPreparingFollowupTask() !== task &&
+				["streaming", "awaiting_approval", "awaiting_followup"].includes(this.options.getTurnPhase())
+			if (settlesDisplayedTurn) this.options.setTurnPhase("idle")
+			// Both owners are cleared synchronously; captured callers see a closed wrapper.
+			const retirement = Promise.allSettled([
+				this.options.sessions.endActiveSessionIfHost(host, "sandboxUnavailable"),
+				host.dispose("sandboxUnavailable"),
+			])
+			void this.trackScopeOperation(() => retirement)
+			if (settlesDisplayedTurn) void this.options.postStateToWebview().catch(() => undefined)
+		}
+	}
+
+	private assertSandboxNotTerminated(entry: CloudSessionEntry): void {
+		const expired = isCloudSessionExpired(entry.record)
+		if (!expired && entry.record.status?.toLowerCase() !== "failed") return
+		this.retireTransport(entry)
+		throw new Error(`This cloud sandbox ${expired ? "has expired" : "has failed"}. Start a new cloud task to continue.`)
+	}
+
+	private async recheckWakeReadiness(entry: CloudSessionEntry, signal: AbortSignal): Promise<CloudSessionRecord | undefined> {
+		signal.throwIfAborted()
+		const record = { ...entry.record }
+		if (this.entries.get(record.id) !== entry) return undefined
+		entry.record = record
+		const live = await this.trackScopeOperation(() => {
+			signal.throwIfAborted()
+			return this.options.cloudSessions.getStatus(record.id, signal)
+		})
+		signal.throwIfAborted()
+		this.assertSandboxNotTerminated(entry)
+		if (this.entries.get(record.id) !== entry || entry.record !== record) return undefined
+		const status = live.status?.trim().toLowerCase()
+		if (!status) return undefined
+		const observed = { ...record, status }
+		this.upsertRecord(observed)
+		return status === "ready" || status === "active" ? observed : undefined
+	}
+
 	private async connect(entry: CloudSessionEntry): Promise<CloudSessionHost> {
+		this.assertSandboxNotTerminated(entry)
 		if (entry.connection) {
 			return entry.connection
 		}
@@ -774,6 +848,12 @@ export class SdkCloudSessionCoordinator {
 			throw new Error(`Cloud session ${sessionId} has no canonical task id.`)
 		}
 		const generation = this.scopeGeneration
+		const transportGeneration = entry.transportGeneration
+		const isCurrent = () =>
+			!this.disposed &&
+			generation === this.scopeGeneration &&
+			entry.transportGeneration === transportGeneration &&
+			this.entries.get(sessionId) === entry
 		const record = entry.record
 		const connection = (async () => {
 			const retainedHost = entry.host
@@ -790,13 +870,13 @@ export class SdkCloudSessionCoordinator {
 					restoreConfig: () => this.cloudSessionConfig(record.metadata.modelId ?? this.nextCloudModelId()),
 					onStatusChange: (status) => {
 						// A replaced account entry must never receive its predecessor's events.
-						if (!this.disposed && generation === this.scopeGeneration && this.entries.get(sessionId) === entry) {
+						if (isCurrent()) {
 							this.handleStatusChange(sessionId, status)
 						}
 					},
 				}))
 			const status = retainedHost ? await retainedHost.refreshStatus() : host.status
-			if (this.disposed || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
+			if (!isCurrent()) {
 				await host.dispose("accountScopeChanged").catch(() => undefined)
 				throw new Error("Cloud session connection was superseded")
 			}
@@ -876,6 +956,10 @@ export class SdkCloudSessionCoordinator {
 		}
 		const now = Date.now()
 		for (const entry of this.entries.values()) {
+			if (isCloudSessionExpired(entry.record)) {
+				this.retireTransport(entry)
+				continue
+			}
 			const status = this.statusOf(entry)
 			if (
 				entry.host &&
@@ -1034,6 +1118,7 @@ export class SdkCloudSessionCoordinator {
 	 * before awaiting, so a Cancel arriving in that gap invalidates this start.
 	 */
 	beginCloudTask(input: CloudTaskInput): () => Promise<string | undefined> {
+		this.cancelPendingFollowup()
 		const generationBeforeTransition = this.scopeGeneration
 		const startGeneration = ++this.startGeneration
 		const pendingStart = new AbortController()
@@ -1212,6 +1297,7 @@ export class SdkCloudSessionCoordinator {
 			this.options.invalidateHistoryCache()
 			// The task id becomes the outer session id once provisioning succeeds.
 			task.taskId = record.id
+			this.taskCanonicalIds.set(task, record.metadata.taskId?.trim())
 			await this.options.cloudSessions.renameSession(record.id, title).catch(() => undefined)
 			if (isStale()) return sessionId
 			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
@@ -1312,9 +1398,135 @@ export class SdkCloudSessionCoordinator {
 		}
 	}
 
+	canPrepareFollowup(sessionId: string): boolean {
+		if (this.pendingStart && this.pendingStartTask?.taskId === sessionId) return false
+		const entry = this.entries.get(sessionId)
+		return (
+			!!entry &&
+			entry.pinned === 0 &&
+			!isCloudSessionExpired(entry.record) &&
+			["suspended", "provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
+		)
+	}
+
+	cancelPendingFollowup(): void {
+		this.pendingFollowup.abort()
+		this.pendingFollowup = new AbortController()
+	}
+
+	getFollowupSignal(): AbortSignal {
+		return this.pendingFollowup.signal
+	}
+
+	beginFollowup(task: TaskProxy): () => Promise<ActiveSession> {
+		const generation = this.scopeGeneration
+		const signal = this.pendingFollowup.signal
+		const entry = this.entries.get(task.taskId)
+		const canonicalTaskId = this.taskCanonicalIds.get(task)
+		const isCurrent = () =>
+			!this.disposed &&
+			!this.scopeTransition &&
+			generation === this.scopeGeneration &&
+			!signal.aborted &&
+			this.options.getTask() === task &&
+			this.entries.get(task.taskId) === entry &&
+			entry?.record.metadata.taskId?.trim() === canonicalTaskId
+		const assertCurrent = () => {
+			if (!isCurrent()) throw new Error("Cloud follow-up was cancelled because its task changed.")
+		}
+		return () =>
+			this.trackScopeOperation(async () => {
+				assertCurrent()
+				if (!entry) throw new Error("This cloud session is no longer available.")
+				this.assertSandboxNotTerminated(entry)
+				// Fence lists already in flight before asking for a fresher observation.
+				const checkedRecord = { ...entry.record }
+				entry.record = checkedRecord
+				let live: Awaited<ReturnType<CloudSessionsService["getStatus"]>>
+				try {
+					live = await this.options.cloudSessions.getStatus(task.taskId, signal)
+				} catch (error) {
+					assertCurrent()
+					if (entry.record === checkedRecord && error instanceof CloudSessionError) {
+						if (error.code === "session_expired" || error.code === "session_failed") {
+							this.upsertRecord({
+								...checkedRecord,
+								status: error.code === "session_expired" ? "expired" : "failed",
+							})
+						} else if (error.code === "session_not_found") {
+							this.retireTransport(entry)
+						}
+					}
+					throw error
+				}
+				assertCurrent()
+				const status = live.status?.trim().toLowerCase()
+				if (entry.record !== checkedRecord) {
+					this.assertSandboxNotTerminated(entry)
+					if (
+						(status !== "active" && status !== "ready") ||
+						!["active", "ready"].includes(entry.record.status?.toLowerCase() ?? "")
+					) {
+						throw new Error("Cloud sandbox status changed. Send your message again.")
+					}
+				} else {
+					if (!status) throw new Error("Could not confirm the cloud sandbox's status. Send your message again.")
+					this.upsertRecord({ ...checkedRecord, status })
+					this.assertSandboxNotTerminated(entry)
+				}
+				if (status === "suspended" || status === "provisioning") {
+					const wakingRecord = entry.record
+					this.retireTransport(entry)
+					if (status === "suspended") await this.options.cloudSessions.resumeSession(task.taskId, undefined, signal)
+					else await this.options.cloudSessions.waitUntilReady(task.taskId, signal)
+					assertCurrent()
+					this.assertSandboxNotTerminated(entry)
+					if (
+						entry.record !== wakingRecord &&
+						!["provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
+					) {
+						const readyRecord = await this.recheckWakeReadiness(entry, signal)
+						assertCurrent()
+						this.assertSandboxNotTerminated(entry)
+						if (!readyRecord || entry.record !== readyRecord) {
+							throw new Error("Cloud sandbox status changed. Send your message again.")
+						}
+					}
+					entry.record = {
+						...entry.record,
+						status: entry.record.status?.toLowerCase() === "active" ? "active" : "ready",
+					}
+				} else if (status !== "active" && status !== "ready") {
+					throw new Error("The cloud sandbox is not ready. Send your message again once it is running.")
+				}
+				const host = await this.connect(entry)
+				assertCurrent()
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
+				const active = this.options.sessions.getActiveSession()
+				const prepared =
+					active?.sdkHost === host
+						? active
+						: await this.options.sessions.attachExistingSession({
+								sdkHost: host,
+								sessionId: task.taskId,
+								startConfig: {
+									providerId: "cline",
+									modelId: host.sessionModelId ?? entry.record.metadata.modelId ?? "",
+								},
+								isRunning: host.status === "running",
+								shouldContinue: () => isCurrent() && entry.host === host,
+							})
+				assertCurrent()
+				if (entry.host !== prepared.sdkHost) throw new Error("Cloud session connection was superseded")
+				entry.lastActivityAt = Date.now()
+				return prepared
+			})
+	}
+
 	// ---- Reopening a task from History ----
 
 	async openCloudTask(sessionId: string): Promise<HistoryItem | undefined> {
+		this.cancelPendingFollowup()
 		const displayed = this.options.getTask()
 		if (
 			displayed &&
@@ -1360,8 +1572,7 @@ export class SdkCloudSessionCoordinator {
 			this.disposed || isSuperseded() || generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry
 		if (isStale()) return historyItem
 
-		// Pin the host so a concurrent status resolution or idle sweep does not
-		// close it between connecting and installing the task that owns it.
+		// Pin against idle cleanup; confirmed sandbox unavailability still retires the host.
 		entry.pinned++
 		// The resume notice is posted as its own render. Whatever replaces it must
 		// start a new epoch right before it is installed, with no await between, or
@@ -1380,14 +1591,14 @@ export class SdkCloudSessionCoordinator {
 			if (status === "expired") {
 				messages = await this.renderExpired(entry)
 				if (isStale()) return historyItem
-			} else if (entry.record.status?.toLowerCase() === "failed" && !entry.host) {
+			} else if (entry.record.status?.toLowerCase() === "failed") {
 				// Only the control plane's record says the sandbox failed; a remembered
 				// "failed" is the last agent turn's outcome, and that conversation can continue.
 				messages.push({
 					ts: Date.now(),
 					type: "say",
 					say: "error",
-					text: `The cloud sandbox failed to start${entry.record.metadata.statusReason ? `: ${entry.record.metadata.statusReason}` : "."}`,
+					text: `The cloud sandbox failed${entry.record.metadata.statusReason ? `: ${entry.record.metadata.statusReason}` : "."}`,
 					partial: false,
 				})
 			} else {
@@ -1402,8 +1613,10 @@ export class SdkCloudSessionCoordinator {
 				if (isStale()) {
 					return historyItem
 				}
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				const transcript = (await host.readMessages(sessionId)) as SdkMessage[]
 				if (isStale()) return historyItem
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				attachedRunning = host.status === "running"
 				messages = this.renderTranscript(transcript, host.status === "completed")
 				await this.options.sessions.attachExistingSession({
@@ -1411,8 +1624,9 @@ export class SdkCloudSessionCoordinator {
 					sessionId,
 					startConfig: { providerId: "cline", modelId: host.sessionModelId ?? record.model ?? "" },
 					isRunning: attachedRunning,
-					shouldContinue: () => !isStale(),
+					shouldContinue: () => !isStale() && entry.host === host,
 				})
+				if (entry.host !== host) throw new Error("Cloud session connection was superseded")
 				observedStatus = host.status
 				attachedRunning = observedStatus === "running"
 			}
@@ -1474,11 +1688,29 @@ export class SdkCloudSessionCoordinator {
 	 */
 	private async connectUnlessSuspended(entry: CloudSessionEntry): Promise<CloudSessionHost | undefined> {
 		if (entry.record.status?.toLowerCase() === "suspended") return undefined
+		const signal = this.scopeAbort.signal
 		try {
 			return await this.connect(entry)
 		} catch (error) {
-			const live = await this.options.cloudSessions.getStatus(entry.record.id).catch(() => undefined)
-			if (live?.status?.toLowerCase() === "suspended") return undefined
+			const record = { ...entry.record }
+			entry.record = record
+			const status = await this.trackScopeOperation(() => {
+				signal.throwIfAborted()
+				return this.options.cloudSessions.getStatus(record.id, signal)
+			}).then(
+				(live) => live.status?.toLowerCase(),
+				(probeError: unknown) =>
+					probeError instanceof CloudSessionError && probeError.code === "session_expired" ? "expired" : undefined,
+			)
+			if (
+				this.entries.get(record.id) === entry &&
+				entry.record === record &&
+				(status === "suspended" || status === "failed" || status === "expired")
+			) {
+				this.upsertRecord({ ...record, status })
+				if (status === "suspended") return undefined
+			}
+			this.assertSandboxNotTerminated(entry)
 			throw error
 		}
 	}
@@ -1489,30 +1721,48 @@ export class SdkCloudSessionCoordinator {
 	 * session reads as provisioning until the sandbox is back.
 	 */
 	private async resume(entry: CloudSessionEntry, title: string): Promise<void> {
-		const suspended = entry.record
-		const resuming = { ...suspended, status: "provisioning" }
+		const signal = this.scopeAbort.signal
+		let previousRecord = entry.record
+		let resuming = { ...previousRecord, status: "provisioning" }
 		entry.record = resuming
 		const startedAt = Date.now()
-		this.installTask(suspended.id).messageStateHandler.addMessages([
+		this.installTask(previousRecord.id).messageStateHandler.addMessages([
 			{ ts: startedAt, type: "say", say: "task", text: title, partial: false },
-			cloudProvisioningRow(startedAt + 1, "resuming", suspended.repoContext),
+			cloudProvisioningRow(startedAt + 1, "resuming", previousRecord.repoContext),
 		])
 		await this.options.postStateToWebview()
-		// Opened from History, the chat view (and this notice) stays covered until
-		// the open completes, which is after the whole resume. Show it now.
+		signal.throwIfAborted()
+		// Opening from History covers the chat until this method returns; show the notice now.
 		await this.options.showChatView()
 		try {
-			await this.options.cloudSessions.resumeSession(suspended.id)
+			await this.trackScopeOperation(() => {
+				signal.throwIfAborted()
+				this.assertSandboxNotTerminated(entry)
+				// Posting the notice can refresh History; fence those reads before the wake.
+				if (entry.record !== resuming) previousRecord = entry.record
+				resuming = { ...previousRecord, status: "provisioning" }
+				entry.record = resuming
+				return this.options.cloudSessions.resumeSession(previousRecord.id, undefined, signal)
+			})
 		} catch (error) {
-			if (entry.record === resuming) entry.record = suspended
+			if (entry.record === resuming) entry.record = previousRecord
 			throw error
 		}
+		signal.throwIfAborted()
+		this.assertSandboxNotTerminated(entry)
+		if (
+			entry.record !== resuming &&
+			!["provisioning", "ready", "active"].includes(entry.record.status?.toLowerCase() ?? "")
+		) {
+			const readyRecord = await this.recheckWakeReadiness(entry, signal)
+			signal.throwIfAborted()
+			this.assertSandboxNotTerminated(entry)
+			if (!readyRecord || entry.record !== readyRecord) {
+				throw new Error("Cloud sandbox status changed. Open the task again.")
+			}
+		}
 		entry.record = { ...entry.record, status: "ready" }
-		// A host kept from before the suspension still believes the conversation's
-		// runtime is live; the resumed Hub has none, so reconnect from scratch.
-		const retained = entry.host
-		entry.host = undefined
-		await retained?.dispose("resumed").catch(() => undefined)
+		this.retireTransport(entry)
 	}
 
 	/**
@@ -1598,6 +1848,7 @@ export class SdkCloudSessionCoordinator {
 			(text, images, files) => this.options.onAskResponse(text, images, files),
 			() => this.options.onCancelTask(),
 		)
+		this.taskCanonicalIds.set(task, this.entries.get(taskId)?.record.metadata.taskId?.trim())
 		this.options.setTask(task)
 		return task
 	}
@@ -1630,6 +1881,8 @@ export class SdkCloudSessionCoordinator {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		this.cancelPendingFollowup()
+		this.scopeAbort.abort()
 		this.cancelAbandonedStartsRecheck()
 		if (this.pollTimer) {
 			clearInterval(this.pollTimer)

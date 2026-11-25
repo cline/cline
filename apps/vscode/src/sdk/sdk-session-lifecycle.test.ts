@@ -368,17 +368,25 @@ describe("SdkSessionLifecycle", () => {
 		expect(onSendStart.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0])
 	})
 
-	it("leaves the active session running when a message is queued", async () => {
+	it("returns queue acceptance without settling the active turn", async () => {
 		const onSendComplete = vi.fn()
-		const send = vi.fn().mockResolvedValue(undefined)
+		const accepted = Promise.withResolvers<undefined>()
+		const send = vi.fn().mockReturnValue(accepted.promise)
 		const sdkHost = makeSdkHost({ send })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
 		const lifecycle = makeLifecycle({ onSendComplete })
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
+		const beforeDispatch = vi.fn()
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
-		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue")
+		const sending = lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue", {
+			beforeDispatch,
+		})
+		expect(sending).toBe(accepted.promise)
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({ delivery: "queue" }), { beforeDispatch })
+		accepted.resolve(undefined)
+		await sending
 		await vi.waitFor(() => expect(send).toHaveBeenCalled())
 
 		expect(onSendComplete).not.toHaveBeenCalled()
@@ -761,13 +769,14 @@ describe("SdkSessionLifecycle", () => {
 				sessionId: "session-123",
 				prompt: "<mode_notice>The user switched from act mode to plan mode before sending this message.</mode_notice>\nhow should we refactor this?",
 			}),
+			undefined,
 		)
 
 		// The notice was consumed by the first send; the next message is clean.
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "and the tests?")
 		await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2))
-		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "and the tests?" }))
+		expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: "and the tests?" }), undefined)
 	})
 
 	it("sends prompts unchanged when no mode-switch notice is pending", async () => {
@@ -782,7 +791,7 @@ describe("SdkSessionLifecycle", () => {
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
 		await vi.waitFor(() => expect(send).toHaveBeenCalled())
 
-		expect(send).toHaveBeenCalledWith(expect.objectContaining({ prompt: "hello" }))
+		expect(send).toHaveBeenCalledWith(expect.objectContaining({ prompt: "hello" }), undefined)
 	})
 })
 

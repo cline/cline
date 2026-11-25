@@ -1,4 +1,4 @@
-import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE } from "@shared/cloud/cloud-sessions"
+import { CLOUD_CREATION_UNCONFIRMED_ERROR_CODE, type CurrentCloudTaskInfo } from "@shared/cloud/cloud-sessions"
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -46,6 +46,7 @@ vi.mock("@shared/proto/cline/common", () => ({
 
 // useExtensionState supplies turnState (+ backgroundCommandRunning, cloud target) to the hook.
 let mockTurnState: TurnState | undefined
+let mockCurrentCloudTask: Pick<CurrentCloudTaskInfo, "sessionId" | "status"> | undefined
 let mockCloudTaskTarget: { target: "local" | "cloud"; repoUrl?: string; branch?: string } | undefined
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
@@ -53,6 +54,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		turnState: mockTurnState,
 		cloudSessionsEnabled: true,
 		cloudTaskTarget: mockCloudTaskTarget,
+		currentCloudTask: mockCurrentCloudTask,
 	}),
 }))
 
@@ -124,6 +126,7 @@ describe("useMessageHandlers — send routing", () => {
 		trackIntent.mockReset()
 		trackIntent.mockResolvedValue(undefined)
 		mockTurnState = undefined
+		mockCurrentCloudTask = undefined
 		mockCloudTaskTarget = undefined
 	})
 
@@ -220,8 +223,14 @@ describe("useMessageHandlers — send routing", () => {
 		)
 	})
 
-	it("after a completed turn (no clineAsk), Enter continues the conversation via askResponse — NOT newTask", async () => {
-		mockTurnState = { phase: "completed", seq: 7 }
+	it.each([
+		{ phase: "completed", cloud: false, sends: true },
+		{ phase: "idle", cloud: true, sends: true },
+		{ phase: "resumable", cloud: true, sends: true },
+		{ phase: "resumable", cloud: false, sends: false },
+	] as const)("routes Enter after $phase (cloud: $cloud)", async ({ phase, cloud, sends }) => {
+		mockTurnState = { phase, seq: 7 }
+		mockCurrentCloudTask = cloud ? { sessionId: "ses-current", status: "idle" } : undefined
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
 
 		await act(async () => {
@@ -229,7 +238,8 @@ describe("useMessageHandlers — send routing", () => {
 		})
 
 		expect(newTask).not.toHaveBeenCalled()
-		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledTimes(sends ? 1 : 0)
+		if (!sends) return
 		expect(askResponse).toHaveBeenCalledWith(
 			expect.objectContaining({ responseType: "messageResponse", text: "another question" }),
 		)
@@ -393,6 +403,127 @@ describe("useMessageHandlers — send routing", () => {
 		expect(rollbackResponse(pendingResponse)).toBeUndefined()
 		const newerResponse = { ...pendingResponse, id: 2 }
 		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
+	})
+
+	it.each([
+		"unchanged",
+		"edit",
+		"navigate",
+		"return",
+		"streaming",
+	] as const)("restores only the submitted cloud draft (%s)", async (change) => {
+		mockTurnState = { phase: change === "streaming" ? "streaming" : "completed", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-current", status: change === "streaming" ? "running" : "idle" }
+		const request = Promise.withResolvers<void>()
+		askResponse.mockReturnValueOnce(request.promise)
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("original")
+			result.current.chatState.setSelectedImages(["image.png"])
+		})
+		let sending: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sending = result.current.handlers.handleSendMessage("original", ["image.png"], [])
+			await Promise.resolve()
+		})
+		act(() => {
+			if (change === "edit") result.current.chatState.setInputValue("new draft")
+			if (change === "navigate" || change === "return") mockCurrentCloudTask = { sessionId: "ses-other", status: "idle" }
+		})
+		rerender()
+		if (change === "return") {
+			mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
+			rerender()
+		}
+		const latest = result.current.chatState.getDraftSnapshot()
+		await act(async () => {
+			request.reject(new Error("submission failed"))
+			await expect(sending).rejects.toThrow("submission failed")
+		})
+		if (change === "unchanged" || change === "streaming")
+			expect(result.current.chatState.getDraftSnapshot()).toMatchObject({ text: "original", images: ["image.png"] })
+		else expect(result.current.chatState.getDraftSnapshot()).toEqual(latest)
+	})
+
+	it("does not restore an older send's flags while a newer send is pending", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const firstRequest = Promise.withResolvers<void>()
+		const secondRequest = Promise.withResolvers<void>()
+		askResponse.mockReturnValueOnce(firstRequest.promise).mockReturnValueOnce(secondRequest.promise)
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("first")
+			result.current.chatState.setEnableButtons(true)
+		})
+		let first: Promise<void> = Promise.resolve()
+		await act(async () => {
+			first = result.current.handlers.handleSendMessage("first", [], [])
+			await Promise.resolve()
+		})
+		act(() => {
+			mockTurnState = { phase: "completed", seq: 8 }
+			result.current.chatState.setInputValue("second")
+			rerender()
+		})
+		let second: Promise<void> = Promise.resolve()
+		await act(async () => {
+			second = result.current.handlers.handleSendMessage("second", [], [])
+			await Promise.resolve()
+		})
+		const secondPendingUserMessage = result.current.chatState.pendingUserMessage
+		const secondPendingResponse = result.current.chatState.pendingResponse
+		expect(secondPendingUserMessage).toMatchObject({
+			message: expect.objectContaining({ say: "user_feedback", text: "second" }),
+		})
+		expect(secondPendingResponse).toMatchObject({ id: 2, turnStateSeq: 8 })
+		await act(async () => {
+			firstRequest.reject(new Error("first failed"))
+			await expect(first).rejects.toThrow("first failed")
+		})
+		expect(result.current.chatState.inputValue).toBe("")
+		expect(result.current.chatState.sendingDisabled).toBe(true)
+		expect(result.current.chatState.enableButtons).toBe(false)
+		expect(result.current.chatState.pendingUserMessage).toBe(secondPendingUserMessage)
+		expect(result.current.chatState.pendingResponse).toBe(secondPendingResponse)
+		await act(async () => {
+			secondRequest.resolve()
+			await second
+		})
+	})
+
+	it("restores the current resumable flags when cloud preparation rejects", async () => {
+		mockTurnState = { phase: "streaming", seq: 7 }
+		mockCurrentCloudTask = { sessionId: "ses-current", status: "idle" }
+		const request = Promise.withResolvers<void>()
+		askResponse.mockReturnValueOnce(request.promise)
+		const { result, rerender } = renderHook(() => {
+			const chatState = useChatState(completedConversation)
+			return { chatState, handlers: useMessageHandlers(completedConversation, chatState) }
+		})
+		act(() => {
+			result.current.chatState.setInputValue("follow-up")
+			result.current.chatState.setSendingDisabled(true)
+		})
+		let sending: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sending = result.current.handlers.handleSendMessage("follow-up", [], [])
+			await Promise.resolve()
+		})
+		mockTurnState = { phase: "resumable", seq: 8 }
+		rerender()
+		await act(async () => {
+			request.reject(new Error("preparation stopped"))
+			await expect(sending).rejects.toThrow("preparation stopped")
+		})
+		expect(result.current.chatState.inputValue).toBe("follow-up")
+		expect(result.current.chatState.sendingDisabled).toBe(false)
+		expect(result.current.chatState.enableButtons).toBe(true)
 	})
 
 	it("shows a pending chat bubble immediately when sending a message to a task resumed from history", async () => {

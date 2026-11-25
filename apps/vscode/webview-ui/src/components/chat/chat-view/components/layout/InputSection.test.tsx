@@ -1,4 +1,4 @@
-import type { TurnState } from "@shared/ExtensionMessage"
+import type { ClineCloudProvisioningInfo, ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen } from "@testing-library/react"
 import React from "react"
 import { describe, expect, it, vi } from "vitest"
@@ -192,18 +192,33 @@ describe("InputSection", () => {
 		mockCloudState.mockReturnValue({})
 	})
 
-	it("keeps submit disabled while a cloud sandbox is still provisioning", () => {
-		mockTurnState.mockReturnValue({ phase: "streaming", seq: 1 })
+	it.each([
+		{ phase: "streaming", status: "provisioning", opening: false, disabled: true },
+		{ phase: "resumable", status: "provisioning", opening: false, disabled: false },
+		{ phase: "idle", status: "provisioning", opening: false, disabled: false },
+		{ phase: "idle", status: "provisioning", opening: true, disabled: true },
+		{ phase: "idle", status: "unknown", opening: true, disabled: true },
+	] as const)("gates cloud input in phase $phase, status $status, opening $opening", ({ phase, status, opening, disabled }) => {
+		mockTurnState.mockReturnValue({ phase, seq: 1 })
+		const messages: ClineMessage[] = [{ ts: 1, type: "say", say: "task", text: "test" }]
+		if (opening) {
+			messages.push({
+				ts: 2,
+				type: "say",
+				say: "cloud_provisioning",
+				text: JSON.stringify({ phase: "resuming" } satisfies ClineCloudProvisioningInfo),
+			})
+		}
 		mockCloudState.mockReturnValue({
 			cloudSessionsEnabled: true,
-			currentCloudTask: { sessionId: "cloud-provisioning-1", status: "provisioning" },
-			clineMessages: [{ ts: 1, type: "say", say: "task", text: "test" }],
+			currentCloudTask: { sessionId: "cloud-provisioning-1", status },
+			clineMessages: messages,
 		})
 		const handleSendMessage = vi.fn().mockResolvedValue(undefined)
 
 		render(
 			<InputSection
-				chatState={makeChatState({ sendingDisabled: true })}
+				chatState={makeChatState({ sendingDisabled: false })}
 				messageHandlers={{ handleSendMessage } as unknown as MessageHandlers}
 				placeholderText="Type a message"
 				scrollBehavior={makeScrollBehavior()}
@@ -213,9 +228,14 @@ describe("InputSection", () => {
 		)
 
 		const composer = screen.getByLabelText("composer")
-		expect(composer).toBeDisabled()
 		fireEvent.keyDown(composer, { key: "Enter" })
-		expect(handleSendMessage).not.toHaveBeenCalled()
+		if (disabled) {
+			expect(composer).toBeDisabled()
+			expect(handleSendMessage).not.toHaveBeenCalled()
+		} else {
+			expect(composer).not.toBeDisabled()
+			expect(handleSendMessage).toHaveBeenCalledOnce()
+		}
 		mockCloudState.mockReturnValue({})
 	})
 
