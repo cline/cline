@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
+import { createHmac } from "node:crypto";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BrowserPanel, normalizeBrowserUrl } from "./browser-panel";
+import { BrowserPanel, normalizeBrowserUrl, toFrameSrc } from "./browser-panel";
 
 const { openExternalUrl } = vi.hoisted(() => ({ openExternalUrl: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({ openExternalUrl }));
+vi.mock("@/lib/desktop-client", () => ({
+	openExternalUrl,
+	resolveDesktopBackendWsEndpoint: async () =>
+		"ws://127.0.0.1:3126/transport?approval_token=tok",
+}));
+
+// What the sidecar derives for the same approval token.
+const previewToken = (approvalToken: string) =>
+	createHmac("sha256", approvalToken).update("preview-file").digest("hex");
 
 describe("normalizeBrowserUrl", () => {
 	it.each([
@@ -14,6 +23,10 @@ describe("normalizeBrowserUrl", () => {
 		["127.0.0.1:8080", "http://127.0.0.1:8080/"],
 		["example.com", "https://example.com/"],
 		["http://example.com/x", "http://example.com/x"],
+		[
+			"file:///workspace/cline/snake.html",
+			"file:///workspace/cline/snake.html",
+		],
 	])("reads %s as %s", (input, expected) => {
 		expect(normalizeBrowserUrl(input)).toBe(expected);
 	});
@@ -22,9 +35,45 @@ describe("normalizeBrowserUrl", () => {
 		"",
 		"   ",
 		"javascript:alert(1)",
-		"file:///etc/passwd",
+		"file://remote-host/share/x.html",
 	])("rejects %j", (input) => {
 		expect(normalizeBrowserUrl(input)).toBeNull();
+	});
+});
+
+describe("toFrameSrc", () => {
+	const ws = "ws://127.0.0.1:3126/transport?approval_token=a b";
+
+	it("routes file URLs through the sidecar with the preview token", async () => {
+		expect(
+			await toFrameSrc("file:///workspace/my%20app/index.html#top", ws),
+		).toBe(
+			`http://127.0.0.1:3126/preview-file/${previewToken("a b")}/workspace/my%20app/index.html#top`,
+		);
+	});
+
+	it("keeps a Windows drive path intact", async () => {
+		expect(await toFrameSrc("file:///C:/Users/me/app/index.html", ws)).toBe(
+			`http://127.0.0.1:3126/preview-file/${previewToken("a b")}/C:/Users/me/app/index.html`,
+		);
+	});
+
+	it("never puts the approval token in the frame address", async () => {
+		expect(await toFrameSrc("file:///workspace/x.html", ws)).not.toMatch(
+			/a%20b|a b|approval_token/,
+		);
+	});
+
+	it("refuses when the endpoint carries no token", async () => {
+		await expect(
+			toFrameSrc("file:///workspace/x.html", "ws://127.0.0.1:3126/transport"),
+		).rejects.toThrow();
+	});
+
+	it("leaves web URLs alone", async () => {
+		expect(await toFrameSrc("http://localhost:3000/", ws)).toBe(
+			"http://localhost:3000/",
+		);
 	});
 });
 
@@ -88,6 +137,22 @@ describe("BrowserPanel", () => {
 		expect(container.querySelector("iframe")?.getAttribute("src")).toBe(
 			"http://localhost:5173/",
 		);
+	});
+
+	it("loads a workspace file through the sidecar route", async () => {
+		await render();
+		await submit("file:///workspace/cline/snake.html");
+		await vi.waitFor(() =>
+			expect(container.querySelector("iframe")?.getAttribute("src")).toBe(
+				`http://127.0.0.1:3126/preview-file/${previewToken("tok")}/workspace/cline/snake.html`,
+			),
+		);
+		// The system browser can't be handed a file address.
+		expect(
+			container
+				.querySelector('button[aria-label="Open in browser"]')
+				?.hasAttribute("disabled"),
+		).toBe(true);
 	});
 
 	it("flags an unusable URL instead of loading it", async () => {
