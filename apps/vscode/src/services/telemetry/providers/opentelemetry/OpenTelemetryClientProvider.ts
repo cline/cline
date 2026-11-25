@@ -1,4 +1,3 @@
-import { markOtlpTraceRelayProvider, OTLP_TRACE_RELAY_MARKER } from "@cline/shared"
 import { metrics, trace } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
 import { Resource } from "@opentelemetry/resources"
@@ -247,10 +246,6 @@ export class OpenTelemetryClientProvider {
 			tracerProvider.addSpanProcessor(processor)
 		}
 
-		// Every processor here wraps an OTLP exporter, so this provider IS the
-		// collector relay — downstream trace decisions key off this marker.
-		markOtlpTraceRelayProvider(tracerProvider)
-
 		// register() sets the global tracer provider plus the async context
 		// manager spans need for parent/child relationships.
 		tracerProvider.register()
@@ -279,10 +274,9 @@ export class OpenTelemetryClientProvider {
 
 	private async shutdown(): Promise<void> {
 		if (this.tracerProvider) {
-			// Stop new relay decisions and release only our own global slot before
-			// flushing. shutdown() alone leaves a dead delegate that rejects the
-			// next registration. Cached tracers stop exporting after shutdown.
-			delete (this.tracerProvider as unknown as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER]
+			// Release only our own global slot before flushing. shutdown() alone
+			// leaves a dead delegate that rejects the next registration. Cached
+			// tracers stop exporting after shutdown.
 			if (this.isGlobalTracerProvider(this.tracerProvider)) {
 				trace.disable()
 			}

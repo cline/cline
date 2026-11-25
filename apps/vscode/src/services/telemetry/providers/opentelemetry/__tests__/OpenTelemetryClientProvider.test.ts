@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
-import { isOtlpTraceRelayProvider } from "@cline/shared"
 import { context, propagation, trace } from "@opentelemetry/api"
 import { InMemorySpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-node"
 import * as exporterFactory from "../OpenTelemetryExporterFactory"
@@ -47,7 +46,6 @@ describe("OpenTelemetryClientProvider tracer lifecycle", () => {
 		const disposal = first.dispose()
 		expect(first.dispose()).toBe(disposal)
 		await disposal
-		expect(isOtlpTraceRelayProvider(first.tracerProvider)).toBe(false)
 		expect(trace.getTracer("lifecycle-test").startSpan("disabled").isRecording()).toBe(false)
 		cachedTracer.startSpan("cached-after-disable").end()
 		await first.tracerProvider!.forceFlush()
@@ -56,7 +54,6 @@ describe("OpenTelemetryClientProvider tracer lifecycle", () => {
 
 		const replacement = createClient("http://second:4318")
 		expect(replacement.tracerProvider).not.toBeNull()
-		expect(isOtlpTraceRelayProvider(replacement.tracerProvider)).toBe(true)
 		await trace.getTracer("lifecycle-test").startActiveSpan("parent", async (parent) => {
 			await Promise.resolve()
 			trace.getTracer("lifecycle-test").startSpan("child").end()
