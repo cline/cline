@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { SlashCommandInfo, SlashCommandsResponse } from "@shared/proto/cline/slash"
-import { BASE_SLASH_COMMANDS } from "@/shared/slashCommands"
+import { isCloudSessionsFeatureEnabled } from "@/services/cloud/cloudSessionsFeature"
+import { BASE_SLASH_COMMANDS, VSCODE_ONLY_COMMANDS } from "@/shared/slashCommands"
 import { Controller } from ".."
 
 /**
@@ -10,7 +11,7 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 	const commands: SlashCommandInfo[] = []
 
 	// Add built-in commands
-	for (const cmd of [...BASE_SLASH_COMMANDS]) {
+	for (const cmd of [...BASE_SLASH_COMMANDS, ...(isCloudSessionsFeatureEnabled() ? VSCODE_ONLY_COMMANDS : [])]) {
 		commands.push(
 			SlashCommandInfo.create({
 				name: cmd.name,

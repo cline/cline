@@ -8,6 +8,7 @@ const runtime = vi.hoisted(() => ({
 	pendingUpdate: vi.fn(),
 	pendingDelete: vi.fn(),
 	listSessions: vi.fn(),
+	getSession: vi.fn(),
 	updateSessionConnection: vi.fn(),
 	readSessionMessages: vi.fn(),
 	startSession: vi.fn(async (input: { config: { sessionId: string } }) => ({ sessionId: input.config.sessionId })),
@@ -18,6 +19,7 @@ vi.mock("@cline/core", () => ({
 		pendingPrompts = { list: runtime.pendingList, update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
 		listSessions = runtime.listSessions
+		getSession = runtime.getSession
 		updateSessionConnection = runtime.updateSessionConnection
 		readSessionMessages = runtime.readSessionMessages
 		startSession = runtime.startSession
@@ -40,24 +42,39 @@ describe("CloudSessionHost status", () => {
 		runtime.pendingUpdate.mockReset()
 		runtime.pendingDelete.mockReset()
 		runtime.listSessions.mockReset().mockResolvedValue([{ sessionId: "inner-session", status: "idle" }])
+		runtime.getSession.mockReset().mockResolvedValue(undefined)
 		runtime.updateSessionConnection.mockReset().mockResolvedValue(undefined)
 		runtime.readSessionMessages.mockReset().mockResolvedValue([])
 		runtime.startSession.mockClear()
 	})
 
-	it("rebuilds the runtime a resumed sandbox lost from its saved conversation before the first turn", async () => {
+	it.each([
+		{ savedCwd: "/workspace/packages/example", expectedCwd: "/workspace/packages/example" },
+		{ savedCwd: "/workspace", expectedCwd: "/workspace" },
+		{ savedCwd: undefined, expectedCwd: "/workspace" },
+	])("restores the saved conversation with cwd $expectedCwd when saved cwd is $savedCwd", async ({ savedCwd, expectedCwd }) => {
 		const saved = [{ role: "user", content: "first prompt" }]
 		runtime.updateSessionConnection.mockRejectedValueOnce(
 			Object.assign(new Error("session not found: inner-session"), { code: "session_not_found" }),
 		)
 		runtime.readSessionMessages.mockResolvedValue(saved)
+		runtime.getSession.mockResolvedValue(savedCwd ? { cwd: savedCwd, workspaceRoot: "/workspace" } : undefined)
 		runtime.runTurn.mockResolvedValue({ finishReason: "completed" })
 		const host = await CloudSessionHost.connect({
 			outerSessionId: "ses-outer",
 			taskId: "inner-session",
 			socketUrl: "ws://127.0.0.1:1/session",
 			getAuthToken: async () => "token",
-			restoreConfig: async () => ({ providerId: "cline", modelId: "sandbox-model", systemPrompt: "guidance" }) as never,
+			restoreConfig: async () => ({
+				providerId: "cline",
+				modelId: "sandbox-model",
+				systemPrompt: "guidance",
+				cwd: "/workspace",
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
 		})
 
 		await host.send({ sessionId: "ses-outer", prompt: "follow-up" })
@@ -67,11 +84,18 @@ describe("CloudSessionHost status", () => {
 		expect(runtime.startSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				initialMessages: saved,
-				config: expect.objectContaining({ sessionId: "inner-session", modelId: "sandbox-model" }),
+				config: expect.objectContaining({
+					sessionId: "inner-session",
+					modelId: "sandbox-model",
+					cwd: expectedCwd,
+					workspaceRoot: "/workspace",
+					mode: "act",
+				}),
 				toolPolicies: { "*": { enabled: true, autoApprove: true } },
 			}),
 		)
 		expect(runtime.updateSessionConnection).toHaveBeenCalledOnce()
+		expect(runtime.getSession).toHaveBeenCalledWith("inner-session")
 		expect(runtime.runTurn).toHaveBeenCalledTimes(2)
 	})
 

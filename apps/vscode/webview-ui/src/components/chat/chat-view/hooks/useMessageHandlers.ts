@@ -1,3 +1,4 @@
+import { parseCloudCommand } from "@shared/cloud/cloud-handoff"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
@@ -7,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
+import { useCloudHandoff } from "./useCloudHandoff"
 
 function formatDraftText(text: string, activeQuote: string | null): string {
 	if (!activeQuote) {
@@ -30,6 +32,12 @@ function isCompactionCommand(text: string): boolean {
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
+	const {
+		prepare: prepareHandoff,
+		error: handoffError,
+		restoreDraft: restoreHandoffDraft,
+		discardDraft: discardHandoffDraft,
+	} = useCloudHandoff(chatState)
 	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
@@ -103,6 +111,17 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			const submittedQuote = recoveryDraft?.activeQuote ?? activeQuote
 			let messageToSend = submittedText.trim()
 			const hasContent = messageToSend || submittedImages.length > 0 || submittedFiles.length > 0
+			const cloudInstruction = parseCloudCommand(submittedText)
+			if (cloudInstruction !== undefined) {
+				await prepareHandoff(formatDraftText(cloudInstruction, submittedQuote), {
+					...chatState.getDraftSnapshot(),
+					text: submittedText,
+					images: submittedImages,
+					files: submittedFiles,
+					activeQuote: submittedQuote,
+				})
+				return
+			}
 
 			// Prepend the active quote if it exists
 			if (submittedQuote && hasContent) {
@@ -438,6 +457,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			chatState,
 			cloudSessionsEnabled,
 			cloudTaskTarget,
+			prepareHandoff,
 		],
 	)
 
@@ -506,6 +526,11 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "reject":
 				case "proceed": {
 					const { draft } = invocation
+					const cloudInstruction = invocation.type === "proceed" ? parseCloudCommand(draft.text) : undefined
+					if (cloudInstruction !== undefined) {
+						await prepareHandoff(formatDraftText(cloudInstruction, draft.activeQuote), draft)
+						return false
+					}
 					const trimmedText = draft.text.trim()
 					const hasContent = trimmedText.length > 0 || draft.images.length > 0 || draft.files.length > 0
 					const text = hasContent ? formatDraftText(trimmedText, draft.activeQuote) : undefined
@@ -596,6 +621,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			lastMessage,
 			startNewTask,
 			chatState,
+			prepareHandoff,
 			backgroundCommandRunning,
 			claimErrorRecovery,
 			releaseErrorRecoveryClaim,
@@ -612,6 +638,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 	}, [startNewTask])
 
 	return {
+		handoffError,
+		restoreHandoffDraft,
+		discardHandoffDraft,
 		errorRecoveryAvailable,
 		recoveryActionInFlight,
 		compactTask,
