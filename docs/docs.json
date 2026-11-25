@@ -1095,6 +1095,10 @@
 			"destination": "/provider-config/other-30-plus-providers#oracle-code-assist"
 		},
 		{
+			"source": "/provider-config/proxystacks",
+			"destination": "/provider-config/other-30-plus-providers#proxystacks-relay"
+		},
+		{
 			"source": "/provider-config/qwen-code",
 			"destination": "/provider-config/other-30-plus-providers#qwen-code"
 		},
