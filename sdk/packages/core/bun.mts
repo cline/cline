@@ -1,6 +1,7 @@
 /// <reference types="@types/bun" />
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeBundleInputs } from "../../../scripts/third-party-notices/bundle-inputs";
 import {
 	resolveRepoRootFromCorePackage,
 	resolveSdkRuntimeBuildId,
@@ -86,8 +87,13 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	},
 ];
 
+const results: Bun.BuildOutput[] = [];
 for (const config of builds) {
-	const result = await Bun.build(config as Parameters<typeof Bun.build>[0]);
+	const result = await Bun.build({
+		...(config as Parameters<typeof Bun.build>[0]),
+		metafile: true,
+	});
+	results.push(result);
 
 	if (!result.success) {
 		console.error("Build failed for entrypoints:", config.entrypoints);
@@ -100,3 +106,5 @@ for (const config of builds) {
 		}
 	}
 }
+
+writeBundleInputs("./dist", results);

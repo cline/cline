@@ -99,7 +99,8 @@
 	"files": [
 		"dist",
 		"!dist/**/*.d.ts.map",
-		"!dist/plugin-runtime-inputs.json"
+		"!dist/plugin-runtime-inputs.json",
+		"!dist/bundle-inputs.json"
 	],
 	"license": "Apache-2.0"
 }

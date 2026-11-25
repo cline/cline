@@ -1,4 +1,4 @@
-export {};
+import { writeBundleInputs } from "../../../scripts/third-party-notices/bundle-inputs";
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
@@ -13,6 +13,7 @@ const result = await Bun.build({
 	minify,
 	sourcemap,
 	external: ["@cline/core"],
+	metafile: true,
 });
 
 if (result.logs.length > 0) {
@@ -20,3 +21,5 @@ if (result.logs.length > 0) {
 		console.warn(log);
 	}
 }
+
+writeBundleInputs("./dist", [result]);

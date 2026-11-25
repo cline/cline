@@ -1,5 +1,5 @@
 /// <reference types="@types/bun" />
-export {};
+import { writeBundleInputs } from "../../../scripts/third-party-notices/bundle-inputs";
 
 // Externalize third-party runtime deps plus the provider/runtime layer that
 // the Agent facade loads dynamically. `@cline/shared` stays bundled.
@@ -20,8 +20,10 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	},
 ];
 
+const results: Bun.BuildOutput[] = [];
 for (const config of builds) {
-	const result = await Bun.build(config);
+	const result = await Bun.build({ ...config, metafile: true });
+	results.push(result);
 
 	if (result.logs.length > 0) {
 		for (const log of result.logs) {
@@ -29,3 +31,5 @@ for (const config of builds) {
 		}
 	}
 }
+
+writeBundleInputs("./dist", results);
