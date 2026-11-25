@@ -456,6 +456,20 @@ describe("built-in provider metadata", () => {
 		expect(defaultModel?.pricing).toBeDefined();
 	});
 
+	it("routes Sarvam AI to the /v2 API and serves its default model from the catalog", async () => {
+		await expect(getProvider("sarvam")).resolves.toMatchObject({
+			id: "sarvam",
+			name: "Sarvam AI",
+			client: "openai-compatible",
+			baseUrl: "https://api.sarvam.ai/v2",
+			defaultModelId: "sarvam-105b",
+		});
+		const models = await getModelsForProvider("sarvam");
+		// Carries the catalog record rather than the stub fallbackModelInfo
+		// synthesizes for a default missing from the catalog, which has no pricing.
+		expect(models["sarvam-105b"]?.pricing).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
