@@ -70,6 +70,39 @@ describe("hooks-adapter task id threading", () => {
 		expect(mocks.create).toHaveBeenCalledWith("UserPromptSubmit", "conv-1")
 	})
 
+	it("runs TaskResume when continuing an interrupted task", async () => {
+		const emitHookMessage = vi.fn()
+		const hooks = buildAgentHooks(stateManager, emitHookMessage)
+		const history = [
+			{ role: "user", content: [{ type: "text", text: "Start the task" }], createdAt: 1 },
+			{ role: "assistant", content: [{ type: "text", text: "Partial answer" }], createdAt: 2 },
+		]
+		await hooks.beforeRun?.({ snapshot: { ...(snapshot as object), messages: history.slice(0, 1) } } as never)
+		await hooks.afterRun?.({ snapshot, result: { status: "aborted" } } as never)
+		mocks.create.mockClear()
+		runner.run.mockClear()
+		emitHookMessage.mockClear()
+
+		const resumeSnapshot = {
+			...(snapshot as object),
+			messages: [...history, { role: "user", content: [{ type: "text", text: "Continue" }], createdAt: 3 }],
+		}
+		await hooks.beforeRun?.({ snapshot: resumeSnapshot } as never)
+
+		expect(mocks.create.mock.calls).toEqual([
+			["TaskResume", "conv-1"],
+			["UserPromptSubmit", "conv-1"],
+		])
+		expect(runner.run).toHaveBeenNthCalledWith(1, {
+			taskId: "conv-1",
+			taskResume: {
+				taskMetadata: { taskId: "conv-1", ulid: "" },
+				previousState: { lastMessageTs: "2", messageCount: "2", conversationHistoryDeleted: "false" },
+			},
+		})
+		expect(JSON.parse(emitHookMessage.mock.calls[0][0].text)).toEqual({ hookName: "TaskResume", status: "running" })
+	})
+
 	it("passes the task id when creating the TaskComplete runner", async () => {
 		const hooks = buildAgentHooks(stateManager)
 		await hooks.afterRun?.({ snapshot, result: { status: "completed", outputText: "done" } } as never)
