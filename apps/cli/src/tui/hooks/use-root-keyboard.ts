@@ -149,7 +149,11 @@ export function useRootKeyboard(input: {
 			return;
 		}
 
-		if (key.ctrl && key.name === "p" && !session.isRunning) {
+		if (
+			key.ctrl &&
+			key.name === "p" &&
+			(!session.isRunning || input.isCloudTarget)
+		) {
 			void input.onOpenCommandPalette();
 			return;
 		}
