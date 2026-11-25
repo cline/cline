@@ -12,6 +12,7 @@ import {
 	createSessionId,
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
+	readPluginUiSlotCatalog,
 } from "@cline/shared";
 import {
 	isCoreBuiltinToolAvailable,
@@ -557,6 +558,7 @@ export async function handleSessionCreate(
 					? { "*": { autoApprove: true } }
 					: undefined,
 		plugins: parsePluginPolicies(payload.plugins),
+		uiSlots: readPluginUiSlotCatalog(payload.uiSlots),
 	});
 	const pluginIssues = started.pluginIssues ?? [];
 	if (pluginIssues.length > 0) {
@@ -622,6 +624,7 @@ export async function handleSessionCreate(
 		session,
 		...(snapshot ? { snapshot } : {}),
 		...pluginIssuePayload,
+		...(started.reattached ? { reattached: true } : {}),
 	});
 }
 
@@ -876,6 +879,7 @@ export async function handleSessionRestore(
 								? { "*": { autoApprove: true } }
 								: undefined,
 					plugins: parsePluginPolicies(payload.plugins),
+					uiSlots: readPluginUiSlotCatalog(payload.uiSlots),
 				};
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),

@@ -70,6 +70,8 @@ export type ActiveSession = {
 	 * `task.completed` per session regardless of which teardown path runs.
 	 */
 	taskCompletedEmitted: boolean;
+	/** The plugin UI epoch this session started under; teardown ends only this epoch. */
+	pluginUiEpoch: number;
 };
 
 export type PendingPrompt = {

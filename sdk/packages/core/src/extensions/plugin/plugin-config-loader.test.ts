@@ -12,6 +12,7 @@ import {
 	resolvePluginExecutionMode,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "./plugin-config-loader";
+import { PluginRegistry, type PluginUiStatePush } from "./plugin-registry";
 
 describe("plugin-config-loader", () => {
 	const envSnapshot = {
@@ -543,4 +544,56 @@ describe("plugin-config-loader", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	it.each([
+		"worker",
+		"sandbox",
+	] as const)("hands the session's slot catalog to plugins and their UI states back in %s mode", async (mode) => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			process.env.HOME = root;
+			setHomeDir(root);
+			const pluginPath = join(root, "ui-plugin.js");
+			await writeFile(
+				pluginPath,
+				`export default {
+	name: 'ui-plugin',
+	manifest: { capabilities: ['hooks'] },
+	setup(api, ctx) {
+		if (!api.registerUiSlot || !ctx.ui) return;
+		api.registerUiSlot({ slot: 'composer.suggestions', onAction: () => ({ outcome: 'ok' }) });
+		ctx.ui.update('composer.suggestions', { revision: 'r1' });
+	},
+};`,
+				"utf8",
+			);
+			const loadWith = async (
+				uiSlots: readonly "composer.suggestions"[] | undefined,
+			) => {
+				const pushes: PluginUiStatePush[] = [];
+				const loaded = await resolveAndLoadAgentPlugins({
+					mode,
+					registry: new PluginRegistry(),
+					pluginPaths: [pluginPath],
+					cwd: root,
+					uiSlots,
+					onUiState: (push) => pushes.push(push),
+				});
+				await loaded.shutdown?.();
+				return pushes;
+			};
+
+			await expect(loadWith(["composer.suggestions"])).resolves.toEqual([
+				{
+					plugin: "ui-plugin",
+					slot: "composer.suggestions",
+					state: { revision: "r1" },
+				},
+			]);
+			await expect(loadWith([])).resolves.toEqual([]);
+			await expect(loadWith(undefined)).resolves.toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
 });

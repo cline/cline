@@ -53,6 +53,7 @@ import type {
 	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
 import { toast } from "@/hooks/use-toast";
+import { withAttachedFilesLabel } from "@/lib/attached-files-label";
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
@@ -117,11 +118,8 @@ const RELEVANT_STREAMS = new Set([
 	"chat_done",
 ]);
 
-const BUSY_STATUSES = new Set<ChatSessionStatus>([
-	"starting",
-	"running",
-	"stopping",
-]);
+export const BUSY_STATUSES: ReadonlySet<ChatSessionStatus> =
+	new Set<ChatSessionStatus>(["starting", "running", "stopping"]);
 
 // Stale-stream fallback cadence for attached sessions (see the polling
 // effect below): only poll after the live stream has been quiet this long,
@@ -1937,10 +1935,7 @@ export function useChatSession(environmentId: string) {
 					0,
 					attachmentCount - userImages.length,
 				);
-				const userLabel =
-					attachedFileCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-						: prompt;
+				const userLabel = withAttachedFilesLabel(prompt, attachedFileCount);
 				const promptId = parsed.promptId?.trim();
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
@@ -2890,10 +2885,7 @@ export function useChatSession(environmentId: string) {
 			const attachedFileCount = attachedFiles.filter(
 				(file) => !imageAttachmentMediaType(file),
 			).length;
-			const userLabel =
-				attachedFileCount > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-					: trimmed;
+			const userLabel = withAttachedFilesLabel(trimmed, attachedFileCount);
 			const shouldQueue =
 				Boolean(activeSessionId) &&
 				(hasEarlierPromptSubmission ||

@@ -17,8 +17,10 @@ import {
 } from "@cline/core";
 import {
 	type AgentEvent,
+	comparePluginUiOrder,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
+	type PluginUiStateEnvelope,
 } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
@@ -453,6 +455,7 @@ function handleAgentEvent(
 			if (session) {
 				session.busy = false;
 				session.status = event.reason === "completed" ? "idle" : event.reason;
+				trackPluginUiTurn(session, session.status);
 			}
 			emitChunk(
 				ctx,
@@ -538,6 +541,39 @@ function emitQueuedPromptStart(
 	);
 }
 
+function recordPluginUiOrder(
+	session: LiveSession | undefined,
+	envelope: PluginUiStateEnvelope,
+): void {
+	if (!session) return;
+	session.pluginUiOrders ??= new Map();
+	const known = session.pluginUiOrders.get(envelope.slot);
+	if (known && comparePluginUiOrder(envelope, known) <= 0) return;
+	session.pluginUiOrders.set(envelope.slot, {
+		epoch: envelope.epoch,
+		seq: envelope.seq,
+	});
+}
+
+/** A Hub status while a turn is under way; `pending` waits on a tool approval. */
+export function isTurnStatus(status: string): boolean {
+	return status === "running" || status === "pending";
+}
+
+/**
+ * The Hub sends a session's statuses and plugin UI states in order, so the
+ * slot orders when a turn starts tell a state from before the turn from the
+ * turn's own, which a page binding mid-turn cannot tell.
+ */
+function trackPluginUiTurn(session: LiveSession | undefined, status: string) {
+	if (!session) return;
+	if (isTurnStatus(status)) {
+		session.pluginUiTurnStart ??= new Map(session.pluginUiOrders);
+	} else {
+		session.pluginUiTurnStart = undefined;
+	}
+}
+
 export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -614,6 +650,7 @@ export function handleCoreSessionEvent(
 				session.busy = false;
 				session.endedAt = nowMs();
 				session.status = reason || "ended";
+				trackPluginUiTurn(session, session.status);
 			}
 			discardAllTrackedAttachments(sessionId, session);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
@@ -635,6 +672,7 @@ export function handleCoreSessionEvent(
 			if (session) {
 				session.status = status;
 				session.busy = status === "running";
+				trackPluginUiTurn(session, status);
 				if (status !== "running") {
 					// The turn that consumed submitted attachments has finished.
 					flushConsumedAttachments(sessionId, session);
@@ -645,6 +683,27 @@ export function handleCoreSessionEvent(
 		}
 		case "team_progress": {
 			sendEvent(ctx, "team_progress", event.payload);
+			break;
+		}
+		case "plugin_ui_state": {
+			recordPluginUiOrder(
+				ctx.liveSessions.get(event.payload.sessionId),
+				event.payload,
+			);
+			// Nested, so the envelope's own fields never override the
+			// environmentId this event is stamped with.
+			try {
+				sendEvent(ctx, "plugin_ui_state", {
+					sessionId: event.payload.sessionId,
+					envelope: event.payload,
+				});
+			} catch (error) {
+				ctx.logger?.log("Failed to forward plugin UI state", {
+					sessionId: event.payload.sessionId,
+					error,
+					severity: "warn",
+				});
+			}
 			break;
 		}
 	}
@@ -680,6 +739,7 @@ export function createSidecarContext(
 		telemetryUser: observability.telemetryUser,
 		cloudSessionManager: null,
 		hubBuildMismatch: null,
+		pluginUiViews: new Map(),
 	};
 }
 

@@ -5,7 +5,7 @@ import type {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
-	applyBedrockCachePointToLastUserMessage,
+	applyBedrockCachePoints,
 	BEDROCK_ROUTING_METADATA,
 	resolveBedrockCachePointRoute,
 	shouldApplyBedrockCachePoint,
@@ -86,21 +86,47 @@ describe("bedrock cache-point routing", () => {
 	});
 });
 
-describe("applyBedrockCachePointToLastUserMessage", () => {
-	it("attaches a message-level cachePoint marker to the last user message", () => {
+describe("applyBedrockCachePoints", () => {
+	const cachePoint = { bedrock: { cachePoint: { type: "default" } } };
+
+	it("marks the last two user messages", () => {
 		const messages: Array<Record<string, unknown>> = [
 			{ role: "user", content: [{ type: "text", text: "first" }] },
 			{ role: "assistant", content: [{ type: "text", text: "answer" }] },
 			{ role: "user", content: [{ type: "text", text: "second" }] },
+			{ role: "assistant", content: [{ type: "text", text: "answer" }] },
+			{ role: "user", content: [{ type: "text", text: "third" }] },
 		];
 
-		applyBedrockCachePointToLastUserMessage(messages);
+		applyBedrockCachePoints(messages);
 
-		expect(messages[0]).not.toHaveProperty("providerOptions");
-		expect(messages[1]).not.toHaveProperty("providerOptions");
-		expect(messages[2].providerOptions).toEqual({
-			bedrock: { cachePoint: { type: "default" } },
-		});
+		expect(messages.map((message) => message.providerOptions)).toEqual([
+			undefined,
+			undefined,
+			cachePoint,
+			undefined,
+			cachePoint,
+		]);
+	});
+
+	it("marks tool results, so a turn's steps read the previous step's write", () => {
+		const messages: Array<Record<string, unknown>> = [
+			{ role: "user", content: [{ type: "text", text: "go" }] },
+			{ role: "assistant", content: [{ type: "tool-call", toolCallId: "1" }] },
+			{ role: "tool", content: [{ type: "tool-result", toolCallId: "1" }] },
+			{ role: "assistant", content: [{ type: "tool-call", toolCallId: "2" }] },
+			{ role: "tool", content: [{ type: "tool-result", toolCallId: "2" }] },
+		];
+
+		applyBedrockCachePoints(messages);
+
+		expect(messages.map((message) => message.providerOptions)).toEqual([
+			undefined,
+			undefined,
+			cachePoint,
+			undefined,
+			cachePoint,
+		]);
 	});
 
 	it("preserves existing message provider options", () => {
@@ -112,7 +138,7 @@ describe("applyBedrockCachePointToLastUserMessage", () => {
 			},
 		];
 
-		applyBedrockCachePointToLastUserMessage(messages);
+		applyBedrockCachePoints(messages);
 
 		expect(messages[0].providerOptions).toEqual({
 			other: { keep: true },
@@ -125,7 +151,7 @@ describe("applyBedrockCachePointToLastUserMessage", () => {
 			{ role: "assistant", content: [{ type: "text", text: "answer" }] },
 		];
 
-		applyBedrockCachePointToLastUserMessage(messages);
+		applyBedrockCachePoints(messages);
 
 		expect(messages[0]).not.toHaveProperty("providerOptions");
 	});

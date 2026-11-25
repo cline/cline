@@ -1,0 +1,43 @@
+{
+	"name": "next-turn",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Next Turn: rules-based next-step suggestions in the composer, as one Cline plugin.",
+	"engines": {
+		"node": ">=22"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "bun run scripts/build.ts",
+		"typecheck": "tsc -p tsconfig.json",
+		"test": "bun test src",
+		"check": "bun run typecheck && bun run test",
+		"clean": "rm -rf node_modules dist"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./src/index.ts"
+				],
+				"capabilities": [
+					"hooks"
+				]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*",
+		"@cline/shared": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		},
+		"@cline/shared": {
+			"optional": true
+		}
+	}
+}

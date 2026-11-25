@@ -4,6 +4,7 @@ import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
 import type { WorkspaceInfo } from "../session/workspace";
 import type { ClientContext, UserContext } from "./context";
+import type { AgentExtensionUiSlot, PluginUiContext } from "./ui-slots";
 
 export interface AgentExtensionCommand {
 	name: string;
@@ -141,6 +142,12 @@ export interface AgentExtensionApi<TTool = AgentTool, TMessage = unknown> {
 	) => void;
 	// Register an MCP server exposed as runtime tools. Requires the `mcp` capability.
 	registerMcpServer: (server: AgentExtensionMcpServer) => void;
+	/**
+	 * Fill a Cline-owned UI slot in this session. Needs no manifest capability: feature-detect it.
+	 * A worker plugin sees it only when the session's host renders at least one slot (its catalog).
+	 * In-process extensions always see it but never get `ctx.ui`, so test `ctx.ui?.slots`, not this member.
+	 */
+	registerUiSlot?: (slot: AgentExtensionUiSlot) => void;
 }
 
 export type AgentExtensionHooks = Partial<AgentRuntimeHooks>;
@@ -217,6 +224,8 @@ export interface PluginSetupContext {
 	 * emitters) must be stopped here.
 	 */
 	onDispose?: (cleanup: () => void | Promise<void>) => void;
+	/** Present only when the session's host renders at least one slot this core knows. Feature-detect it. */
+	ui?: PluginUiContext;
 }
 
 const ExtensionCapabilityOptions = [
@@ -249,6 +258,7 @@ export interface AgentExtensionRegistry<TTool = AgentTool, TMessage = unknown> {
 	providers: AgentExtensionProvider[];
 	automationEventTypes: AgentExtensionAutomationEventType[];
 	mcpServers: AgentExtensionMcpServer[];
+	uiSlots?: Array<AgentExtensionUiSlot & { plugin: string }>;
 }
 
 /**
@@ -461,15 +471,17 @@ export class ContributionRegistry<
 	TMessage = unknown,
 > {
 	private readonly extensions: TExtension[];
-	private readonly registry: AgentExtensionRegistry<TTool, TMessage> = {
-		tools: [],
-		commands: [],
-		rules: [],
-		messageBuilder: [],
-		providers: [],
-		automationEventTypes: [],
-		mcpServers: [],
-	};
+	private readonly registry: Required<AgentExtensionRegistry<TTool, TMessage>> =
+		{
+			tools: [],
+			commands: [],
+			rules: [],
+			messageBuilder: [],
+			providers: [],
+			automationEventTypes: [],
+			mcpServers: [],
+			uiSlots: [],
+		};
 	private normalized: NormalizedExtension<TExtension, TTool, TMessage>[] = [];
 	private phase: "resolve" | "validate" | "setup" | "activate" | "run" =
 		"resolve";
@@ -516,12 +528,14 @@ export class ContributionRegistry<
 		if (this.phase !== "setup") return;
 
 		let firstSetupError: unknown;
-		const successfulSetups: AgentExtensionRegistry<TTool, TMessage>[] = [];
+		const successfulSetups: Required<
+			AgentExtensionRegistry<TTool, TMessage>
+		>[] = [];
 		for (const entry of this.normalized) {
 			const { extension } = entry;
 			if (extension.disabled) continue;
 			const extensionName = asExtensionName(extension, entry.order);
-			const pending: AgentExtensionRegistry<TTool, TMessage> = {
+			const pending: Required<AgentExtensionRegistry<TTool, TMessage>> = {
 				tools: [],
 				commands: [],
 				rules: [],
@@ -529,6 +543,7 @@ export class ContributionRegistry<
 				providers: [],
 				automationEventTypes: [],
 				mcpServers: [],
+				uiSlots: [],
 			};
 			const api: AgentExtensionApi<TTool, TMessage> = {
 				registerTool: (tool) => pending.tools.push(tool),
@@ -569,6 +584,8 @@ export class ContributionRegistry<
 						},
 					});
 				},
+				registerUiSlot: (slot) =>
+					pending.uiSlots.push({ ...slot, plugin: extensionName }),
 			};
 			const setupContext = entry.manifest.capabilities.has("automationEvents")
 				? this.setupContext
@@ -597,6 +614,7 @@ export class ContributionRegistry<
 			this.registry.providers.push(...pending.providers);
 			this.registry.automationEventTypes.push(...pending.automationEventTypes);
 			this.registry.mcpServers.push(...pending.mcpServers);
+			this.registry.uiSlots.push(...pending.uiSlots);
 		}
 		this.phase = "activate";
 		if (firstSetupError) {
@@ -643,6 +661,7 @@ export class ContributionRegistry<
 			providers: [...this.registry.providers],
 			automationEventTypes: [...this.registry.automationEventTypes],
 			mcpServers: [...this.registry.mcpServers],
+			uiSlots: [...this.registry.uiSlots],
 		};
 	}
 

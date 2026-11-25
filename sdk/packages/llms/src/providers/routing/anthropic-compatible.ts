@@ -396,8 +396,11 @@ export function buildAnthropicProviderOptions(
 	return {
 		...(effort ? { effort } : {}),
 		...(thinking ? { thinking } : {}),
+		// Automatic caching. `@ai-sdk/anthropic` reads the top-level field only
+		// as `cacheControl` and strips `cache_control` from these options, unlike
+		// its per-block reader, which accepts both spellings.
 		...(shouldApplyAnthropicCacheBucket(request, context)
-			? createEphemeralCacheControl()
+			? { cacheControl: { type: "ephemeral" as const } }
 			: {}),
 	};
 }

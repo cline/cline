@@ -35,6 +35,7 @@ import type {
 import {
 	ClineAccountService,
 	type ClineAccountUser,
+	checkManagedHubBuildMismatch,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createHubMcpApi,
@@ -64,6 +65,7 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setTelemetryOptOutGlobally,
+	summarizeHubSessionActivity,
 	transcribeConfiguredVoiceInput,
 	upgradeManagedHub,
 } from "@cline/core";
@@ -132,6 +134,12 @@ import {
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import { getHubStatus, restartHub } from "./hub-admin";
+import {
+	broadcastHubBuildMismatch,
+	DESKTOP_REQUIRED_HUB_CAPABILITIES,
+	refreshHubCapabilityNotice,
+	visibleHubBuildMismatch,
+} from "./hub-capability";
 import { isHubIndependentCommand } from "./hub-startup";
 import {
 	readKeybindings,
@@ -165,6 +173,11 @@ import {
 	sharedSessionDataDir,
 } from "./paths";
 import { listPluginCommands } from "./plugin-commands";
+import {
+	markLocalSessionsPluginsStale,
+	reloadInstalledPluginInHub,
+} from "./plugin-reload";
+import { getPluginUiStates, invokePluginUi } from "./plugin-ui";
 import {
 	listProjectEntries,
 	readLocalProjectFile,
@@ -2404,6 +2417,23 @@ export async function handleCommand(
 	}
 
 	// ── Managed hub upgrade ───────────────────────────────────────────
+	// The current `hub_build_mismatch` broadcast, for a view that was not
+	// listening when it was sent.
+	if (command === "hub_build_mismatch") {
+		return visibleHubBuildMismatch(ctx);
+	}
+	// Read fresh when the person asks to restart the Hub, so the interruption
+	// they confirm is the one the restart causes. Includes this app's chats.
+	if (command === "hub_session_activity") {
+		const hubClient = await ensureSharedHubClient(ctx);
+		const reply = await hubClient.command("session.list", { limit: 500 });
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "hub command failed: session.list",
+			);
+		}
+		return summarizeHubSessionActivity(reply.payload);
+	}
 	if (command === "hub_upgrade") {
 		// Replacing the shared Hub interrupts other clients' sessions, so it
 		// carries the same per-connection gate as the tool-approval commands:
@@ -2412,14 +2442,16 @@ export async function handleCommand(
 		if (!options?.connection?.data?.canApproveTools) {
 			throw new Error("hub upgrade requires a trusted desktop connection");
 		}
-		// Only reached after the user accepted the blocking "Hub update
-		// required" dialog, so force: the old Hub is replaced even though it
-		// is still serving other clients' sessions. Drain-first semantics
-		// still give in-flight turns the wait window to finish.
+		// Only reached after the user asked for it, from the blocking "Hub
+		// update required" dialog or the Restart Hub notice (which confirms a
+		// fresh hub_session_activity count), so force: the old Hub is replaced
+		// even though it is still serving other clients' sessions. Drain-first
+		// semantics still give in-flight turns the wait window to finish.
 		const result = await upgradeManagedHub({
 			workspaceRoot: ctx.localWorkspaceRoot,
 			force: true,
 			reason: "Cline Desktop hub update",
+			requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
 		});
 		if (result.outcome === "hub_not_older") {
 			throw new Error(
@@ -2430,6 +2462,24 @@ export async function handleCommand(
 			throw new Error(
 				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
 			);
+		}
+		if (result.outcome === "replaced" || result.outcome === "started") {
+			// Open chats were started on the old Hub, which may lack plugin
+			// support; each restarts on the new Hub before its next turn.
+			markLocalSessionsPluginsStale(ctx);
+			// Retiring the old Hub and starting this build's are separate steps,
+			// and another Cline app's client can respawn its own build in
+			// between, which this app then reuses as the same identity.
+			const remaining = await checkManagedHubBuildMismatch({
+				requiredCapabilities: DESKTOP_REQUIRED_HUB_CAPABILITIES,
+			});
+			if (remaining?.reason === "missing_capability") {
+				ctx.hubBuildMismatch = remaining;
+				broadcastHubBuildMismatch(ctx);
+				throw new Error(
+					"Another Cline app restarted the Cline Hub with its own version first, so suggestions are still off. Quit the other Cline apps, then restart the Hub again.",
+				);
+			}
 		}
 		// The mismatch is resolved: a null broadcast closes the dialog in
 		// every connected webview and stops the replay-on-connect.
@@ -3732,6 +3782,12 @@ export async function handleCommand(
 			requestedEnvironmentId(args),
 		);
 	}
+	if (command === "plugin_ui_get") {
+		return await getPluginUiStates(ctx, args);
+	}
+	if (command === "plugin_ui_invoke") {
+		return await invokePluginUi(ctx, args, options?.connection);
+	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(
 			args,
@@ -3742,12 +3798,20 @@ export async function handleCommand(
 		const result = await installMarketplaceEntryForDesktopCommand(args, {
 			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
 		});
+		if (result.type === "plugin") {
+			await reloadInstalledPluginInHub(ctx, result.details);
+			markLocalSessionsPluginsStale(ctx);
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "uninstall_marketplace_entry") {
 		const result = await uninstallMarketplaceEntryForDesktopCommand(args, {
 			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
 		});
+		if (result.type === "plugin") {
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "uninstall_local_primitive") {
@@ -3755,6 +3819,9 @@ export async function handleCommand(
 			mcp: createHubMcpApi(await ensureSharedHubClient(ctx)),
 			workspaceRoot: ctx.localWorkspaceRoot,
 		});
+		if (result.type === "plugin") {
+			refreshHubCapabilityNotice(ctx);
+		}
 		return result;
 	}
 	if (command === "toggle_disabled_plugin_tool") {
@@ -3796,6 +3863,10 @@ export async function handleCommand(
 			path: pluginPath,
 			enabled: args?.disabled !== true,
 		});
+		if (args?.disabled !== true) {
+			markLocalSessionsPluginsStale(ctx);
+		}
+		refreshHubCapabilityNotice(ctx);
 		return await listUserInstructionConfigs(ctx, snapshot);
 	}
 	if (command === "set_skill_disabled") {
