@@ -96,7 +96,8 @@ export function resolveProviderMaxInputTokens(
 	const modelInfoLimit = resolveEffectiveMaxInputTokens({
 		maxInputTokens:
 			providerConfig.maxInputTokens ?? providerConfig.modelInfo?.maxInputTokens,
-		contextWindow: providerConfig.modelInfo?.contextWindow,
+		contextWindow:
+			providerConfig.contextWindow ?? providerConfig.modelInfo?.contextWindow,
 	});
 	if (modelInfoLimit !== undefined) return modelInfoLimit;
 	const knownModelInfo = providerConfig.knownModels?.[providerConfig.modelId];
