@@ -6,6 +6,73 @@ import { describe, expect, it } from "vitest";
 import { HubRunAdmissionRejectedError, HubRunQueue } from "./hub-run-queue";
 
 describe("HubRunQueue", () => {
+	it("deduplicates scheduled result admission across restart even when the queue is full", () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-result-admission-"));
+		const dbPath = join(dir, "runs.db");
+		let queue = new HubRunQueue({ dbPath, maxPendingPerSession: 1 });
+		const first = queue.admit(
+			"origin",
+			{ prompt: "result" },
+			undefined,
+			"schedule-result:run1",
+		);
+		queue.close();
+		queue = new HubRunQueue({ dbPath, maxPendingPerSession: 1 });
+		try {
+			const duplicate = queue.admit(
+				"origin",
+				{ prompt: "result" },
+				undefined,
+				"schedule-result:run1",
+			);
+			expect(duplicate.runId).toBe(first.runId);
+			expect(queue.list()).toHaveLength(1);
+			expect(() =>
+				queue.admit(
+					"other",
+					{ prompt: "result" },
+					undefined,
+					"schedule-result:run1",
+				),
+			).toThrow("another session");
+		} finally {
+			queue.close();
+		}
+	});
+
+	it("retains admission identity after terminal run retention expires", () => {
+		const dbPath = join(
+			mkdtempSync(join(tmpdir(), "cline-result-retention-")),
+			"runs.db",
+		);
+		let queue = new HubRunQueue({ dbPath });
+		const admitted = queue.admit(
+			"origin",
+			{ prompt: "result" },
+			undefined,
+			"schedule-result:old",
+		);
+		queue.markTerminal(admitted.runId, "completed");
+		queue.close();
+		const db = loadSqliteDb(dbPath);
+		db.prepare("UPDATE hub_runs SET ended_at = ?;").run(
+			Date.now() - 8 * 24 * 60 * 60 * 1000,
+		);
+		db.close?.();
+		queue = new HubRunQueue({ dbPath });
+		try {
+			queue.recoverOnStartup();
+			expect(queue.get(admitted.runId)).toBeUndefined();
+			expect(
+				queue.admit("origin", { prompt: "result" }, undefined, admitted.runId)
+					.runId,
+			).toBe(admitted.runId);
+			expect(queue.list()).toEqual([]);
+		} finally {
+			queue.close();
+		}
+	});
+
 	it("opens its database in WAL mode", () => {
 		const dbPath = join(
 			mkdtempSync(join(tmpdir(), "cline-hub-runs-")),

@@ -269,7 +269,9 @@ export async function handleSessionInput(
 					prompt,
 					mode: parseTurnMode(payload.mode),
 					delivery:
-						payload.delivery === "queue" || payload.delivery === "steer"
+						payload.delivery === "queue" ||
+						payload.delivery === "steer" ||
+						payload.delivery === "immediate"
 							? payload.delivery
 							: undefined,
 					userImages,
@@ -284,6 +286,18 @@ export async function handleSessionInput(
 				"run.start.reply"
 			) {
 				ctx.suppressNextTerminalEventBySession.delete(sessionId);
+			}
+			if (
+				typeof error === "object" &&
+				error !== null &&
+				"code" in error &&
+				error.code === "session_run_in_progress"
+			) {
+				return errorReply(
+					envelope,
+					"session_run_in_progress",
+					"Session already has a running turn",
+				);
 			}
 			if (isSessionNotFoundError(error)) {
 				return sessionNotFoundReply(envelope, sessionId, error);
