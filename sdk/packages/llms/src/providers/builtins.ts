@@ -1075,7 +1075,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "lowrouter",
 		name: "LowRouter",
 		description: "EU-hosted model router with carbon-aware routing",
-		defaultModelId: "auto/mistralai/mistral-small-2603",
+		defaultModelId: "auto/openai/gpt-oss-120b",
 	},
 	{
 		id: "openrouter",

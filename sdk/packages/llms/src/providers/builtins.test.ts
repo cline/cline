@@ -461,7 +461,7 @@ describe("built-in provider metadata", () => {
 		const models = await getModelsForProvider("lowrouter");
 		const defaultModel = models[provider?.defaultModelId ?? ""];
 
-		expect(provider?.defaultModelId).toBe("auto/mistralai/mistral-small-2603");
+		expect(provider?.defaultModelId).toBe("auto/openai/gpt-oss-120b");
 		// Carries the catalog record rather than the 128k stub fallbackModelInfo
 		// synthesizes for a default missing from the catalog. Bounds instead of
 		// exact values: the numbers rotate with models.dev.
