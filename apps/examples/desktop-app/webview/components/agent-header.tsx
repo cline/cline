@@ -10,6 +10,7 @@ import {
 	CornerUpLeft,
 	FileDiff,
 	FolderTree,
+	Globe,
 	Loader2,
 	MoreHorizontal,
 	Plus,
@@ -76,6 +77,8 @@ type AgentHeaderProps = {
 	terminalOpen?: boolean;
 	/** Display form of the configured toggle shortcut, for the tooltip. */
 	terminalShortcut?: string;
+	onToggleBrowser?: () => void;
+	browserOpen?: boolean;
 };
 
 function AgentHeaderImpl({
@@ -106,6 +109,8 @@ function AgentHeaderImpl({
 	onToggleTerminal,
 	terminalOpen = false,
 	terminalShortcut,
+	onToggleBrowser,
+	browserOpen = false,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -211,6 +216,20 @@ function AgentHeaderImpl({
 								variant="toolbar"
 							>
 								<SquareTerminal className="size-4" />
+							</Button>
+						) : null}
+						{onToggleBrowser ? (
+							<Button
+								aria-label={browserOpen ? "Hide browser" : "Show browser"}
+								aria-pressed={browserOpen}
+								id="toggle-browser"
+								onClick={onToggleBrowser}
+								size="icon-xs"
+								title={browserOpen ? "Hide browser" : "Show browser"}
+								type="button"
+								variant="toolbar"
+							>
+								<Globe className="size-4" />
 							</Button>
 						) : null}
 						{pullRequest ? (
