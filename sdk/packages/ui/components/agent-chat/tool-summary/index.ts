@@ -210,6 +210,7 @@ export function classifyTool(toolName: string): ToolKind {
 		return "question";
 	if (name === "mcp" || name.startsWith("mcp_") || name.startsWith("mcp-"))
 		return "mcp";
+	if (name === "read_parent_history") return "other";
 	// Fuzzy fallbacks for runtimes with their own tool names.
 	if (name.includes("command") || name.includes("terminal")) return "command";
 	if (name.includes("read")) return "read";

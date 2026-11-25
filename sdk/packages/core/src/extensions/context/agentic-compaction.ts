@@ -1,4 +1,4 @@
-import type { BasicLogger } from "@cline/shared";
+import { type BasicLogger, estimateRequestInputTokens } from "@cline/shared";
 import { countUserRunMessages } from "../../session/user-run-messages";
 import type {
 	CoreCompactionContext,
@@ -116,13 +116,22 @@ export async function runAgenticCompaction(options: {
 		(canUseActiveContextLimit
 			? activeCompactionInputLimit
 			: MIN_AGENTIC_SUMMARY_INPUT_TOKENS);
-	const summaryRequestOverheadTokens = estimateTokens(
-		buildSummaryRequest({
-			previousSummary,
-			conversationText: "",
-			fileOps: preProjectionFileOps,
-		}).length,
-	);
+	const summarySystemPrompt =
+		"Summarize the provided coding session into a concise continuation note with detailed next steps.";
+	const summaryRequestOverheadTokens = estimateRequestInputTokens({
+		systemPrompt: summarySystemPrompt,
+		messages: [
+			{
+				role: "user",
+				content: buildSummaryRequest({
+					previousSummary,
+					conversationText: "",
+					fileOps: preProjectionFileOps,
+				}),
+			},
+		],
+		tools: [],
+	});
 	const availableSummaryInputTokens =
 		summarizerInputLimit - summaryRequestOverheadTokens;
 	if (availableSummaryInputTokens <= 0) {
@@ -188,8 +197,7 @@ export async function runAgenticCompaction(options: {
 	});
 	const summaryResult = await generateSummary({
 		providerConfig: summarizerProviderConfig,
-		systemPrompt:
-			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
+		systemPrompt: summarySystemPrompt,
 		request: summaryRequest,
 	});
 	options.logger?.debug("Generated compaction summary", {

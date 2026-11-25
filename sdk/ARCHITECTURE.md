@@ -40,6 +40,43 @@ flowchart LR
   apps --> core
 ```
 
+## Side-conversation context
+
+`@cline/core` owns side-conversation reference projection and the opt-in
+`read_parent_history` tool in `src/session/side-conversation/`. Both use the
+canonical parent history; projection includes provider tool observations as
+inert text and omits reasoning, media, and parent cache handles. Tool results
+that exceed projection limits are explicitly marked as omitted; other parent
+context remains available. The starting reference reuses the existing session
+compaction projection plus its canonical tail, without a separate summary call or
+an additional snapshot-size cap. The existing message builder applies normal content
+limits after media redaction, without repairing incomplete tool exchanges or
+changing source-message boundaries. If the reference exceeds the side model's
+input budget, normal agentic compaction can summarize this zero-turn text prefix
+while preserving the first actual question and its user-turn count. The reference
+is frozen at creation; later history reads are explicit tool calls. These helpers reuse
+`ClineCore.get`, `readMessages`, and `readSessionCompactionState`, so the same
+composition works with local and Hub-backed core instances without a separate
+Hub command.
+
+`@cline/shared` owns browser-safe reference limits, text projection utilities,
+and the optional visible-context contract. A host may supply recent unsaved
+observations; they remain labeled and are reconciled with saved history rather
+than treated as a replacement for it. Tool-result numbers retain their original
+JSON tokens during projection.
+
+Hosts own session creation and retention policy, current composer selections,
+and presentation. Desktop composes these helpers with its existing start/send
+flow and keeps its sidecar-run ownership, cleanup, hidden-history filtering,
+and pane state. App exit is not Hub exit. This extraction does not make those
+desktop lifecycle or discovery rules a cross-client guarantee. Adding that
+capability requires a shared identity and lifecycle contract rather than
+reusing desktop process ownership as Hub ownership.
+
+Hosts can pass `excludeSessionIds` to the existing `session.search` command.
+The search service applies exclusions before its ranked candidate and result
+limits; the host decides which sessions to exclude.
+
 ## Package Responsibilities
 
 ### `@cline/shared`

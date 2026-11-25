@@ -381,7 +381,21 @@ export function findCutIndex(
 	}
 
 	if (candidate <= 0) {
-		return 0;
+		// A zero-turn text prefix can be summarized without consuming the first
+		// actual question, even when the recent-token reserve includes it.
+		const firstTurnStartIndex = findFirstUserMessageIndex(messages);
+		return firstTurnStartIndex > 0 &&
+			messages
+				.slice(0, firstTurnStartIndex)
+				.every(
+					(message) =>
+						message.role === "user" &&
+						message.metadata?.userRunSpan === 0 &&
+						(typeof message.content === "string" ||
+							message.content.every((block) => block.type === "text")),
+				)
+			? firstTurnStartIndex
+			: 0;
 	}
 
 	// Never summarize away the latest typed user prompt: when one exists

@@ -21,6 +21,7 @@ describe("normalizeToolName / classifyTool", () => {
 
 	it("classifies sdk tool names", () => {
 		expect(classifyTool("read_files")).toBe("read");
+		expect(classifyTool("read_parent_history")).toBe("other");
 		expect(classifyTool("editor")).toBe("edit");
 		expect(classifyTool("apply_patch")).toBe("edit");
 		expect(classifyTool("run_commands")).toBe("command");
@@ -585,6 +586,23 @@ describe("buildGroupedToolLabel", () => {
 			input: { files: [{ path: "a.ts", start_line: 1, end_line: 5 }] },
 		});
 		expect(buildGroupedToolLabel([summary])).toBe("Read file a.ts (1–5)");
+	});
+
+	it("keeps parent history separate from file reads", () => {
+		const history = buildToolSummary({
+			toolName: "read_parent_history",
+			input: { operation: "recent" },
+			result: { ok: true, result: { operation: "recent", matches: [] } },
+		});
+		const file = buildToolSummary({
+			toolName: "read_files",
+			input: { paths: ["a.ts"] },
+		});
+		expect(history.label).toBe("Read parent history");
+		expect(history.aggregate).toBeUndefined();
+		expect(buildGroupedToolLabel([file, history])).toBe(
+			"Read 1 file · Read parent history",
+		);
 	});
 
 	it("merges input-less fallback summaries into grouped counts", () => {

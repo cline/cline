@@ -578,7 +578,22 @@ export function buildBudgetProjection(
 				(options.targetTokens * charsPerToken) / Math.max(1, messages.length),
 			),
 		);
-		messages[index] = truncateMessageText(messages[index], targetChars);
+		const originalMessage = messages[index];
+		messages[index] = truncateMessageText(originalMessage, targetChars);
+		const messageBudget = options.targetTokens / Math.max(1, messages.length);
+		if (options.estimateMessageTokens(messages[index]) > messageBudget) {
+			// Serialized metadata and escaped text also consume the message budget.
+			let low = 16;
+			let high = targetChars;
+			while (low < high) {
+				const middle = Math.ceil((low + high) / 2);
+				const candidate = truncateMessageText(originalMessage, middle);
+				if (options.estimateMessageTokens(candidate) <= messageBudget)
+					low = middle;
+				else high = middle - 1;
+			}
+			messages[index] = truncateMessageText(originalMessage, low);
+		}
 		actions.push({
 			kind: "truncated_text",
 			path: { messageIndex: originalIndexes[index] },
