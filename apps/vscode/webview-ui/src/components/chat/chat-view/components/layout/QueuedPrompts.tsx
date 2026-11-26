@@ -1,6 +1,6 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 function truncatePrompt(prompt: string): string {
@@ -33,6 +33,16 @@ interface QueuedPromptsProps {
 
 export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 	const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set())
+	const listRef = useRef<HTMLDivElement>(null)
+	const previousIdsRef = useRef<Set<string>>(new Set())
+
+	useLayoutEffect(() => {
+		const hasNewPrompt = items.some((item) => !previousIdsRef.current.has(item.id))
+		previousIdsRef.current = new Set(items.map((item) => item.id))
+		if (hasNewPrompt && listRef.current) {
+			listRef.current.scrollTop = listRef.current.scrollHeight
+		}
+	}, [items])
 
 	if (items.length === 0) {
 		return null
@@ -59,7 +69,9 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 				<span aria-hidden="true" className="codicon codicon-clock text-[12px]" />
 				<span>{queueSummary(items)}</span>
 			</div>
-			<div className="flex max-h-28 flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+			<div
+				className="flex max-h-28 flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+				ref={listRef}>
 				{items.map((item) => {
 					const attachments = attachmentLabel(item.attachmentCount)
 					const isSteer = item.delivery === "steer"
