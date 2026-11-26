@@ -53,6 +53,34 @@ export type ParseAuthorizationInputOptions = {
 	allowHashCodeState?: boolean;
 };
 
+function extractAuthParams(
+	params: URLSearchParams,
+	options: ParseAuthorizationInputOptions,
+): ParsedAuthorizationInput {
+	return {
+		code: params.get("code") ?? undefined,
+		state: params.get("state") ?? undefined,
+		provider: options.includeProvider
+			? (params.get("provider") ?? undefined)
+			: undefined,
+	};
+}
+
+function parseUrlInput(value: string): URL | null {
+	try {
+		return new URL(value);
+	} catch {
+		if (value.startsWith("/")) {
+			try {
+				return new URL(value, "http://localhost");
+			} catch {
+				return null;
+			}
+		}
+		return null;
+	}
+}
+
 export function parseAuthorizationInput(
 	input: string,
 	options: ParseAuthorizationInputOptions = {},
@@ -62,17 +90,24 @@ export function parseAuthorizationInput(
 		return {};
 	}
 
-	try {
-		const url = new URL(value);
-		return {
-			code: url.searchParams.get("code") ?? undefined,
-			state: url.searchParams.get("state") ?? undefined,
-			provider: options.includeProvider
-				? (url.searchParams.get("provider") ?? undefined)
-				: undefined,
-		};
-	} catch {
-		// not a URL
+	const url = parseUrlInput(value);
+	if (url) {
+		const queryParams = extractAuthParams(url.searchParams, options);
+		if (
+			queryParams.code ||
+			queryParams.state ||
+			queryParams.provider ||
+			!url.hash
+		) {
+			return queryParams;
+		}
+		return extractAuthParams(new URLSearchParams(url.hash.slice(1)), options);
+	}
+
+	const queryIndex = value.indexOf("?");
+	if (queryIndex >= 0) {
+		const rawQuery = value.slice(queryIndex + 1).split("#", 1)[0] ?? "";
+		return extractAuthParams(new URLSearchParams(rawQuery), options);
 	}
 
 	if (options.allowHashCodeState && value.includes("#")) {
@@ -84,14 +119,10 @@ export function parseAuthorizationInput(
 	}
 
 	if (value.includes("code=")) {
-		const params = new URLSearchParams(value);
-		return {
-			code: params.get("code") ?? undefined,
-			state: params.get("state") ?? undefined,
-			provider: options.includeProvider
-				? (params.get("provider") ?? undefined)
-				: undefined,
-		};
+		return extractAuthParams(
+			new URLSearchParams(value.split("#", 1)[0] ?? ""),
+			options,
+		);
 	}
 
 	return { code: value };
