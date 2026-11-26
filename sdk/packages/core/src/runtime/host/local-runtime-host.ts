@@ -651,6 +651,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 					);
 			}
 		}
+		// Claim the resumed row before anything else reads it: transcript
+		// loading (here and on client sides) goes through listSessions(),
+		// which reconciles dead-pid rows to failed. Adopting first rebinds
+		// the row to this host's live pid, so the resume completes without a
+		// transient failure mark. Idempotent — a row already claimed by the
+		// client (or an earlier start) is left untouched.
+		if (resumedArtifacts) {
+			await this.claimSessionForResume(sessionId);
+		}
 		const initialAggregateUsage = await this.seedAggregateUsageFromArtifacts({
 			initialUsage,
 			sessionDir,
@@ -1139,6 +1148,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 		}
 		if (resumedArtifacts) {
+			await this.adoptOrphanedSession(active);
+			// A claim made before this host started (e.g. by the client while
+			// it loads the transcript) leaves the row idle on this pid with
+			// no adoption here to mirror it; keep the manifest in line with
+			// the row so the two stores agree.
+			const claimedRow = await this.getRow(sessionId);
+			if (
+				claimedRow &&
+				isNonTerminalSessionStatus(claimedRow.status) &&
+				claimedRow.pid === process.pid &&
+				(active.artifacts?.manifest.status !== claimedRow.status ||
+					active.artifacts?.manifest.pid !== claimedRow.pid)
+			) {
+				await this.mirrorStatus(active, claimedRow.status);
+			}
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
@@ -2475,8 +2499,77 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	/**
+	 * Claims a session row for a resume that is about to happen. Unlike the
+	 * post-registration adoption, this runs before any transcript read so the
+	 * reconciler cannot mark a stale row failed mid-resume. Idempotent: a row
+	 * already owned by a live pid (including one claimed earlier in the same
+	 * start) is left untouched, and real failures are still marked by the
+	 * reconciler because they keep a dead pid. Resolves to whether the row was
+	 * rebound to this pid.
+	 */
+	async claimSessionForResume(sessionId: string): Promise<boolean> {
+		const target = sessionId.trim();
+		if (!target) return false;
+		try {
+			const result = await this.invoke<{ updated: boolean }>(
+				"adoptOrphanedSession",
+				target,
+				process.pid,
+			);
+			return result.updated;
+		} catch (error) {
+			this.defaultLogger?.error?.("Failed to claim resumed session", {
+				sessionId: target,
+				error,
+			});
+			captureSdkError(this.defaultTelemetry, {
+				component: "core",
+				operation: "session.claim_resume",
+				error,
+				severity: "warn",
+				handled: true,
+				context: { sessionId: target },
+			});
+			return false;
+		}
+	}
+
+	private async adoptOrphanedSession(session: ActiveSession): Promise<void> {
+		try {
+			const result = await this.invoke<{ updated: boolean }>(
+				"adoptOrphanedSession",
+				session.sessionId,
+				process.pid,
+			);
+			if (result.updated) await this.mirrorStatus(session, "idle");
+		} catch (error) {
+			session.config.logger?.error?.("Failed to adopt resumed session", {
+				sessionId: session.sessionId,
+				error,
+			});
+			captureSdkError(session.config.telemetry, {
+				component: "core",
+				operation: "session.adopt_orphaned",
+				error,
+				severity: "warn",
+				handled: true,
+				context: {
+					sessionId: session.sessionId,
+					providerId: session.config.providerId,
+					modelId: session.config.modelId,
+				},
+			});
+		}
+	}
+
 	private async markTurnRunning(session: ActiveSession): Promise<void> {
-		if (session.status === "running") return;
+		if (
+			session.status === "running" &&
+			session.artifacts?.manifest.pid === process.pid
+		) {
+			return;
+		}
 		await this.updateStatus(session, "running", null);
 	}
 
@@ -2751,14 +2844,36 @@ export class LocalRuntimeHost implements RuntimeHost {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) return;
+		if (await this.persistStatus(session, status, exitCode)) {
+			this.emitStatus(session.sessionId, status);
+		}
+	}
+
+	private async persistStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		exitCode?: number | null,
+	): Promise<boolean> {
+		if (!session.artifacts) return false;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
 			status,
 			exitCode,
+			process.pid,
 		);
-		if (!result.updated) return;
+		return (
+			result.updated &&
+			(await this.mirrorStatus(session, status, result.endedAt, exitCode))
+		);
+	}
+
+	private async mirrorStatus(
+		session: ActiveSession,
+		status: SessionStatus,
+		endedAt?: string,
+		exitCode?: number | null,
+	): Promise<boolean> {
 		const latestManifest = await this.mutateSessionManifest(
 			session,
 			(manifest) => {
@@ -2766,20 +2881,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 				if (isNonTerminalSessionStatus(status)) {
 					delete manifest.ended_at;
 					manifest.exit_code = null;
+					manifest.pid = process.pid;
 				} else {
-					manifest.ended_at = result.endedAt ?? nowIso();
+					manifest.ended_at = endedAt ?? nowIso();
 					manifest.exit_code = typeof exitCode === "number" ? exitCode : null;
 				}
 			},
 		);
-		if (!latestManifest) return;
+		if (!latestManifest) return false;
 		session.status = status;
-		session.updatedAt = result.endedAt ?? nowIso();
+		session.updatedAt = endedAt ?? nowIso();
 		session.endedAt = isNonTerminalSessionStatus(status)
 			? null
 			: latestManifest.ended_at;
 		session.exitCode = latestManifest.exit_code;
-		this.emitStatus(session.sessionId, status);
+		return true;
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────

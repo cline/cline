@@ -195,6 +195,7 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				input.conversationId !== undefined
 					? (input.conversationId ?? null)
 					: (existing.conversationId ?? null),
+			pid: input.pid ?? existing.pid,
 			statusLock: nextStatusLock,
 			isSubagent:
 				input.setRunning || input.parentSessionId !== undefined
@@ -281,6 +282,7 @@ export class FileSessionService extends UnifiedSessionPersistenceService {
 		options: {
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 			logger?: BasicLogger;
+			staleMarkGraceMs?: number;
 		} = {},
 	) {
 		super(new FileSessionPersistenceAdapter(sessionsDir), options);

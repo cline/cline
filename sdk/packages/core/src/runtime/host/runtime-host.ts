@@ -446,6 +446,14 @@ export interface RuntimeHost {
 	readLiveSessionMessages?(
 		sessionId: string,
 	): Promise<LlmsProviders.MessageWithMetadata[]>;
+	/**
+	 * Claims a session row for a resume that is about to happen, rebinding a
+	 * stale row (dead pid, or a reconciler failure that nothing has ended
+	 * since) to this host's live pid before any transcript read triggers
+	 * reconciliation. Resolves to whether the row was rebound. Optional: only
+	 * hosts that own the persistence row (local hosts) implement it.
+	 */
+	claimSessionForResume?(sessionId: string): Promise<boolean>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

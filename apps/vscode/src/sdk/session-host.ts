@@ -42,6 +42,12 @@ export interface SdkSessionHost {
 	 * lost to the persisted transcript lagging behind.
 	 */
 	readLiveMessages?(sessionId: string): Promise<SdkInitialMessages>
+	/**
+	 * Claims the session row for a resume before any transcript read, so a
+	 * stale dead-pid row is rebound to the live host pid instead of being
+	 * reconciled to failed mid-resume. Optional: local hosts only.
+	 */
+	claimForResume?(sessionId: string): Promise<void>
 	updateSessionCompactionState?(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }>
 	restore(input: RestoreInput): Promise<RestoreResult>
 	/** Diffs a checkpoint snapshot against the current working tree. */
