@@ -2223,7 +2223,7 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		setTelemetryOptOutGlobally(telemetrySetting === "disabled", { telemetry: this.sdkTelemetry.telemetry })
+		setTelemetryOptOutGlobally(telemetrySetting === "disabled")
 		// Mirror to StateManager for existing VS Code services during the transition.
 		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()

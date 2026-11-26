@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useState } from "react"
 import { useExtensionState } from "./context/ExtensionStateContext"
 
 export function CustomPostHogProvider({ children }: { children: ReactNode }) {
-	const { distinctId, version, userInfo, environment, telemetrySetting } = useExtensionState()
+	const { distinctId, version, environment, telemetrySetting } = useExtensionState()
 
 	// Skip PostHog entirely in self-hosted mode or when environment is unknown (safety fallback)
 	const isSelfHostedOrUnknown = !environment || environment === "selfHosted"
@@ -42,11 +42,7 @@ export function CustomPostHogProvider({ children }: { children: ReactNode }) {
 
 		const optedIn = posthog.has_opted_in_capturing()
 		const optedOut = posthog.has_opted_out_capturing()
-		const args = {
-			email: userInfo?.email,
-			name: userInfo?.displayName,
-		}
-		posthog.identify(distinctId, args)
+		posthog.identify(distinctId)
 
 		if (isTelemetryEnabled && !optedIn) {
 			posthog.opt_in_capturing()

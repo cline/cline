@@ -3082,7 +3082,7 @@ describe("listLocalProviders", () => {
 				provider: "openai-native",
 				apiKey: "test-key",
 				baseUrl: "https://api.openai.com/v1",
-				model: "gpt-5.3-codex",
+				model: "gpt-5.5",
 			},
 			{ setLastUsed: false },
 		);
@@ -3094,7 +3094,7 @@ describe("listLocalProviders", () => {
 
 		expect(openai?.modelList?.length).toBeGreaterThan(0);
 		expect(
-			openai?.modelList?.some((model) => model.id === "gpt-5.3-codex"),
+			openai?.modelList?.some((model) => model.id === "gpt-5.5"),
 		).toBe(true);
 	});
 

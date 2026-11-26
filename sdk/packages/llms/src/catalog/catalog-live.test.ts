@@ -1142,12 +1142,10 @@ describe("models-dev-catalog", () => {
 
 	it("regenerates Codex catalog entries with input request limits", () => {
 		expect(
-			getGeneratedModelsForProvider("openai-native")["gpt-5.3-codex"]
-				?.maxInputTokens,
+			getGeneratedModelsForProvider("openai-native")["gpt-5.2"]?.maxInputTokens,
 		).toBe(272_000);
 		expect(
-			getGeneratedModelsForProvider("openai-native")["gpt-5.3-codex"]
-				?.contextWindow,
+			getGeneratedModelsForProvider("openai-native")["gpt-5.2"]?.contextWindow,
 		).toBe(400_000);
 		expect(
 			getGeneratedProviderModels()["vercel-ai-gateway"]?.[
@@ -1162,12 +1160,7 @@ describe("models-dev-catalog", () => {
 	});
 
 	it("includes video input for direct MiniMax M3 catalog entries", () => {
-		for (const providerId of [
-			"minimax",
-			"minimax-cn",
-			"minimax-coding-plan",
-			"minimax-cn-coding-plan",
-		]) {
+		for (const providerId of ["minimax", "minimax-cn"]) {
 			expect(
 				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
 			).toEqual(expect.arrayContaining(["images", "video"]));

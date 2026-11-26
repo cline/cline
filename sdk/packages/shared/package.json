@@ -1,6 +1,6 @@
 {
 	"name": "@cline/shared",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"repository": {
 		"type": "git",
@@ -47,7 +47,8 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/bundle-inputs.json"
 	],
 	"license": "Apache-2.0",
 	"scripts": {

@@ -1,5 +1,6 @@
 import type { GatewayProviderManifest } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { BUILTIN_PROVIDER_MANIFESTS_BY_ID } from "./builtins";
 import {
 	providerManifestSupportsModelTool,
 	providerOffersModelTool,
@@ -48,9 +49,23 @@ describe("supportsModelTool", () => {
 				"image_generation",
 			),
 		).toBe(true);
+		// Synthetic image model: upstream has dropped the dedicated OpenAI
+		// image ids from the catalog before, so the exclusion is stated here.
+		const openAiManifest = BUILTIN_PROVIDER_MANIFESTS_BY_ID["openai-native"];
 		expect(
-			supportsModelTool(
-				{ providerId: "openai-native", modelId: "gpt-image-2" },
+			providerManifestSupportsModelTool(
+				{
+					...openAiManifest,
+					models: [
+						...openAiManifest.models,
+						{
+							...openAiManifest.models[0],
+							id: "gpt-image-test",
+							operation: "image-generation",
+						},
+					],
+				},
+				"gpt-image-test",
 				"image_generation",
 			),
 		).toBe(false);

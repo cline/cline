@@ -83,6 +83,8 @@ if (!buildOptions.skipSdkBuild) {
 }
 
 const binaries: Record<string, string> = {};
+// Every platform's bundle, for the notices at the root of the cline wrapper package.
+const allBundleInputs = new Set<string>();
 
 function findFreePort(): Promise<number> {
 	return new Promise((resolvePort, reject) => {
@@ -178,6 +180,7 @@ for (const item of targets) {
 
 	try {
 		const { bundleInputs } = await compileCliBinary({ bunTarget, outfile });
+		for (const input of bundleInputs) allBundleInputs.add(input);
 		writeCliThirdPartyNotices({
 			product: "Cline CLI",
 			bundleInputs,
@@ -278,6 +281,12 @@ for (const item of targets) {
 	binaries[name] = version;
 	console.log(`  Built ${name}`);
 }
+
+writeCliThirdPartyNotices({
+	product: "Cline CLI",
+	bundleInputs: [...allBundleInputs],
+	outFile: join(cliDir, "dist/THIRD_PARTY_NOTICES.txt"),
+});
 
 console.log(`\nBuild complete. ${Object.keys(binaries).length} targets built.`);
 console.log("Packages:");

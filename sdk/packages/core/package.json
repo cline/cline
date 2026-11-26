@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -99,7 +99,8 @@
 	"files": [
 		"dist",
 		"!dist/**/*.d.ts.map",
-		"!dist/plugin-runtime-inputs.json"
+		"!dist/plugin-runtime-inputs.json",
+		"!dist/bundle-inputs.json"
 	],
 	"license": "Apache-2.0"
 }

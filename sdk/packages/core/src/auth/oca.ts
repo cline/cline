@@ -6,7 +6,6 @@ import {
 	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
-	identifyAccount,
 } from "../services/telemetry/core-events";
 import { BoundedTtlCache } from "./bounded-ttl-cache";
 import { startLocalOAuthServer } from "./server";
@@ -424,11 +423,6 @@ export async function loginOcaOAuth(
 			requestTimeoutMs,
 		});
 		captureAuthSucceeded(options.telemetry, "oca");
-		identifyAccount(options.telemetry, {
-			id: credentials.accountId,
-			email: credentials.email,
-			provider: "oca",
-		});
 		return credentials;
 	} catch (error) {
 		captureAuthFailed(

@@ -43,11 +43,6 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
-import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
-import {
-	createStreamErrorTelemetry,
-	isTimeoutReason,
-} from "../services/stream-error-telemetry";
 import {
 	classifyProviderError,
 	isRetryableBeyondSdkRetries,
@@ -604,87 +599,6 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
-async function resolveGatewayAiSdkTelemetry(
-	providerId: string,
-	request: GatewayStreamRequest,
-): Promise<AiSdkTelemetryDecision> {
-	try {
-		const runtime = await import("../services/langfuse-telemetry");
-		return await runtime.resolveAiSdkTelemetry(
-			providerId,
-			resolveTraceSamplingKey(request),
-		);
-	} catch {
-		return { isEnabled: false };
-	}
-}
-
-/**
- * Whole-task sampling key: prefer the session/task id so every request in a
- * task gets the same sampling decision and traces stay complete.
- */
-function resolveTraceSamplingKey(
-	request: GatewayStreamRequest,
-): string | undefined {
-	const metadata =
-		request.metadata && typeof request.metadata === "object"
-			? (request.metadata as Record<string, unknown>)
-			: {};
-	for (const key of ["sessionId", "conversationId", "distinctId"]) {
-		const value = metadata[key];
-		if (typeof value === "string" && value.trim().length > 0) {
-			return value;
-		}
-	}
-	return undefined;
-}
-
-async function withAiSdkLangfuseTraceContext<T>(
-	enabled: boolean,
-	request: GatewayStreamRequest,
-	callback: () => T | Promise<T>,
-): Promise<T> {
-	const metadata =
-		request.metadata && typeof request.metadata === "object"
-			? request.metadata
-			: {};
-	const tags = Array.isArray(metadata.tags)
-		? metadata.tags.filter(
-				(value): value is string =>
-					typeof value === "string" && value.trim().length > 0,
-			)
-		: undefined;
-	const distinctId =
-		typeof metadata.distinctId === "string" ? metadata.distinctId : undefined;
-	const sessionId =
-		typeof metadata.sessionId === "string" ? metadata.sessionId : undefined;
-
-	if (!enabled) {
-		return await callback();
-	}
-
-	// Operator env tags/metadata are merged inside the runtime, which also
-	// skips propagation when nothing at all is set.
-	const runtime = await import("../services/langfuse-telemetry");
-	return await runtime.withLangfuseTraceAttributes(
-		true,
-		{
-			...(distinctId ? { userId: distinctId } : {}),
-			...(sessionId ? { sessionId } : {}),
-			...(tags?.length ? { tags } : {}),
-			metadata: {
-				...(typeof metadata.conversationId === "string"
-					? { conversationId: metadata.conversationId }
-					: {}),
-				...(typeof metadata.runId === "string"
-					? { runId: metadata.runId }
-					: {}),
-			},
-		},
-		callback,
-	);
-}
-
 function buildAiSdkRuntimeContext(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -704,10 +618,7 @@ function buildAiSdkRuntimeContext(
 		typeof metadata.distinctId === "string" ? metadata.distinctId : undefined;
 
 	return {
-		// `distinctId` is Cline's canonical identity field. Langfuse's data
-		// model calls the same value `userId`, so expose both in runtime
-		// context and explicitly map distinctId to Langfuse's userId below.
-		...(distinctId ? { distinctId, userId: distinctId } : {}),
+		...(distinctId ? { distinctId } : {}),
 		...(typeof metadata.sessionId === "string"
 			? { sessionId: metadata.sessionId }
 			: {}),
@@ -721,8 +632,6 @@ function buildAiSdkRuntimeContext(
 			? { clineCoreVersion: metadata.clineCoreVersion }
 			: {}),
 		...(tags && tags.length > 0 ? { tags } : {}),
-		// Keep Cline correlation fields available even when the integration
-		// does not promote them to first-class Langfuse fields.
 		...(typeof metadata.conversationId === "string"
 			? { conversationId: metadata.conversationId }
 			: {}),
@@ -2190,8 +2099,6 @@ function createAiSdkProvider(
 			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
 			};
-			let recordTraceError: ((error: unknown) => Promise<void>) | undefined;
-			let getAiSdkCallId: (() => string | undefined) | undefined;
 			let reportedError: CapturedStreamError | undefined;
 			const reportError = async (
 				captured: CapturedStreamError,
@@ -2243,7 +2150,6 @@ function createAiSdkProvider(
 					handled: true,
 					context: {
 						...correlation,
-						aiSdkCallId: getAiSdkCallId?.(),
 						errorPhase: captured.phase,
 						errorTurnRetryable: captured.retryable,
 						providerId: request.providerId,
@@ -2252,7 +2158,6 @@ function createAiSdkProvider(
 						requestId: captured.requestId,
 					},
 				});
-				await recordTraceError?.(captured.error);
 			};
 			try {
 				const provider = await createProviderModule(
@@ -2362,12 +2267,6 @@ function createAiSdkProvider(
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const streamTelemetry = createStreamErrorTelemetry(
-					await resolveGatewayAiSdkTelemetry(config.providerId, request),
-				);
-				const aiSdkTelemetry = streamTelemetry.telemetry;
-				recordTraceError = streamTelemetry.recordError;
-				getAiSdkCallId = streamTelemetry.getCallId;
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
@@ -2410,67 +2309,40 @@ function createAiSdkProvider(
 					provider.buildStreamConfig
 						? provider.buildStreamConfig(request, context)
 						: buildAiSdkStreamConfig(request, context);
-				stream = await withAiSdkLangfuseTraceContext(
-					aiSdkTelemetry.isEnabled,
-					request,
-					() =>
-						streamText({
-							model: withEmptyResponseRetry(
-								provider.operations.language(context.model.id),
-								provider.retryEmptyResponses,
-								context.logger,
-							) as never,
-							messages: messages as never,
-							...(useSystemOption ? { system: systemPrompt } : {}),
-							...(tools ? { tools } : {}),
-							abortSignal: request.signal,
-							maxRetries: MODEL_REQUEST_MAX_RETRIES,
-							experimental_repairToolCall: repairMalformedToolCall as never,
-							telemetry: {
-								...aiSdkTelemetry,
-								functionId: "cline-agent-turn",
-								includeRuntimeContext: {
-									distinctId: true,
-									userId: true,
-									sessionId: true,
-									clientName: true,
-									clientVersion: true,
-									clineCoreVersion: true,
-									tags: true,
-									conversationId: true,
-									runId: true,
-									agentId: true,
-									modelRequestId: true,
-									iteration: true,
-									providerId: true,
-									modelId: true,
-									resolvedModelId: true,
-								},
-							},
-							runtimeContext: buildAiSdkRuntimeContext(request, context),
-							providerOptions: providerOptions as never,
-							...(provider.executesModelTools && activeModelTools.length
-								? { stopWhen: stepCountIs(8) }
-								: {}),
-							...requestConfig,
-							streamRetries: MODEL_STREAM_MAX_RETRIES,
-							...(portableReasoning ? { reasoning: portableReasoning } : {}),
-							onLanguageModelCallStart: () => {
-								capturedError.current = undefined;
-							},
-							onError: ({ error: streamError }) => {
-								const captured = captureStreamError(streamError);
-								capturedError.current = captured;
-								streamTelemetry.captureError(streamError);
-							},
-							onAbort: async ({ reason }) => {
-								if (!isTimeoutReason(reason)) return;
-								const captured = captureStreamError(reason, "timeout");
-								capturedError.current = captured;
-								await reportError(captured);
-							},
-						}) as unknown as AiSdkStreamResult,
-				);
+				stream = streamText({
+					model: withEmptyResponseRetry(
+						provider.operations.language(context.model.id),
+						provider.retryEmptyResponses,
+						context.logger,
+					) as never,
+					messages: messages as never,
+					...(useSystemOption ? { system: systemPrompt } : {}),
+					...(tools ? { tools } : {}),
+					abortSignal: request.signal,
+					maxRetries: MODEL_REQUEST_MAX_RETRIES,
+					experimental_repairToolCall: repairMalformedToolCall as never,
+					telemetry: { isEnabled: false },
+					providerOptions: providerOptions as never,
+					...(provider.executesModelTools && activeModelTools.length
+						? { stopWhen: stepCountIs(8) }
+						: {}),
+					...requestConfig,
+					streamRetries: MODEL_STREAM_MAX_RETRIES,
+					...(portableReasoning ? { reasoning: portableReasoning } : {}),
+					onLanguageModelCallStart: () => {
+						capturedError.current = undefined;
+					},
+					onError: ({ error: streamError }) => {
+						const captured = captureStreamError(streamError);
+						capturedError.current = captured;
+					},
+					onAbort: async ({ reason }) => {
+						if (!isTimeoutReason(reason)) return;
+						const captured = captureStreamError(reason, "timeout");
+						capturedError.current = captured;
+						await reportError(captured);
+					},
+				}) as unknown as AiSdkStreamResult;
 
 				// Suppress dangling promise rejections (finishReason, totalUsage, steps, etc.)
 				// BEFORE iterating. The AI SDK rejects these DelayedPromises inside the stream's
@@ -2505,6 +2377,16 @@ function createAiSdkProvider(
 			}
 		},
 	});
+}
+
+/** Native AbortSignal timeouts are distinct from user cancellation. */
+function isTimeoutReason(reason: unknown): boolean {
+	return (
+		typeof reason === "object" &&
+		reason !== null &&
+		"name" in reason &&
+		reason.name === "TimeoutError"
+	);
 }
 
 function resolveModelProviderKind(
