@@ -93,7 +93,11 @@ export function getInstallationInfo(currentVersion: string): InstallationInfo {
 			process.env.CLINE_WRAPPER_PATH || process.argv[1] || "",
 		).replace(/\\/g, "/");
 
-		if (scriptPath.includes("/.npm/_npx") || scriptPath.includes("/npm/_npx")) {
+		if (
+			scriptPath.includes("/.npm/_npx") ||
+			scriptPath.includes("/npm/_npx") ||
+			scriptPath.includes("/npm-cache/_npx")
+		) {
 			return {
 				packageManager: PackageManager.NPX,
 				packageName: DEFAULT_PACKAGE_NAME,
