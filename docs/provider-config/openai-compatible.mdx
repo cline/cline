@@ -36,6 +36,17 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 **Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
 
+### API base paths
+
+Enter the server's API base URL, including any required path prefix. For example,
+if its chat endpoint is `http://localhost:8000/team/v1/chat/completions`, enter
+`http://localhost:8000/team/v1` as the Base URL. Do not include
+`/chat/completions`; the client appends that endpoint to the configured base.
+
+Use the same model ID and model settings when changing only the endpoint.
+A different base URL does not automatically change the model's context window,
+output limit, or supported features.
+
 ### v0 (Vercel SDK) in Cline:
 
 -   For developers working with v0, their [AI SDK documentation](https://vercel.com/docs/v0/cline) provides valuable insights and examples for integrating various models, many of which are OpenAI-compatible. This can be a helpful resource for understanding how to structure calls and manage configurations when using Cline with services deployed on or integrated with Vercel.
