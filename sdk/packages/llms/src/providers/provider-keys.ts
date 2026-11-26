@@ -94,6 +94,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "nebius",
 	},
 	{
+		modelsDevKey: "api-route",
+		generatedProviderId: "api-route",
+		runtimeProviderId: "api-route",
+	},
+	{
 		modelsDevKey: "crusoe",
 		generatedProviderId: "crusoe",
 		runtimeProviderId: "crusoe",
