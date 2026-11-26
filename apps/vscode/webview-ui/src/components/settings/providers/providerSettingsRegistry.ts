@@ -142,6 +142,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		fallbackName: "ai&",
 		signupUrl: "https://console.aiand.com/",
 	},
+	martllm: {
+		fallbackName: "MartLLM",
+		signupUrl: "https://martllm.com/dashboard/keys",
+	},
 	"zai-coding-plan": {
 		fallbackName: "Z.AI Coding Plan",
 	},
