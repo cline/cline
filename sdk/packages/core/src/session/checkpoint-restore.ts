@@ -23,6 +23,28 @@ export interface WorktreeRestoreTransaction {
 	rollback(): Promise<void>;
 }
 
+async function assertNoUncommittedGitignore(cwd: string): Promise<void> {
+	const status = await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"status",
+			"--porcelain=v1",
+			"--untracked-files=all",
+			"--",
+			".gitignore",
+			":(glob)**/.gitignore",
+		],
+		{ windowsHide: true },
+	);
+	if (status.stdout.trim().length > 0) {
+		throw new Error(
+			"Cannot restore the workspace while a .gitignore file has uncommitted changes. Commit or stash the ignore rule first so files it protects cannot become unignored during restore.",
+		);
+	}
+}
+
 async function resolveOptionalGitRef(
 	cwd: string,
 	ref: string,
@@ -58,6 +80,11 @@ export async function beginWorktreeRestoreTransaction(
 	if (check.stdout.trim() !== "true") {
 		throw new Error(`${cwd} is not a git repository`);
 	}
+	// `stash --include-untracked` does not capture ignored files. If an
+	// uncommitted ignore rule were stashed before reset, a later `git clean -fd`
+	// could see those files as newly unignored and delete data the transaction
+	// cannot restore. Refuse before changing the worktree instead.
+	await assertNoUncommittedGitignore(cwd);
 	const originalHead = (
 		await execFile("git", ["-C", cwd, "rev-parse", "--verify", "HEAD"], {
 			windowsHide: true,
@@ -385,6 +412,9 @@ export async function applyCheckpointToWorktree(
 	if (check.stdout.trim() !== "true") {
 		throw new Error(`${cwd} is not a git repository`);
 	}
+	// Keep the exported low-level apply path safe even when a caller does not
+	// wrap it in beginWorktreeRestoreTransaction().
+	await assertNoUncommittedGitignore(cwd);
 	await execFile(
 		"git",
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
