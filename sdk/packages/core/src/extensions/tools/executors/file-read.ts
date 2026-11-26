@@ -15,11 +15,13 @@ import {
 	TOOL_RESULT_CACHE_MISS,
 	ToolResultCache,
 } from "../../../session/services/tool-result-cache";
+import { getReadFileRangeError } from "../helpers";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 import {
 	MAX_LINE_CHARS,
 	MAX_READ_LINES,
+	MAX_READ_OFFSET_CHARS,
 	MAX_READ_OUTPUT_CHARS,
 } from "./output-limits";
 
@@ -77,6 +79,65 @@ function getAbortError(signal: AbortSignal): Error {
 		return new Error(String(reason));
 	}
 	return new Error("File read was aborted");
+}
+
+/** Read a bounded, unmodified text page without buffering the entire file. */
+async function readOffsetWindow(
+	stream: Readable,
+	startOffset: number,
+	signal?: AbortSignal,
+): Promise<string> {
+	if (!Number.isSafeInteger(startOffset) || startOffset < 0) {
+		stream.destroy();
+		throw new Error("start_offset must be a nonnegative safe integer");
+	}
+	const limit = MAX_READ_OFFSET_CHARS;
+	const abortHandler = () =>
+		stream.destroy(signal ? getAbortError(signal) : undefined);
+	let scanned = 0;
+	let page = "";
+	try {
+		signal?.throwIfAborted();
+		signal?.addEventListener("abort", abortHandler, { once: true });
+		for await (const chunk of stream) {
+			signal?.throwIfAborted();
+			const text = String(chunk);
+			const skip = Math.max(0, startOffset - scanned);
+			scanned += text.length;
+			if (skip >= text.length) continue;
+			if (
+				page.length === 0 &&
+				text.charCodeAt(skip) >= 0xdc00 &&
+				text.charCodeAt(skip) <= 0xdfff
+			) {
+				throw new Error("start_offset must not split a Unicode surrogate pair");
+			}
+			page += text.slice(skip, skip + limit + 1 - page.length);
+			if (page.length > limit) break;
+		}
+	} finally {
+		signal?.removeEventListener("abort", abortHandler);
+		stream.destroy();
+	}
+	let end = 0;
+	let encodedChars = 0;
+	// read_files results are JSON-serialized into the model preview. Budget the
+	// escaped representation too, so a page of quotes/control characters survives.
+	for (const character of page) {
+		const cost = JSON.stringify(character).length - 2;
+		if (
+			end + character.length > limit ||
+			encodedChars + cost > MAX_READ_OFFSET_CHARS
+		)
+			break;
+		end += character.length;
+		encodedChars += cost;
+	}
+	const last = page.charCodeAt(end - 1);
+	if (end < page.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
+	const hasMore = end < page.length;
+	const nextOffset = startOffset + end;
+	return `[Characters ${startOffset}-${nextOffset} (UTF-16, end exclusive); next_offset=${nextOffset}; has_more=${hasMore}]\n${page.slice(0, end)}`;
 }
 
 async function readTextWindow(
@@ -142,7 +203,7 @@ async function readTextWindow(
 
 			let line = rawLine;
 			if (line.length > MAX_LINE_CHARS) {
-				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated]`;
+				line = `${line.slice(0, MAX_LINE_CHARS)} [line truncated] (use start_offset to page through the remaining text)`;
 			}
 
 			const nextChars = chars + line.length + lineNumberPrefixChars + 1;
@@ -214,19 +275,25 @@ export function createFileReadExecutor(
 	};
 
 	return async (request: ReadFileRequest, context: AgentToolContext) => {
-		const { path: filePath, start_line, end_line } = request;
+		const { path: filePath, start_line, end_line, start_offset } = request;
+		const rangeError = getReadFileRangeError(request);
+		if (rangeError) throw new Error(rangeError);
+		const readWindow = (stream: Readable) =>
+			start_offset != null
+				? readOffsetWindow(stream, start_offset, context.signal)
+				: readTextWindow(
+						stream,
+						includeLineNumbers,
+						start_line,
+						end_line,
+						context.signal,
+					);
 		if (filePath.startsWith("cline://")) {
 			context.signal?.throwIfAborted();
 			const cache = context.metadata?.toolResultCache;
 			if (!(cache instanceof ToolResultCache))
 				throw new Error(TOOL_RESULT_CACHE_MISS);
-			return readTextWindow(
-				Readable.from([cache.read(filePath)]),
-				includeLineNumbers,
-				start_line,
-				end_line,
-				context.signal,
-			);
+			return readWindow(Readable.from([cache.read(filePath)]));
 		}
 		const initialPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
@@ -246,6 +313,8 @@ export function createFileReadExecutor(
 		}
 
 		if (imageMediaType) {
+			if (start_offset != null)
+				throw new Error("Offset reads are only supported for text");
 			if (stat.size > maxFileSizeBytes) {
 				throw new Error(
 					`Image file too large: ${stat.size} bytes (max: ${maxFileSizeBytes} bytes).`,
@@ -274,12 +343,6 @@ export function createFileReadExecutor(
 			);
 		}
 
-		return readTextWindow(
-			createReadStream(resolvedPath, { encoding }),
-			includeLineNumbers,
-			start_line,
-			end_line,
-			context.signal,
-		);
+		return readWindow(createReadStream(resolvedPath, { encoding }));
 	};
 }
