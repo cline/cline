@@ -98,6 +98,9 @@ const runtimeMocks = vi.hoisted(() => ({
 const worktreeMocks = vi.hoisted(() => ({
 	createTaskWorktree: vi.fn(),
 }));
+const trustMocks = vi.hoisted(() => ({
+	ensureWorkspaceTrusted: vi.fn(async () => true),
+}));
 const historyMocks = vi.hoisted(() => ({
 	runHistoryList: vi.fn<() => Promise<number>>(async () => 0),
 	runHistoryDelete: vi.fn(async () => 0),
@@ -226,6 +229,7 @@ vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
+vi.mock("./utils/workspace-trust", () => trustMocks);
 vi.mock("./wizards/connect", () => {
 	mockState.wizardImports.push("connect");
 	return { runConnectWizard: wizardMocks.connect };
@@ -649,6 +653,18 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("exits without starting the agent when the folder is not trusted", async () => {
+		trustMocks.ensureWorkspaceTrusted.mockResolvedValueOnce(false);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
 	});
 
 	it("rejects a single bare positional prompt token", async () => {

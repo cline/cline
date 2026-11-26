@@ -8,6 +8,7 @@ import McpView from "./components/mcp/configuration/McpConfigurationView"
 import { openClinePassSubscriptionIfPending } from "./components/onboarding/clinePassSubscribe"
 import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
+import WorkspaceTrustView from "./components/welcome/WorkspaceTrustView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
@@ -18,6 +19,7 @@ const AppContent = () => {
 	const {
 		didHydrateState,
 		showWelcome,
+		untrustedWorkspacePath,
 		shouldShowAnnouncement,
 		showMarketplace,
 		showMcp,
@@ -74,6 +76,10 @@ const AppContent = () => {
 
 	if (showWelcome) {
 		return <OnboardingView />
+	}
+
+	if (untrustedWorkspacePath) {
+		return <WorkspaceTrustView path={untrustedWorkspacePath} />
 	}
 
 	return (

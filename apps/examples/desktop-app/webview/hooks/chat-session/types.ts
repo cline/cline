@@ -4,6 +4,8 @@ export type ProcessContext = {
 	environmentId: string;
 	workspaceRoot: string;
 	cwd: string;
+	/** False when the launch folder is not on the trusted workspaces allow list. */
+	workspaceTrusted?: boolean;
 	homeDir?: string;
 	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
 	taskWorktreeRoot?: string;

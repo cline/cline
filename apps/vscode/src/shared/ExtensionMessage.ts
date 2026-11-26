@@ -40,6 +40,8 @@ export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	/** Set while the open folder is not on the trusted workspaces allow list; the webview asks before showing the chat. */
+	untrustedWorkspacePath?: string
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings

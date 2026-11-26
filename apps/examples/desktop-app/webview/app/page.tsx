@@ -50,6 +50,10 @@ import { EnvironmentSelector } from "@/components/views/chat/environment-selecto
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import {
+	useWorkspaceTrust,
+	WorkspaceTrustGate,
+} from "@/components/views/chat/workspace-trust-gate";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import { ExportDiagnosticsDialog } from "@/components/views/settings/export-diagnostics-dialog";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -1810,6 +1814,10 @@ function ChatThreadPane({
 	const activeWorkspaceCwd = isCloudSession
 		? ""
 		: (config.cwd || config.workspaceRoot || "").trim();
+	// The allow list lives on this machine, so only local folders are gated.
+	const workspaceTrust = useWorkspaceTrust(
+		environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID ? activeWorkspaceCwd : "",
+	);
 	// Shells are spawned by the native app on this machine, so only local
 	// sessions get a terminal; cloud sandboxes and SSH hosts do not.
 	const terminalEnabled =
@@ -3253,7 +3261,10 @@ function ChatThreadPane({
 	);
 
 	const isAppReady =
-		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
+		chatTransportState === "connected" &&
+		providersLoaded &&
+		workspacesLoaded &&
+		workspaceTrust.status !== "checking";
 
 	if (!isAppReady) {
 		return (
@@ -3272,6 +3283,18 @@ function ChatThreadPane({
 					</p>
 				) : null}
 			</div>
+		);
+	}
+
+	if (workspaceTrust.status === "untrusted") {
+		return (
+			<WorkspaceTrustGate
+				onDecline={
+					sessionId || historySession ? undefined : () => void selectChat()
+				}
+				onTrust={workspaceTrust.trust}
+				path={activeWorkspaceCwd}
+			/>
 		);
 	}
 

@@ -41,6 +41,14 @@ vi.mock("@core/controller/state/getStateToPostToWebview", () => ({
 	getStateToPostToWebview: buildBaseStateMock,
 }))
 
+const { isWorkspaceTrustedMock } = vi.hoisted(() => ({
+	isWorkspaceTrustedMock: vi.fn(() => true),
+}))
+vi.mock("@cline/shared/storage", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/shared/storage")>()),
+	isWorkspaceTrusted: isWorkspaceTrustedMock,
+}))
+
 describe("SDK remote-config coordination", () => {
 	it("posts the current remote-config revision to the webview", async () => {
 		const controller = {
@@ -61,6 +69,7 @@ describe("SDK remote-config coordination", () => {
 			cloud: { getCurrentTaskInfo: () => undefined },
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+			getWorkspaceRoot: async () => "/workspace",
 		}
 
 		await SdkController.prototype.getStateToPostToWebview.call(controller as never)
@@ -103,6 +112,7 @@ describe("SDK remote-config coordination", () => {
 			},
 			turnStateTracker: { get: () => undefined },
 			messageTranslatorState: { getMinter: () => minter },
+			getWorkspaceRoot: async () => "/workspace",
 			getStateToPostToWebview: SdkController.prototype.getStateToPostToWebview,
 		}
 
@@ -280,6 +290,7 @@ describe("SDK remote-config coordination", () => {
 			turnStateTracker: { set: vi.fn() },
 			messageTranslatorState: { clearTurnOutcome: vi.fn() },
 			taskStart: { initTask },
+			getWorkspaceRoot: async () => "/workspace",
 		}
 
 		const taskPromise = SdkController.prototype.initTask.call(controller as never, "start immediately")
@@ -293,6 +304,15 @@ describe("SDK remote-config coordination", () => {
 		expect(taskId).toBe("task-id")
 		expect(events).toEqual(["policy", "task"])
 		expect(initTask).toHaveBeenCalledWith("start immediately", undefined, undefined, undefined, undefined)
+	})
+
+	it("does not start a task in a folder that is not trusted", async () => {
+		isWorkspaceTrustedMock.mockReturnValueOnce(false)
+		const initTask = vi.fn(async () => "task-id")
+		const controller = { taskStart: { initTask }, getWorkspaceRoot: async () => "/workspace" }
+
+		await expect(SdkController.prototype.initTask.call(controller as never, "start")).resolves.toBeUndefined()
+		expect(initTask).not.toHaveBeenCalled()
 	})
 
 	describe("after a Cline sign-in error offers to retry a prompt", () => {

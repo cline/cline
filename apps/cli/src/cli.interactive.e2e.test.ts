@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { trustTestWorkspaces } from "./tests/helpers/env";
 
 const cliRoot = path.resolve(__dirname, "..");
 const cliEntry = path.join(cliRoot, "src", "index.ts");
@@ -56,6 +57,7 @@ function buildScriptCommand(scriptedInput: string, launchArgs: string): string {
 function createCliEnv(): NodeJS.ProcessEnv {
 	const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-home-"));
 	const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-data-"));
+	trustTestWorkspaces(dataDir);
 	const sessionDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-sessions-"));
 	const teamDir = mkdtempSync(path.join(os.tmpdir(), "cli-int-teams-"));
 	tempDirs.push(homeDir, dataDir, sessionDir, teamDir);
