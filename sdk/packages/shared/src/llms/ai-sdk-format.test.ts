@@ -545,6 +545,86 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("preserves MCP image results (mimeType) as native image inputs", () => {
+		// MCP `ImageContent` wire blocks carry the MIME type in `mimeType`,
+		// not `mediaType` (the cline-internal block shape). A raw MCP
+		// `CallToolResult` must take the same native media path as a native
+		// `read_files` image result instead of being replaced with a
+		// placeholder (older builds JSON-stringified the base64 into the
+		// request text). https://github.com/cline/cline/issues/14421
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_mcp",
+						toolName: "mcp__screenshot__capture",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_mcp",
+						toolName: "mcp__screenshot__capture",
+						output: {
+							content: [
+								{ type: "text", text: "Screenshot taken" },
+								{
+									type: "image",
+									data: "QkFTRTY0REFUQQ==",
+									mimeType: "image/png",
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_mcp",
+						toolName: "mcp__screenshot__capture",
+						input: {},
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_mcp",
+						toolName: "mcp__screenshot__capture",
+						output: {
+							type: "content",
+							value: [
+								{
+									type: "text",
+									text: JSON.stringify({ content: ["Screenshot taken"] }),
+								},
+								{
+									type: "file",
+									data: { type: "data", data: "QkFTRTY0REFUQQ==" },
+									mediaType: "image/png",
+								},
+							],
+						},
+					},
+				],
+			},
+		]);
+	});
+
 	it("merges adjacent tool-result messages into one tool message", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{
