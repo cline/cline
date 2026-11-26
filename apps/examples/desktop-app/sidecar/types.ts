@@ -151,7 +151,19 @@ export type SidecarContext = {
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
 	/**
-	 * Identifies this sidecar process. `streamIndices` restarts whenever the
+	 * Resolved child sessionId per team teammate, keyed
+	 * `${rootSessionId}\u0000${teamAgentId}`. Populated on a resolver cache miss
+	 * and refreshed on team_progress. Needed to re-address teammate chat events
+	 * to the child session the webview opens instead of the root. The entry
+	 * keeps the key parts so refresh can match a root session without parsing
+	 * the key.
+	 */
+	teamChildByAgent: Map<
+		string,
+		{ rootSessionId: string; teamAgentId: string; sessionId: string }
+	>;
+	/**
+	 * Identifies this sidecar process. streamIndices restarts whenever the
 	 * sidecar does, so the webview needs to tell "index 1 of a new process"
 	 * apart from a replay of the run it already rendered.
 	 */
