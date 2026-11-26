@@ -1,9 +1,10 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
 	chmodSync,
 	copyFileSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -82,6 +83,42 @@ setTimeout(() => {}, 1000);
 			expect(result.error).toBeUndefined();
 			expect(result.status).toBeNull();
 			expect(result.signal).toBe("SIGTERM");
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"forwards SIGTERM sent to the wrapper to the child on POSIX",
+		async () => {
+			const dir = mkdtempSync(join(tmpdir(), "cline-bin-signal-"));
+			const pidFile = join(dir, "child.pid");
+			const target = createExecutableScript(`
+require("node:fs").writeFileSync(process.env.FIXTURE_PID_FILE, String(process.pid));
+setInterval(() => {}, 1000);
+`);
+			const wrapper = spawn(process.execPath, [createWrapperCopy()], {
+				env: {
+					...process.env,
+					CLINE_BIN_PATH: target,
+					FIXTURE_PID_FILE: pidFile,
+				},
+				stdio: "ignore",
+			});
+			const exited = new Promise<NodeJS.Signals | null>((resolve) =>
+				wrapper.on("exit", (_code, signal) => resolve(signal)),
+			);
+			let childPid = 0;
+			for (let i = 0; i < 100 && !childPid; i++) {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				try {
+					childPid = Number(readFileSync(pidFile, "utf8"));
+				} catch {}
+			}
+			expect(childPid).toBeGreaterThan(0);
+
+			wrapper.kill("SIGTERM");
+
+			expect(await exited).toBe("SIGTERM");
+			expect(() => process.kill(childPid, 0)).toThrow();
 		},
 	);
 });
