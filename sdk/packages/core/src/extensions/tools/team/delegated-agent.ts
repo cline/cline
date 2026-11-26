@@ -48,12 +48,12 @@ export interface DelegatedAgentRuntimeConfig
 	workspaceMetadata?: string;
 	/**
 	 * Stable end-user identity inherited from the parent session so
-	 * delegated-agent telemetry (Langfuse `userId`) groups with the user.
+	 * delegated-agent telemetry groups with the user.
 	 */
 	distinctId?: string;
 	/**
 	 * Root core session id inherited from the parent session so
-	 * delegated-agent telemetry (Langfuse `sessionId`) groups with it.
+	 * delegated-agent telemetry groups with it.
 	 */
 	sessionId?: string;
 }

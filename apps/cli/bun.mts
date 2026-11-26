@@ -112,9 +112,6 @@ const result = await Bun.build({
 		"process.env.OTEL_TRACES_EXPORTER": defineProcessEnv(
 			"OTEL_TRACES_EXPORTER",
 		),
-		"process.env.CLINE_TRACE_RECORD_CONTENT": defineProcessEnv(
-			"CLINE_TRACE_RECORD_CONTENT",
-		),
 		"process.env.OTEL_EXPORTER_OTLP_PROTOCOL": defineProcessEnv(
 			"OTEL_EXPORTER_OTLP_PROTOCOL",
 		),
