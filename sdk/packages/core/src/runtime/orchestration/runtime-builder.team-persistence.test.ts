@@ -315,4 +315,43 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			}),
 		);
 	});
+
+	it("preserves undefined top-level apiKey so delegated agents inherit providerConfig.apiKey (cline/cline#15844)", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		const { resolveConnectionProviderConfig } = await import(
+			"../../services/llms/handler-factory"
+		);
+		bootstrapAgentTeamsMock.mockClear();
+
+		await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "openai-compatible",
+				modelId: "mock-1",
+				providerConfig: {
+					providerId: "openai-compatible",
+					modelId: "mock-1",
+					apiKey: "stored-auth-key",
+					baseUrl: "http://127.0.0.1:25531/v1",
+				},
+				systemPrompt: "Scheduled cron agent",
+				cwd: "/repo/demo",
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+			},
+		});
+
+		const bootstrapCall = (
+			bootstrapAgentTeamsMock.mock.calls as unknown as Array<[BootstrapCall]>
+		)[0]?.[0];
+		expect(bootstrapCall).toBeDefined();
+		const delegatedConn =
+			bootstrapCall?.teammateConfigProvider.getRuntimeConfig() as Record<
+				string,
+				unknown
+			>;
+		expect(delegatedConn.apiKey).toBeUndefined();
+		const resolved = resolveConnectionProviderConfig(delegatedConn as never);
+		expect(resolved.apiKey).toBe("stored-auth-key");
+	});
 });
