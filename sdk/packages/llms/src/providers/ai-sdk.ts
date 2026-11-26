@@ -52,6 +52,7 @@ import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-res
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
+	isOpenRouterAutoRouterModel,
 	modelSupportsImageInput,
 	resolveModelFamily,
 } from "./model-facts";
@@ -2181,7 +2182,8 @@ function createAiSdkProvider(
 							: undefined;
 				const providerOptions =
 					context.provider.metadata?.imageTransport === "openrouter" &&
-					modelProducesImages(context.model)
+					modelProducesImages(context.model) &&
+					!isOpenRouterAutoRouterModel(context.model)
 						? {
 								...composedProviderOptions,
 								openrouter: {
