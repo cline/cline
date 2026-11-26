@@ -1,5 +1,11 @@
 # Cline Desktop Changelog
 
+## 0.0.51
+
+- Refreshed the model catalog. The OpenAI provider no longer lists ids the upstream catalog marks deprecated, including `gpt-4o`, `gpt-4.1`, `gpt-5`, `gpt-5-mini`, `gpt-5.1`, `gpt-5.3-codex`, `o3` and `o3-pro`. `gpt-5.3-codex-spark` is no longer listed for ChatGPT subscriptions. Adds the Concentrate and Prima Labs providers
+- The third-party notices in Settings → About now cover software that was missing from the list
+- Internal telemetry cleanup
+
 ## 0.0.50
 
 - The thinking picker offers **Max** reasoning effort, for models whose top level is max
