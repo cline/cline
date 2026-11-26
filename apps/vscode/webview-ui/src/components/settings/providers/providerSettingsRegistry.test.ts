@@ -61,6 +61,7 @@ describe("providerSettingsRegistry", () => {
 			["baseten", "Baseten", "https://app.baseten.co/settings/api_keys"],
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
 			["chutes", "Chutes", "https://chutes.ai/app/api"],
+			["coralbricks", "CoralBricks", "https://www.coralbricks.ai/docs/cline"],
 			["doubao", "Doubao", "https://console.volcengine.com/home"],
 			["fireworks", "Fireworks", "https://app.fireworks.ai/settings/users/api-keys"],
 			["groq", "Groq", "https://console.groq.com/keys"],
@@ -215,6 +216,12 @@ describe("providerSettingsRegistry", () => {
 			providerId: "aiand",
 			providerName: "ai&",
 			signupUrl: "https://console.aiand.com/",
+		})
+		expect(getFallbackGenericProviderSettings("coralbricks")).toEqual({
+			allowsCustomIds: false,
+			providerId: "coralbricks",
+			providerName: "CoralBricks",
+			signupUrl: "https://www.coralbricks.ai/docs/cline",
 		})
 		expect(getFallbackGenericProviderSettings("openai")).toBeUndefined()
 	})

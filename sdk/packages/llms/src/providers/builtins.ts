@@ -824,6 +824,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	cline,
 	clinePass,
 	{
+		// Name, base URL, API key env and the model catalog come from the
+		// generated models.dev spec; this only points at the Cline setup guide
+		// and describes the served tiers.
+		id: "coralbricks",
+		description:
+			"CoralBricks open-model inference: DeepSeek V4.1 Flash with 1M context, in Fast, Standard and Value tiers",
+		docsUrl: "https://www.coralbricks.ai/docs/cline",
+	},
+	{
 		id: "deepseek",
 		name: "DeepSeek",
 		description: "Advanced AI models with reasoning capabilities",
