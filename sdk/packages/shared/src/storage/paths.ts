@@ -495,6 +495,7 @@ export function resolveAgentConfigSearchPaths(
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
+	const customHooksDir = process.env.CLINE_HOOKS_DIR?.trim();
 	const hooks = [
 		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
@@ -504,6 +505,9 @@ export function resolveHooksConfigSearchPaths(
 			join(workspacePath, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
 			join(workspacePath, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
 		);
+	}
+	if (customHooksDir) {
+		hooks.push(resolve(customHooksDir));
 	}
 	return dedupePaths(hooks);
 }
