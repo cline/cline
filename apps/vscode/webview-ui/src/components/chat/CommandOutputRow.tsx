@@ -1,7 +1,7 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { memo, useEffect, useRef } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -140,6 +140,7 @@ export const CommandOutputRow = memo(
 		setIsOutputFullyExpanded: (expanded: boolean) => void
 		onOutputChange?: () => void
 	}) => {
+		const [isCommandFullyExpanded, setIsCommandFullyExpanded] = useState(true)
 		const splitMessage = (text: string) => {
 			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
 			if (outputIndex === -1) {
@@ -231,16 +232,21 @@ export const CommandOutputRow = memo(
 						</div>
 					)}
 
-					<div className="bg-code opacity-60 text-sm">
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+					<div className="relative bg-code opacity-60 text-sm">
+						{isCommandFullyExpanded && <CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />}
+						<ExpandHandle
+							ariaLabel={isCommandFullyExpanded ? "Collapse command" : "Expand command"}
+							isExpanded={isCommandFullyExpanded}
+							onToggle={() => setIsCommandFullyExpanded((expanded) => !expanded)}
+						/>
 					</div>
 
 					{output.length > 0 && (
 						<CommandOutputContent
 							isContainerExpanded={true}
 							isOutputFullyExpanded={isOutputFullyExpanded}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							onOutputChange={onOutputChange}
+							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							output={output}
 						/>
 					)}
