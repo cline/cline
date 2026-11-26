@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	cancelClineOAuthLogin,
 	runProviderOAuthLogin,
@@ -15,6 +15,7 @@ export function useClineSignIn({
 	const [pending, setPending] = useState(false);
 	const [cancelling, setCancelling] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const clearError = useCallback(() => setError(null), []);
 
 	useEffect(() => () => controller.current?.abort(), []);
 
@@ -61,5 +62,6 @@ export function useClineSignIn({
 		signingIn: pending || cancelling,
 		cancelling,
 		error,
+		clearError,
 	};
 }
