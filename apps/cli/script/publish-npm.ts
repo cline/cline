@@ -255,6 +255,14 @@ for (const name of Object.keys(binaries)) {
 	}
 }
 
+const wrapperNotices = join(cliDir, "dist", "THIRD_PARTY_NOTICES.txt");
+if (!existsSync(wrapperNotices)) {
+	console.error(
+		"dist/THIRD_PARTY_NOTICES.txt is missing; rebuild with script/build.ts before publishing.",
+	);
+	process.exit(1);
+}
+
 // Step 1: Publish platform-specific packages (in parallel)
 console.log("\nPublishing platform packages...");
 const platformTasks = Object.keys(binaries)
@@ -287,6 +295,9 @@ const licenseFrom = join(cliDir, "../../LICENSE");
 if (existsSync(licenseFrom)) {
 	await $`cp ${licenseFrom} ${join(mainPkgDir, "LICENSE")}`;
 }
+
+// One notices file for every platform binary, including the copy postinstall caches in bin/.cline.
+await $`cp ${wrapperNotices} ${join(mainPkgDir, "THIRD_PARTY_NOTICES.txt")}`;
 
 // Copy README.md so the npm registry listing has the same landing page
 // as the repo. The published wrapper package is generated fresh in
