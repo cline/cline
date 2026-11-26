@@ -1,5 +1,5 @@
 /**
- * `BUILD_CONSTANTS` represent the variables that will be overwriten at build-time with predefined values.
+ * `BUILD_CONSTANTS` represent the variables that will be overwritten at build-time with predefined values.
  * Once the extension has been built, the values in this object will be fixed.
  *
  * @see [esbuild.mjs](../../esbuild.mjs)
