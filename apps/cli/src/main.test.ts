@@ -828,6 +828,58 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("logs while it waits for piped stdin to close", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValueOnce({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as unknown as ReturnType<typeof fstatSync>);
+		let closeStdin = () => {};
+		const stdinClosed = new Promise<void>((resolve) => {
+			closeStdin = resolve;
+		});
+		vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(
+			async function* (): AsyncGenerator<Buffer, undefined> {
+				yield Buffer.from("from pipe");
+				await stdinClosed;
+				return undefined;
+			},
+		);
+		loggingMocks.createCliLoggerAdapter.mockClear();
+		const logCalls = () =>
+			loggingMocks.createCliLoggerAdapter.mock.results.flatMap(
+				(result) => result.value.core.log.mock.calls,
+			);
+		process.argv = ["bun", "src/index.ts", "explain this"];
+
+		const { runCli } = await import("./main");
+		const run = runCli();
+
+		await vi.waitFor(() =>
+			expect(logCalls()).toContainEqual(["Reading piped stdin until EOF"]),
+		);
+		expect(logCalls().map(([message]) => message)).not.toContain(
+			"Piped stdin closed",
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+
+		closeStdin();
+		await expect(run).resolves.toBeUndefined();
+		expect(logCalls()).toContainEqual(["Piped stdin closed", { bytes: 9 }]);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"explain this\n\nfrom pipe",
+			expect.anything(),
+			expect.anything(),
+		);
+	});
+
 	it("validates resumed sessions before creating a worktree", async () => {
 		sessionMocks.getSessionRow.mockResolvedValueOnce(undefined);
 		process.argv = ["bun", "src/index.ts", "--worktree", "--id", "missing"];
