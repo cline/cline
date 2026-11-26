@@ -49,6 +49,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		fallbackName: "Doubao",
 		signupUrl: "https://console.volcengine.com/home",
 	},
+	edenai: {
+		signupUrl: "https://app.edenai.run/settings/api-keys",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.edenai.run/v3",
+		},
+	},
 	fireworks: {
 		fallbackName: "Fireworks",
 		signupUrl: "https://app.fireworks.ai/settings/users/api-keys",
