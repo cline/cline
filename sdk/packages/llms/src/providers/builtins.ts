@@ -882,6 +882,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
 	},
 	{
+		id: "sarvam",
+		name: "Sarvam AI",
+		description: "Sarvam and open-weight models served from India",
+		family: "openai-compatible",
+		defaultModelId: "sarvam-105b",
+		apiKeyEnv: ["SARVAM_API_KEY"],
+		defaults: { baseUrl: "https://api.sarvam.ai/v2" },
+	},
+	{
 		id: "crusoe",
 		name: "Crusoe",
 		description: "Managed inference on renewable-powered GPU infrastructure",

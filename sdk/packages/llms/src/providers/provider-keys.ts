@@ -89,6 +89,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "sambanova",
 	},
 	{
+		modelsDevKey: "sarvam",
+		generatedProviderId: "sarvam",
+		runtimeProviderId: "sarvam",
+	},
+	{
 		modelsDevKey: "nebius",
 		generatedProviderId: "nebius",
 		runtimeProviderId: "nebius",

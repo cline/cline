@@ -142,6 +142,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		fallbackName: "ai&",
 		signupUrl: "https://console.aiand.com/",
 	},
+	sarvam: {
+		fallbackName: "Sarvam AI",
+		signupUrl: "https://indus.sarvam.ai/key-management",
+	},
 	"zai-coding-plan": {
 		fallbackName: "Z.AI Coding Plan",
 	},
