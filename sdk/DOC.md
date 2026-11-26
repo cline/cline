@@ -39,6 +39,12 @@ attempts) for retryable request-start failures. Provider errors received after
 streaming starts have a separate budget of three stream retries. Exhausting
 either budget does not trigger another whole-turn retry.
 
+## Stopping a run
+
+If a run is stopped mid-stream, the assistant text and media already received
+stay in the transcript for follow-ups. Pending tool calls and reasoning from
+the interrupted stream are discarded.
+
 ## Oversized tool result recovery
 
 Cached text excludes native image data. Cache admission uses the persisted JSON/string model-preview size for the truncation threshold; YAML size controls only cache capacity. Plain strings stay unchanged; structured cached text is serialized as YAML, preserving multiline payloads as literal blocks without automatic wrapping. Original history and tool events keep their existing format. Recovery uses the existing `read_files` output and per-line limits; disabling that tool does not disable caching or remove recovery notices.

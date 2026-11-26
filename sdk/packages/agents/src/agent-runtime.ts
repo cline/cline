@@ -874,6 +874,13 @@ export class AgentRuntime {
 					continue;
 				}
 				if (finishReason === "aborted") {
+					if (
+						this.state.status === "running" &&
+						this.abortController.signal.aborted &&
+						message.content.length > 0
+					) {
+						await this.recordAssistantMessage(message, finishReason);
+					}
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
@@ -1571,11 +1578,9 @@ export class AgentRuntime {
 			phase: "retried",
 			eventType: retry.finishReason,
 		});
-		// No replacement turn came back: keep the truncated one and surface what
-		// ended the retry, exactly as the loop would have for that finish.
 		if (retry.finishReason === "aborted") {
 			await this.recordAssistantMessage(first.message, first.finishReason);
-			throw this.normalizeAbortError();
+			return retry;
 		}
 		if (
 			retry.finishReason === "error" &&
@@ -1795,12 +1800,14 @@ export class AgentRuntime {
 		});
 		// Steering cancels provider generation, while request preparation keeps
 		// the run-level signal so compaction and hooks can finish consistently.
+		const runSignal = this.abortController?.signal;
+		const requestSignal = AbortSignal.any([
+			steerController.signal,
+			...(runSignal ? [runSignal] : []),
+		]);
 		request = {
 			...request,
-			signal: AbortSignal.any([
-				steerController.signal,
-				...(this.abortController ? [this.abortController.signal] : []),
-			]),
+			signal: requestSignal,
 		};
 		const stream = this.openTaskLifecycleStream(
 			request,
@@ -1822,8 +1829,7 @@ export class AgentRuntime {
 		let accumulatedReasoning = "";
 
 		for await (const event of stream) {
-			if (steerController.signal.aborted) break;
-			this.throwIfAborted();
+			if (requestSignal.aborted) break;
 			switch (event.type) {
 				case "text-delta": {
 					accumulatedText += event.text;
@@ -2035,15 +2041,16 @@ export class AgentRuntime {
 				}
 			}
 		}
-		this.throwIfAborted();
-		const interrupted = steerController.signal.aborted;
-		if (interrupted) finishReason = "stop";
+		const aborted = runSignal?.aborted === true;
+		const interrupted = !aborted && steerController.signal.aborted;
+		if (aborted) finishReason = "aborted";
+		else if (interrupted) finishReason = "stop";
 
 		for (const item of sequence) {
 			// A cancelled stream may contain incomplete tool JSON or unsigned
 			// reasoning. Keep only replayable visible content from that response.
 			if (
-				interrupted &&
+				(finishReason === "aborted" || interrupted) &&
 				(item.type === "tool" || item.part.type === "reasoning")
 			)
 				continue;
@@ -2103,6 +2110,8 @@ export class AgentRuntime {
 		if (this.config.messageModelInfo) {
 			message.modelInfo = { ...this.config.messageModelInfo };
 		}
+		if (aborted) return { message, finishReason };
+
 		for (const hook of this.hooks.afterModel) {
 			const control = (await hook({
 				snapshot: this.snapshot(),
@@ -2131,9 +2140,8 @@ export class AgentRuntime {
 				phase,
 			});
 		} catch (error) {
-			if (request.signal?.aborted && !this.abortController?.signal.aborted)
-				return;
-			if (!request.signal?.aborted && !this.isAbortError(error)) {
+			if (request.signal?.aborted) return;
+			if (!this.isAbortError(error)) {
 				this.captureTaskLifecycleFailure(
 					error,
 					phase,
@@ -2158,9 +2166,8 @@ export class AgentRuntime {
 				yield event;
 			}
 		} catch (error) {
-			if (request.signal?.aborted && !this.abortController?.signal.aborted)
-				return;
-			if (!request.signal?.aborted && !this.isAbortError(error)) {
+			if (request.signal?.aborted) return;
+			if (!this.isAbortError(error)) {
 				this.captureTaskLifecycleFailure(
 					error,
 					phase,
