@@ -75,6 +75,30 @@ describe("MCP wizard settings", () => {
 		).toEqual(["npx", "-y", "@scope/server name", "--root", "my dir"]);
 	});
 
+	it("preserves Windows path separators in stdio commands", () => {
+		expect(
+			parseStdioCommand(String.raw`node C:\Users\me\mcp\server.js`),
+		).toEqual(["node", String.raw`C:\Users\me\mcp\server.js`]);
+		expect(
+			parseStdioCommand(
+				String.raw`"C:\Program Files\nodejs\node.exe" C:\tools\server.js`,
+			),
+		).toEqual([
+			String.raw`C:\Program Files\nodejs\node.exe`,
+			String.raw`C:\tools\server.js`,
+		]);
+	});
+
+	it("still supports escaped whitespace and quotes", () => {
+		expect(
+			parseStdioCommand(String.raw`node my\ dir/server.js --name "a \"b\""`),
+		).toEqual(["node", "my dir/server.js", "--name", 'a "b"']);
+		expect(parseStdioCommand(String.raw`node 'C:\tools\server.js'`)).toEqual([
+			"node",
+			String.raw`C:\tools\server.js`,
+		]);
+	});
+
 	it("loads and clears OAuth state stored on a server entry", async () => {
 		const settingsPath = await useTempSettingsPath();
 		await writeFile(
