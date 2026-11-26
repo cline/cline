@@ -142,7 +142,7 @@ In MCP settings you can:
 | Issue | Fix |
 |---|---|
 | Server won't connect | Verify command/URL, server process status, and port |
-| Missing tools | Confirm server started successfully and tools are exposed |
+| Missing or unexpected tools | Confirm the server and any required background service are running. For STDIO, check which executable the configured command launches and verify its version. If two executables share a name, use the full path to the intended one. |
 | Auth errors | Re-check API keys/tokens and required headers |
 | Timeout errors | Increase MCP timeout and test server response directly |
 
