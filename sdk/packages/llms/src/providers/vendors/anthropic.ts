@@ -12,6 +12,28 @@ import {
 } from "./minimax-thinking";
 import type { ProviderFactoryResult } from "./types";
 
+function normalizeBaseUrl(
+	baseUrl: string | undefined,
+	defaultPath: string | undefined,
+): string | undefined {
+	// Only opted-in providers inherit a path. Other Anthropic-compatible
+	// endpoints may deliberately serve /messages at the origin.
+	if (!defaultPath) return baseUrl;
+	const trimmed = baseUrl?.trim();
+	if (!trimmed) return undefined;
+
+	try {
+		const url = new URL(trimmed);
+		if (url.pathname === "/") {
+			url.pathname = defaultPath;
+			return url.toString();
+		}
+	} catch {
+		// Leave invalid URLs to the transport's existing error handling.
+	}
+	return trimmed;
+}
+
 export async function createAnthropicProviderModule(
 	config: GatewayResolvedProviderConfig,
 	context: GatewayProviderContext,
@@ -20,7 +42,10 @@ export async function createAnthropicProviderModule(
 	const isMiniMax = context.provider.id === "minimax";
 	const provider = createAnthropic({
 		apiKey,
-		baseURL: config.baseUrl,
+		baseURL: normalizeBaseUrl(
+			config.baseUrl,
+			context.provider.metadata?.routing?.baseUrlDefaultPath,
+		),
 		headers: config.headers,
 		fetch: isMiniMax ? createMiniMaxThinkingFetch(config.fetch) : config.fetch,
 		name: context.provider.id,
