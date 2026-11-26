@@ -13,7 +13,6 @@ import {
 	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
-	identifyAccount,
 } from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
 import type { OAuthCredentials, OAuthPrompt } from "./types";
@@ -377,11 +376,6 @@ export async function loginOpenAICodex(options: {
 
 		const credentials = toCodexCredentials(tokenResult);
 		captureAuthSucceeded(options.telemetry, "openai-codex");
-		identifyAccount(options.telemetry, {
-			id: credentials.accountId,
-			email: credentials.email,
-			provider: "openai-codex",
-		});
 		return credentials;
 	} catch (error) {
 		captureAuthFailed(

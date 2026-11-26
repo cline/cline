@@ -40,7 +40,6 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
-import { type VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
@@ -96,17 +95,14 @@ export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
 	private readonly prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>
-	private readonly gitTelemetry: VscodeGitTelemetryManager
 
 	private constructor(
 		inner: ClineCore,
 		prepareStartSessionInput: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
-		options: VscodeSessionHostOptions,
 	) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
 		this.prepareStartSessionInput = prepareStartSessionInput
-		this.gitTelemetry = new VscodeGitTelemetryManager(options.telemetry)
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
@@ -194,22 +190,13 @@ export class VscodeSessionHost implements SdkSessionHost {
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
-		return new VscodeSessionHost(inner, prepareStartSessionInput, options)
+		return new VscodeSessionHost(inner, prepareStartSessionInput)
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		const prepared = await this.prepareStartSessionInput(toClineCoreStartInput(input))
-		const observer = this.gitTelemetry.init(prepared)
-		try {
-			const result = await this.inner.start(prepared)
-			this.gitTelemetry.start(result.sessionId, observer)
-			return result
-		} catch (error) {
-			observer?.dispose()
-			throw error
-		}
+		return this.inner.start(await this.prepareStartSessionInput(toClineCoreStartInput(input)))
 	}
 
 	async send(input: SendSessionInput) {
@@ -247,12 +234,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async stop(sessionId: string): Promise<void> {
-		this.gitTelemetry.stop(sessionId)
 		return this.inner.stop(sessionId)
 	}
 
 	async dispose(reason?: string): Promise<void> {
-		this.gitTelemetry.dispose()
 		return this.inner.dispose(reason)
 	}
 
@@ -286,21 +271,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		// Apply the same preparation to checkpoint-restore replacement sessions.
-		let observer: VscodeGitTelemetry | undefined
 		if (input.start) {
-			const start = await this.prepareStartSessionInput(toClineCoreStartInput(input.start))
-			observer = this.gitTelemetry.init(start)
-			input = { ...input, start }
+			input = { ...input, start: await this.prepareStartSessionInput(toClineCoreStartInput(input.start)) }
 		}
-		try {
-			const result = await this.inner.restore(input)
-			if (result.startResult && result.sessionId) this.gitTelemetry.start(result.sessionId, observer)
-			else observer?.dispose()
-			return result
-		} catch (error) {
-			observer?.dispose()
-			throw error
-		}
+		return this.inner.restore(input)
 	}
 
 	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {

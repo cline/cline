@@ -1,12 +1,12 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
 	isModelToolEnabledGlobally,
+	isTelemetryOptedOutGlobally,
 	readCloudModelIdGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
@@ -218,27 +218,24 @@ describe("global-settings", () => {
 		}
 	});
 
-	it("records telemetry opt-out once when the setting changes to true", async () => {
+	it("treats DO_NOT_TRACK as a telemetry opt-out without changing the saved setting", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
-			const settingsPath = join(root, "global-settings.json");
-			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
-			const captureRequired = vi.fn();
-			const telemetry = {
-				captureRequired,
-			} as unknown as ITelemetryService;
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+				root,
+				"global-settings.json",
+			);
+			expect(isTelemetryOptedOutGlobally()).toBe(false);
 
-			setTelemetryOptOutGlobally(true, { telemetry });
-			setTelemetryOptOutGlobally(true, { telemetry });
-			setTelemetryOptOutGlobally(false, { telemetry });
+			vi.stubEnv("DO_NOT_TRACK", "1");
+			expect(isTelemetryOptedOutGlobally()).toBe(true);
+			expect(readGlobalSettings().telemetryOptOut).toBe(false);
 
-			expect(captureRequired).toHaveBeenCalledTimes(1);
-			expect(captureRequired).toHaveBeenCalledWith("user.opt_out", undefined);
-			expect(readGlobalSettings()).toEqual({
-				autoUpdateEnabled: true,
-				telemetryOptOut: false,
-			});
+			vi.stubEnv("DO_NOT_TRACK", "0");
+			vi.stubEnv("CLINE_TELEMETRY_DISABLED", "true");
+			expect(isTelemetryOptedOutGlobally()).toBe(true);
 		} finally {
+			vi.unstubAllEnvs();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
