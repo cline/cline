@@ -22,6 +22,7 @@ import {
 	resolveConnectorDataDir,
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
+	resolveDocumentsClineDirectoryPath,
 	resolveGlobalAgentsRulesPath,
 	resolveGlobalRulesConfigPaths,
 	resolveGlobalSettingsPath,
@@ -48,6 +49,7 @@ type EnvSnapshot = {
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
 	CLINE_TEAM_DATA_DIR: string | undefined;
+	XDG_CONFIG_HOME: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
@@ -62,6 +64,7 @@ function captureEnv(): EnvSnapshot {
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
 		CLINE_TEAM_DATA_DIR: process.env.CLINE_TEAM_DATA_DIR,
+		XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
 	};
 }
 
@@ -78,6 +81,7 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
 	process.env.CLINE_SESSION_DATA_DIR = snapshot.CLINE_SESSION_DATA_DIR;
 	process.env.CLINE_TEAM_DATA_DIR = snapshot.CLINE_TEAM_DATA_DIR;
+	process.env.XDG_CONFIG_HOME = snapshot.XDG_CONFIG_HOME;
 }
 
 describe("storage path resolution", () => {
@@ -239,6 +243,34 @@ describe("storage path resolution", () => {
 		);
 	});
 
+	it.runIf(process.platform === "linux")(
+		"resolves legacy global rules from the localized XDG Documents directory",
+		() => {
+			snapshot = captureEnv();
+			delete process.env.XDG_CONFIG_HOME;
+			const originalHomeDir = dirname(dirname(resolveGlobalAgentsRulesPath()));
+			const homeDir = mkdtempSync(join(tmpdir(), "cline-xdg-home-"));
+			mkdirSync(join(homeDir, ".config"), { recursive: true });
+			writeFileSync(
+				join(homeDir, ".config", "user-dirs.dirs"),
+				'XDG_DOCUMENTS_DIR="$HOME/Документы"\n',
+			);
+
+			try {
+				setHomeDir(homeDir);
+
+				expect(resolveDocumentsClineDirectoryPath()).toBe(
+					join(homeDir, "Документы", "Cline"),
+				);
+				expect(resolveRulesConfigSearchPaths()).toContain(
+					join(homeDir, "Документы", "Cline", "Rules"),
+				);
+			} finally {
+				setHomeDir(originalHomeDir);
+				rmSync(homeDir, { recursive: true, force: true });
+			}
+		},
+	);
 	it("resolves both workspace rule layouts (.clinerules and .cline/rules)", () => {
 		const workspacePath = join("/repo", "demo");
 
