@@ -1,6 +1,6 @@
 import "opentui-spinner/react";
 import type { AgentMode, ClineSubscriptionPlan } from "@cline/core";
-import type { ScrollBoxRenderable } from "@opentui/core";
+import type { MacOSScrollAccel, ScrollBoxRenderable } from "@opentui/core";
 import {
 	forwardRef,
 	useCallback,
@@ -13,6 +13,7 @@ import { useTheme } from "../hooks/use-theme";
 import { getThemeModeAccent } from "../themes";
 import type { ChatEntry } from "../types";
 import { ChatEntryView } from "./chat-entry";
+import { createTranscriptScrollAcceleration } from "./transcript-scroll";
 
 export interface TranscriptScrollHandle {
 	runTranscriptCommand: (command: TranscriptCommand) => void;
@@ -30,6 +31,10 @@ export const ChatMessageList = forwardRef<
 	ChatMessageListProps
 >(function ChatMessageList(props, ref) {
 	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null);
+	// One instance for the life of the transcript: it keeps the wheel velocity
+	// history that decides how much to accelerate.
+	const scrollAccelerationRef = useRef<MacOSScrollAccel | null>(null);
+	scrollAccelerationRef.current ??= createTranscriptScrollAcceleration();
 	const lastEntry = props.entries.at(-1);
 	const theme = useTheme();
 	const accent = getThemeModeAccent(theme, props.uiMode ?? "act");
@@ -92,6 +97,7 @@ export const ChatMessageList = forwardRef<
 			flexGrow={1}
 			stickyScroll
 			stickyStart="bottom"
+			scrollAcceleration={scrollAccelerationRef.current}
 		>
 			<box flexDirection="column" paddingX={1} paddingY={1} gap={1}>
 				{props.entries.map((entry, i) => {
