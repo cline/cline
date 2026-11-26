@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildClineSystemPrompt,
+	MODE_CONTRACTS,
+	MODE_CONTRACTS_MANUAL_SWITCH,
 	MODE_TAG_INSTRUCTIONS,
-	PLAN_MODE_INSTRUCTIONS,
-	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 	processWorkspaceInfo,
 } from "./cline";
 
@@ -38,46 +38,93 @@ describe("processWorkspaceInfo", () => {
 });
 
 describe("buildClineSystemPrompt mode instructions", () => {
-	it("explains the user_input mode attribute in act mode", () => {
-		const prompt = buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "act" });
-		expect(prompt).toContain(MODE_TAG_INSTRUCTIONS);
-		expect(prompt).toContain('<user_input mode="...">');
-		expect(prompt).toContain("<mode_notice>");
-		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS);
+	it("keeps the system prompt byte-identical across plan/act switches", () => {
+		// Core invariant for LLM-server KV/prompt caching: toggling Plan<->Act
+		// must not change the serialized system prompt at all.
+		expect(buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "plan" })).toBe(
+			buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "act" }),
+		);
+		// Same invariant for hosts without the switch tool.
+		expect(
+			buildClineSystemPrompt({
+				...BASE_OPTIONS,
+				mode: "plan",
+				planModeSwitchTool: false,
+			}),
+		).toBe(
+			buildClineSystemPrompt({
+				...BASE_OPTIONS,
+				mode: "act",
+				planModeSwitchTool: false,
+			}),
+		);
 	});
 
-	it("appends the plan-mode contract only in plan mode", () => {
+	it("uses the caller-provided currentDate instead of the live clock", () => {
+		const frozen = "01/01/2026";
+		expect(
+			buildClineSystemPrompt({ ...BASE_OPTIONS, currentDate: frozen }),
+		).toContain(frozen);
+		// Two builds with the same frozen date stay byte-identical even if the
+		// real clock crosses midnight between them (night work across 00:00).
+		expect(
+			buildClineSystemPrompt({
+				...BASE_OPTIONS,
+				mode: "plan",
+				currentDate: frozen,
+			}),
+		).toBe(
+			buildClineSystemPrompt({
+				...BASE_OPTIONS,
+				mode: "act",
+				currentDate: frozen,
+			}),
+		);
+	});
+
+	it("explains the user_input mode attribute in both modes", () => {
+		for (const mode of ["act", "plan"] as const) {
+			const prompt = buildClineSystemPrompt({ ...BASE_OPTIONS, mode });
+			expect(prompt).toContain(MODE_TAG_INSTRUCTIONS);
+			expect(prompt).toContain('<user_input mode="...">');
+			expect(prompt).toContain("<mode_notice>");
+		}
+	});
+
+	it("includes the static mode contracts in both modes", () => {
+		for (const mode of ["act", "plan"] as const) {
+			const prompt = buildClineSystemPrompt({ ...BASE_OPTIONS, mode });
+			expect(prompt).toContain("# Plan / Act Mode Contracts");
+		}
+		// The mode-tag explanation precedes the contracts, matching the order
+		// the CLI historically composed by hand.
 		const prompt = buildClineSystemPrompt({ ...BASE_OPTIONS, mode: "plan" });
-		expect(prompt).toContain(MODE_TAG_INSTRUCTIONS);
-		expect(prompt).toContain(PLAN_MODE_INSTRUCTIONS);
-		// The mode-tag explanation precedes the plan contract, matching the
-		// order the CLI historically composed by hand.
 		expect(prompt.indexOf(MODE_TAG_INSTRUCTIONS)).toBeLessThan(
-			prompt.indexOf(PLAN_MODE_INSTRUCTIONS),
+			prompt.indexOf("# Plan / Act Mode Contracts"),
 		);
 	});
 
 	it("keeps run_commands available-but-read-only in the plan contract", () => {
 		// Explicit product decision: run_commands is NOT removed in plan mode
 		// (it is essential for read-only investigation); the mitigation for
-		// plan-mode mutations is prompting, so the contract must spell out the
-		// inspection-only usage.
-		expect(PLAN_MODE_INSTRUCTIONS).toContain("run_commands");
-		expect(PLAN_MODE_INSTRUCTIONS).toContain("read-only");
-		expect(PLAN_MODE_INSTRUCTIONS).toContain("switch_to_act_mode");
+		// plan-mode mutations is prompting plus the hard command guard, so the
+		// contract must spell out the inspection-only usage.
+		expect(MODE_CONTRACTS).toContain("run_commands");
+		expect(MODE_CONTRACTS).toContain("read-only");
+		expect(MODE_CONTRACTS).toContain("switch_to_act_mode");
 	});
 
-	it("swaps in the manual-switch plan contract when the host has no switch tool", () => {
+	it("swaps in the manual-switch contract when the host has no switch tool", () => {
 		const prompt = buildClineSystemPrompt({
 			...BASE_OPTIONS,
 			mode: "plan",
 			planModeSwitchTool: false,
 		});
-		expect(prompt).toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
+		expect(prompt).toContain(MODE_CONTRACTS_MANUAL_SWITCH);
 		expect(prompt).not.toContain("switch_to_act_mode");
 		// The read-only run_commands contract is shared by both variants.
-		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("run_commands");
-		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("Plan/Act toggle");
+		expect(MODE_CONTRACTS_MANUAL_SWITCH).toContain("run_commands");
+		expect(MODE_CONTRACTS_MANUAL_SWITCH).toContain("Plan/Act toggle");
 	});
 
 	it("explains mode tags when the mode defaults to act", () => {
@@ -95,9 +142,9 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		});
 		expect(prompt).toContain(rules);
 		expect(prompt).not.toContain(MODE_TAG_INSTRUCTIONS);
-		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS);
-		expect(prompt).not.toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
-		expect(prompt).not.toContain("# Plan / Act Modes");
+		expect(prompt).not.toContain(MODE_CONTRACTS);
+		expect(prompt).not.toContain(MODE_CONTRACTS_MANUAL_SWITCH);
+		expect(prompt).not.toContain("# Plan / Act Mode Contracts");
 		expect(prompt).not.toContain("switch_to_act_mode");
 	});
 
