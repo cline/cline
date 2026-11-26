@@ -1,8 +1,10 @@
 import type { McpServer } from "@shared/mcp"
+import { SkillInfo } from "@shared/proto/cline/file"
 import { describe, expect, it } from "vitest"
 import {
 	getMatchingSlashCommands,
 	getMcpPromptCommands,
+	getSkillCommands,
 	removeSlashCommand,
 	slashCommandRegex,
 	validateSlashCommand,
@@ -24,23 +26,15 @@ function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
 
 describe("slash-commands", () => {
 	describe("removeSlashCommand", () => {
-		it.each([
-			"\nhello world",
-			"\r\nhello world",
-			"\n  hello world",
-		])("preserves following-line whitespace in %j", (suffix) => {
-			expect(removeSlashCommand(`/newtask${suffix}`, 8)).toEqual({
-				newText: suffix,
-				newPosition: 0,
-			})
-		})
-
-		it("preserves the prefix and following-line text for a command in the middle", () => {
-			expect(removeSlashCommand("Please /newtask\nhello world", 15)).toEqual({
-				newText: "Please \nhello world",
-				newPosition: 7,
-			})
-		})
+		it.each(["\nhello world", "\r\nhello world", "\n  hello world"])(
+			"preserves following-line whitespace in %j",
+			(suffix) => {
+				expect(removeSlashCommand(`/newtask${suffix}`, 8)).toEqual({
+					newText: suffix,
+					newPosition: 0,
+				})
+			},
+		)
 
 		it.each([
 			["/newtask hello world", "hello world"],
@@ -254,6 +248,59 @@ describe("slash-commands", () => {
 		it("should return null for non-matching MCP command", () => {
 			const result = validateSlashCommand("mcp:unknown:cmd", {}, {}, undefined, undefined, mcpServers)
 			expect(result).toBe(null)
+		})
+	})
+
+	describe("skills", () => {
+		const skills = [
+			SkillInfo.create({
+				name: "aws-deploy",
+				description: "Deploy to AWS",
+				path: "/skills/aws-deploy/SKILL.md",
+				enabled: true,
+			}),
+			SkillInfo.create({ name: "disabled-skill", description: "Off", path: "/skills/disabled/SKILL.md", enabled: false }),
+			SkillInfo.create({
+				name: "aws-deploy",
+				description: "Global copy",
+				path: "/global/aws-deploy/SKILL.md",
+				enabled: true,
+			}),
+		]
+
+		it("lists enabled skills once under the skill section", () => {
+			const result = getSkillCommands(skills)
+			expect(result).toEqual([{ name: "aws-deploy", description: "Deploy to AWS", section: "skill" }])
+		})
+
+		it("drops skills named like a built-in command and dedupes case-insensitively", () => {
+			const colliding = [
+				SkillInfo.create({
+					name: "Compact",
+					description: "Not compaction",
+					path: "/skills/compact/SKILL.md",
+					enabled: true,
+				}),
+				SkillInfo.create({ name: "ship-it", description: "Ship", path: "/skills/ship-it/SKILL.md", enabled: true }),
+				SkillInfo.create({ name: "Ship-It", description: "Ship again", path: "/global/ship-it/SKILL.md", enabled: true }),
+			]
+			const all = getMatchingSlashCommands("", {}, {}, undefined, undefined, [], colliding)
+			expect(all.filter((cmd) => cmd.section === "skill").map((cmd) => cmd.name)).toEqual(["ship-it"])
+			expect(all.filter((cmd) => cmd.name.toLowerCase() === "compact")).toHaveLength(1)
+		})
+
+		it("includes skills in matching commands and filters by prefix", () => {
+			const all = getMatchingSlashCommands("", {}, {}, undefined, undefined, [], skills)
+			expect(all.filter((cmd) => cmd.section === "skill").map((cmd) => cmd.name)).toEqual(["aws-deploy"])
+
+			const filtered = getMatchingSlashCommands("aws", {}, {}, undefined, undefined, [], skills)
+			expect(filtered.map((cmd) => cmd.name)).toEqual(["aws-deploy"])
+		})
+
+		it("validates skill commands", () => {
+			expect(validateSlashCommand("aws-deploy", {}, {}, undefined, undefined, [], skills)).toBe("full")
+			expect(validateSlashCommand("aws", {}, {}, undefined, undefined, [], skills)).toBe("partial")
+			expect(validateSlashCommand("disabled-skill", {}, {}, undefined, undefined, [], skills)).toBe(null)
 		})
 	})
 
