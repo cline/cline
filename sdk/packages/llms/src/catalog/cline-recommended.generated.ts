@@ -90,10 +90,10 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/kimi-k3.1-pro",
-				name: "cline-pass/kimi-k3.1-pro",
+				id: "cline-pass/kimi-k3",
+				name: "cline-pass/kimi-k3",
 				description:
-					"Frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows",
+					"Leading open weights model (reliability might be unstable and will consume usage faster than others)",
 				tags: [],
 			},
 			{
@@ -103,10 +103,10 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/kimi-k3",
-				name: "cline-pass/kimi-k3",
+				id: "cline-pass/kimi-k3.1-pro",
+				name: "cline-pass/kimi-k3.1-pro",
 				description:
-					"Leading open weights model (reliability might be unstable and will consume usage faster than others)",
+					"Frontier model from Moonshot AI for complex reasoning, coding, and agentic workflows",
 				tags: [],
 			},
 			{

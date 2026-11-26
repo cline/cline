@@ -464,7 +464,6 @@ describe("built-in provider metadata", () => {
 		expect(modelIds).toEqual(
 			expect.arrayContaining([
 				"gpt-5.5",
-				"gpt-5.3-codex-spark",
 				"gpt-5.6-terra",
 				"gpt-5.6-luna",
 				"gpt-5.6-sol",
@@ -511,11 +510,11 @@ describe("built-in provider metadata", () => {
 		);
 
 		expect(openAiModelIds).toEqual(
-			expect.arrayContaining(["gpt-4o", "gpt-5.5", "o3"]),
+			expect.arrayContaining(["gpt-5.2", "gpt-5.5", "gpt-5.5-pro"]),
 		);
 		expect(chatGptModelIds).toContain("gpt-5.5");
-		expect(chatGptModelIds).not.toContain("gpt-4o");
-		expect(chatGptModelIds).not.toContain("o3");
+		expect(chatGptModelIds).not.toContain("gpt-5.2");
+		expect(chatGptModelIds).not.toContain("gpt-5.5-pro");
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {

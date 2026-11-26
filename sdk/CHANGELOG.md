@@ -1,5 +1,11 @@
 # Cline SDK Changelog
 
+## 0.2.2
+
+- Internal telemetry cleanup. Some telemetry helper exports were removed from `@cline/llms`, `@cline/shared` and `@cline/core`, and `@cline/llms` has fewer dependencies
+- `writeGlobalSettings`, `setTelemetryOptOutGlobally` and `setAutoUpdateEnabledGlobally` no longer take an options argument
+- Refreshed the bundled model catalog. It adds the `concentrate` and `primalabs` providers and changes the default model for 28 providers. OpenAI ids the upstream catalog now marks deprecated are no longer listed: `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-pro`, `gpt-5.1`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `gpt-5.4-nano`, `gpt-image-2`, `o3` and `o3-pro`. `MiniMax-M3` is no longer listed on the MiniMax coding plans
+
 ## 0.2.1
 
 - `read_files` results are no longer re-cut to the 8k tool-result cap on the way to the provider. They use the 50k file-content cap, so a read the tool reported in full arrives in full. Command, search, MCP and custom tool results keep the 8k cap, and an explicit tool-result cap still applies
