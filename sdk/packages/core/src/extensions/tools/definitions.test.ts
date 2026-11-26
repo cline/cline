@@ -1765,8 +1765,8 @@ describe("default read_files tool", () => {
 				files: [
 					{
 						path: "/tmp/example.ts",
-						start_line: null,
-						end_line: null,
+						start_line: null as unknown as undefined,
+						end_line: null as unknown as undefined,
 					},
 				],
 			},
@@ -1787,8 +1787,8 @@ describe("default read_files tool", () => {
 		expect(execute).toHaveBeenCalledWith(
 			{
 				path: "/tmp/example.ts",
-				start_line: null,
-				end_line: null,
+				start_line: undefined,
+				end_line: undefined,
 			},
 			expect.objectContaining({
 				agentId: "agent-1",
@@ -1909,12 +1909,12 @@ describe("zod schema conversion", () => {
 							"The absolute path of a text file to read content from",
 					},
 					start_line: {
-						anyOf: [{ type: "integer" }, { type: "null" }],
+						type: "integer",
 						description:
 							"Optional one-based starting line number to read from; use null or omit for the start of the file",
 					},
 					end_line: {
-						anyOf: [{ type: "integer" }, { type: "null" }],
+						type: "integer",
 						description:
 							"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
 					},

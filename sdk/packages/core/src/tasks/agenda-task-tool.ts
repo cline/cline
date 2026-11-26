@@ -10,6 +10,7 @@ import type {
 	GatewayModelSelection,
 	ITelemetryService,
 } from "@cline/shared";
+import { nullableOptional } from "@cline/shared";
 import { z } from "zod";
 import { captureToolUsage } from "../services/telemetry/core-events";
 import type { AgendaTaskManagerApi } from "./agenda-task-api";
@@ -31,14 +32,7 @@ const TaskStatusSchema = z.enum([
 	"cancelled",
 	"expired",
 ]);
-const TaskPrioritySchema = z.union([
-	z.literal(0),
-	z.literal(1),
-	z.literal(2),
-	z.literal(3),
-	z.literal(4),
-	z.literal(5),
-]);
+const TaskPrioritySchema = z.literal([0, 1, 2, 3, 4, 5]);
 const ModelSelectionSchema = z.object({
 	provider_id: z.string().min(1),
 	model_id: z.string().min(1).optional(),
@@ -50,19 +44,19 @@ export const TodoTaskInputSchema = z.object({
 	expected_revision: z.number().int().positive().optional(),
 	type: TaskTypeSchema.optional(),
 	title: z.string().min(1).optional(),
-	description: z.string().nullable().optional(),
+	description: nullableOptional(z.string()),
 	instructions: z.string().min(1).optional(),
 	scope: z.enum(["workspace", "global"]).optional(),
-	workspace_root: z.string().min(1).nullable().optional(),
-	cwd: z.string().min(1).nullable().optional(),
+	workspace_root: nullableOptional(z.string().min(1)),
+	cwd: nullableOptional(z.string().min(1)),
 	resource_paths: z.array(z.string().min(1)).optional(),
 	priority: TaskPrioritySchema.optional(),
-	assignee: z.string().min(1).nullable().optional(),
-	model_selection: ModelSelectionSchema.nullable().optional(),
-	mode: z.enum(["act", "plan", "yolo"]).nullable().optional(),
-	system_prompt: z.string().nullable().optional(),
-	max_iterations: z.number().int().positive().nullable().optional(),
-	timeout_seconds: z.number().int().positive().nullable().optional(),
+	assignee: nullableOptional(z.string().min(1)),
+	model_selection: nullableOptional(ModelSelectionSchema),
+	mode: nullableOptional(z.enum(["act", "plan", "yolo"])),
+	system_prompt: nullableOptional(z.string()),
+	max_iterations: nullableOptional(z.number().int().positive()),
+	timeout_seconds: nullableOptional(z.number().int().positive()),
 	available_at: z.string().datetime().optional(),
 	expires_at: z.string().datetime().optional(),
 	automation_eligible: z.boolean().optional(),
@@ -130,8 +124,8 @@ function requiredString(value: string | undefined, field: string): string {
 
 function modelSelectionOf(
 	value: TodoTaskInput["model_selection"],
-): GatewayModelSelection | null | undefined {
-	if (value === undefined || value === null) return value;
+): GatewayModelSelection | undefined {
+	if (value === undefined) return undefined;
 	return {
 		providerId: value.provider_id,
 		modelId: value.model_id,
@@ -173,7 +167,6 @@ function assertRequestedScope(
 	if (input.workspace_root !== undefined) {
 		if (
 			!defaults.workspaceRoot ||
-			input.workspace_root === null ||
 			!sameWorkspace(input.workspace_root, defaults.workspaceRoot)
 		) {
 			throw new Error(`this session can only manage ${scope} tasks`);

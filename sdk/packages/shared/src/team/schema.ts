@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { nullableOptional } from "../parse/zod";
 
 export const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
 	"current_state",
@@ -51,13 +52,6 @@ export const TeamTeammateSpecSchema = z.object({
 	modelId: z.string().optional(),
 	maxIterations: z.number().optional(),
 });
-
-function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
-	return z.preprocess(
-		(value) => (value === null ? undefined : value),
-		schema.optional(),
-	);
-}
 
 export const TeamSpawnTeammateInputSchema = z
 	.object({
