@@ -211,10 +211,12 @@ export async function resolveGatewayProviderRegistration(
 		},
 		createProvider:
 			routedBuiltin?.createProvider ??
-			resolveFactory(routedProviderId, {
-				client: config.clientType ?? collection.provider.client,
-				protocol: collection.provider.protocol,
-			}),
+			(routedBuiltin?.loadProvider
+				? undefined
+				: resolveFactory(routedProviderId, {
+						client: config.clientType ?? collection.provider.client,
+						protocol: collection.provider.protocol,
+					})),
 		loadProvider: routedBuiltin?.loadProvider,
 	};
 }
@@ -277,10 +279,12 @@ export function resolveGatewayProviderRegistrationSync(
 		},
 		createProvider:
 			routedBuiltin?.createProvider ??
-			resolveFactory(routedProviderId, {
-				client: config.clientType ?? collection.provider.client,
-				protocol: collection.provider.protocol,
-			}),
+			(routedBuiltin?.loadProvider
+				? undefined
+				: resolveFactory(routedProviderId, {
+						client: config.clientType ?? collection.provider.client,
+						protocol: collection.provider.protocol,
+					})),
 		loadProvider: routedBuiltin?.loadProvider,
 	};
 }

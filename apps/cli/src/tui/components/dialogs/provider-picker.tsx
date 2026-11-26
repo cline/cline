@@ -29,6 +29,7 @@ import {
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
@@ -422,6 +423,7 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
 	azureApiVersion: "Azure API Version",
+	apiProtocol: "API Protocol",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
 	gcpProjectId: "Google Cloud Project ID",
@@ -439,6 +441,7 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	apiKey: "sk-...",
 	baseUrl: "",
 	azureApiVersion: "2025-01-01-preview",
+	apiProtocol: "openai-chat",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 	gcpProjectId: "my-gcp-project",
@@ -457,6 +460,7 @@ const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"gcpRegion",
 	"baseUrl",
 	"azureApiVersion",
+	"apiProtocol",
 	"apiKey",
 	"awsProfile",
 	"sapClientId",
@@ -519,6 +523,12 @@ export function ProviderConfigInputContent(
 			initial.azureApiVersion =
 				existingSettings?.azure?.apiVersion?.trim() ?? "";
 		}
+		if (config.fields.apiProtocol) {
+			initial.apiProtocol =
+				existingSettings?.protocol?.trim() ||
+				config.fields.apiProtocol.defaultValue ||
+				"";
+		}
 		if (config.fields.awsRegion) {
 			const ep = existingSettings?.aws?.profile?.trim() ?? "";
 			initial.awsRegion =
@@ -574,6 +584,9 @@ export function ProviderConfigInputContent(
 				apiKey: config.fields.apiKey ? apiKey : undefined,
 				baseUrl: config.fields.baseUrl ? values.baseUrl?.trim() : undefined,
 				azure: hasAzureFields ? resolveProviderConfigAzure(values) : undefined,
+				...(config.fields.apiProtocol
+					? { protocol: resolveProviderConfigProtocol(values) }
+					: {}),
 				aws: hasAwsFields
 					? {
 							region: resolveProviderConfigAwsRegion(values),
@@ -631,6 +644,9 @@ export function ProviderConfigInputContent(
 					<box key={key} flexDirection="column">
 						<text fg="gray">{label}</text>
 						{requirement.note && <text fg="gray">{requirement.note}</text>}
+						{requirement.options && requirement.options.length > 0 && (
+							<text fg="gray">Options: {requirement.options.join(" | ")}</text>
+						)}
 						<box
 							border
 							borderStyle="rounded"

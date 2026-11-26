@@ -254,6 +254,7 @@ const DEFAULT_FIELD_LABELS: Partial<Record<ProviderConfigFieldKey, string>> = {
 	apiKey: "API key",
 	baseUrl: "Base URL",
 	azureApiVersion: "Azure API Version",
+	apiProtocol: "API Protocol",
 	awsRegion: "AWS Region",
 	awsProfile: "AWS Profile Name",
 	sapClientId: "Client ID",
@@ -269,6 +270,7 @@ const DEFAULT_FIELD_PLACEHOLDERS: Partial<
 	apiKey: "Paste your API key here...",
 	baseUrl: "",
 	azureApiVersion: "2025-01-01-preview",
+	apiProtocol: "openai-chat",
 	awsRegion: "us-east-1",
 	awsProfile: "default",
 	sapClientId: "sb-...|xsuaa_std!b...",
@@ -331,6 +333,11 @@ export function OnboardingProviderConfigScreen(props: {
 						>
 							<text fg="gray">{label}</text>
 							{requirement.note && <text fg="gray">{requirement.note}</text>}
+							{requirement.options && requirement.options.length > 0 && (
+								<text fg="gray">
+									Options: {requirement.options.join(" | ")}
+								</text>
+							)}
 							<box
 								border
 								borderStyle="rounded"

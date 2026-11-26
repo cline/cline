@@ -51,6 +51,7 @@ type AuthQuickSetupInput = {
 	modelid: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	protocol?: string;
 };
 
 type AuthCommandInput = {
@@ -61,6 +62,7 @@ type AuthCommandInput = {
 	modelid?: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	protocol?: string;
 };
 
 type ParsedAuthCommandArgs = {
@@ -69,6 +71,7 @@ type ParsedAuthCommandArgs = {
 	modelid?: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	protocol?: string;
 	parseError?: string;
 };
 
@@ -89,7 +92,11 @@ export function createAuthCommand(): Command {
 		.option("-k, --apikey <key>", "API key")
 		.option("-m, --modelid <id>", "model id")
 		.option("-b, --baseurl <url>", "base URL")
-		.option("--azure-api-version <version>", "Azure API version");
+		.option("--azure-api-version <version>", "Azure API version")
+		.option(
+			"--protocol <protocol>",
+			"API protocol for OpenAI-compatible (openai-chat | openai-responses)",
+		);
 	return cmd;
 }
 
@@ -107,6 +114,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		modelid?: string;
 		baseurl?: string;
 		azureApiVersion?: string;
+		protocol?: string;
 	}>();
 	const positionalProvider = cmd.args[0];
 	return {
@@ -115,6 +123,7 @@ export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
 		modelid: opts.modelid,
 		baseurl: opts.baseurl,
 		azureApiVersion: opts.azureApiVersion,
+		protocol: opts.protocol,
 	};
 }
 
@@ -160,6 +169,15 @@ async function ensureQuickSetupInputValid(
 	) {
 		return "Azure API version is only supported for OpenAI-compatible providers";
 	}
+	if (input.protocol !== undefined) {
+		if (normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_COMPATIBLE) {
+			return "API protocol is only supported for OpenAI-compatible providers";
+		}
+		const protocol = input.protocol.trim();
+		if (protocol !== "openai-chat" && protocol !== "openai-responses") {
+			return "protocol must be either 'openai-chat' or 'openai-responses'";
+		}
+	}
 	return undefined;
 }
 
@@ -170,6 +188,7 @@ function saveQuickAuthProviderSettings(input: {
 	modelid: string;
 	baseurl?: string;
 	azureApiVersion?: string;
+	protocol?: string;
 }): void {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
@@ -190,6 +209,12 @@ function saveQuickAuthProviderSettings(input: {
 			...(nextSettings.azure ?? {}),
 			apiVersion: input.azureApiVersion.trim(),
 		};
+	}
+	const protocol = input.protocol?.trim();
+	if (protocol === "openai-responses") {
+		nextSettings.protocol = "openai-responses";
+	} else if (protocol === "openai-chat") {
+		delete nextSettings.protocol;
 	}
 	input.providerSettingsManager.saveProviderSettings(nextSettings);
 }
@@ -287,6 +312,7 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 	const modelid = input.modelid?.trim() ?? "";
 	const baseurl = input.baseurl?.trim();
 	const azureApiVersion = input.azureApiVersion?.trim();
+	const protocol = input.protocol?.trim();
 	const validationError = await ensureQuickSetupInputValid(
 		{
 			provider: providerId,
@@ -294,6 +320,7 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 			modelid,
 			baseurl,
 			azureApiVersion,
+			protocol,
 		},
 		input.providerSettingsManager,
 	);
@@ -308,6 +335,7 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 		modelid,
 		baseurl,
 		azureApiVersion,
+		protocol,
 	});
 	input.io.writeln(
 		`${c.green}Provider configured:${c.reset} ${c.cyan}${providerId}${c.reset} (${modelid})`,
@@ -393,12 +421,13 @@ export async function runAuthCommand(input: AuthCommandInput): Promise<number> {
 		typeof input.apikey === "string" ||
 		typeof input.modelid === "string" ||
 		typeof input.baseurl === "string" ||
-		typeof input.azureApiVersion === "string";
+		typeof input.azureApiVersion === "string" ||
+		typeof input.protocol === "string";
 
 	if (hasQuickSetupFlags) {
 		if (!input.explicitProvider?.trim()) {
 			input.io.writeErr(
-				"auth quick setup requires --provider <id> when using --apikey/--modelid/--baseurl/--azure-api-version",
+				"auth quick setup requires --provider <id> when using --apikey/--modelid/--baseurl/--azure-api-version/--protocol",
 			);
 			return 1;
 		}

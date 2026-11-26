@@ -7,6 +7,7 @@ import {
 	resolveProviderConfigAwsRegion,
 	resolveProviderConfigAzure,
 	resolveProviderConfigGcp,
+	resolveProviderConfigProtocol,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
@@ -116,5 +117,21 @@ describe("provider config values", () => {
 		).toEqual({
 			apiVersion: "",
 		});
+	});
+
+	it("resolves API protocol and clears default openai-chat", () => {
+		expect(resolveProviderConfigProtocol({})).toBeUndefined();
+		expect(
+			resolveProviderConfigProtocol({ apiProtocol: "   " }),
+		).toBeUndefined();
+		expect(
+			resolveProviderConfigProtocol({ apiProtocol: "openai-chat" }),
+		).toBeUndefined();
+		expect(
+			resolveProviderConfigProtocol({ apiProtocol: " openai-responses " }),
+		).toBe("openai-responses");
+		expect(() =>
+			resolveProviderConfigProtocol({ apiProtocol: "invalid-protocol" }),
+		).toThrow(/Invalid API protocol/);
 	});
 });

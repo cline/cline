@@ -1376,7 +1376,10 @@ async function saveLocalProviderSettingsUnlocked(
 		"routingProviderId",
 		"capabilities",
 	] as const) {
-		if (Object.hasOwn(request, key)) next[key] = request[key];
+		if (Object.hasOwn(request, key)) {
+			if (request[key] === undefined) delete next[key];
+			else next[key] = request[key];
+		}
 	}
 
 	// Merged object fields

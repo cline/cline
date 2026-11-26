@@ -2489,6 +2489,41 @@ describe("saveLocalProviderSettings", () => {
 		expect(settings?.timeout).toBe(30_000);
 	});
 
+	it("clears scalar passthrough fields like protocol when undefined is explicitly passed", async () => {
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			enabled: true,
+			protocol: "openai-responses",
+		});
+		expect(manager.getProviderSettings("openai-compatible")?.protocol).toBe(
+			"openai-responses",
+		);
+
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			enabled: true,
+			protocol: undefined,
+		});
+		expect(manager.getProviderSettings("openai-compatible")).not.toHaveProperty(
+			"protocol",
+		);
+
+		// Omitting protocol preserves an existing value
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			enabled: true,
+			protocol: "openai-responses",
+		});
+		await saveLocalProviderSettings(manager, {
+			providerId: "openai-compatible",
+			enabled: true,
+			apiKey: "updated-key",
+		});
+		expect(manager.getProviderSettings("openai-compatible")?.protocol).toBe(
+			"openai-responses",
+		);
+	});
+
 	it("disabling a last-used provider also clears lastUsedProvider", async () => {
 		// Set test-provider as last used
 		manager.saveProviderSettings(

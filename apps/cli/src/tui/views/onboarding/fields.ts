@@ -5,6 +5,7 @@ export const FIELD_ORDER: ProviderConfigFieldKey[] = [
 	"awsRegion",
 	"baseUrl",
 	"azureApiVersion",
+	"apiProtocol",
 	"apiKey",
 	"awsProfile",
 	"sapClientId",
