@@ -1,5 +1,11 @@
 # Cline CLI Changelog
 
+## 3.0.76
+
+- The npm package now ships one `THIRD_PARTY_NOTICES.txt` at its root that covers every platform binary
+- Refreshed the bundled model catalog. The OpenAI picker no longer lists ids the upstream catalog marks deprecated, including `gpt-4o`, `gpt-4.1`, `gpt-5`, `gpt-5-mini`, `gpt-5.1`, `gpt-5.3-codex`, `o3` and `o3-pro`. `gpt-5.3-codex-spark` is no longer listed for ChatGPT subscriptions
+- Internal telemetry cleanup
+
 ## 3.0.75
 
 - One-shot runs (a prompt argument or piped stdin) now start in yolo mode instead of act mode, since nobody is at the keyboard to approve tools. Act mode is kept when auto-approve is off (`--auto-approve false` or the saved setting), when a mode flag is passed, when plan mode is saved, or when the prompt is a `/team` prompt. Yolo mode has no team tools, so pass `--act` when you need them
