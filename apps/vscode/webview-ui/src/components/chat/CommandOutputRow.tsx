@@ -97,7 +97,7 @@ export const CommandOutputContent = memo(
 					"rounded-b-none": lineCount > 5,
 				})}>
 				<div
-					className={cn("text-white scroll-smooth bg-code overflow-y-auto", {
+					className={cn("code-block-scrollable text-white scroll-smooth bg-code overflow-y-auto", {
 						"max-h-[75px]": !shouldAutoShow && !isOutputFullyExpanded,
 						"max-h-[200px]": !shouldAutoShow && isOutputFullyExpanded,
 						"overflow-y-visible": shouldAutoShow,
