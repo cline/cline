@@ -236,4 +236,61 @@ describe("subscribeToAgentEvents", () => {
 		expect(onAgentEvent).toHaveBeenNthCalledWith(1, teammateUsage);
 		expect(onAgentEvent).toHaveBeenNthCalledWith(2, leadText);
 	});
+
+	it("surfaces concurrent subagent text whole while delegation tools are in flight", () => {
+		const text = (type: "content_start" | "content_end", text: string) =>
+			({ type, contentType: "text", text }) as AgentEvent;
+		const spawnStart = (toolCallId: string): AgentEvent => ({
+			type: "content_start",
+			contentType: "tool",
+			toolName: "spawn_agent",
+			toolCallId,
+		});
+		const spawnEnd = (toolCallId: string): AgentEvent => ({
+			type: "content_end",
+			contentType: "tool",
+			toolName: "spawn_agent",
+			toolCallId,
+			output: "ok",
+		});
+		const stream: AgentEvent[] = [
+			text("content_start", "root before"),
+			spawnStart("call_a"),
+			spawnStart("call_b"),
+			// Two children streaming at once, interleaved.
+			text("content_start", "AL"),
+			text("content_start", "BR"),
+			text("content_start", "PHA"),
+			text("content_start", "AVO"),
+			text("content_end", "BRAVO"),
+			text("content_end", "ALPHA"),
+			spawnEnd("call_a"),
+			spawnEnd("call_b"),
+			text("content_start", "root after"),
+		];
+		const sessionManager = {
+			subscribe: vi.fn((listener: (event: unknown) => void) => {
+				for (const event of stream) {
+					listener({ type: "agent_event", payload: { event } });
+				}
+				return () => {};
+			}),
+		};
+		const onAgentEvent = vi.fn();
+
+		subscribeToAgentEvents(sessionManager, onAgentEvent);
+
+		expect(onAgentEvent.mock.calls.map(([event]) => event)).toEqual([
+			text("content_start", "root before"),
+			spawnStart("call_a"),
+			spawnStart("call_b"),
+			text("content_start", "BRAVO"),
+			text("content_end", "BRAVO"),
+			text("content_start", "ALPHA"),
+			text("content_end", "ALPHA"),
+			spawnEnd("call_a"),
+			spawnEnd("call_b"),
+			text("content_start", "root after"),
+		]);
+	});
 });
