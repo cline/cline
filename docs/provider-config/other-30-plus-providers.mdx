@@ -21,6 +21,7 @@ Use this page for providers that follow the same setup pattern.
   - [Doubao](#doubao)
   - [Fireworks AI](#fireworks-ai)
   - [GCP Vertex AI](#gcp-vertex-ai)
+  - [Gonka Broker](#gonka-broker)
   - [Groq](#groq)
   - [Hicap](#hicap)
   - [Huawei Cloud MaaS](#huawei-cloud-maas)
@@ -185,6 +186,19 @@ Vertex AI is Google Cloud’s enterprise model platform with IAM and project-lev
 1. Set up a GCP project with Vertex AI enabled.
 2. Configure authentication (service account or application default credentials).
 3. In Cline, select **GCP Vertex AI** and provide required config values.
+
+### Gonka Broker
+Gonka Broker is an OpenAI-compatible API for open-source models served on the decentralized Gonka GPU network, with card payment and rates locked at top-up.
+
+**Website:** [https://gonkabroker.com/](https://gonkabroker.com/)
+
+#### Basic Setup
+
+1. Sign up at [app.gonkabroker.com](https://app.gonkabroker.com/) and create an API key.
+2. In Cline, choose **OpenAI Compatible** from the API Provider dropdown.
+3. Set the base URL to `https://proxy.gonkabroker.com/v1`, paste your API key, and enter a model ID (e.g., `zai-org/GLM-5.3-Flash`).
+
+The lineup changes as the network brings models online; see [gonkabroker.com/models](https://gonkabroker.com/models) or the unauthenticated `/v1/models` endpoint for the current list with pricing.
 
 ### Groq
 Groq is a low-latency inference provider for supported model families.
