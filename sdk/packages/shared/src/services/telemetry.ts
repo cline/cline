@@ -128,6 +128,12 @@ export interface TelemetryMetadata {
 	 */
 	core_spawn_ordinal?: number;
 	core_spawn_reason?: CoreSpawnReason;
+	/**
+	 * How the core this one replaced died, on the spawn right after an unexpected exit only:
+	 * its exit code and uptime in whole seconds.
+	 */
+	core_prev_exit_code?: number;
+	core_prev_uptime_s?: number;
 }
 
 export interface ITelemetryService {
