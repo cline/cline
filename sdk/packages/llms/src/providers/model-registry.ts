@@ -95,14 +95,20 @@ export async function getModelsForProvider(
  * provider collection. These overrides must remain highest-precedence when a
  * caller merges the registry with a freshly fetched catalog.
  */
-export async function getModelOverridesForProvider(
+export function getModelOverridesForProviderSync(
 	providerId: string,
-): Promise<Record<string, ModelInfo>> {
+): Record<string, ModelInfo> {
 	const providerModels = CUSTOM_PROVIDERS.get(providerId)?.models ?? {};
 	const customModels = CUSTOM_MODELS.get(providerId);
 	return customModels
 		? { ...providerModels, ...Object.fromEntries(customModels) }
 		: { ...providerModels };
+}
+
+export async function getModelOverridesForProvider(
+	providerId: string,
+): Promise<Record<string, ModelInfo>> {
+	return getModelOverridesForProviderSync(providerId);
 }
 
 export async function getAllProviders(): Promise<ProviderInfo[]> {

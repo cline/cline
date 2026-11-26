@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	getModelOverridesForProvider,
+	getModelOverridesForProviderSync,
 	getModelsForProvider,
 	registerModel,
 	registerProvider,
@@ -80,11 +81,15 @@ describe("getModelsForProvider", () => {
 			name: "Custom Claude",
 		});
 
-		await expect(getModelOverridesForProvider("anthropic")).resolves.toEqual({
+		const expected = {
 			"custom-claude": {
 				id: "custom-claude",
 				name: "Custom Claude",
 			},
-		});
+		};
+		expect(getModelOverridesForProviderSync("anthropic")).toEqual(expected);
+		await expect(getModelOverridesForProvider("anthropic")).resolves.toEqual(
+			expected,
+		);
 	});
 });

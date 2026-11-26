@@ -1,3 +1,4 @@
+import * as Llms from "@cline/llms";
 import { describe, expect, it } from "vitest";
 import { safeParseSettings, toProviderConfig } from "./provider-settings";
 
@@ -96,5 +97,30 @@ describe("provider settings", () => {
 		expect(toProviderConfig({ provider: "moonshot" })).toMatchObject({
 			baseUrl: "https://api.moonshot.ai/v1",
 		});
+	});
+
+	it("includes runtime model overrides (models.json) in knownModels for built-in providers", () => {
+		Llms.registerModel("alibaba-cn", "qwen4-max", {
+			id: "qwen4-max",
+			name: "Qwen4 Max",
+			contextWindow: 256_000,
+			maxInputTokens: 256_000,
+			maxTokens: 200_000,
+		});
+		try {
+			const config = toProviderConfig({
+				provider: "alibaba-cn",
+				model: "qwen4-max",
+			});
+			expect(config.knownModels?.["qwen4-max"]).toMatchObject({
+				id: "qwen4-max",
+				name: "Qwen4 Max",
+				contextWindow: 256_000,
+				maxInputTokens: 256_000,
+				maxTokens: 200_000,
+			});
+		} finally {
+			Llms.unregisterModel("alibaba-cn", "qwen4-max");
+		}
 	});
 });
