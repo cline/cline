@@ -33,6 +33,73 @@ const ready = true;
 		expect(html).not.toContain("<img");
 	});
 
+	test.each([
+		false,
+		true,
+	])("preserves raw SVG source with streaming=%s", (streaming) => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					'<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">\n  <path d="M1 1h2" fill="#333333"/>\n</svg>'
+				}
+				streaming={streaming}
+			/>,
+		);
+
+		expect(html).toContain("&lt;svg viewBox=&quot;0 0 200 200&quot;");
+		expect(html).toContain(
+			"&lt;path d=&quot;M1 1h2&quot; fill=&quot;#333333&quot;/&gt;",
+		);
+		expect(html).toContain("&lt;/svg&gt;");
+		expect(html).not.toContain("<svg");
+	});
+
+	test("preserves inline SVG source alongside Markdown and composer chips", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				chipTokens={new Set(["@src/icon.svg"])}
+				content={'Review **this** <svg><path d="M1 1h2"/></svg> in @src/icon.svg'}
+			/>,
+		);
+
+		expect(html).toContain(
+			"&lt;svg&gt;&lt;path d=&quot;M1 1h2&quot;/&gt;&lt;/svg&gt;",
+		);
+		expect(html).toContain('data-streamdown="strong">this</span>');
+		expect(chipTexts(html)).toEqual(["@src/icon.svg"]);
+		expect(html).not.toContain("<svg");
+	});
+
+	test("keeps SVG scripts and remote images inert", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown
+				content={
+					'<svg onload="alert(1)"><script>alert(2)</script><image href="https://example.com/tracker.png"/></svg>'
+				}
+			/>,
+		);
+
+		expect(html).toContain("&lt;svg onload=&quot;alert(1)&quot;&gt;");
+		expect(html).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+		expect(html).toContain(
+			"&lt;image href=&quot;https://example.com/tracker.png&quot;/&gt;",
+		);
+		expect(html).not.toContain("<svg");
+		expect(html).not.toContain("<script");
+		expect(html).not.toContain("<image");
+	});
+
+	test("keeps fenced SVG in a code block", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content={'```svg\n<svg><path d="M1 1h2"/></svg>\n```'} />,
+		);
+
+		expect(html).toContain('data-streamdown="code-block"');
+		expect(html).toContain(
+			"&lt;svg&gt;&lt;path d=&quot;M1 1h2&quot;/&gt;&lt;/svg&gt;",
+		);
+	});
+
 	test("renders app-local images", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
