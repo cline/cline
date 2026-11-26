@@ -26,16 +26,23 @@ export interface TokenEstimatedRequest {
 	tools?: readonly unknown[];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /**
- * Build a JSON.stringify replacer that blanks an image node's base64
- * payload wherever it's nested in the serialized value, so it's never
- * billed at CHARS_PER_TOKEN. Two image shapes reach this replacer:
+ * Build a JSON.stringify replacer that blanks inline binary payloads wherever
+ * they are nested in the serialized value, so base64 data is never billed at
+ * CHARS_PER_TOKEN. Three media shapes reach this replacer:
  * `ImageContent { type: "image", data: string }` (compaction's
- * `MessageWithMetadata`) and `AgentImagePart { type: "image", image:
+ * `MessageWithMetadata`), `AgentImagePart { type: "image", image:
  * string | Uint8Array | ArrayBuffer | URL }` (the gateway's
- * `AgentMessage`). Returns the replacer alongside an `imageCount`
- * accessor so the caller can add a flat per-image token cost back in
- * afterwards.
+ * `AgentMessage`), and `MediaContent` / `AgentMediaPart { type: "media",
+ * media: GeneratedMedia }` (`source.type === "base64"` blanks `source.data`;
+ * `modality === "image"` with `source.type === "url"` blanks `data:` URLs and
+ * counts an image, while `source.type === "artifact"` renders only as a short
+ * placeholder). Returns the replacer alongside an `imageCount` accessor so the
+ * caller can add a flat per-image token cost back in afterwards.
  */
 export function createImageAwareReplacer(): {
 	replacer: (key: string, value: unknown) => unknown;
@@ -43,21 +50,52 @@ export function createImageAwareReplacer(): {
 } {
 	let count = 0;
 	const replacer = (_key: string, value: unknown): unknown => {
-		if (
-			value === null ||
-			typeof value !== "object" ||
-			(value as { type?: unknown }).type !== "image"
-		) {
+		if (!isRecord(value)) {
 			return value;
 		}
-		const record = value as Record<string, unknown>;
-		if (typeof record.data === "string") {
-			count += 1;
-			return { ...record, data: "" };
+		if (value.type === "image") {
+			if (typeof value.data === "string") {
+				count += 1;
+				return { ...value, data: "" };
+			}
+			if ("image" in value) {
+				count += 1;
+				return { ...value, image: "" };
+			}
+			return value;
 		}
-		if ("image" in record) {
-			count += 1;
-			return { ...record, image: "" };
+		if (value.type === "media" && isRecord(value.media)) {
+			const media = value.media;
+			if (!isRecord(media.source)) {
+				return value;
+			}
+			const source = media.source;
+			if (source.type === "base64" && typeof source.data === "string") {
+				count += 1;
+				return {
+					...value,
+					media: {
+						...media,
+						source: { ...source, data: "" },
+					},
+				};
+			}
+			if (
+				media.modality === "image" &&
+				source.type === "url" &&
+				typeof source.url === "string"
+			) {
+				count += 1;
+				return source.url.trimStart().toLowerCase().startsWith("data:")
+					? {
+							...value,
+							media: {
+								...media,
+								source: { ...source, url: "" },
+							},
+						}
+					: value;
+			}
 		}
 		return value;
 	};

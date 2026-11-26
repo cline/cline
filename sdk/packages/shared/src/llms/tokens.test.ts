@@ -154,4 +154,181 @@ describe("estimateRequestInputTokens", () => {
 		const rawCharCostOfOneImage = estimateTokens(base64Data.length);
 		expect(twoImages - oneImage).toBeLessThan(rawCharCostOfOneImage + 50);
 	});
+
+	it("does not bill a generated media block's base64 payload at CHARS_PER_TOKEN", () => {
+		const base64Data = "A".repeat(90_000);
+		const makeMediaMessage = (data: string) => ({
+			role: "assistant",
+			content: [
+				{
+					type: "media" as const,
+					media: {
+						id: "media_1",
+						modality: "image" as const,
+						mediaType: "image/png",
+						source: { type: "base64" as const, data },
+					},
+				},
+			],
+		});
+
+		const message = makeMediaMessage(base64Data);
+		const tokens = estimateRequestInputTokens({ messages: [message] });
+		const naiveCharBasedEstimate = Math.ceil(
+			base64Data.length / CHARS_PER_TOKEN,
+		);
+		expect(tokens).toBeLessThan(naiveCharBasedEstimate / 10);
+		expect(tokens).toBeLessThan(2_000);
+		// Blanking source.data must not mutate the caller's original media object.
+		expect(message.content[0].media.source.data).toBe(base64Data);
+
+		const withoutMedia = estimateRequestInputTokens({
+			messages: [{ role: "assistant", content: [] }],
+		});
+		const estimate = (data: string) =>
+			estimateRequestInputTokens({ messages: [makeMediaMessage(data)] });
+		expect(estimate("A".repeat(500_000))).toBe(estimate("A"));
+
+		const perMedia = estimate("A") - withoutMedia;
+		expect(perMedia).toBeGreaterThanOrEqual(ESTIMATED_TOKENS_PER_IMAGE);
+		expect(perMedia).toBeLessThan(ESTIMATED_TOKENS_PER_IMAGE + 100);
+	});
+
+	it("does not bill non-image base64 generated media at CHARS_PER_TOKEN", () => {
+		const makeAudioMessage = (data: string) => ({
+			role: "assistant",
+			content: [
+				{
+					type: "media" as const,
+					media: {
+						id: "media_audio_1",
+						modality: "audio" as const,
+						mediaType: "audio/mpeg",
+						source: { type: "base64" as const, data },
+					},
+				},
+			],
+		});
+
+		const tokens = estimateRequestInputTokens({
+			messages: [makeAudioMessage("A".repeat(90_000))],
+		});
+		expect(tokens).toBeLessThan(2_000);
+		expect(
+			estimateRequestInputTokens({
+				messages: [makeAudioMessage("A".repeat(500_000))],
+			}),
+		).toBe(
+			estimateRequestInputTokens({
+				messages: [makeAudioMessage("A")],
+			}),
+		);
+	});
+
+	it("charges flat image cost for URL-backed image media and skips artifact placeholders", () => {
+		const withoutMedia = estimateRequestInputTokens({
+			messages: [{ role: "assistant", content: [] }],
+		});
+
+		const remoteImageTokens = estimateRequestInputTokens({
+			messages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "media",
+							media: {
+								id: "media_url_1",
+								modality: "image",
+								mediaType: "image/png",
+								source: {
+									type: "url",
+									url: "https://example.com/out.png",
+								},
+							},
+						},
+					],
+				},
+			],
+		});
+		expect(remoteImageTokens - withoutMedia).toBeGreaterThanOrEqual(
+			ESTIMATED_TOKENS_PER_IMAGE,
+		);
+
+		const dataUrlImageTokens = estimateRequestInputTokens({
+			messages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "media",
+							media: {
+								id: "media_data_url_1",
+								modality: "image",
+								mediaType: "image/png",
+								source: {
+									type: "url",
+									url: `data:image/png;base64,${"A".repeat(90_000)}`,
+								},
+							},
+						},
+					],
+				},
+			],
+		});
+		expect(dataUrlImageTokens).toBeLessThan(2_000);
+
+		const artifactTokens = estimateRequestInputTokens({
+			messages: [
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "media",
+							media: {
+								id: "media_art_1",
+								modality: "image",
+								mediaType: "image/png",
+								source: {
+									type: "artifact",
+									artifactId: "art_1",
+								},
+							},
+						},
+					],
+				},
+			],
+		});
+		expect(artifactTokens).toBeLessThan(200);
+	});
+
+	it("does not double-count generated media blocks after JSON.stringify falls back", () => {
+		const base64Data = "A".repeat(90_000);
+		const makeMediaBlock = () => ({
+			type: "media" as const,
+			media: {
+				id: "media_1",
+				modality: "image" as const,
+				mediaType: "image/png",
+				source: { type: "base64" as const, data: base64Data },
+			},
+		});
+		const buildMessages = (count: number) => [
+			{
+				role: "assistant",
+				content: Array.from({ length: count }, () => makeMediaBlock()),
+			},
+			{ type: "text", broken: 1n },
+		];
+
+		const oneMedia = estimateRequestInputTokens({
+			messages: buildMessages(1),
+		});
+		const twoMedia = estimateRequestInputTokens({
+			messages: buildMessages(2),
+		});
+
+		const rawCharCostOfOneMedia = estimateTokens(base64Data.length);
+		expect(twoMedia - oneMedia).toBeLessThan(rawCharCostOfOneMedia + 150);
+	});
 });
