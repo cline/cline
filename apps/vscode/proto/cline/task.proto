@@ -14,6 +14,10 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Cancels a queued prompt by ID
   rpc cancelQueuedPrompt(StringRequest) returns (Empty);
+  // Updates a queued prompt's content (and optionally delivery) by ID
+  rpc updateQueuedPrompt(UpdateQueuedPromptRequest) returns (Empty);
+  // Reorders a queued prompt to the given queue position (drag-and-drop)
+  rpc reorderQueuedPrompt(ReorderQueuedPromptRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Detaches the running foreground terminal command ("Proceed While Running"):
@@ -58,6 +62,19 @@ message NewTaskRequest {
   optional string execution_target = 6;
   optional string cloud_repo_url = 7;
   optional string cloud_branch = 8;
+}
+
+// Request message for updating a queued prompt (content edit / delivery change)
+message UpdateQueuedPromptRequest {
+  string prompt_id = 1;
+  optional string prompt = 2;
+  optional string delivery = 3;
+}
+
+// Request message for reordering a queued prompt to an explicit queue position
+message ReorderQueuedPromptRequest {
+  string prompt_id = 1;
+  int32 position = 2;
 }
 
 // Request message for toggling task favorite status
