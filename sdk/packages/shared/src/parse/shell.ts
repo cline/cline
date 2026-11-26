@@ -9,7 +9,11 @@ function normalizeShellName(shell: string): string {
 }
 
 export function getDefaultShell(platform: string): string {
-	return platform === "win32" ? "powershell" : "/bin/bash";
+	// Unqualified so the OS resolves it through PATH. Distributions like NixOS
+	// ship no /bin/bash, and an absolute default fails to spawn there even
+	// though bash is installed. The name still classifies as "posix" below, so
+	// the syntax advertised to the model matches the shell that runs it.
+	return platform === "win32" ? "powershell" : "bash";
 }
 
 /**
