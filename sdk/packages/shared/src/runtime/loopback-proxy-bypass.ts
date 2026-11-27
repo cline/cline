@@ -8,14 +8,16 @@ const PROXY_ENV_KEYS = [
 ] as const;
 
 /**
- * `NO_PROXY` matching in Bun (and curl) is literal per host, so every loopback
- * spelling must be listed.
+ * `NO_PROXY` matching in Bun (and curl) is literal per host, so each loopback
+ * spelling must be listed. The bracketed IPv6 form is deliberately absent: httpx
+ * parses `[::1]` as a URL whose port is `:1]` and throws `InvalidURL: Invalid
+ * port: ':1]'`, killing Python stdio MCP servers during `initialize`
+ * (cline/cline#15732). Bare `::1` covers the loopback address for them too.
  */
 export const LOOPBACK_NO_PROXY_HOSTS = [
 	"localhost",
 	"127.0.0.1",
 	"::1",
-	"[::1]",
 ] as const;
 
 function readProxyValue(
