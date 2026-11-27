@@ -8,7 +8,10 @@ import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
 } from "../../session/models/session-compaction";
-import type { CoreCompactionContext } from "../../types/config";
+import type {
+	CoreCompactionContext,
+	CoreCompactionSummarizerConfig,
+} from "../../types/config";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
@@ -21,6 +24,7 @@ import {
 	createTokenEstimator,
 	DEFAULT_MAX_INPUT_TOKENS,
 	estimateTokens,
+	isSameModelAsActiveSession,
 	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
@@ -5035,5 +5039,289 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(
 			projectSessionCompactionState(savedState, currentMessages),
 		).toBeDefined();
+	});
+});
+
+describe("agentic compaction in-place summaries", () => {
+	function messageText(message: { content: unknown }): string {
+		if (typeof message.content === "string") {
+			return message.content;
+		}
+		return (message.content as Array<{ type: string; text?: string }>)
+			.map((block) => (block.type === "text" ? (block.text ?? "") : ""))
+			.join("");
+	}
+
+	function mockSummaryHandler() {
+		const createMessage = vi.fn(
+			(
+				_systemPrompt: string,
+				_messages: Array<{ content: unknown }>,
+				_tools: unknown,
+			) =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-1",
+						text: "## Goal\nShip the feature\n\n## Next\n- Finish it",
+					},
+					{ type: "done", id: "summary-1", success: true },
+				]),
+		);
+		createHandlerMock.mockReturnValue({ createMessage });
+		return createMessage;
+	}
+
+	function baseTranscript(): MessageWithMetadata[] {
+		return [
+			{ role: "user", content: "Old turn to compact" },
+			{ role: "assistant", content: "Old answer" },
+			{ role: "user", content: "Implement the change" },
+			{ role: "assistant", content: "Done" },
+		];
+	}
+
+	async function runManualAgenticTurn(options: {
+		messages: MessageWithMetadata[];
+		apiMessages?: MessageWithMetadata[];
+		summarizer?: CoreCompactionSummarizerConfig;
+		maxInputTokens?: number;
+	}) {
+		const prepareTurn = createContextCompactionPrepareTurn(
+			{
+				providerId: "anthropic",
+				modelId: "mock-model",
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "mock-model",
+				} as LlmsProviders.ProviderConfig,
+				compaction: {
+					enabled: true,
+					strategy: "agentic",
+					preserveRecentTokens: 1,
+					...(options.summarizer ? { summarizer: options.summarizer } : {}),
+				},
+			},
+			{ mode: "manual" },
+		);
+		return prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [
+				{
+					name: "read_files",
+					description: "Read files",
+					inputSchema: { type: "object" },
+				},
+			],
+			messages: options.messages,
+			apiMessages: options.apiMessages ?? options.messages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: {
+					id: "mock-model",
+					maxInputTokens: options.maxInputTokens ?? 100_000,
+				},
+			},
+		});
+	}
+
+	it("replays the transcript verbatim when the summarizer is the active model", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages = baseTranscript();
+		const result = await runManualAgenticTurn({ messages });
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages, sentTools] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe("You are helpful.");
+		expect(sentMessages.length).toBeGreaterThan(2);
+		expect(messageText(sentMessages[sentMessages.length - 1])).toContain(
+			"Summarize the conversation above this message",
+		);
+		for (const message of sentMessages) {
+			expect(messageText(message)).not.toContain("Conversation:");
+		}
+		expect(sentTools).toEqual([
+			{
+				name: "read_files",
+				description: "Read files",
+				inputSchema: { type: "object" },
+			},
+		]);
+	});
+
+	it("falls back to the serialized request for a dedicated external summarizer", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages = baseTranscript();
+		const result = await runManualAgenticTurn({
+			messages,
+			summarizer: { providerId: "openai", modelId: "small-summary" },
+		});
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe(
+			"Summarize the provided coding session into a concise continuation note with detailed next steps.",
+		);
+		expect(sentMessages.length).toBe(1);
+		expect(messageText(sentMessages[0])).toContain("Conversation:");
+	});
+
+	it("falls back to the serialized request when the head exceeds the summarizer input budget", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "x".repeat(4500) },
+			{ role: "assistant", content: "y".repeat(4500) },
+			{ role: "user", content: "Small follow-up" },
+			{ role: "assistant", content: "ok" },
+		];
+		const result = await runManualAgenticTurn({
+			messages,
+			maxInputTokens: 2_000,
+		});
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [, sentMessages] = createMessage.mock.calls[0];
+		expect(sentMessages.length).toBe(1);
+		expect(messageText(sentMessages[0])).toContain("Conversation:");
+	});
+
+	it("re-cuts the API transcript when it is not 1:1 aligned with the canonical one", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages = baseTranscript();
+		const result = await runManualAgenticTurn({
+			messages,
+			apiMessages: messages.slice(0, 2),
+		});
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe("You are helpful.");
+		expect(messageText(sentMessages[sentMessages.length - 1])).toContain(
+			"Summarize the conversation above this message",
+		);
+		for (const message of sentMessages) {
+			expect(messageText(message)).not.toContain("Conversation:");
+		}
+	});
+
+	it("falls back to the serialized request when the re-cut on the API transcript is invalid", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages = baseTranscript();
+		const result = await runManualAgenticTurn({
+			messages,
+			apiMessages: [{ role: "user", content: "Only one message survived" }],
+		});
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [, sentMessages] = createMessage.mock.calls[0];
+		expect(sentMessages.length).toBe(1);
+		expect(messageText(sentMessages[0])).toContain("Conversation:");
+	});
+
+	it("replays tool-heavy transcripts verbatim, fusing consecutive tool results", async () => {
+		const createMessage = mockSummaryHandler();
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: [
+					{ type: "tool_use", id: "call-1", name: "read_files", input: {} },
+					{ type: "tool_use", id: "call-2", name: "run_commands", input: {} },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call-1",
+						name: "read_files",
+						content: "file contents",
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "call-2",
+						name: "run_commands",
+						content: "command output",
+					},
+				],
+			},
+			{ role: "assistant", content: "Done reading" },
+			{ role: "user", content: "Now implement the change" },
+			{ role: "assistant", content: "Implemented" },
+		];
+		const result = await runManualAgenticTurn({ messages });
+
+		expect(result?.messages?.length).toBeGreaterThan(0);
+		expect(createMessage).toHaveBeenCalledTimes(1);
+		const [systemPrompt, sentMessages] = createMessage.mock.calls[0];
+		expect(systemPrompt).toBe("You are helpful.");
+		expect(messageText(sentMessages[sentMessages.length - 1])).toContain(
+			"Summarize the conversation above this message",
+		);
+		for (const message of sentMessages) {
+			expect(messageText(message)).not.toContain("Conversation:");
+		}
+		// Consecutive pure tool-result messages fuse into one wire message,
+		// matching the live request's merged rendering (byte-stable prefix).
+		const fused = sentMessages.find(
+			(message) =>
+				Array.isArray(message.content) &&
+				message.content.filter((block) => block.type === "tool_result")
+					.length === 2,
+		);
+		expect(fused).toBeDefined();
+	});
+
+	it("detects same-model versus external summarizers", () => {
+		const active = {
+			providerId: "openai-compatible",
+			modelId: "local-qwen",
+			baseUrl: "http://127.0.0.1:8080/v1",
+		} as LlmsProviders.ProviderConfig;
+		expect(isSameModelAsActiveSession({ activeProviderConfig: active })).toBe(
+			true,
+		);
+		expect(
+			isSameModelAsActiveSession({
+				activeProviderConfig: active,
+				summarizer: {
+					providerId: "openai-compatible",
+					modelId: "local-qwen",
+					baseUrl: "http://127.0.0.1:8080/v1",
+				},
+			}),
+		).toBe(true);
+		expect(
+			isSameModelAsActiveSession({
+				activeProviderConfig: active,
+				summarizer: { providerId: "openai", modelId: "gpt-small" },
+			}),
+		).toBe(false);
+		expect(
+			isSameModelAsActiveSession({
+				activeProviderConfig: active,
+				summarizer: {
+					providerId: "openai-compatible",
+					modelId: "other-model",
+					baseUrl: "http://127.0.0.1:8080/v1",
+				},
+			}),
+		).toBe(false);
 	});
 });

@@ -728,6 +728,37 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 }
 
 /**
+ * Instruction appended to the original transcript for an in-place summary.
+ * Same expected output format as `buildSummaryRequest`, minus what the
+ * transcript already carries: the conversation itself (it is the transcript
+ * above this message) and the previous summary (kept verbatim in the
+ * transcript after an earlier compaction).
+ */
+export function buildInPlaceSummaryInstruction(options: {
+	fileOps: FileOperationSummary;
+}): string {
+	return `Summarize the conversation above this message for continuation. Be concise and factual.
+
+## Goal
+One sentence: what is being built or fixed.
+
+## State
+- Done: completed steps
+- In Progress: current work
+- Blocked: blockers or open questions
+
+## Highlights
+Key technical choices or notable findings (omit if none).
+
+## Next
+Immediate next steps.
+
+## Files
+Read: ${options.fileOps.readFiles.join(", ") || "none"}
+Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`;
+}
+
+/**
  * The summarizer output budget is a cap, not a target: reasoning models need
  * headroom beyond their thinking output or no summary text ever arrives and
  * compaction is skipped. An explicit configuration wins as-is; otherwise the
@@ -794,6 +825,27 @@ export function resolveSummarizerConfig(options: {
 		maxOutputTokens:
 			summarizer.maxOutputTokens ?? baseProviderConfig?.maxOutputTokens,
 	});
+}
+
+/**
+ * Whether the resolved summarizer targets the exact same model endpoint as
+ * the active session model — the precondition for summarizing in place
+ * against the session's own cached prompt prefix. A dedicated summarizer on
+ * another provider, model, or base URL must keep using the serialized
+ * request path.
+ */
+export function isSameModelAsActiveSession(options: {
+	activeProviderConfig: ProviderConfig;
+	summarizer?: CoreCompactionSummarizerConfig;
+}): boolean {
+	const resolved = resolveSummarizerConfig(options);
+	const active = options.activeProviderConfig;
+	return (
+		resolved.providerId === active.providerId &&
+		resolved.modelId === active.modelId &&
+		resolved.routingProviderId === active.routingProviderId &&
+		(resolved.baseUrl ?? "") === (active.baseUrl ?? "")
+	);
 }
 
 export function buildSummaryMessage(options: {
