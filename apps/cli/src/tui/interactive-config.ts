@@ -382,6 +382,7 @@ export async function loadInteractiveConfigData(input: {
 	userInstructionService?: UserInstructionConfigService;
 	cwd: string;
 	workspaceRoot: string;
+	hooksDir?: string;
 	availabilityContext?: BuiltinToolAvailabilityContext;
 	includePluginTools?: boolean;
 	agentPluginSettings?: CoreSettingsSnapshot;
@@ -398,7 +399,7 @@ export async function loadInteractiveConfigData(input: {
 		input.userInstructionService,
 	);
 
-	for (const hook of listHookConfigFiles(input.cwd)) {
+	for (const hook of listHookConfigFiles(input.cwd, input.hooksDir)) {
 		hooks.push({
 			id: hook.path,
 			name: hook.fileName,
