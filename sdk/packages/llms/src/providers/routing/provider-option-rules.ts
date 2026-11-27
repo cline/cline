@@ -139,6 +139,35 @@ const directAnthropicProviderRule: ProviderOptionRule = {
 			: undefined,
 };
 
+const openRouterProviderRule: ProviderOptionRule = {
+	id: "provider.openrouter.routing",
+	phase: "provider",
+	description: "OpenRouter applies Anthropic failover and configured provider sorting.",
+	applies: (input) => input.request.providerId === "openrouter",
+	build: (input) => {
+		const provider: Record<string, unknown> = {};
+		if (
+			isAnthropicCompatibleModel({
+				modelId: input.request.modelId,
+				family: resolveModelFamily(input.context),
+			})
+		) {
+			provider.allow_fallbacks = true;
+		}
+		const sort = input.context.config.options?.openRouterProviderSorting;
+		if (typeof sort === "string") {
+			provider.sort = sort;
+		}
+		return Object.keys(provider).length > 0
+			? buildProviderAndAliasPatch({
+					providerId: input.request.providerId,
+					providerOptionsKey: input.providerOptionsKey,
+					bucketOptions: { provider },
+				})
+			: undefined;
+	},
+};
+
 const directGoogleProviderRule: ProviderOptionRule = {
 	id: "provider.google.direct",
 	phase: "provider",
@@ -149,14 +178,12 @@ const directGoogleProviderRule: ProviderOptionRule = {
 	build: () => undefined,
 };
 
-const routedAnthropicProviderFallbackRule: ProviderOptionRule = {
+const clineAnthropicProviderFallbackRule: ProviderOptionRule = {
 	id: "provider.routed-anthropic.fallbacks",
 	phase: "provider",
-	description:
-		"OpenRouter and Cline enable provider failover for Anthropic models.",
+	description: "Cline enables provider failover for Anthropic models.",
 	applies: (input) =>
-		(input.request.providerId === "openrouter" ||
-			isClineProvider(input.request.providerId)) &&
+		isClineProvider(input.request.providerId) &&
 		isAnthropicCompatibleModel({
 			modelId: input.request.modelId,
 			family: resolveModelFamily(input.context),
@@ -544,7 +571,8 @@ const routedGlmReasoningRule: ProviderOptionRule = {
  */
 export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	directAnthropicProviderRule,
-	routedAnthropicProviderFallbackRule,
+	clineAnthropicProviderFallbackRule,
+	openRouterProviderRule,
 	directGoogleProviderRule,
 	openAiAdapterRule,
 	openAiCodexRule,
