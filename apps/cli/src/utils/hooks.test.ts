@@ -1,3 +1,4 @@
+import type { AgentRunLifecycleContext } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const outputMocks = vi.hoisted(() => ({
@@ -154,6 +155,80 @@ describe("createRuntimeHooks", () => {
 				workspaceRoots: ["/workspace"],
 			}),
 		);
+	});
+
+	it("dispatches prompt_submit from beforeRun for a seeded snapshot prompt", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			verbose: false,
+			dispatchHookEvent,
+		});
+
+		// Orchestrated sessions seed the user prompt into the runtime's
+		// initial messages; it never arrives as a message-added event.
+		const ctx: AgentRunLifecycleContext = {
+			snapshot: {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				runId: "run-1",
+				parentAgentId: null,
+				status: "running",
+				iteration: 0,
+				messages: [
+					{
+						id: "msg-ctx",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: '<hook_context source="RunStart">note</hook_context>',
+							},
+						],
+						createdAt: 0,
+						metadata: { userRunSpan: 0, displayRole: "system" },
+					},
+					{
+						id: "msg-1",
+						role: "user",
+						content: [{ type: "text", text: "seeded prompt" }],
+						createdAt: 0,
+					},
+				],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+		};
+		await runtimeHooks.hooks?.beforeRun?.(ctx);
+		// continue() re-fires beforeRun with the same seeded prompt; it must
+		// not dispatch a second prompt_submit.
+		await runtimeHooks.hooks?.beforeRun?.(ctx);
+
+		expect(dispatchHookEvent).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ hookName: "agent_start" }),
+		);
+		expect(dispatchHookEvent).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				hookName: "prompt_submit",
+				userPromptSubmit: expect.objectContaining({
+					prompt: "seeded prompt",
+				}),
+			}),
+		);
+		expect(dispatchHookEvent).toHaveBeenNthCalledWith(
+			3,
+			expect.objectContaining({ hookName: "agent_start" }),
+		);
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(3);
 	});
 
 	it("does not dispatch prompt_submit for injected hook-context messages", async () => {

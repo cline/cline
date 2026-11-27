@@ -837,7 +837,9 @@ export class AgentRuntime {
 
 			const completionToolReminder = this.getCompletionToolReminderMessage();
 			if (completionToolReminder) {
-				await this.addUserReminderMessage(completionToolReminder);
+				await this.addUserReminderMessage(completionToolReminder, {
+					displayRole: "system",
+				});
 			}
 
 			// Context collected by beforeRun hooks lands after the run's input
@@ -970,7 +972,9 @@ export class AgentRuntime {
 						this.getCompletionReminderMessages();
 					if (completionReminderMessages.length > 0) {
 						for (const reminderMessage of completionReminderMessages) {
-							await this.addUserReminderMessage(reminderMessage);
+							await this.addUserReminderMessage(reminderMessage, {
+								displayRole: "system",
+							});
 						}
 						continue;
 					}
@@ -1191,7 +1195,9 @@ export class AgentRuntime {
 				maxRetries: MAX_TOKENS_RECOVERY_LIMIT,
 			},
 		});
-		await this.addUserReminderMessage(MAX_TOKENS_RECOVERY_NUDGE);
+		await this.addUserReminderMessage(MAX_TOKENS_RECOVERY_NUDGE, {
+			displayRole: "system",
+		});
 		return true;
 	}
 
