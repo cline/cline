@@ -48,11 +48,19 @@ See: [Headless Mode](#headless-mode)
 
 ### Autonomous execution
 
-For fully unattended runs, use auto-approval:
+One-shot runs (`cline "task"`, or a prompt piped on stdin) start in yolo mode: Cline auto-approves tools and exits when the turn finishes.
 
 ```bash
-cline --auto-approve true "run tests and fix failures"
+cline "run tests and fix failures"
 ```
+
+To run a one-shot prompt in Act mode with approval prompts instead, turn auto-approval off:
+
+```bash
+cline --auto-approve false "run tests and fix failures"
+```
+
+Yolo mode also turns off the `spawn_agent` and team tools, so one-shot runs that need [subagents](/features/subagents) or [agent teams](/cli/agent-teams) pass `--act`.
 
 Mode selection also works in headless runs:
 
@@ -60,8 +68,11 @@ Mode selection also works in headless runs:
 # plan-first
 cline -p "design migration plan"
 
-# act immediately (default)
+# yolo (default for one-shot runs)
 cline "apply migration"
+
+# act mode with approval prompts
+cline --auto-approve false "apply migration"
 ```
 
 <Warning>
