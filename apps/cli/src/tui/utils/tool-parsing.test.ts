@@ -97,3 +97,71 @@ describe("extractFullOutputText", () => {
 		expect(extractFullOutputText(raw)).toBe(JSON.stringify(raw, null, 2));
 	});
 });
+
+describe("extractFullOutputText terminal control characters", () => {
+	it("collapses carriage-return progress updates to the last state of the line", () => {
+		// git/npm/cargo rewrite progress with bare CRs. A terminal returns the
+		// cursor to column 0 and overwrites, so what remains visible is the text
+		// after the final CR — the earlier states must not reach the renderer.
+		const raw =
+			"Receiving objects: 78%\rReceiving objects: 79%\rReceiving objects: 100%\ndone";
+		expect(extractFullOutputText(raw)).toBe("Receiving objects: 100%\ndone");
+	});
+
+	it("drops escape sequences the terminal would execute instead of print", () => {
+		const raw =
+			"\u001b[31mred\u001b[0m, \u001b]0;window title\u0007bell, \u0008backspace";
+		expect(extractFullOutputText(raw)).toBe("red, bell, backspace");
+	});
+
+	it("keeps newlines and tabs so real layout survives", () => {
+		expect(extractFullOutputText("a\tb\nc\n\td")).toBe("a\tb\nc\n\td");
+	});
+
+	it("leaves ordinary text byte-identical", () => {
+		const raw = "plain text\n  indented\n";
+		expect(extractFullOutputText(raw)).toBe(raw);
+	});
+
+	it("keeps CRLF-terminated lines instead of blanking them", () => {
+		// Windows commands, PowerShell and CRLF files end every line with \r\n.
+		// The trailing \r segment is empty, so it must not blank the line.
+		expect(extractFullOutputText("line1\r\nline2\r\nline3")).toBe(
+			"line1\nline2\nline3",
+		);
+		expect(extractFullOutputText("a\r\nb\r\n")).toBe("a\nb\n");
+	});
+
+	it("keeps the final progress state when a bare CR precedes the newline", () => {
+		expect(extractFullOutputText("progress 1%\rprogress 2%\r\nnext")).toBe(
+			"progress 2%\nnext",
+		);
+		expect(extractFullOutputText("progress 1%\rprogress 2%\r\r\nnext")).toBe(
+			"progress 2%\nnext",
+		);
+	});
+
+	it("renders the final state of a rewritten line, not a column simulation", () => {
+		// A terminal simulating these bytes ends up with "doneiving objects:
+		// 100%"; the transcript should show the tool's final state instead.
+		expect(
+			extractFullOutputText(
+				"Receiving objects: 78%\rReceiving objects: 79%\rReceiving objects: 100%\rdone",
+			),
+		).toBe("done");
+		expect(extractFullOutputText("x\ry\rz")).toBe("z");
+	});
+
+	it("stops OSC sequences at their terminator so following text survives", () => {
+		// The ST terminator (ESC \) must close the sequence: without it the
+		// greedy body ran on and swallowed the text between two sequences.
+		expect(
+			extractFullOutputText("\u001b]8;;http://x\u001b\\A\u001b]0;title\u0007B"),
+		).toBe("AB");
+		expect(
+			extractFullOutputText(
+				"\u001b]8;;http://x\u001b\\A\u001b]8;;http://y\u001b\\B",
+			),
+		).toBe("AB");
+	});
+});
