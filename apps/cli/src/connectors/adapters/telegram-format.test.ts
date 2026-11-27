@@ -103,6 +103,16 @@ describe("telegram formatted replies", () => {
 		expect(payloads.map((payload) => payload.text).join("")).toBe(longText);
 	});
 
+	it("does not split a surrogate pair across long reply chunks", () => {
+		const longText = `${"a".repeat(4095)}\u{1F600}tail`;
+		const payloads = buildTelegramFormattedPayloads("telegram:123", longText);
+
+		expect(payloads).toHaveLength(2);
+		expect(payloads[0]?.text).toBe("a".repeat(4095));
+		expect(payloads[1]?.text).toBe("\u{1F600}tail");
+		expect(payloads.map((payload) => payload.text).join("")).toBe(longText);
+	});
+
 	it("splits formatting entities across long reply chunks", () => {
 		const payloads = buildTelegramFormattedPayloads(
 			"telegram:123",
@@ -232,5 +242,32 @@ describe("telegram formatted replies", () => {
 		});
 
 		expect(posts).toEqual([{ raw: "x".repeat(4096) }, { raw: "tail" }]);
+	});
+
+	it("does not split a surrogate pair in raw fallback chunks", async () => {
+		const { thread, posts } = createThread("telegram:123");
+		const longText = `${"x".repeat(4095)}\u{1F600}tail`;
+
+		await postTelegramFormattedReply({
+			thread,
+			text: longText,
+			botToken: "token",
+			logger: createLogger(),
+			fetchImpl: vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							ok: false,
+							description: "Bad Request: can't parse entities",
+						}),
+						{ status: 400, statusText: "Bad Request" },
+					),
+			),
+		});
+
+		expect(posts).toEqual([
+			{ raw: "x".repeat(4095) },
+			{ raw: "\u{1F600}tail" },
+		]);
 	});
 });
