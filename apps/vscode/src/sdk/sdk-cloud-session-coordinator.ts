@@ -949,18 +949,25 @@ export class SdkCloudSessionCoordinator {
 	}
 
 	/**
-	 * Re-asks whether the account has ClinePass, unless the last answer is
-	 * fresh. Settings calls this when its Cloud tab opens, so a subscription
-	 * bought in the browser (the Subscribe link) takes effect without a reload.
-	 * Resolves once the answer is known and state has been re-posted.
+	 * Re-asks whether the account has ClinePass. Settings calls this when its
+	 * Cloud tab opens or comes back into view, skipping the request when the
+	 * last answer is recent; and with `force` when the user returns from the
+	 * Subscribe link, since that is the one moment the answer is expected to
+	 * have changed. Resolves once the answer is known and state re-posted.
 	 */
-	async refreshClinePassSubscription(): Promise<void> {
+	async refreshClinePassSubscription(options?: { force?: boolean }): Promise<void> {
 		const entry = this.accountCloudModels()
 		if (!entry) {
 			return
 		}
-		if (entry.planCheckedAt !== undefined && Date.now() - entry.planCheckedAt < PLAN_CHECK_FRESH_MS) {
+		const recent = entry.planCheckedAt !== undefined && Date.now() - entry.planCheckedAt < PLAN_CHECK_FRESH_MS
+		if (recent && !options?.force) {
 			return
+		}
+		if (options?.force && entry.planCheck) {
+			// A check already in flight may have been sent before the subscription
+			// landed; run another after it rather than trusting that answer.
+			await entry.planCheck
 		}
 		await this.checkClinePass(entry)
 	}
