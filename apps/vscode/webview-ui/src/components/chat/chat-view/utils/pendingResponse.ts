@@ -21,7 +21,7 @@ function sameOptimisticMessage(left: ClineMessage, right: ClineMessage): boolean
 	return (
 		isUserAuthored(left) &&
 		isUserAuthored(right) &&
-		left.text === right.text &&
+		(left.text ?? "") === (right.text ?? "") &&
 		leftImages.length === rightImages.length &&
 		leftImages.every((image, index) => image === rightImages[index]) &&
 		leftFiles.length === rightFiles.length &&
