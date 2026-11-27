@@ -1,3 +1,4 @@
+import { omitUndefinedValues } from "../parse/object";
 import type { OpenTelemetryClientConfig } from "../services/telemetry";
 import type {
 	RemoteConfigBundle,
@@ -102,9 +103,10 @@ export function normalizeBundleTelemetry(
 		logBatchTimeout: readNumber(telemetry, "logBatchTimeout"),
 		logMaxQueueSize: readNumber(telemetry, "logMaxQueueSize"),
 	};
-	return Object.values(normalized).some((value) => value !== undefined)
-		? normalized
-		: undefined;
+	// Drop unset keys so spreading this over the remote-config telemetry only
+	// overrides the fields the bundle actually sets.
+	const defined = omitUndefinedValues(normalized);
+	return Object.keys(defined).length > 0 ? defined : undefined;
 }
 
 export class DefaultRemoteConfigTelemetryAdapter
