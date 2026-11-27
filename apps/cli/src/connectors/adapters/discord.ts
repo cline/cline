@@ -86,6 +86,8 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 
 const DISCORD_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 const DISCORD_GATEWAY_DURATION_MS = 1_800_000_000;
+const DISCORD_MESSAGE_LIMIT = 2000;
+const DISCORD_RATE_LIMIT_RETRIES = 3;
 
 type DiscordThreadState = ConnectorThreadState;
 type DiscordParticipant = { key: string; label?: string };
@@ -116,6 +118,21 @@ const botGuildRoleCache = new Map<string, Promise<Set<string>>>();
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
+}
+
+function chunkDiscordMessage(text: string): string[] {
+	const chunks: string[] = [];
+	let start = 0;
+	while (start < text.length) {
+		let end = Math.min(start + DISCORD_MESSAGE_LIMIT, text.length);
+		const code = text.charCodeAt(end - 1);
+		if (end < text.length && code >= 0xd800 && code <= 0xdbff) {
+			end -= 1;
+		}
+		chunks.push(text.slice(start, end));
+		start = end;
+	}
+	return chunks;
 }
 
 async function stopSessionsForApplication(
@@ -425,25 +442,42 @@ async function logDiscordForwardedGatewayMessage(input: {
 	});
 }
 
+async function readDiscordRetryAfterMs(response: Response): Promise<number> {
+	const body = asRecord(await response.json().catch(() => undefined));
+	const seconds = Number(
+		body?.retry_after ?? response.headers.get("Retry-After"),
+	);
+	return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 1000;
+}
+
 async function fetchDiscordJson(input: {
 	botToken: string;
 	path: string;
 	method?: "GET" | "POST";
 	body?: unknown;
 }): Promise<unknown> {
-	const response = await fetch(`https://discord.com/api/v10${input.path}`, {
-		method: input.method ?? "GET",
-		headers: {
-			Authorization: `Bot ${input.botToken}`,
-			...(input.body ? { "Content-Type": "application/json" } : {}),
-			"User-Agent": "Cline Discord Connector",
-		},
-		...(input.body ? { body: JSON.stringify(input.body) } : {}),
-	});
-	if (!response.ok) {
-		throw new Error(`Discord API ${response.status}: ${await response.text()}`);
+	for (let attempt = 0; ; attempt += 1) {
+		const response = await fetch(`https://discord.com/api/v10${input.path}`, {
+			method: input.method ?? "GET",
+			headers: {
+				Authorization: `Bot ${input.botToken}`,
+				...(input.body ? { "Content-Type": "application/json" } : {}),
+				"User-Agent": "Cline Discord Connector",
+			},
+			...(input.body ? { body: JSON.stringify(input.body) } : {}),
+		});
+		if (response.status === 429 && attempt < DISCORD_RATE_LIMIT_RETRIES) {
+			const delayMs = await readDiscordRetryAfterMs(response);
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+			continue;
+		}
+		if (!response.ok) {
+			throw new Error(
+				`Discord API ${response.status}: ${await response.text()}`,
+			);
+		}
+		return response.json();
 	}
-	return response.json();
 }
 
 async function searchDiscordGuildMembers(input: {
@@ -558,15 +592,17 @@ async function postDiscordResolvedText(input: {
 		await input.thread.post(resolvedText);
 		return;
 	}
-	await fetchDiscordJson({
-		botToken: input.botToken,
-		path: `/channels/${encodeURIComponent(targetChannelId)}/messages`,
-		method: "POST",
-		body: {
-			content: resolvedText.slice(0, 2000),
-			allowed_mentions: { parse: ["users"] },
-		},
-	});
+	for (const content of chunkDiscordMessage(resolvedText)) {
+		await fetchDiscordJson({
+			botToken: input.botToken,
+			path: `/channels/${encodeURIComponent(targetChannelId)}/messages`,
+			method: "POST",
+			body: {
+				content,
+				allowed_mentions: { parse: ["users"] },
+			},
+		});
+	}
 }
 
 function resolveCurrentStateWithParticipant(input: {
@@ -1601,6 +1637,7 @@ export const __test__ = {
 		},
 	) => findBindingForThread(bindings, thread),
 	persistDiscordThreadContext,
+	postDiscordResolvedText,
 	normalizeDiscordForwardedGatewayRequest,
 	resolveDiscordOutboundMentions,
 	resolveDiscordParticipant,
