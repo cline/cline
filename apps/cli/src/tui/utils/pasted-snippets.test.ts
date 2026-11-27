@@ -33,6 +33,15 @@ describe("pasted text snippet helpers", () => {
 		).toBe("[alpha beta gamma... Pasted +3 lines #2]");
 	});
 
+	it("keeps a paste marker intact through UTF-8 encoding", () => {
+		const prefix = "x".repeat(47);
+		const text = `${prefix}🚀\nline 2\nline 3\nline 4\nline 5`;
+		const marker = createUniquePastedTextSnippetMarker(text, []);
+		const editorText = Buffer.from(marker, "utf8").toString("utf8");
+
+		expect(expandPastedTextSnippets(editorText, [{ marker, text }])).toBe(text);
+	});
+
 	it("expands pasted snippet markers before submission", () => {
 		expect(
 			expandPastedTextSnippets("before [snippet] after", [
