@@ -272,9 +272,10 @@ describe("SessionVersioningService", () => {
 				readMessages: async () => messages,
 				beginWorkspaceRestoreTransaction: async () => {
 					calls.push("begin");
-					return { rollback, commit };
+					return { rollback, commit, ignoredPaths: ["scratch/"] };
 				},
-				applyWorkspaceCheckpoint: async () => {
+				applyWorkspaceCheckpoint: async (_cwd, _checkpoint, ignoredPaths) => {
+					expect(ignoredPaths).toEqual(["scratch/"]);
 					calls.push("apply");
 				},
 				startSession: async () => {
