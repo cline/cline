@@ -399,8 +399,9 @@ export function getShellInvocation(
 					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
 						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
 						"$ErrorActionPreference='Stop';" +
-						"$c=[Console]::In.ReadToEnd();" +
-						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
+						"$c=[Console]::In.ReadToEnd();$e0=$Error[0];" +
+						// A new PowerShell error can leave a stale native exit code.
+						"$c+=[Environment]::NewLine+'if(-not $?){if($LASTEXITCODE -and [object]::ReferenceEquals($Error[0],$e0)){exit $LASTEXITCODE};exit 1}';" +
 						"& ([ScriptBlock]::Create($c))",
 				],
 				input: selected.script,
