@@ -139,11 +139,26 @@ if (!arch) {
 	arch = os.arch();
 }
 
+// musl hosts (Alpine, OpenWrt, ...) need their own binary: the glibc one
+// dies in the loader. Node's diagnostic report names the libc it linked
+// against, so a Linux Node with no glibc runtime is a musl one.
+function isMuslHost() {
+	if (os.platform() !== "linux") {
+		return false;
+	}
+	try {
+		const report = process.report && process.report.getReport();
+		return !(report && report.header && report.header.glibcVersionRuntime);
+	} catch {
+		return false;
+	}
+}
+
 const base = "@cline/cli-" + platform + "-" + arch;
 const binary = platform === "windows" ? "cline.exe" : "cline";
 
 // Build fallback chain of package names to try
-const names = [base];
+const names = isMuslHost() ? [base + "-musl", base] : [base];
 
 function findBinary(startDir) {
 	let current = startDir;
