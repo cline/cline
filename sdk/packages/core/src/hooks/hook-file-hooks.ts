@@ -14,6 +14,7 @@ import type {
 } from "@cline/shared";
 import { augmentNodeCommandForDebug } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
+import { isUserRunMessage } from "../session/user-run-messages";
 import { createAgentHooksExtension } from "./hook-extension";
 import { listHookConfigFiles } from "./hook-file-config";
 import {
@@ -574,6 +575,26 @@ function textFromMessageContent(
 		.join("");
 }
 
+// The prompt a host seeded into the runtime is the final message of the
+// snapshot; anything else (an assistant turn, an injected system block) means
+// there is no fresh prompt to announce.
+function latestUserPromptText(
+	messages: AgentRunLifecycleContext["snapshot"]["messages"],
+): string | undefined {
+	const last = messages[messages.length - 1];
+	if (
+		!last ||
+		last.role !== "user" ||
+		last.metadata?.displayRole === "system" ||
+		// Prompts Cline sends on the user's behalf (plan-to-act continuation,
+		// reminders) are not the user's; agrees with checkpoints and Desktop.
+		!isUserRunMessage(last)
+	) {
+		return undefined;
+	}
+	return textFromMessageContent(last.content);
+}
+
 function beforeToolResultFromControl(
 	control: HookCommandControl | undefined,
 ):
@@ -993,35 +1014,51 @@ export function createHookConfigFileHooks(
 	) {
 		if (
 			(commandMap.agent_start?.length ?? 0) > 0 ||
-			(commandMap.agent_resume?.length ?? 0) > 0
+			(commandMap.agent_resume?.length ?? 0) > 0 ||
+			(commandMap.prompt_submit?.length ?? 0) > 0
 		) {
 			hooks.beforeRun = async (ctx: AgentRunLifecycleContext) => {
-				const hookName =
-					process.env.CLINE_HOOK_AGENT_RESUME === "1"
-						? "agent_resume"
-						: "agent_start";
-				const control = await runAgentStart(
-					baseContextFromSnapshot(ctx.snapshot),
-					hookName,
-				);
-				return stopOrContextResultFromControl(control);
+				let result: ReturnType<typeof stopOrContextResultFromControl>;
+				if (
+					(commandMap.agent_start?.length ?? 0) > 0 ||
+					(commandMap.agent_resume?.length ?? 0) > 0
+				) {
+					const hookName =
+						process.env.CLINE_HOOK_AGENT_RESUME === "1"
+							? "agent_resume"
+							: "agent_start";
+					const control = await runAgentStart(
+						baseContextFromSnapshot(ctx.snapshot),
+						hookName,
+					);
+					result = stopOrContextResultFromControl(control);
+				}
+				// Orchestrated sessions seed the prompt into the runtime's initial
+				// messages, so it is never announced as message-added. Dispatch it
+				// here instead; runs with their own input go through onEvent below.
+				if (ctx.promptSeeded && !result?.stop) {
+					const prompt = latestUserPromptText(ctx.snapshot.messages);
+					if (prompt !== undefined) {
+						await runPromptSubmit(runStartContext(ctx, prompt));
+					}
+				}
+				return result;
 			};
 		}
 		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
 			// prompt_submit dispatches on message-added, which has no return
 			// channel, so prompt hooks at this layer cannot cancel or inject
-			// context. Note the two host paths differ: a directly-driven
-			// runtime pushes the prompt as run input (visible here, absent
-			// from the beforeRun snapshot), while orchestrated sessions seed
-			// the prompt into the runtime's initial messages (visible to
-			// beforeRun, never emitted as message-added).
+			// context. A directly-driven runtime pushes the prompt as run input,
+			// which is announced here; seeded prompts are dispatched from
+			// beforeRun above.
 			hooks.onEvent = async (event: AgentRuntimeEvent) => {
 				if (
 					event.type !== "message-added" ||
 					event.message.role !== "user" ||
 					// Injected hook-context blocks are user-role messages with a
 					// system display role; they are not user prompts.
-					event.message.metadata?.displayRole === "system"
+					event.message.metadata?.displayRole === "system" ||
+					!isUserRunMessage(event.message)
 				) {
 					return;
 				}
