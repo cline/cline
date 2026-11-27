@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { createRef } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import PlanCompletionOutputRow from "./PlanCompletionOutputRow"
@@ -42,7 +43,12 @@ vi.mock("@vscode/webview-ui-toolkit/react", async (importOriginal) => {
 	}
 })
 
-const hiddenQuoteButton = { visible: false, top: 0, left: 0, selectedText: "" }
+const noQuote = {
+	contentRef: createRef<HTMLDivElement>(),
+	handleQuoteClick: vi.fn(),
+	onMouseUp: vi.fn(),
+	quoteButtonState: { visible: false, top: 0, left: 0, selectedText: "" },
+}
 
 describe("CompletionOutputRow", () => {
 	const writeText = vi.fn(() => Promise.resolve())
@@ -53,18 +59,38 @@ describe("CompletionOutputRow", () => {
 	})
 
 	it("shows a small Completed header with a copy button", () => {
-		render(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+		render(<CompletionOutputRow {...noQuote} text="All done!" />)
 
 		expect(screen.getByText("Completed")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Copy response" })).toBeInTheDocument()
 	})
 
 	it("copies the response text to the clipboard", async () => {
-		render(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+		render(<CompletionOutputRow {...noQuote} text="All done!" />)
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy response" }))
 
 		await waitFor(() => expect(writeText).toHaveBeenCalledWith("All done!"))
+	})
+
+	it("reports text selection on the element the quote button is positioned against", () => {
+		const contentRef = createRef<HTMLDivElement>()
+		const onMouseUp = vi.fn()
+		render(
+			<CompletionOutputRow
+				contentRef={contentRef}
+				handleQuoteClick={vi.fn()}
+				onMouseUp={onMouseUp}
+				quoteButtonState={{ visible: true, top: 0, left: 0, selectedText: "done" }}
+				text="All done!"
+			/>,
+		)
+
+		fireEvent.mouseUp(screen.getByText("All done!"))
+
+		expect(onMouseUp).toHaveBeenCalledTimes(1)
+		expect(contentRef.current).toContainElement(screen.getByText("All done!"))
+		expect(contentRef.current).toContainElement(screen.getByRole("button", { name: "Quote selection" }))
 	})
 })
 
@@ -73,15 +99,7 @@ describe("CompletionOutputRow View Changes", () => {
 		checkpointLatestChangesCount.mockReset()
 	})
 
-	const renderWithViewChanges = () =>
-		render(
-			<CompletionOutputRow
-				handleQuoteClick={vi.fn()}
-				quoteButtonState={hiddenQuoteButton}
-				showViewChanges
-				text="All done!"
-			/>,
-		)
+	const renderWithViewChanges = () => render(<CompletionOutputRow {...noQuote} showViewChanges text="All done!" />)
 
 	it("shows the button once the host confirms the latest run changed files", async () => {
 		checkpointLatestChangesCount.mockResolvedValue({ value: 2 })
@@ -121,7 +139,7 @@ describe("CompletionOutputRow View Changes", () => {
 	it("never renders the button when showViewChanges is not set", () => {
 		checkpointLatestChangesCount.mockResolvedValue({ value: 2 })
 
-		render(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+		render(<CompletionOutputRow {...noQuote} text="All done!" />)
 
 		expect(checkpointLatestChangesCount).not.toHaveBeenCalled()
 		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
@@ -133,20 +151,13 @@ describe("CompletionOutputRow View Changes", () => {
 		const { rerender } = renderWithViewChanges()
 		await screen.findByRole("button", { name: /View Changes/ })
 
-		rerender(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+		rerender(<CompletionOutputRow {...noQuote} text="All done!" />)
 		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
 
 		// Second evaluation never resolves: the earlier `true` must not leak
 		// through and flash the button while the host is still checking.
 		checkpointLatestChangesCount.mockReturnValue(new Promise(() => {}))
-		rerender(
-			<CompletionOutputRow
-				handleQuoteClick={vi.fn()}
-				quoteButtonState={hiddenQuoteButton}
-				showViewChanges
-				text="All done!"
-			/>,
-		)
+		rerender(<CompletionOutputRow {...noQuote} showViewChanges text="All done!" />)
 		expect(checkpointLatestChangesCount).toHaveBeenCalledTimes(2)
 		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
 	})
