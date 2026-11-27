@@ -344,6 +344,59 @@ describe("findFileEditingCommand — review feedback cases", () => {
 	});
 });
 
+describe("findFileEditingCommand — inline-code interpreters are blocked", () => {
+	// An interpreter running an inline program can mutate the workspace through
+	// code the quote/heredoc masking hides from the blacklist scan, so plan
+	// mode treats it as file-modifying (fail-closed).
+	it.each([
+		[
+			"python -c \"open('f','w').write('x')\"",
+			"`python -c` (inline code execution)",
+		],
+		[
+			"python3 -c 'import os; os.remove(\"f\")'",
+			"`python3 -c` (inline code execution)",
+		],
+		["bash -c 'rm f'", "`bash -c` (inline code execution)"],
+		["sh -c 'echo x > f'", "`sh -c` (inline code execution)"],
+		["zsh -c 'rm f'", "`zsh -c` (inline code execution)"],
+		[
+			"node -e \"require('fs').writeFileSync('f','x')\"",
+			"`node -e` (inline code execution)",
+		],
+		['node --eval "process.exit(0)"', "`node --eval` (inline code execution)"],
+		["ruby -e \"File.write('f','x')\"", "`ruby -e` (inline code execution)"],
+		['perl -e \'open(F,">","f")\'', "`perl -e` (inline code execution)"],
+		[
+			"php -r \"file_put_contents('f','x');\"",
+			"`php -r` (inline code execution)",
+		],
+		[
+			"deno eval \"Deno.writeTextFileSync('f','x')\"",
+			"`deno eval` (inline code execution)",
+		],
+	])("blocks %s", (command, reason) => {
+		expect(findFileEditingCommand(command)).toBe(reason);
+	});
+
+	it("blocks interpreters that are wrapped or chained", () => {
+		expect(blocks("env python -c \"open('f','w')\"")).toBe(true);
+		expect(blocks("cat a.txt && bash -c 'rm f'")).toBe(true);
+		expect(blocks("perl -ne 'unlink $_' list.txt")).toBe(true);
+	});
+
+	it("leaves interpreters running scripts or read-only flags alone", () => {
+		expect(blocks("python analyze.py")).toBe(false);
+		expect(blocks("python3 -m json.tool data.json")).toBe(false);
+		expect(blocks("node --version")).toBe(false);
+		expect(blocks("node dist/server.js")).toBe(false);
+		expect(blocks("perl -Ilib script.pl")).toBe(false);
+		expect(blocks("ruby app.rb")).toBe(false);
+		expect(blocks("bun run test")).toBe(false);
+		expect(blocks("deno run --allow-read main.ts")).toBe(false);
+	});
+});
+
 describe("findFileEditingCommand — structured commands", () => {
 	it("checks structured command executables and argv", () => {
 		expect(
