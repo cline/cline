@@ -26,6 +26,11 @@ import { wrapLanguageModel } from "ai";
 import { createOllama } from "ollama-ai-provider-v2";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import {
+	DEFAULT_INFERENCE_TIMEOUT_MS,
+	readInferenceTimeoutMs,
+	withInferenceTimeout,
+} from "../streaming-fetch";
 import type { ProviderFactoryResult } from "./types";
 
 /**
@@ -46,76 +51,20 @@ export function normalizeOllamaBaseUrl(
 	return `${trimmed.replace(/\/(?:v1|api)$/, "")}/api`;
 }
 
-/**
- * Time to wait for the response to start when no timeout is configured.
- *
- * Deliberately generous: Ollama holds `/api/chat` open while it cold-loads
- * the model and only sends response headers once loading finishes, so with a
- * large model (or a large `num_ctx`, which this vendor requests) the first
- * request of a session routinely takes minutes before the stream starts.
- * A tight budget here turns every cold load into a user-facing timeout error
- * (see cline/cline#12829 — the legacy handler's 30s default was only
- * tolerable because its retry decorator silently re-issued the request until
- * the model was loaded). Unreachable servers are not this timeout's job:
- * connection-level failures (refused, DNS) reject on their own immediately,
- * and users can always cancel a request from the UI. This only bounds the
- * accepted-but-silent case, and 5 minutes matches the header-timeout default
- * other AI SDK-based agents use.
- */
-export const OLLAMA_DEFAULT_TIMEOUT_MS = 300_000;
+/** Startup/inactivity budget for large local models; active streams may run longer. */
+export const OLLAMA_DEFAULT_TIMEOUT_MS = DEFAULT_INFERENCE_TIMEOUT_MS;
 
-/**
- * Read the configured request timeout (the legacy `requestTimeoutMs`
- * setting); zero/invalid values fall back to the default.
- */
 export function readOllamaTimeoutMs(
 	config: GatewayResolvedProviderConfig,
 ): number {
-	const timeoutMs = config.timeoutMs;
-	if (
-		typeof timeoutMs === "number" &&
-		Number.isFinite(timeoutMs) &&
-		timeoutMs > 0
-	) {
-		return Math.floor(timeoutMs);
-	}
-	return OLLAMA_DEFAULT_TIMEOUT_MS;
+	return readInferenceTimeoutMs(config.timeoutMs);
 }
 
-/**
- * Wrap a fetch so the *response* must start within `timeoutMs`. Once headers
- * arrive the timer is cleared — streaming the body is never interrupted.
- * Mirrors the legacy handler, which raced the chat call (stream start)
- * against a timeout rather than bounding the whole generation.
- */
 export function withOllamaResponseTimeout(
 	baseFetch: typeof fetch,
 	timeoutMs: number,
 ): typeof fetch {
-	return (async (input, init) => {
-		const timeoutController = new AbortController();
-		const timer = setTimeout(
-			() =>
-				timeoutController.abort(
-					new Error(
-						`Ollama request timed out after ${timeoutMs / 1000} seconds`,
-					),
-				),
-			timeoutMs,
-		);
-		// AbortSignal.any keeps upstream cancellation live for the entire
-		// request (including body streaming after the timer is cleared) and
-		// cleans up its own listeners — no manual listener management.
-		const upstreamSignal = init?.signal;
-		const signal = upstreamSignal
-			? AbortSignal.any([upstreamSignal, timeoutController.signal])
-			: timeoutController.signal;
-		try {
-			return await baseFetch(input, { ...init, signal });
-		} finally {
-			clearTimeout(timer);
-		}
-	}) as typeof fetch;
+	return withInferenceTimeout(baseFetch, timeoutMs, "Ollama request");
 }
 
 export async function createOllamaProviderModule(
