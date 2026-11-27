@@ -1,7 +1,7 @@
 import { MergeWorktreeRequest, MergeWorktreeResult } from "@shared/proto/cline/worktree"
 import { listWorktrees } from "@utils/git-worktree"
 import { getWorkspacePath } from "@utils/path"
-import simpleGit from "simple-git"
+import { simpleGit } from "simple-git"
 import { telemetryService } from "@/services/telemetry"
 import { Controller } from ".."
 
