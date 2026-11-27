@@ -12,7 +12,7 @@ This page tracks deprecated Cline features and recommended alternatives where av
 
 | Feature         | Primary surface | Status           | Recommended alternative          |
 | --------------- | --------------- | ---------------- | -------------------------------- |
-| .clineignore    | VS Code extension | Deprecating soon | Block Ignored File Access plugin |
+| .clineignore    | VS Code extension | Removed in 4.0   | `.clineignore` hook, or the `gitignore-read-files-guard` plugin |
 | Explain Changes | VS Code extension | Deprecated       | Ask Cline for an explanation     |
 | Focus Chain     | VS Code extension | Deprecated       | No direct replacement            |
 
@@ -20,16 +20,17 @@ This page tracks deprecated Cline features and recommended alternatives where av
 
 `.clineignore` was introduced to control which files Cline automatically loads into context, but it was never designed to prevent access to those files. Cline can still access project files through other methods, including shell commands.
 
-To avoid creating a false sense of security, we are removing `.clineignore` as a supported feature.
+To avoid creating a false sense of security, we removed `.clineignore` as a supported feature. The VS Code extension stopped applying it in version 4.0, and the CLI and Cline Desktop never applied it.
 
-If you still want context filtering, you can use the Block Ignored File Access plugin:
+To keep using your `.clineignore` file, add the [`.clineignore` hook](/customization/clineignore#enforcing-clineignore-with-a-hook). It blocks file reads, edits and shell commands that name a file your `.clineignore` lists, and works in the VS Code extension and the CLI.
+
+To block files your `.gitignore` lists instead, install the `gitignore-read-files-guard` plugin in the CLI. Run this in your project:
 
 ```bash
-cline plugin install
-https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd
+cline plugin install gitignore-read-files-guard --cwd .
 ```
 
-The plugin uses your workspace .gitignore to block supported file read and edit tools. It does not block shell commands and should not be treated as a security boundary.
+The plugin blocks the file read and edit tools. It does not block shell commands and should not be treated as a security boundary.
 
 ## Explain Changes
 
