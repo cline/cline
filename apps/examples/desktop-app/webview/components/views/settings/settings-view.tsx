@@ -42,6 +42,7 @@ import {
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -219,7 +220,9 @@ export function SettingsView({
 			setProviderCatalogError(message);
 			setProviders([]);
 		} finally {
-			setProvidersLoading(false);
+			if (generation === catalogGenerationRef.current) {
+				setProvidersLoading(false);
+			}
 		}
 		return true;
 	}, [setProvidersWithCache]);
@@ -233,6 +236,18 @@ export function SettingsView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [activeNav, loadProviderCatalog]);
+
+	useEffect(() => {
+		return subscribeToProviderCatalogInvalidation((reason) => {
+			providerCatalogCache = null;
+			// Model discovery does not change connection state and must not
+			// discard a catalog reload already fetching that state.
+			if (reason === "models") return;
+			// Navigation triggers the next load. Discard an in-flight response
+			// from before the invalidation so it cannot restore stale connection state.
+			catalogGenerationRef.current += 1;
+		});
+	}, []);
 
 	/**
 	 * Silently refreshes view state from the authoritative catalog after a
@@ -279,6 +294,9 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				// Notify other catalog consumers before the resync claims its
+				// generation, so this view does not discard its own response.
+				invalidateProviderCatalogCache();
 				// Pick up sidecar-computed readiness (`configured`) for the
 				// just-saved settings so the Configured badge and count update
 				// without a remount.
@@ -287,6 +305,7 @@ export function SettingsView({
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				invalidateProviderCatalogCache();
 				// The optimistic list update no longer matches disk: resync from
 				// the authoritative catalog. Retry when a concurrent edit
 				// superseded the in-flight response (that edit performs no
@@ -301,10 +320,6 @@ export function SettingsView({
 				}
 				setDetailResetToken((token) => token + 1);
 				return false;
-			} finally {
-				// Keep the shared short-lived catalog cache (composer model
-				// selector, onboarding) in sync with the just-saved settings.
-				invalidateProviderCatalogCache();
 			}
 		},
 		[loadProviderCatalog, resyncProviderCatalog],
