@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@cline/llms";
+import { readCheckpointExclusions } from "../hooks/checkpoint-exclusions";
 import type { CheckpointEntry } from "../hooks/checkpoint-hooks";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { SessionRecord } from "../types/sessions";
@@ -93,6 +94,7 @@ function readCheckpointSnapshot(
 			if (!ref || !Number.isFinite(createdAt) || !Number.isInteger(runCount)) {
 				return [];
 			}
+			const exclusions = readCheckpointExclusions(entry.exclusions);
 			return [
 				{
 					ref,
@@ -101,6 +103,7 @@ function readCheckpointSnapshot(
 					...(entry.kind === "stash" || entry.kind === "commit"
 						? { kind: entry.kind }
 						: {}),
+					...(exclusions ? { exclusions } : {}),
 				},
 			];
 		});

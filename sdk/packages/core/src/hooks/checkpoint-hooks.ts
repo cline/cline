@@ -6,6 +6,10 @@ import { promisify } from "node:util";
 import type { AgentHooks, BasicLogger, ITelemetryService } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { countUserRunMessages } from "../session/user-run-messages";
+import {
+	CHECKPOINT_EXCLUSIONS_VERSION,
+	withCheckpointExcludes,
+} from "./checkpoint-exclusions";
 
 const execFile = promisify(execFileCallback);
 const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
@@ -82,6 +86,12 @@ export interface CheckpointEntry {
 	createdAt: number;
 	runCount: number;
 	kind?: "stash" | "commit";
+	/**
+	 * Version of the default exclusion list the checkpoint was made with (see
+	 * CHECKPOINT_EXCLUSIONS_VERSION). Absent on checkpoints that captured every
+	 * untracked file.
+	 */
+	exclusions?: number;
 }
 
 export interface CheckpointMetadata {
@@ -250,10 +260,23 @@ async function createUntrackedParentCommit(
 	cwd: string,
 	scratchDir: string,
 ): Promise<string | undefined> {
-	const listing = await execFile(
-		"git",
-		["-C", cwd, "ls-files", "--others", "--exclude-standard", "-z"],
-		{ windowsHide: true, maxBuffer: LS_FILES_MAX_BUFFER },
+	const listing = await withCheckpointExcludes(
+		cwd,
+		CHECKPOINT_EXCLUSIONS_VERSION,
+		(excludeArgs) =>
+			execFile(
+				"git",
+				[
+					"-C",
+					cwd,
+					...excludeArgs,
+					"ls-files",
+					"--others",
+					"--exclude-standard",
+					"-z",
+				],
+				{ windowsHide: true, maxBuffer: LS_FILES_MAX_BUFFER },
+			),
 	);
 	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
 	if (untrackedFiles.length === 0) {
@@ -581,6 +604,7 @@ export function createCheckpointHooks(
 					createdAt: Date.now(),
 					runCount,
 					kind: "commit",
+					exclusions: CHECKPOINT_EXCLUSIONS_VERSION,
 				};
 			} catch (error) {
 				warn(
@@ -645,6 +669,7 @@ export function createCheckpointHooks(
 			createdAt: Date.now(),
 			runCount,
 			kind: "stash",
+			exclusions: CHECKPOINT_EXCLUSIONS_VERSION,
 		};
 	};
 
