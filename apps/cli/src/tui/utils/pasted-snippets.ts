@@ -6,6 +6,9 @@ export interface PastedTextSnippet {
 export const LARGE_PASTE_LINE_THRESHOLD = 5;
 
 const PREVIEW_MAX_CHARS = 48;
+const graphemeSegmenter = new Intl.Segmenter(undefined, {
+	granularity: "grapheme",
+});
 
 export function countPastedTextLines(text: string): number {
 	if (text.length === 0) return 0;
@@ -19,10 +22,11 @@ export function shouldCompactPastedText(text: string): boolean {
 
 function previewText(text: string): string {
 	const normalized = text.trim().replace(/\s+/g, " ");
-	if (!normalized) return "";
-	return normalized.length > PREVIEW_MAX_CHARS
-		? normalized.slice(0, PREVIEW_MAX_CHARS).trimEnd()
-		: normalized;
+	if (normalized.length <= PREVIEW_MAX_CHARS) return normalized;
+	const end =
+		graphemeSegmenter.segment(normalized).containing(PREVIEW_MAX_CHARS)
+			?.index ?? PREVIEW_MAX_CHARS;
+	return normalized.slice(0, end).trimEnd();
 }
 
 export function formatPastedTextSnippetMarker(text: string): string {
