@@ -37,8 +37,8 @@ export interface SpawnToolDeps {
 
 export interface SessionSubAgentLifecycleCallbacks {
 	onSubAgentEvent: (event: AgentEvent) => void;
-	onSubAgentStart: (context: SubAgentStartContext) => void;
-	onSubAgentEnd: (context: SubAgentEndContext) => void;
+	onSubAgentStart: (context: SubAgentStartContext) => Promise<void>;
+	onSubAgentEnd: (context: SubAgentEndContext) => Promise<void>;
 }
 
 export function createSessionSubAgentLifecycleCallbacks(
@@ -48,7 +48,7 @@ export function createSessionSubAgentLifecycleCallbacks(
 ): SessionSubAgentLifecycleCallbacks {
 	return {
 		onSubAgentEvent: (event) => deps.onAgentEvent(rootSessionId, config, event),
-		onSubAgentStart: (context) => {
+		onSubAgentStart: async (context) => {
 			const teamRuntime = deps.getSession(rootSessionId)?.runtime.teamRuntime;
 			deps.subAgentStarts.set(context.subAgentId, {
 				startedAt: Date.now(),
@@ -78,13 +78,13 @@ export function createSessionSubAgentLifecycleCallbacks(
 				agentId: context.subAgentId,
 				...agentIdentity,
 			});
-			void deps.invokeBackendOptional(
+			await deps.invokeBackendOptional(
 				"handleSubAgentStart",
 				rootSessionId,
 				context,
 			);
 		},
-		onSubAgentEnd: (context) => {
+		onSubAgentEnd: async (context) => {
 			const teamRuntime = deps.getSession(rootSessionId)?.runtime.teamRuntime;
 			const started = deps.subAgentStarts.get(context.subAgentId);
 			const durationMs = started ? Date.now() - started.startedAt : 0;
@@ -109,7 +109,7 @@ export function createSessionSubAgentLifecycleCallbacks(
 				}),
 			});
 			deps.subAgentStarts.delete(context.subAgentId);
-			void deps.invokeBackendOptional(
+			await deps.invokeBackendOptional(
 				"handleSubAgentEnd",
 				rootSessionId,
 				context,
