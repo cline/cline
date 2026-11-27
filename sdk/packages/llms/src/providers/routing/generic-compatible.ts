@@ -15,7 +15,14 @@ import type {
 import { createEphemeralCacheControl } from "./utils";
 
 export function buildOpenAINativeProviderOptions(): Record<string, unknown> {
-	return { truncation: "auto" };
+	return {
+		truncation: "auto",
+		// Stateless Responses: the encrypted reasoning of each turn is returned
+		// so the next request can replay it (see toAiSdkMessages). Without it the
+		// model reasons about the whole conversation again on every turn.
+		store: false,
+		include: ["reasoning.encrypted_content"],
+	};
 }
 
 function buildCompatibleThinkingOptions(options: {

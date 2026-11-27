@@ -94,6 +94,8 @@ export interface ThinkingContent {
 	signature?: string;
 	/** Provider-native call ID for this reasoning block (if available) */
 	call_id?: string;
+	/** Opaque provider-encrypted reasoning that stateless requests replay with `call_id` */
+	encrypted_content?: string;
 	/** Structured reasoning details that can be replayed for tool-call continuation */
 	details?: unknown[];
 	/** Backward-compatible alias used by some internal processors */
