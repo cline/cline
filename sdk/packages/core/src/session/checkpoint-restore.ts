@@ -1,5 +1,8 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
 import type {
@@ -40,15 +43,135 @@ async function resolveOptionalGitRef(
 }
 
 /**
+ * True when `ref` is a snapshot stash that also captured untracked files as a
+ * third parent (created by `createWorktreeStashCommit`). Such snapshots can be
+ * fully rewound; older 2-parent stashes and HEAD-commit fallbacks cannot bring
+ * untracked files back, so restore leaves untracked files untouched for them.
+ */
+async function checkpointCapturedUntracked(
+	cwd: string,
+	ref: string,
+): Promise<boolean> {
+	try {
+		await execFile("git", ["-C", cwd, "cat-file", "-e", `${ref}^3^{commit}`], {
+			windowsHide: true,
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+type ThrowawayIndexGit = (args: string[]) => Promise<string>;
+
+/** Runs git commands against a throwaway index, leaving the real one alone. */
+async function withThrowawayIndex<T>(
+	cwd: string,
+	run: (git: ThrowawayIndexGit) => Promise<T>,
+): Promise<T> {
+	const dir = await mkdtemp(join(tmpdir(), "cline-restore-index-"));
+	try {
+		const env = { ...process.env, GIT_INDEX_FILE: join(dir, "index") };
+		return await run(
+			async (args) =>
+				// A split index would leave shared-index files in the user's `.git`.
+				(
+					await execFile(
+						"git",
+						["-C", cwd, "-c", "core.splitIndex=false", ...args],
+						{ windowsHide: true, env, maxBuffer: Number.POSITIVE_INFINITY },
+					)
+				).stdout,
+		);
+	} finally {
+		await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+	}
+}
+
+/**
+ * Moves the untracked files a checkpoint captured out of the worktree. Returns
+ * a tree holding the content they had, or undefined when none were there.
+ *
+ * A restore clears the worktree by the checkpoint's own file list instead of
+ * `git clean`. The safety snapshot reverts or removes every uncommitted
+ * `.gitignore`, so a file that was ignored when it was taken can look like a
+ * plain untracked file afterwards, and nothing has a copy of it. Going by
+ * name touches no file the checkpoint did not capture, and the returned tree
+ * lets a rollback put back the ones it did.
+ */
+async function takeCapturedFiles(
+	cwd: string,
+	ref: string,
+): Promise<string | undefined> {
+	if (!(await checkpointCapturedUntracked(cwd, ref))) {
+		return undefined;
+	}
+	return withThrowawayIndex(cwd, async (git) => {
+		await git(["read-tree", `${ref}^3`]);
+		// Leaves only the entries whose file exists, at its current content.
+		// Git counts a path behind a symlink, or one that is a directory now, as
+		// missing, so nothing below reaches outside the worktree.
+		await git(["add", "--update"]);
+		const present = (await git(["ls-files", "--stage", "-z"]))
+			.split("\0")
+			.filter(Boolean)
+			// "<mode> <object> <stage>\t<path>". A nested repository is a
+			// gitlink entry; its directory is not ours to remove.
+			.filter((entry) => !entry.startsWith("160000 "))
+			.map((entry) => entry.slice(entry.indexOf("\t") + 1));
+		if (present.length === 0) {
+			return undefined;
+		}
+		// No ref holds this tree. It only has to outlive the restore, and
+		// `git gc` leaves freshly written objects alone.
+		const tree = (await git(["write-tree"])).trim();
+		try {
+			for (const relativePath of present) {
+				await rm(join(cwd, relativePath), { force: true });
+				for (
+					let parent = dirname(relativePath);
+					parent !== ".";
+					parent = dirname(parent)
+				) {
+					try {
+						await rmdir(join(cwd, parent));
+					} catch {
+						break;
+					}
+				}
+			}
+		} catch (error) {
+			await git(["checkout-index", "--all"]).catch(() => undefined);
+			throw error;
+		}
+		return tree;
+	});
+}
+
+/** Writes the files of a tree from `takeCapturedFiles` back into the worktree. */
+async function putBackFiles(cwd: string, tree: string): Promise<void> {
+	await withThrowawayIndex(cwd, async (git) => {
+		await git(["read-tree", tree]);
+		await git(["checkout-index", "--all"]);
+	});
+}
+
+/**
  * Captures the current worktree before a destructive checkpoint restore.
  *
- * `git stash create` omits untracked files, but checkpoint restoration runs
- * `git clean -fd`. Use a short-lived `stash push --include-untracked`, move
- * its object behind a private ref, and immediately remove it from the user's
- * visible stash list. The private ref remains only until commit or rollback.
+ * `git stash create` omits untracked files, and a restore replaces them too.
+ * Use a short-lived `stash push --include-untracked`, move its object behind
+ * a private ref, and immediately remove it from the user's visible stash
+ * list. The private ref remains only until commit or rollback.
+ *
+ * The stash leaves ignored files in place. Of those, the ones the checkpoint
+ * captured are moved out as well, so the checkpoint can be written without
+ * overwriting anything. Ignore rules are read for the stash and never again:
+ * from there on the restore only handles files it has a copy of.
  */
 export async function beginWorktreeRestoreTransaction(
 	cwd: string,
+	checkpoint: CheckpointEntry,
 ): Promise<WorktreeRestoreTransaction> {
 	const check = await execFile(
 		"git",
@@ -99,9 +222,6 @@ export async function beginWorktreeRestoreTransaction(
 				await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 					windowsHide: true,
 				});
-				await execFile("git", ["-C", cwd, "clean", "-fd"], {
-					windowsHide: true,
-				});
 				await execFile(
 					"git",
 					["-C", cwd, "stash", "apply", "--index", capturedRef],
@@ -115,6 +235,33 @@ export async function beginWorktreeRestoreTransaction(
 			}
 			throw captureError;
 		}
+	}
+
+	const restoreSnapshot = async () => {
+		if (!hasSnapshot) return;
+		await execFile(
+			"git",
+			["-C", cwd, "stash", "apply", "--index", privateRef],
+			{ windowsHide: true },
+		);
+		await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
+			windowsHide: true,
+		});
+	};
+
+	let displacedTree: string | undefined;
+	try {
+		displacedTree = await takeCapturedFiles(cwd, checkpoint.ref);
+	} catch (captureError) {
+		try {
+			await restoreSnapshot();
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[captureError, rollbackError],
+				"Workspace snapshot and rollback both failed",
+			);
+		}
+		throw captureError;
 	}
 
 	let completed = false;
@@ -135,19 +282,13 @@ export async function beginWorktreeRestoreTransaction(
 			await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 				windowsHide: true,
 			});
-			await execFile("git", ["-C", cwd, "clean", "-fd"], {
-				windowsHide: true,
-			});
-			if (hasSnapshot) {
-				await execFile(
-					"git",
-					["-C", cwd, "stash", "apply", "--index", privateRef],
-					{ windowsHide: true },
-				);
-				await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
-					windowsHide: true,
-				});
+			// Every captured file was moved out above, so the ones here now were
+			// written by the checkpoint.
+			await takeCapturedFiles(cwd, checkpoint.ref);
+			if (displacedTree) {
+				await putBackFiles(cwd, displacedTree);
 			}
+			await restoreSnapshot();
 			completed = true;
 		},
 	};
@@ -334,26 +475,6 @@ async function resolveCheckpointKind(
 		: "commit";
 }
 
-/**
- * True when `ref` is a snapshot stash that also captured untracked files as a
- * third parent (created by `createWorktreeStashCommit`). Such snapshots can be
- * fully rewound; older 2-parent stashes and HEAD-commit fallbacks cannot bring
- * untracked files back, so restore leaves untracked files untouched for them.
- */
-async function checkpointCapturedUntracked(
-	cwd: string,
-	ref: string,
-): Promise<boolean> {
-	try {
-		await execFile("git", ["-C", cwd, "cat-file", "-e", `${ref}^3^{commit}`], {
-			windowsHide: true,
-		});
-		return true;
-	} catch {
-		return false;
-	}
-}
-
 /** Commits reachable from `to` but not from `from`; undefined when unknown. */
 async function countCommitsBetween(
 	cwd: string,
@@ -373,6 +494,11 @@ async function countCommitsBetween(
 	}
 }
 
+/**
+ * Writes a checkpoint into a worktree that `beginWorktreeRestoreTransaction`
+ * has cleared. It removes no untracked file itself: one left in the way of a
+ * captured file makes `git stash apply` fail, and the transaction rolls back.
+ */
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -432,10 +558,6 @@ export async function applyCheckpointToWorktree(
 			{ windowsHide: true },
 		);
 	}
-	const capturedUntracked = await checkpointCapturedUntracked(
-		cwd,
-		checkpoint.ref,
-	);
 	// `git update-ref <ref> <new> <old>` is git's native compare-and-swap: it
 	// moves HEAD to the restore base only if HEAD still points at the commit
 	// verified above, closing the race between the guard check and the reset.
@@ -458,17 +580,6 @@ export async function applyCheckpointToWorktree(
 	await execFile("git", ["-C", cwd, "reset", "--hard"], {
 		windowsHide: true,
 	});
-	// Only clear untracked files for snapshots that captured them (third
-	// parent): the following `git stash apply` restores each one to its
-	// checkpoint-time content from ^3, and files created after the checkpoint
-	// are meant to be rewound away. `git clean -fd` leaves .gitignored paths
-	// (build output, node_modules, .env) alone, and clearing before apply also
-	// avoids "already exists" apply conflicts. For 2-parent stashes and
-	// HEAD-commit fallbacks (no ^3) untracked files can't be reconstructed, so
-	// they are left untouched — deleting them would be unrecoverable data loss.
-	if (capturedUntracked) {
-		await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
-	}
 	if (checkpointKind === "commit") {
 		return;
 	}
