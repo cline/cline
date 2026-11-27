@@ -137,3 +137,73 @@ export function resolveModelsSourceUrl(
 		return source;
 	}
 }
+
+/** Ollama tags contain names only; query each model's declared capabilities. */
+export async function enrichOllamaModelCapabilities<
+	T extends {
+		supportsVision?: boolean;
+		supportsAttachments?: boolean;
+		supportsReasoning?: boolean;
+	},
+>(
+	models: Record<string, T>,
+	providerId: string,
+	sourceUrl?: string,
+	auth: ModelSourceAuth = {},
+): Promise<Record<string, T>> {
+	if (providerId !== "ollama" || !sourceUrl) return models;
+	let url: URL;
+	try {
+		url = new URL(sourceUrl);
+	} catch {
+		return models;
+	}
+	if (!url.pathname.endsWith("/api/tags")) return models;
+	url.pathname = url.pathname.replace(/\/tags$/, "/show");
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+	};
+	try {
+		if (auth.baseUrl && new URL(auth.baseUrl).origin === url.origin) {
+			if (auth.apiKey?.trim())
+				headers.Authorization = `Bearer ${auth.apiKey.trim()}`;
+			Object.assign(headers, auth.headers);
+		}
+	} catch {}
+	const entries = Object.entries(models);
+	// Bound discovery concurrency for large local catalogs.
+	let next = 0;
+	await Promise.all(
+		Array.from({ length: Math.min(4, entries.length) }, async () => {
+			while (next < entries.length) {
+				const [id, model] = entries[next++];
+				try {
+					const response = await fetch(url.toString(), {
+						method: "POST",
+						headers,
+						redirect: "error",
+						body: JSON.stringify({ model: id }),
+						signal: AbortSignal.timeout(5_000),
+					});
+					if (!response.ok) continue;
+					const payload = (await response.json()) as { capabilities?: unknown };
+					if (
+						!Array.isArray(payload.capabilities) ||
+						!payload.capabilities.every((c) => typeof c === "string")
+					)
+						continue;
+					const vision = payload.capabilities.includes("vision");
+					models[id] = {
+						...model,
+						supportsVision: vision,
+						supportsAttachments: vision,
+						supportsReasoning: payload.capabilities.includes("thinking"),
+					};
+				} catch {
+					// Older or unavailable servers must not prevent model discovery.
+				}
+			}
+		}),
+	);
+	return models;
+}
