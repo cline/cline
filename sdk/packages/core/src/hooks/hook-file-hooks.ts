@@ -353,7 +353,7 @@ function normalizeHookInterpreter(tokens: string[]): string[] | undefined {
 	return tokens;
 }
 
-function inferHookCommand(path: string): string[] {
+export function inferHookCommand(path: string): string[] {
 	const shebang = parseShebangCommand(path);
 	if (shebang && shebang.length > 0) {
 		return [...(normalizeHookInterpreter(shebang) ?? shebang), path];
@@ -390,6 +390,10 @@ function inferHookCommand(path: string): string[] {
 	if (lowered.endsWith(".ps1")) {
 		return [
 			process.platform === "win32" ? "powershell" : "pwsh",
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
 			"-File",
 			path,
 		];
