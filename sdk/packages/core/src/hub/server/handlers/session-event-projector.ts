@@ -72,6 +72,9 @@ export async function projectSessionEvent(
 					{
 						sessionId: event.payload.sessionId,
 						prompts: event.payload.prompts,
+						...(event.payload.discarded?.length
+							? { discarded: event.payload.discarded }
+							: {}),
 					},
 					event.payload.sessionId,
 				),

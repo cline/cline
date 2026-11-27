@@ -17,6 +17,7 @@ import {
 	captureCompactionSkipped,
 	captureExtensionActivated,
 	captureMistakeLimitReached,
+	capturePendingPromptsDiscarded,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
 	captureRunIdle,
@@ -396,6 +397,26 @@ describe("captureRunIdle", () => {
 				lastEventType: "tool-started",
 				isSubagent: true,
 			},
+		});
+	});
+});
+
+describe("capturePendingPromptsDiscarded", () => {
+	test("emits session.pending_prompts_discarded with the count and reason only", () => {
+		const stub = createTelemetryStub();
+		capturePendingPromptsDiscarded(stub.telemetry, {
+			sessionId: "sess-1",
+			count: 2,
+			reason: "session_teardown",
+		});
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("session.pending_prompts_discarded");
+		expect(properties).toEqual({
+			sessionId: "sess-1",
+			count: 2,
+			reason: "session_teardown",
 		});
 	});
 });
@@ -802,6 +823,20 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			timeout_source: "default_setting",
 			command_count: 2,
 			duration_ms: 1502,
+		});
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
+	test("capturePendingPromptsDiscarded never invokes captureRequired", () => {
+		const { adapter, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test-distinct-id",
+			adapters: [adapter],
+		});
+		capturePendingPromptsDiscarded(service, {
+			sessionId: "sess-1",
+			count: 1,
+			reason: "queue_abort",
 		});
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
