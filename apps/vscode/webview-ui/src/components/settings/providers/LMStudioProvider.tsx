@@ -1,4 +1,6 @@
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
+import { UpdateApiConfigurationPartialRequest } from "@shared/proto/cline/models"
+import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -10,7 +12,6 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
@@ -40,7 +41,6 @@ interface LMStudioApiModel {
  */
 export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { config, write, commitSelection } = useProviderConfig("lmstudio")
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
@@ -159,13 +159,20 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		const max = currentLMStudioModel?.max_context_length?.toString()
 		const choice = apiConfiguration?.lmStudioMaxTokens ?? max
 		if (curr && curr !== choice) {
-			handleFieldChange("lmStudioMaxTokens", curr)
+			// Send only this field. This runs right after a model pick, while
+			// `apiConfiguration` still holds the previous model id, so writing the
+			// whole configuration would put the old model back.
+			void ModelsServiceClient.updateApiConfigurationPartial(
+				UpdateApiConfigurationPartialRequest.create({
+					apiConfiguration: convertApiConfigurationToProto({ lmStudioMaxTokens: curr }),
+					updateMask: ["lmStudioMaxTokens"],
+				}),
+			).catch((error) => console.error("Failed to update LM Studio context window:", error))
 		}
 	}, [
 		currentLMStudioModel?.loaded_context_length,
 		currentLMStudioModel?.max_context_length,
 		apiConfiguration?.lmStudioMaxTokens,
-		handleFieldChange,
 	])
 
 	return (
