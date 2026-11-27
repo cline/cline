@@ -64,11 +64,11 @@ const SUPPORTED_HOOK_FILE_EXTENSIONS = new Set([
 export function toHookConfigFileName(
 	fileName: string,
 ): HookConfigFileName | undefined {
-	const extension = extname(fileName).toLowerCase();
-	if (!SUPPORTED_HOOK_FILE_EXTENSIONS.has(extension)) {
+	const rawExtension = extname(fileName);
+	if (!SUPPORTED_HOOK_FILE_EXTENSIONS.has(rawExtension.toLowerCase())) {
 		return undefined;
 	}
-	const key = basename(fileName, extension).trim().toLowerCase();
+	const key = basename(fileName, rawExtension).trim().toLowerCase();
 	return HOOK_CONFIG_FILE_LOOKUP.get(key);
 }
 
