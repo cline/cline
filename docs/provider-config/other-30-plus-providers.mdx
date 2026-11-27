@@ -30,6 +30,7 @@ Use this page for providers that follow the same setup pattern.
   - [Nebius AI Studio](#nebius-ai-studio)
   - [Nous Research](#nous-research)
   - [Oracle Code Assist](#oracle-code-assist)
+  - [ProxyStacks Relay](#proxystacks-relay)
   - [Qwen Code](#qwen-code)
   - [Requesty](#requesty)
   - [SambaNova](#sambanova)
@@ -284,6 +285,20 @@ Oracle Code Assist provides AI-powered coding assistance through Oracle Cloud In
 1. **OCI Account:** You need an Oracle Cloud Infrastructure account.
 2. **Enable Generative AI:** Enable the OCI Generative AI service in your tenancy.
 3. **Get Credentials:** Configure OCI authentication (API key, config file, or instance principal).
+
+### ProxyStacks Relay
+ProxyStacks Relay is an OpenAI- and Anthropic-compatible AI inference gateway providing unified access to frontier coding and reasoning models with global and low-latency Asia-Pacific routing.
+
+**Website:** [https://proxystacks.com](https://proxystacks.com)
+
+**Documentation:** [ProxyStacks Relay Cline Setup Guide](https://proxystacks.com/en/docs/cline)
+
+#### Basic Setup
+
+1. Sign up or sign in at [proxystacks.com](https://proxystacks.com) and create an API key in your workspace console.
+2. In Cline, select **OpenAI Compatible** from the **API Provider** dropdown.
+3. Set **Base URL** to `https://proxystacks.com/v1` (or `https://hk.proxystacks.com/v1` for low-latency Asia-Pacific routing) and paste your **API Key**.
+4. Enter an exact model ID from the [ProxyStacks model catalog](https://proxystacks.com/en/models) (such as `claude-sonnet-5-5`, `gpt-6.1-sol`, `kimi-k3.1-pro`, `glm-5.3`, or `deepseek-v4.1-flash`).
 
 ### Qwen Code
 Qwen Code provides coding-oriented access to Qwen models.
