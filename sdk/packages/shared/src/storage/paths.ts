@@ -495,7 +495,11 @@ export function resolveAgentConfigSearchPaths(
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
+	// Explicit override from `--hooks-dir` / `CLINE_HOOKS_DIR`; searched first so a
+	// user-pointed directory wins over the defaults (#14766).
+	const envHooksDir = process.env.CLINE_HOOKS_DIR?.trim();
 	const hooks = [
+		...(envHooksDir ? [envHooksDir] : []),
 		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];

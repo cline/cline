@@ -44,6 +44,7 @@ type EnvSnapshot = {
 	CLINE_CONNECTOR_SETTINGS_PATH: string | undefined;
 	CLINE_DB_DATA_DIR: string | undefined;
 	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
+	CLINE_HOOKS_DIR: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
@@ -58,6 +59,7 @@ function captureEnv(): EnvSnapshot {
 		CLINE_CONNECTOR_SETTINGS_PATH: process.env.CLINE_CONNECTOR_SETTINGS_PATH,
 		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
 		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
+		CLINE_HOOKS_DIR: process.env.CLINE_HOOKS_DIR,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
@@ -73,6 +75,7 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DIR = snapshot.CLINE_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
 	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
+	process.env.CLINE_HOOKS_DIR = snapshot.CLINE_HOOKS_DIR;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
 	process.env.CLINE_PROVIDER_SETTINGS_PATH =
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
@@ -215,6 +218,25 @@ describe("storage path resolution", () => {
 		expect(resolveHooksConfigSearchPaths()).not.toContain(
 			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
 		);
+	});
+
+	it("prefers CLINE_HOOKS_DIR over the default hooks directories", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_HOOKS_DIR = "/tmp/custom-hooks";
+
+		const paths = resolveHooksConfigSearchPaths();
+
+		expect(paths[0]).toBe("/tmp/custom-hooks");
+	});
+
+	it("ignores a blank CLINE_HOOKS_DIR", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_HOOKS_DIR = "   ";
+
+		const paths = resolveHooksConfigSearchPaths();
+
+		expect(paths).not.toContain("   ");
+		expect(paths[0]).not.toBe("   ");
 	});
 
 	it("resolves global rules from ~/.cline", () => {
