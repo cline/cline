@@ -3,7 +3,10 @@ import type {
 	OAuthClientProvider,
 	OAuthDiscoveryState,
 } from "@modelcontextprotocol/sdk/client/auth.js";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+	auth,
+	UnauthorizedError,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
 	SSEClientTransport,
@@ -725,12 +728,32 @@ export async function authorizeMcpServerOAuth(
 				timeout: requestTimeoutMs,
 				signal: options.signal,
 			});
-			await oauthContext.clearError();
-			return {
-				serverName,
-				authorized: true,
-				message: `MCP server "${serverName}" is already authorized.`,
-			};
+			if (await oauthContext.provider.tokens()) {
+				await oauthContext.clearError();
+				return {
+					serverName,
+					authorized: true,
+					message: `MCP server "${serverName}" is already authorized.`,
+				};
+			}
+
+			// Public initialize/tools/list responses do not prove that protected
+			// operations have an OAuth grant. Explicitly begin discovery instead.
+			const authResult = await auth(oauthContext.provider, {
+				serverUrl: registration.transport.url,
+				fetchFn: flowFetch,
+			});
+			if (authResult === "AUTHORIZED") {
+				await oauthContext.clearError();
+				return {
+					serverName,
+					authorized: true,
+					message: `MCP server "${serverName}" OAuth authorization completed.`,
+				};
+			}
+			throw new UnauthorizedError(
+				`MCP server "${serverName}" requires OAuth authorization.`,
+			);
 		} catch (error) {
 			if (!isMcpUnauthorizedError(error)) {
 				throw error;
