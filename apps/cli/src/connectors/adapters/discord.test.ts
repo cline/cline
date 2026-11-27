@@ -428,6 +428,32 @@ describe("discordConnector", () => {
 		}
 	});
 
+	it("waits out a Discord rate limit and finishes posting a long reply", async () => {
+		const posted: string[] = [];
+		let calls = 0;
+		const fetchMock = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+			calls += 1;
+			if (calls === 2) {
+				return new Response(JSON.stringify({ retry_after: 0.01 }), {
+					status: 429,
+				});
+			}
+			posted.push(JSON.parse(String(init?.body)).content);
+			return new Response(JSON.stringify({ id: "message" }), { status: 200 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const text = "a".repeat(4501);
+
+		await __test__.postDiscordResolvedText({
+			botToken: "token",
+			thread: createThread({}),
+			text,
+		});
+
+		expect(posted.join("")).toBe(text);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+	});
+
 	it("repairs adapter-split hyphenated Discord mention names before resolving", async () => {
 		const fetchMock = vi.fn(async (url: string | URL) => {
 			expect(String(url)).toContain("query=cline-test-bot");
