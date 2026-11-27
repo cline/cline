@@ -8,7 +8,6 @@ import {
 	realpathSync,
 	rmSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
 import { buildDashboardRuntimeDirectory } from "./dashboard-runtime";
@@ -110,8 +109,15 @@ export async function compileCliBinary(
 
 	// Build to /tmp first so Bun's temp-file rename stays on one filesystem
 	// layer in containerized environments (virtiofs, overlayfs).
+	// On Windows, keep it on the repo's drive: the metafile names inputs relative
+	// to the build cwd, and no relative path reaches another drive (CI checks out
+	// to D: while %TEMP% is on C:).
 	const entrypoint = join(cliDir, "src/index.ts");
-	const scratchRoot = process.platform === "win32" ? tmpdir() : "/tmp";
+	const scratchRoot =
+		process.platform === "win32"
+			? join(rootDir, "node_modules/.cache")
+			: "/tmp";
+	mkdirSync(scratchRoot, { recursive: true });
 	const tmpDir = mkdtempSync(
 		join(scratchRoot, `cline-build-${input.bunTarget}-`),
 	);
@@ -166,6 +172,17 @@ export async function compileCliBinary(
 		bundleInputs = Object.keys(result.metafile?.inputs ?? {}).map((file) =>
 			resolve(file),
 		);
+		const realEntrypoint = realpathSync.native(entrypoint);
+		if (
+			!bundleInputs.some(
+				(file) =>
+					existsSync(file) && realpathSync.native(file) === realEntrypoint,
+			)
+		) {
+			throw new Error(
+				`CLI bundle inputs do not resolve to the source tree (got ${bundleInputs[0]}); third-party notices would omit the CLI's dependencies`,
+			);
+		}
 
 		mkdirSync(dirname(input.outfile), { recursive: true });
 		copyFileSync(tmpOutfile, input.outfile);

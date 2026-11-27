@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BUNDLE_INPUTS } from "./bundle-inputs";
-import { collectPackageEntries } from "./index";
+import { collectPackageEntries, generateNotices } from "./index";
 
 const root = mkdtempSync(join(tmpdir(), "third-party-notices-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -76,5 +76,25 @@ describe("collectPackageEntries", () => {
 			"css-plugin",
 			"icons",
 		]);
+	});
+});
+
+describe("generateNotices", () => {
+	test("rejects an input list naming no existing file unless missing lists are allowed", () => {
+		const list = write(
+			"lists/cli-inputs.json",
+			JSON.stringify(["C:\\elsewhere\\node_modules\\dep\\index.js"]),
+		);
+		const run = (allowMissingInputLists: boolean) =>
+			generateNotices({
+				product: "Test",
+				inputs: [],
+				baseDir: root,
+				inputLists: { CLI: list },
+				allowMissingInputLists,
+				outFile: join(root, "out/NOTICES.txt"),
+			});
+		expect(() => run(false)).toThrow("CLI input list");
+		expect(() => run(true)).not.toThrow();
 	});
 });

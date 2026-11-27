@@ -46,12 +46,25 @@ export const PLUGIN_RUNTIME_INPUTS = resolve(
 const LOG_PREFIX = "[third-party-notices]";
 
 // Bundles built in a separate step record what they bundled; see vite.ts and build-plugin-runtime.mts.
+// A list whose paths name no file on this machine (e.g. built relative to another directory)
+// would silently drop that bundle's packages, so strict builds reject it like a missing one.
 function readInputList(
 	label: string,
 	file: string,
 	allowMissing: boolean,
+	baseDir: string,
 ): string[] {
-	if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
+	if (existsSync(file)) {
+		const inputs: string[] = JSON.parse(readFileSync(file, "utf8"));
+		if (
+			allowMissing ||
+			inputs.some((input) => existsSync(resolve(baseDir, input.split("?")[0])))
+		)
+			return inputs;
+		throw new Error(
+			`${LOG_PREFIX} ${label} input list at ${file} names no existing file (${inputs.length} entries, first: ${inputs[0]}); notices would omit ${label}`,
+		);
+	}
 	const message = `${LOG_PREFIX} ${label} input list not found at ${file}; build ${label} first`;
 	if (!allowMissing) throw new Error(message);
 	console.warn(`${message} (notices will omit it)`);
@@ -365,7 +378,12 @@ export function generateNotices(options: GenerateNoticesOptions): {
 	const inputs = [
 		...options.inputs,
 		...Object.entries(options.inputLists ?? {}).flatMap(([label, file]) =>
-			readInputList(label, file, options.allowMissingInputLists ?? false),
+			readInputList(
+				label,
+				file,
+				options.allowMissingInputLists ?? false,
+				options.baseDir,
+			),
 		),
 	];
 	const packages = dedupe([
