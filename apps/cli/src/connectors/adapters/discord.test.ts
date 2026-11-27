@@ -406,6 +406,28 @@ describe("discordConnector", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("posts a reply longer than Discord's message limit in full", async () => {
+		const posted: string[] = [];
+		const fetchMock = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+			posted.push(JSON.parse(String(init?.body)).content);
+			return new Response(JSON.stringify({ id: "message" }), { status: 200 });
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const text = `${"a".repeat(1999)}😀${"b".repeat(2500)}`;
+
+		await __test__.postDiscordResolvedText({
+			botToken: "token",
+			thread: createThread({}),
+			text,
+		});
+
+		expect(posted.join("")).toBe(text);
+		for (const content of posted) {
+			expect(content.length).toBeLessThanOrEqual(2000);
+			expect(content).not.toMatch(/[\uD800-\uDBFF]$/);
+		}
+	});
+
 	it("repairs adapter-split hyphenated Discord mention names before resolving", async () => {
 		const fetchMock = vi.fn(async (url: string | URL) => {
 			expect(String(url)).toContain("query=cline-test-bot");

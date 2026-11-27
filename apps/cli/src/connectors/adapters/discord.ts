@@ -86,6 +86,7 @@ const DISCORD_SYSTEM_RULES = getConnectorSystemRules(
 
 const DISCORD_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 const DISCORD_GATEWAY_DURATION_MS = 1_800_000_000;
+const DISCORD_MESSAGE_LIMIT = 2000;
 
 type DiscordThreadState = ConnectorThreadState;
 type DiscordParticipant = { key: string; label?: string };
@@ -116,6 +117,21 @@ const botGuildRoleCache = new Map<string, Promise<Set<string>>>();
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
+}
+
+function chunkDiscordMessage(text: string): string[] {
+	const chunks: string[] = [];
+	let start = 0;
+	while (start < text.length) {
+		let end = Math.min(start + DISCORD_MESSAGE_LIMIT, text.length);
+		const code = text.charCodeAt(end - 1);
+		if (end < text.length && code >= 0xd800 && code <= 0xdbff) {
+			end -= 1;
+		}
+		chunks.push(text.slice(start, end));
+		start = end;
+	}
+	return chunks;
 }
 
 async function stopSessionsForApplication(
@@ -558,15 +574,17 @@ async function postDiscordResolvedText(input: {
 		await input.thread.post(resolvedText);
 		return;
 	}
-	await fetchDiscordJson({
-		botToken: input.botToken,
-		path: `/channels/${encodeURIComponent(targetChannelId)}/messages`,
-		method: "POST",
-		body: {
-			content: resolvedText.slice(0, 2000),
-			allowed_mentions: { parse: ["users"] },
-		},
-	});
+	for (const content of chunkDiscordMessage(resolvedText)) {
+		await fetchDiscordJson({
+			botToken: input.botToken,
+			path: `/channels/${encodeURIComponent(targetChannelId)}/messages`,
+			method: "POST",
+			body: {
+				content,
+				allowed_mentions: { parse: ["users"] },
+			},
+		});
+	}
 }
 
 function resolveCurrentStateWithParticipant(input: {
@@ -1601,6 +1619,7 @@ export const __test__ = {
 		},
 	) => findBindingForThread(bindings, thread),
 	persistDiscordThreadContext,
+	postDiscordResolvedText,
 	normalizeDiscordForwardedGatewayRequest,
 	resolveDiscordOutboundMentions,
 	resolveDiscordParticipant,
