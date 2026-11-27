@@ -442,6 +442,18 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
+	private async resolveLastActivityAt(row: SessionRow): Promise<string> {
+		const messagesUpdatedAt =
+			await this.manifestStore.readMessagesUpdatedAt(row);
+		if (
+			messagesUpdatedAt !== undefined &&
+			Date.parse(messagesUpdatedAt) > Date.parse(row.updatedAt)
+		) {
+			return messagesUpdatedAt;
+		}
+		return row.updatedAt;
+	}
+
 	private async reconcileDeadRunningSession(
 		row: SessionRow,
 	): Promise<SessionRow | undefined> {
@@ -467,14 +479,19 @@ export class UnifiedSessionPersistenceService {
 				terminal_marker_pid: latest.pid,
 				terminal_marker_source: UnifiedSessionPersistenceService.STALE_SOURCE,
 			};
+			// Detection can happen days after the process died, e.g. on the first
+			// listing after a restart. Stamping it as the end or update time makes
+			// an old session read as active "now" in history lists.
+			const lastActivityAt = await this.resolveLastActivityAt(latest);
 
 			const changed = await this.adapter.updateSession({
 				sessionId: latest.sessionId,
 				status: "failed",
-				endedAt: detectedAt,
+				endedAt: lastActivityAt,
 				exitCode: 1,
 				metadata: nextMetadata,
 				expectedStatusLock: latest.statusLock,
+				updatedAt: lastActivityAt,
 			});
 			if (!changed.updated) continue;
 
@@ -485,7 +502,7 @@ export class UnifiedSessionPersistenceService {
 
 			const manifest = buildManifestFromRow(latest, {
 				status: "failed",
-				endedAt: detectedAt,
+				endedAt: lastActivityAt,
 				exitCode: 1,
 				metadata: nextMetadata,
 			});
@@ -503,11 +520,11 @@ export class UnifiedSessionPersistenceService {
 			return {
 				...latest,
 				status: "failed",
-				endedAt: detectedAt,
+				endedAt: lastActivityAt,
 				exitCode: 1,
 				metadata: nextMetadata,
 				statusLock: changed.statusLock,
-				updatedAt: detectedAt,
+				updatedAt: lastActivityAt,
 			};
 		}
 		return await this.adapter.getSession(row.sessionId);
