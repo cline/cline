@@ -72,6 +72,7 @@ import {
 	reconcilePortableReasoning,
 	resolvePortableReasoning,
 } from "./routing/portable-reasoning";
+import { ThinkingTagStreamParser } from "./thinking-tags";
 import {
 	type AiSdkProviderOptionsTarget,
 	composeAiSdkProviderOptions,
@@ -1464,6 +1465,7 @@ async function* emitAiSdkEvents(
 	// error parts are matched by ID because some providers omit the
 	// providerExecuted flag on the result half of the pair.
 	const observationalProviderToolCallIds = new Set<string>();
+	const thinkingTagParser = new ThinkingTagStreamParser();
 
 	try {
 		if (stream.fullStream) {
@@ -1482,8 +1484,10 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.delta as string | undefined);
 					if (text) {
-						sawVisibleContent = true;
-						yield { type: "text-delta", text };
+						for (const event of thinkingTagParser.push(text)) {
+							sawVisibleContent = true;
+							yield event;
+						}
 					}
 					continue;
 				}
@@ -1820,8 +1824,16 @@ async function* emitAiSdkEvents(
 			}
 		} else if (stream.textStream) {
 			for await (const text of stream.textStream) {
-				yield { type: "text-delta", text };
+				for (const event of thinkingTagParser.push(text)) {
+					sawVisibleContent = true;
+					yield event;
+				}
 			}
+		}
+
+		for (const event of thinkingTagParser.flush()) {
+			sawVisibleContent = true;
+			yield event;
 		}
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
