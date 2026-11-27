@@ -4,6 +4,7 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import type { McpHub } from "@/services/mcp/McpHub"
 import { resolveMcpServerTimeoutMs } from "@/services/mcp/timeout"
 import { Logger } from "@/shared/services/Logger"
+import { getMcpSdkToolName, getMcpToolsBySdkName } from "./mcp-sdk-tool-name"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { createVscodeRunCommandsTool, VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS } from "./vscode-run-commands-tool"
 
@@ -34,7 +35,22 @@ export class McpHubToolProvider {
 			return []
 		}
 
-		return (server.tools ?? []).map((tool) => ({
+		// Approval and chat rows name the tool that has a session name in the
+		// hub, so that is the only tool a session may run under it.
+		const toolsBySdkName = getMcpToolsBySdkName(servers)
+		const tools = (server.tools ?? []).filter((tool) => {
+			const sdkToolName = getMcpSdkToolName(serverName, tool.name)
+			const namedTool = toolsBySdkName.get(sdkToolName)
+			if (namedTool?.tool === tool) {
+				return true
+			}
+			Logger.warn(
+				`[McpHubToolProvider] Left out "${tool.name}" of MCP server "${serverName}": server "${namedTool?.server.name}" already has a tool named ${sdkToolName}`,
+			)
+			return false
+		})
+
+		return tools.map((tool) => ({
 			name: tool.name,
 			description: tool.description ?? undefined,
 			inputSchema: (tool.inputSchema as Record<string, unknown>) ?? {
@@ -92,6 +108,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub, options: VscodeExtr
 				return await createMcpTools({
 					serverName: server.name,
 					provider,
+					nameTransform: ({ serverName, toolName }) => getMcpSdkToolName(serverName, toolName),
 					// Keep the tool wrapper timeout in agreement with the MCP
 					// request timeout: both derive from the server's config.
 					timeoutMs: resolveMcpServerTimeoutMs(server.config),
