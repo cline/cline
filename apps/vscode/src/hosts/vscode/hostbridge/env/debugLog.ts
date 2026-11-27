@@ -5,7 +5,14 @@ const CLINE_OUTPUT_CHANNEL = vscode.window.createOutputChannel("Cline")
 
 // Appends a log message to all Cline output channels.
 export async function debugLog(request: StringRequest): Promise<Empty> {
-	CLINE_OUTPUT_CHANNEL.appendLine(request.value)
+	try {
+		CLINE_OUTPUT_CHANNEL.appendLine(request.value)
+	} catch (error) {
+		// VS Code may dispose output channels before extension teardown finishes.
+		if (!(error instanceof Error) || error.message !== "Channel has been closed") {
+			throw error
+		}
+	}
 	return Empty.create({})
 }
 

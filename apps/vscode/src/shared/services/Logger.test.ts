@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { Logger } from "./Logger"
 
 // Production bundles replace `process.env.IS_DEV` with "false" at build time, so
@@ -122,6 +122,63 @@ describe("Logger", () => {
 			expect(last()).toBe("ERROR load failed: Error: bad settings (cause: SyntaxError)")
 		})
 	})
+
+	describe("clearSubscribers", () => {
+		it("stops all sinks from receiving messages", () => {
+			const other = mock()
+			Logger.subscribe(other)
+			Logger.clearSubscribers()
+			Logger.log("after clear")
+			expect(collectSpy()).toBe(0)
+			expect(other).toHaveBeenCalledTimes(0)
+		})
+
+		it("isolates subscribers from each other: clearing one sink does not affect the other", () => {
+			const other = mock()
+			Logger.subscribe(other)
+			Logger.unsubscribe(collect)
+			Logger.log("after unsubscribe")
+			expect(collectSpy()).toBe(0)
+			expect(other).toHaveBeenCalledTimes(1)
+		})
+	})
+
+	describe("async and throwing sinks", () => {
+		it("an async sink that rejects does not prevent other sinks from running", async () => {
+			const rejecting = mock(() => Promise.reject(new Error("sink boom")))
+			Logger.subscribe(rejecting)
+			Logger.log("shared")
+			expect(collectSpy()).toBe(1)
+			expect(rejecting).toHaveBeenCalledTimes(1)
+			Logger.unsubscribe(rejecting)
+			// let the guarded rejection settle so it cannot leak into other tests
+			await new Promise((r) => setTimeout(r, 0))
+		})
+
+		it("a sync sink that throws does not prevent other sinks from running", () => {
+			const throwing = mock(() => {
+				throw new Error("sync boom")
+			})
+			Logger.subscribe(throwing)
+			Logger.log("shared")
+			expect(throwing).toHaveBeenCalledTimes(1)
+			expect(collectSpy()).toBe(1)
+			Logger.unsubscribe(throwing)
+		})
+
+		it("accepts a sink that resolves a typed message, like the gRPC debugLog bridge", () => {
+			const grpcResponse = { result: "done" }
+			const resolving = mock(() => Promise.resolve(grpcResponse))
+			Logger.subscribe(resolving)
+			Logger.log("typed")
+			expect(resolving).toHaveBeenCalledTimes(1)
+			Logger.unsubscribe(resolving)
+		})
+	})
+
+	function collectSpy(): number {
+		return lines.length
+	}
 
 	describe("with IS_DEV=true (verbose)", () => {
 		beforeEach(() => {
