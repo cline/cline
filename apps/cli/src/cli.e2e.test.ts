@@ -193,6 +193,30 @@ describe("cli e2e", () => {
 		);
 	});
 
+	it("accepts a piped stdin prompt in json mode", () => {
+		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
+		tempDirs.push(homeDir);
+		// spawnSync's `input` hands the child a socket, not a FIFO; pipe through
+		// a shell so stdin looks like `echo ... | cline --json`.
+		const result = spawnSync(
+			"sh",
+			["-c", 'printf "say hi" | "$0" "$1" --json', bunExec, cliEntry],
+			{
+				cwd: cliRoot,
+				encoding: "utf8",
+				env: {
+					...createIsolatedEnv(),
+					HOME: homeDir,
+				},
+				timeout: 30_000,
+			},
+		);
+		expect(asText(result.stderr)).not.toContain(
+			"JSON output mode requires a prompt argument or piped stdin",
+		);
+		expect(asText(result.stdout)).toContain('"hookEventName":"agent_start"');
+	}, 30_000);
+
 	it("rejects interactive mode with json output", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		tempDirs.push(homeDir);
