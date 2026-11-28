@@ -154,7 +154,7 @@ export class PendingPromptService {
 			if (delivery === "steer" || existing.delivery === "steer") {
 				state.pendingPrompts.unshift({ ...next, delivery: "steer" });
 			} else {
-				state.pendingPrompts.push(next);
+				state.pendingPrompts.splice(existingIndex, 0, next);
 			}
 		} else {
 			const newEntry: PendingPromptEntry = {
