@@ -417,7 +417,11 @@ export class Controller {
 			},
 			shouldAutoApproveTool: (request) => {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
+				// Pass the hub so the live per-server autoApprove lists are
+				// consulted, not just the global "Use MCP servers" toggle.
+				return autoApprovalSettings
+					? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub)
+					: false
 			},
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})

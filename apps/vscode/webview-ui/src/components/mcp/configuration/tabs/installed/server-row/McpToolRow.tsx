@@ -10,11 +10,11 @@ type McpToolRowProps = {
 	serverName?: string
 }
 
-// Per-tool MCP auto-approve checkboxes are hidden for now: the SDK approval
-// path (shared with the CLI and desktop app) is all-or-nothing via the global
-// "Use MCP servers" toggle, so they would be no-ops. Flip this back on if the
-// SDK ever gains per-tool approval granularity.
-export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
+// The per-tool toggle is live now that the SDK adapter layer consumes the
+// per-server autoApprove lists (see sdk-tool-policies.ts). The toggle writes
+// the list via `toggleToolAutoApproveRPC` (McpHub.ts:1778) and the approval
+// chain reads it back per tool.
+export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = true
 
 /**
  * Shows the server's own read-only claim next to the tool name. Only a declared

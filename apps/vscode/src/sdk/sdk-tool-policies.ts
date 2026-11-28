@@ -5,13 +5,17 @@ import type { McpHub } from "@/services/mcp/McpHub"
  * Build SDK `toolPolicies` for tools governed by Cline's auto-approval UI.
  *
  * The SDK defaults unlisted tools to auto-approved. For tools controlled by
- * the AutoApproveBar toggles (including all MCP tools), force the SDK to call
- * `requestToolApproval`; the approval callback then evaluates the latest
- * settings and either silently approves or shows the approval UI. This keeps
- * active sessions in sync when the user toggles auto-approval mid-task.
+ * the AutoApproveBar toggles, force the SDK to call `requestToolApproval`;
+ * the approval callback then evaluates the latest settings and either
+ * silently approves or shows the approval UI. This keeps active sessions in
+ * sync when the user toggles auto-approval mid-task. MCP tools are the one
+ * exception to the force-to-false rule: a tool named in its server's
+ * `autoApprove` list (stamped onto the tool object by `McpHub`) gets a
+ * per-tool `autoApprove: true` policy, so it runs silently; every other MCP
+ * tool keeps `autoApprove: false` and goes through the approval callback.
  */
 export function buildToolPolicies(
-	_settings: AutoApprovalSettings,
+	settings: AutoApprovalSettings,
 	mcpHub?: McpHub,
 ): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
 	const policies: Record<string, { enabled?: boolean; autoApprove?: boolean }> = {}
@@ -31,7 +35,12 @@ export function buildToolPolicies(
 		for (const server of mcpHub.getServers()) {
 			for (const tool of server.tools ?? []) {
 				const sdkName = `${server.name}__${tool.name}`
-				policies[sdkName] = { autoApprove: false }
+				// The global "Use MCP servers" toggle stays the master switch;
+				// the per-server list refines it. `tool.autoApprove` is the
+				// list membership flag stamped by `McpHub.fetchToolsList`.
+				policies[sdkName] = {
+					autoApprove: !!settings.actions.useMcp && tool.autoApprove === true,
+				}
 			}
 		}
 	}
@@ -45,7 +54,11 @@ export function buildToolPolicies(
  * approval callback, so changes from the AutoApproveBar are respected even if
  * an SDK session was created before the toggle changed.
  */
-export function isToolAutoApproved(toolName: string, settings: AutoApprovalSettings): boolean {
+export function isToolAutoApproved(
+	toolName: string,
+	settings: AutoApprovalSettings,
+	mcpHub?: McpHub,
+): boolean {
 	if (isReadTool(toolName)) {
 		return !!settings.actions.readFiles
 	}
@@ -60,11 +73,33 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 	}
 
 	if (isMcpToolName(toolName)) {
-		// One global toggle governs all MCP tools; there is no per-tool opt-in.
-		return !!settings.actions.useMcp
+		// The global toggle is the master switch; the per-server list
+		// decides per tool. Without a hub we cannot verify list
+		// membership, so keep the legacy global behavior for callers
+		// that do not pass one.
+		if (!mcpHub) {
+			return !!settings.actions.useMcp
+		}
+		if (!settings.actions.useMcp) {
+			return false
+		}
+		return isMcpToolListed(toolName, mcpHub)
 	}
 
 	return false
+}
+
+/** True when `toolName` (`serverName__toolName`) is on its server's `autoApprove` list. */
+function isMcpToolListed(toolName: string, mcpHub: McpHub): boolean {
+	const separatorIndex = toolName.indexOf("__")
+	const serverName = toolName.slice(0, separatorIndex)
+	const bareToolName = toolName.slice(separatorIndex + 2)
+	const server = mcpHub.getServers().find((s) => s.name === serverName)
+	if (!server) {
+		return false
+	}
+	const tool = (server.tools ?? []).find((t) => t.name === bareToolName)
+	return tool?.autoApprove === true
 }
 
 function isReadTool(toolName: string): boolean {
