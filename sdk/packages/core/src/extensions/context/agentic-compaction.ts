@@ -65,13 +65,21 @@ function isRejectedToolInputError(content: string): boolean {
 		// Tool results may also persist as plain error text.
 	}
 
-	const trimmed = errorText.trim();
-	return (
-		trimmed === "✖ Invalid input" ||
-		/^✖ Unrecognized key: ".+"\n✖ Invalid input: expected .+ → at \S+$/u.test(
-			trimmed,
-		)
-	);
+	const lines = errorText.trim().split("\n");
+	let hasValidationIssue = false;
+	for (const line of lines) {
+		if (
+			/^✖ (?:Invalid input(?:: expected .+)?|Unrecognized key: .+)$/u.test(line)
+		) {
+			hasValidationIssue = true;
+			continue;
+		}
+		if (hasValidationIssue && /^\s+→ at \S+$/u.test(line)) {
+			continue;
+		}
+		return false;
+	}
+	return hasValidationIssue;
 }
 
 function removeRejectedToolInputPairs(

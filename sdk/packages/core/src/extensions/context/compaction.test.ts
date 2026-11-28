@@ -4,11 +4,16 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
 } from "../../session/models/session-compaction";
 import type { CoreCompactionContext } from "../../types/config";
+import {
+	AskQuestionInputSchema,
+	RunCommandsInputUnionSchema,
+} from "../tools/schemas";
 import { buildAgenticSummaryInputBudget } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
@@ -2434,8 +2439,47 @@ describe("createContextCompactionPrepareTurn", () => {
 		const messages: MessageWithMetadata[] = [
 			{ role: "user", content: "<task>Build the feature</task>" },
 		];
+		const askQuestionResult = AskQuestionInputSchema.safeParse({});
+		if (askQuestionResult.success) {
+			throw new Error("Expected ask_question input validation to fail");
+		}
+		const askQuestionError = z.prettifyError(askQuestionResult.error);
+		const runCommandsResult = RunCommandsInputUnionSchema.safeParse({
+			arguments: '{"commands":["pwd"]}',
+		});
+		if (runCommandsResult.success) {
+			throw new Error("Expected run_commands input validation to fail");
+		}
+		const runCommandsError = z.prettifyError(runCommandsResult.error);
+		expect(
+			RunCommandsInputUnionSchema.safeParse({ commands: ["bad"] }).success,
+		).toBe(true);
 		for (let i = 0; i < 12; i++) {
 			const rejectedInput = i === 10 || i === 11;
+			const toolName =
+				i === 11
+					? "ask_question"
+					: i === 10 || i === 8
+						? "run_commands"
+						: "read_files";
+			const toolInput =
+				i === 11
+					? {}
+					: i === 10
+						? { arguments: '{"commands":["pwd"]}' }
+						: i === 8
+							? { commands: ["bad"] }
+							: { file_paths: [`/tmp/f${i}.ts`] };
+			const toolOutput =
+				i === 11
+					? askQuestionError
+					: i === 10
+						? runCommandsError
+						: i === 8
+							? "invalid input syntax for type uuid"
+							: i === 9
+								? "ENOENT: no such file or directory"
+								: "x".repeat(1_500);
 			messages.push({
 				role: "assistant",
 				content: [
@@ -2452,13 +2496,19 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_use",
 						id: `loop-tool-${i}`,
-						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
-						input: rejectedInput
-							? { arguments: '{"commands":["pwd"]}' }
-							: i === 8
-								? { commands: ["bad"] }
-								: { file_paths: [`/tmp/f${i}.ts`] },
+						name: toolName,
+						input: toolInput,
 					},
+					...(i === 10
+						? [
+								{
+									type: "tool_use" as const,
+									id: "loop-tool-10-parallel",
+									name: "read_files",
+									input: { file_paths: ["/tmp/parallel.ts"] },
+								},
+							]
+						: []),
 				],
 			});
 			messages.push({
@@ -2467,21 +2517,25 @@ describe("createContextCompactionPrepareTurn", () => {
 					{
 						type: "tool_result",
 						tool_use_id: `loop-tool-${i}`,
-						name: rejectedInput || i === 8 ? "run_commands" : "read_files",
+						name: toolName,
 						content: rejectedInput
-							? JSON.stringify({
-									error:
-										i === 11
-											? '✖ Unrecognized key: "arguments"\n✖ Invalid input: expected array, received undefined → at commands'
-											: "✖ Invalid input",
-								})
-							: i === 8
-								? "invalid input syntax for type uuid"
-								: i === 9
-									? "ENOENT: no such file or directory"
-									: "x".repeat(1_500),
-						...(i === 8 || i === 9 || rejectedInput ? { is_error: true } : {}),
+							? JSON.stringify({ error: toolOutput })
+							: toolOutput,
+						...(rejectedInput || i === 8 || i === 9 ? { is_error: true } : {}),
 					},
+					...(i === 10
+						? [
+								{
+									type: "tool_result" as const,
+									tool_use_id: "loop-tool-10-parallel",
+									name: "read_files",
+									content: "parallel successful result",
+								},
+							]
+						: []),
+					...(i === 11
+						? [{ type: "text" as const, text: "Follow-up text to preserve" }]
+						: []),
 				],
 			});
 		}
@@ -2554,11 +2608,60 @@ describe("createContextCompactionPrepareTurn", () => {
 		for (const id of toolResultIds2) {
 			expect(toolUseIds2.has(id)).toBe(true);
 		}
-		expect(toolUseIds2).not.toContain("loop-tool-11");
 		expect(toolUseIds2).toContain("loop-tool-8");
 		expect(toolUseIds2).toContain("loop-tool-9");
 		expect(toolUseIds2).not.toContain("loop-tool-10");
+		expect(toolUseIds2).not.toContain("loop-tool-11");
+		expect(toolUseIds2).toContain("loop-tool-10-parallel");
 		expect(resumedMessages?.at(-1)?.role).toBe("user");
+		expect(resumedMessages?.at(-1)?.content).toContainEqual({
+			type: "text",
+			text: "Follow-up text to preserve",
+		});
+		expect(
+			resumedMessages?.some(
+				(message) =>
+					message.role === "assistant" &&
+					Array.isArray(message.content) &&
+					message.content.some(
+						(block) =>
+							block.type === "thinking" ||
+							(block.type === "text" &&
+								block.text === "Attempting the command."),
+					),
+			),
+		).toBe(false);
+		expect(
+			resumedMessages?.some(
+				(message, index, all) =>
+					message.role === "user" && all[index + 1]?.role === "user",
+			),
+		).toBe(true);
+		const survivingBlocks = resumedMessages?.flatMap((message) =>
+			Array.isArray(message.content) ? message.content : [],
+		);
+		const survivingErrorResults = survivingBlocks?.filter(
+			(block) => block.type === "tool_result" && block.is_error === true,
+		);
+		expect(survivingErrorResults).toContainEqual(
+			expect.objectContaining({
+				tool_use_id: "loop-tool-8",
+				content: "invalid input syntax for type uuid",
+			}),
+		);
+		expect(survivingErrorResults).toContainEqual(
+			expect.objectContaining({
+				tool_use_id: "loop-tool-9",
+				content: "ENOENT: no such file or directory",
+			}),
+		);
+		expect(
+			survivingBlocks?.find(
+				(block) =>
+					block.type === "tool_result" &&
+					block.tool_use_id === "loop-tool-10-parallel",
+			),
+		).toMatchObject({ content: "parallel successful result" });
 	});
 
 	it("re-compacts a projection that starts with a compaction summary", async () => {
