@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { zstdDecompressSync } from "node:zlib";
 import type * as LlmsProviders from "@cline/llms";
 import { nanoid } from "nanoid";
 import { codexHomeDir } from "./paths";
@@ -20,6 +21,18 @@ interface CodexLine {
 
 function isRecord(value: unknown): value is JsonRecord {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRolloutFile(name: string): boolean {
+	return (
+		name.startsWith("rollout-") &&
+		(name.endsWith(".jsonl") || name.endsWith(".jsonl.zst"))
+	);
+}
+
+function readRolloutFile(file: string): string {
+	if (!file.endsWith(".jsonl.zst")) return readFileSync(file, "utf8");
+	return zstdDecompressSync(readFileSync(file)).toString("utf8");
 }
 
 function parseLine(line: string): CodexLine | undefined {
@@ -196,11 +209,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 				const full = join(dir, entry.name);
 				if (entry.isDirectory()) {
 					walk(full);
-				} else if (
-					entry.isFile() &&
-					entry.name.startsWith("rollout-") &&
-					entry.name.endsWith(".jsonl")
-				) {
+				} else if (entry.isFile() && isRolloutFile(entry.name)) {
 					files.push(full);
 				}
 			}
@@ -240,7 +249,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		const best = new Map<string, { file: string; meta: CodexFileMeta }>();
 		for (const file of this.sessionFiles()) {
 			try {
-				const meta = scanFileMeta(readFileSync(file, "utf8"));
+				const meta = scanFileMeta(readRolloutFile(file));
 				const userCount = meta.userMessageCount || meta.fallbackUserCount;
 				if (!meta.sessionId || userCount === 0) continue;
 				const candidate = { file, meta };
@@ -293,7 +302,7 @@ export class CodexImportAdapter implements SessionImportAdapter {
 		if (!file) {
 			throw new Error(`Codex session ${sourceId} not found`);
 		}
-		const raw = readFileSync(file, "utf8");
+		const raw = readRolloutFile(file);
 		const meta = scanFileMeta(raw);
 		const titles = this.readTitleIndex();
 
