@@ -29,6 +29,29 @@ describe("PendingPromptService", () => {
 		expect(state.pendingPrompts).toHaveLength(2);
 	});
 
+	it("keeps an updated duplicate in its original queue position", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+		const [first] = service.enqueue(state, {
+			prompt: "first",
+			delivery: "queue",
+			userImages: ["image"],
+		});
+		const [, second] = service.enqueue(state, {
+			prompt: "second",
+			delivery: "queue",
+		});
+
+		expect(
+			service.enqueue(state, {
+				prompt: "first",
+				delivery: "queue",
+				userFiles: ["file"],
+			}),
+		).toEqual([{ ...first, userFiles: ["file"], attachmentCount: 2 }, second]);
+		expect(service.shiftNext(state).entry?.id).toBe(first?.id);
+	});
+
 	it("updates prompts and reorders when delivery changes", () => {
 		const service = new PendingPromptService();
 		const state = createState();
@@ -172,8 +195,16 @@ describe("PendingPromptService", () => {
 		if (mutation === "remove") {
 			controller.delete({ sessionId: "session", promptId: staleHead.id });
 		} else if (mutation === "reorder") {
-			// Re-enqueueing the same queued text moves that entry to the tail.
-			controller.enqueue("session", { prompt: "first", delivery: "queue" });
+			controller.update({
+				sessionId: "session",
+				promptId: staleHead.id,
+				delivery: "steer",
+			});
+			controller.update({
+				sessionId: "session",
+				promptId: staleHead.id,
+				delivery: "queue",
+			});
 		} else {
 			controller.enqueue("session", { prompt: "urgent", delivery: "steer" });
 		}
