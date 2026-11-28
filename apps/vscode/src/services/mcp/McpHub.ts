@@ -7,7 +7,7 @@ import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
 	CallToolResultSchema,
 	ErrorCode,
@@ -1741,8 +1741,54 @@ export class McpHub {
 			}
 		} catch (error) {
 			mark("error", error instanceof Error ? error.message : String(error))
+
+			// Remote OAuth servers can start rejecting requests after their
+			// token is revoked or expires mid-session. Without this the server
+			// keeps looking "connected" and the user never gets an
+			// Authenticate/Retry action. Stdio servers have no authProvider, so
+			// they can never be marked oauthRequired by a tool-call error.
+			if (connection.authProvider && this.isUnauthorizedMcpError(error)) {
+				await this.markServerUnauthenticated(
+					connection,
+					"Authentication failed (401 Unauthorized). Re-authenticate this server to reconnect.",
+				)
+			}
+
 			throw augmentMcpTimeoutError(error, serverName, timeout)
 		}
+	}
+
+	/**
+	 * Returns true when a tool-call failure means the server rejected the
+	 * current credentials, rather than the tool itself failing.
+	 *
+	 * Only the SDK's own error types count: `UnauthorizedError` when the
+	 * transport reports an auth failure, and `StreamableHTTPError` with a 401
+	 * status when a token refresh succeeded but the server still rejected the
+	 * request. Anything else (500s, tool errors that merely mention 401 in
+	 * their message) keeps the previous behaviour.
+	 */
+	private isUnauthorizedMcpError(error: unknown): boolean {
+		if (error instanceof UnauthorizedError) {
+			return true
+		}
+		return error instanceof StreamableHTTPError && error.code === 401
+	}
+
+	/**
+	 * Marks a connected server as disconnected and unauthenticated so the
+	 * webview replaces its tool/Retry UI with an Authenticate action. The
+	 * authProvider stays on the connection so authenticating can reconnect.
+	 */
+	private async markServerUnauthenticated(connection: McpConnection, errorMessage: string): Promise<void> {
+		connection.server.status = "disconnected"
+		connection.server.oauthRequired = true
+		connection.server.oauthAuthStatus = "unauthenticated"
+		connection.server.error = errorMessage
+
+		await this.notifyWebviewOfServerChanges().catch((notifyError) => {
+			Logger.error(`Failed to publish unauthenticated state for "${connection.server.name}":`, notifyError)
+		})
 	}
 
 	async readResource(serverName: string, uri: string, signal?: AbortSignal): Promise<ReadResourceResult> {

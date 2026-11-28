@@ -121,6 +121,14 @@ export class StreamableHttpReconnectHandler {
 			return
 		}
 
+		// The same 401 is delivered to both callTool and transport.onerror.
+		// callTool marks the connection as waiting for the user to
+		// authenticate; reconnecting here would overwrite that state (and
+		// with issue #15704's server, hide the Authenticate action).
+		if (connection.server.oauthRequired) {
+			return
+		}
+
 		if (this.attempts >= this.config.maxAttempts) {
 			// Max retries exhausted
 			Logger.error(
@@ -152,6 +160,13 @@ export class StreamableHttpReconnectHandler {
 		// Verify connection still exists and hasn't been replaced during the delay
 		const currentConnection = this.callbacks.findConnection()
 		if (!currentConnection || currentConnection !== connection) {
+			return
+		}
+
+		// The tool call that produced the same 401 may have marked this
+		// connection as OAuth-required while we were backing off; leave it
+		// to the user instead of clobbering the Authenticate state.
+		if (currentConnection.server.oauthRequired) {
 			return
 		}
 
